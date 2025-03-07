@@ -1,0 +1,20 @@
+# Base requirements
+python-dotenv==1.0.1
+requests==2.32.3
+
+# OpenAI API for text rewriting
+openai==0.28.0
+
+# Google API for document access
+google-api-python-client==2.163.0
+google-auth==2.38.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.1
+
+# Reddit API for content downloading
+praw==7.8.1
+
+# HTML parsing
+beautifulsoup4==4.13.3
+
+# Media processing tools (ffmpeg should be installed separately) 
