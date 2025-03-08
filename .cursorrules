@@ -1,0 +1,108 @@
+# Auto Shorts Web App - Cursor Rules
+
+## Git Commit Conventions
+
+Use the following prefixes for commit messages followed by a colon and a space:
+- "fix:" for bug fixes
+- "feat:" for new features
+- "perf:" for performance improvements
+- "docs:" for documentation changes
+- "style:" for formatting changes
+- "refactor:" for code refactoring
+- "test:" for adding missing tests
+- "chore:" for chore tasks
+
+When determining the commit message prefix, pick the most relevant prefix from the list above.
+Use lower case for commit messages.
+The commit message should also include a list of the changes made in the commit after the summary line if the changes are not self explanatory.
+
+## Project Structure & Naming Conventions
+
+### Directories and Files
+- Use lowercase with hyphens for directories (e.g., `components/auth-form`, `services/video-processing`)
+- Use PascalCase for React component files (e.g., `UserLogin.jsx`)
+- Use camelCase for utility files (e.g., `apiClient.js`, `videoUtils.js`)
+- Use snake_case for Python files in the backend (e.g., `content_retrieval.py`)
+
+### Component Structure
+- Structure React components: imports, component, helpers, exports
+- Structure Python modules: imports, constants, functions, classes, exports
+
+## Frontend Conventions (Next.js + React)
+
+### React Components
+- Use functional components (not class components)
+- Keep components small and focused on a single responsibility
+- Separate UI from business logic when possible
+- Use descriptive names with auxiliary verbs (e.g., `isLoading`, `hasError`)
+
+### Styling with Tailwind
+- Use Tailwind classes directly in components
+- Create reusable UI components for common patterns
+- Follow mobile-first responsive design approach
+- Use CSS variables for theme colors and consistent spacing
+
+### Performance Guidelines
+- Optimize images for web delivery
+- Minimize client-side state where possible
+- Use appropriate loading states and fallbacks
+- Implement code splitting for larger components
+
+## Backend Conventions (FastAPI + Python)
+
+### API Design
+- Use RESTful principles for endpoint design
+- Implement proper status codes and error responses
+- Document all endpoints with OpenAPI specifications
+- Use async functions for I/O bound operations
+
+### Python Code Style
+- Follow PEP 8 style guidelines
+- Use type hints for function parameters and return values
+- Keep functions concise and single-purpose
+- Document functions with docstrings
+
+### Security Practices
+- Never expose API keys in frontend code
+- Validate all user inputs
+- Implement proper authentication and authorization
+- Use environment variables for sensitive configuration
+
+## Media Processing Guidelines
+
+### Content Retrieval
+- Implement proper error handling for external APIs
+- Cache commonly accessed content when appropriate
+- Use appropriate timeouts for external requests
+- Handle rate limiting gracefully
+
+### Video Generation
+- Optimize for quality-to-file-size ratio
+- Implement proper progress tracking for long-running processes
+- Handle concurrent processing requests efficiently
+- Clean up temporary files after processing
+
+## End of Chat Commit Summary
+
+At the end of each productive chat where files have been modified, Claude will:
+
+1. Provide a recommended commit message following the standard conventions above
+2. List all files that have been changed and need to be committed
+3. Provide simple instructions for what needs to be done to commit these changes
+
+## Example Commit Summary Format
+
+```
+## Commit Summary
+
+feat: add user authentication component
+
+Files to commit:
+- web/frontend/src/components/Auth.js (new)
+- web/frontend/src/pages/login.js (modified)
+
+To commit these changes:
+1. Click the "+" next to each file in the Source Control panel
+2. Enter the commit message above in the message box
+3. Click "Commit"
+4. If prompted to "Save All & Commit Changes", choose this option 

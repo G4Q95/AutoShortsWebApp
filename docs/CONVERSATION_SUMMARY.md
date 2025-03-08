@@ -72,3 +72,7 @@ The following documents were created to capture the detailed plans:
 2. **PROJECT_INSTRUCTIONS.md**: Detailed implementation guide with file structure, development steps, and key notes
 
 These documents serve as the primary reference for developing the Auto Shorts Web App. 
+
+Here is a link to a google doc with more of the questions from me and clourd 3.7 sonnet thinkings responses 
+
+https://docs.google.com/document/d/1rW49X6OtrpivQaOtDGTMMLGTiPHLH8EFBNns3ElzHwQ/edit?tab=t.0#heading=h.jehr891995sf
