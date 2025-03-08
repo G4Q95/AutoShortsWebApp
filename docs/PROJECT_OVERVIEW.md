@@ -1,0 +1,109 @@
+# AUTO SHORTS WEB APP - PROJECT OVERVIEW
+
+## Core Concept
+A web application that allows users to convert social media content (primarily from Reddit) into engaging short-form videos by:
+1. Retrieving content from URLs
+2. Rewriting text using AI
+3. Generating voiceovers
+4. Assembling videos with the content and voiceover
+
+## Business Model
+- **Freemium approach** with tiered access:
+  - Free tier with limited features and usage caps
+  - Premium tier ($15/month) with expanded features and higher limits
+  - Pro tier ($30/month) with unlimited access and priority processing
+
+## Key Technical Decisions
+
+### Pay-As-You-Go (PAYG) Architecture
+- All infrastructure components use PAYG pricing models
+- No fixed monthly costs for idle resources
+- Services scale up and down with actual usage
+- Cost-efficient for early stages with few users
+
+### API Costs Management
+- OpenAI API costs approximately $0.001-0.002 per post with GPT-3.5
+- ElevenLabs costs approximately $0.014-0.027 per video (standard voices)
+- Implementation of caching strategies to reduce duplicate API calls
+- Hard caps per user to prevent cost overruns
+
+### Cost Breakdown for 1,000 Active Free Users
+- OpenAI API (GPT-3.5): $10-20/month
+- ElevenLabs: $70-140/month
+- Google Cloud Run: $10-30/month
+- Cloudflare R2: $2.50/month
+- MongoDB Atlas: $0/month (free tier)
+- Vercel: $0/month (free tier)
+- **Total**: $92.50-192.50/month
+
+### Technology Selection Rationale
+
+#### Frontend: Next.js with React
+- Best for media-heavy applications
+- SEO benefits for attracting users
+- Excellent developer experience
+- Scales well with Vercel hosting
+
+#### Backend: FastAPI (Python)
+- Reuse existing Python code from legacy scripts
+- High performance for concurrent requests
+- Automatic API documentation
+- Well-suited for asynchronous operations
+
+#### Database: MongoDB Atlas
+- Free tier to start
+- Flexible schema for varied content types
+- PAYG scaling beyond free tier
+- Good Python integration
+
+#### Storage: Cloudflare R2
+- No egress fees (critical for video delivery)
+- S3-compatible API
+- Pay only for what you store
+- Global distribution network
+
+#### Media Processing: Google Cloud Run
+- Container-based for FFMPEG integration
+- No minimum instances (scales to zero)
+- No time limits for video processing
+- Better free tier than alternatives
+
+#### Hosting: Vercel
+- Optimized for Next.js
+- Global CDN included
+- Free tier sufficient for early stage
+- Seamless integration with GitHub
+
+## Development Timeline
+- Total development time: 10 weeks
+- Four phases of development:
+  1. Foundation Building (Weeks 1-3)
+  2. Web Application Development (Weeks 4-6)
+  3. Processing Pipeline & Storage Optimization (Weeks 7-8)
+  4. Testing & Initial Deployment (Weeks 9-10)
+
+## Key Features by Release
+1. **MVP (Week 10)**:
+   - URL-based content submission
+   - Basic video generation
+   - Google authentication
+   - Free tier limitations
+
+2. **Version 1.1**:
+   - Enhanced video editing options
+   - Multiple voice styles
+   - Improved UI/UX
+   - Better customization options
+
+3. **Version 2.0**:
+   - Additional content sources
+   - Background music options
+   - Video templates
+   - Advanced analytics
+
+## Scaling Considerations
+- Architecture supports up to ~5,000 free users or ~1,000 premium users before significant restructuring
+- MongoDB Atlas can be upgraded to dedicated clusters as demand grows
+- Google Cloud Run configurations can be adjusted for higher performance
+- Additional API optimizations can be implemented at scale
+- Consider transitioning some components to reserved instances once usage patterns are established 
