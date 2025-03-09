@@ -1,6 +1,6 @@
 # Auto Shorts Web App - Cursor Rules
 
-You are an expert in Next.js with React along with FastAPI (Python), MongoDB Atlas, Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies.
+You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python), MongoDB Atlas, Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies.
 
 ## Git Commit Conventions
 
@@ -63,6 +63,13 @@ To commit these changes:
 - Keep components small and focused on a single responsibility
 - Separate UI from business logic when possible
 - Use descriptive names with auxiliary verbs (e.g., `isLoading`, `hasError`)
+
+### Styling with Tailwind CSS
+- Use Tailwind classes directly in components
+- Create reusable UI components for common patterns
+- Follow desktop-first design with mobile responsiveness
+- Use CSS variables for theme colors and consistent spacing
+- Leverage Tailwind's responsive prefixes for adaptive layouts
 
 ### Performance Guidelines
 - Optimize images for web delivery
