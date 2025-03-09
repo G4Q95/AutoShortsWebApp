@@ -10,6 +10,17 @@ This application enables users to:
 3. Generate voiceovers
 4. Assemble videos with the content and voiceover
 
+## Video Creation Process
+
+The application features an intuitive workflow:
+
+1. **Create a Project:** Start by naming your video project
+2. **Add Content:** Enter Reddit URLs to extract content
+3. **Organize Scenes:** Each URL becomes a draggable scene containing the media and text
+4. **Customize:** Rearrange scenes, edit text, and adjust settings
+5. **Generate:** Process your project into a complete short-form video
+6. **Share:** Download and share to social media platforms
+
 ## Technology Stack
 
 - **Frontend**: Next.js with React + Tailwind CSS
@@ -55,6 +66,17 @@ Auto Shorts Web App/
 └── README.md               # This file
 ```
 
+## Current Development Status
+
+- Basic infrastructure setup completed
+- Connected frontend and backend services
+- Implemented URL submission form
+- Enhanced error handling functionality
+- Working on:
+  - Fixing Not-Found page errors
+  - Improving Reddit content extraction
+  - Building the project workspace with draggable scenes
+
 ## Development Setup
 
 ### Frontend (Next.js)
@@ -72,14 +94,14 @@ The frontend will be available at `http://localhost:3000`.
 ```bash
 cd web/backend
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8001
 ```
 
-The backend API will be available at `http://localhost:8000`.
+The backend API will be available at `http://localhost:8001`.
 
 API documentation will be available at:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+- Swagger UI: `http://localhost:8001/docs`
+- ReDoc: `http://localhost:8001/redoc`
 
 ## Deployment
 
@@ -90,6 +112,7 @@ API documentation will be available at:
 
 1. **MVP**:
    - URL-based content submission
+   - Project workspace with draggable scenes
    - Basic video generation
    - Google authentication
    - Free tier limitations

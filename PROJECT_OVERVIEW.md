@@ -7,6 +7,17 @@ A web application that allows users to convert social media content (primarily f
 3. Generating voiceovers
 4. Assembling videos with the content and voiceover
 
+## Enhanced Video Project Experience (New)
+The application will feature an intuitive video project creation workflow:
+1. Users enter a project title to create a new video project
+2. Within the project workspace, users can add Reddit URLs (and later other sources)
+3. Each URL becomes a "scene" displaying:
+   - The extracted media (image/video) from the URL
+   - The accompanying text content below the media
+4. Scenes can be dragged and reordered to determine the final video sequence
+5. Users can edit text content and customize each scene
+6. The entire project can be processed into a seamless short-form video
+
 ## Business Model
 - **Freemium approach** with tiered access:
   - Free tier with limited features and usage caps
@@ -43,6 +54,7 @@ A web application that allows users to convert social media content (primarily f
 - SEO benefits for attracting users
 - Excellent developer experience
 - Scales well with Vercel hosting
+- React DnD or react-beautiful-dnd for drag-and-drop scene ordering
 
 #### Backend: FastAPI (Python)
 - Reuse existing Python code from legacy scripts
@@ -82,9 +94,18 @@ A web application that allows users to convert social media content (primarily f
   3. Processing Pipeline & Storage Optimization (Weeks 7-8)
   4. Testing & Initial Deployment (Weeks 9-10)
 
+## Current Development Status
+- Infrastructure setup completed
+- Basic frontend and backend connected
+- URL submission form implemented
+- Error handling system created
+- Working on Reddit content extraction and display
+- Next focus: Implementing the project workspace with draggable scenes
+
 ## Key Features by Release
 1. **MVP (Week 10)**:
    - URL-based content submission
+   - Project workspace with draggable scenes
    - Basic video generation
    - Google authentication
    - Free tier limitations

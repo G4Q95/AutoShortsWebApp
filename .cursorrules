@@ -2,6 +2,17 @@
 
 You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python), MongoDB Atlas, Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies.
 
+## Current Development Focus
+
+The current focus is on implementing a video project workspace with draggable scenes:
+1. First fixing the Not-Found page component error
+2. Enhancing Reddit content extraction to properly handle redirects and fetch media
+3. Creating the video project workspace with these key components:
+   - Project creation flow (title input → workspace)
+   - Scene components displaying media and text from Reddit URLs
+   - Drag-and-drop functionality for scene reordering
+   - Project state management for scene data
+
 ## Git Commit Conventions
 
 Use the following prefixes for commit messages followed by a colon and a space:
@@ -70,6 +81,13 @@ To commit these changes:
 - Follow desktop-first design with mobile responsiveness
 - Use CSS variables for theme colors and consistent spacing
 - Leverage Tailwind's responsive prefixes for adaptive layouts
+
+### Video Project Components
+- Create `ProjectWorkspace` as a container for the entire project
+- Implement `SceneComponent` to display media and text from a URL
+- Use `react-beautiful-dnd` for drag-and-drop functionality
+- Implement context providers for project state management
+- Create utility functions for scene manipulation
 
 ### Performance Guidelines
 - Optimize images for web delivery

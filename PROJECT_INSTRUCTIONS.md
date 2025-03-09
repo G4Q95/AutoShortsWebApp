@@ -40,7 +40,35 @@ Auto Shorts Web App/           # Main repository
 └── .gitignore                 # Git ignore file
 ```
 
-## Development Steps
+## Current Implementation Tasks
+
+### 1. Fix Not-Found Page Error
+- Resolve "The default export of notFound is not a React Component" error
+- Properly implement the 404 page for better user experience
+
+### 2. Enhanced Reddit Content Extraction
+- Fix the Reddit URL 302 redirect handling issue
+- Implement proper headers and user agent for Reddit API requests
+- Extract content (text, images, videos) from Reddit URLs
+
+### 3. Project Workspace Implementation
+- Create a new project creation flow:
+  1. Enter project title to create a new project
+  2. Project workspace with scene management
+- Implement scene components that display:
+  - Extracted media (image/video)
+  - Text content
+  - Basic controls
+- Add drag-and-drop functionality for scene reordering
+- Implement project state management
+
+### 4. Future Tasks
+- Complete video processing pipeline
+- Add user authentication
+- Implement premium features and payment processing
+- Optimize for production deployment
+
+## Original Development Steps (for reference)
 1. Create the directory structure
 2. Move existing scripts to legacy/
 3. Initialize Next.js in web/frontend
@@ -54,6 +82,13 @@ Auto Shorts Web App/           # Main repository
 11. Deploy to chosen infrastructure
 
 ## Key Implementation Notes
+
+### Enhanced User Interface
+- Implement project-based workflow for video creation
+- Create intuitive scene management with drag-and-drop ordering
+- Design responsive scene components that display media and text
+- Add real-time preview of content extraction
+- Implement visual indicators for process status
 
 ### Cost Control Mechanisms
 - Implement usage tracking and analytics from day one
