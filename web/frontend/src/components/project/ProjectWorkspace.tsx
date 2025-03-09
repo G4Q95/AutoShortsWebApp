@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProject } from './ProjectProvider';
 import SceneComponent from './SceneComponent';
-import { PlusCircle as PlusCircleIcon } from 'lucide-react';
+import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon, AlertTriangle as AlertIcon } from 'lucide-react';
+import ErrorDisplay from '../ErrorDisplay';
 
 interface ProjectWorkspaceProps {
   projectId?: string;
@@ -17,29 +18,120 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     updateSceneText, 
     setProjectTitle, 
     createProject,
+    isLoading,
     error 
   } = useProject();
   
   const [newUrl, setNewUrl] = useState('');
   const [isCreating, setIsCreating] = useState(!projectId);
   const [title, setTitle] = useState('');
+  const [isAddingScene, setIsAddingScene] = useState(false);
+  const [addSceneError, setAddSceneError] = useState<string | null>(null);
+  const [apiStatus, setApiStatus] = useState<{isChecked: boolean, isAvailable: boolean}>({
+    isChecked: false,
+    isAvailable: false
+  });
+  
+  // Debug information
+  const [debugInfo, setDebugInfo] = useState<{
+    lastAction: string;
+    timestamp: number;
+    details?: any;
+  } | null>(null);
+
+  // Check if we're on the right page/component
+  useEffect(() => {
+    console.log('ProjectWorkspace component mounted', { projectId, currentProject });
+    setDebugInfo({
+      lastAction: 'Component mounted',
+      timestamp: Date.now(),
+      details: { projectId, hasCurrentProject: !!currentProject }
+    });
+  }, [projectId, currentProject]);
   
   // Handle project creation
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     
+    setDebugInfo({
+      lastAction: 'Creating project',
+      timestamp: Date.now(),
+      details: { title }
+    });
+    
     createProject(title.trim());
     setIsCreating(false);
   };
   
   // Handle adding a new scene
-  const handleAddScene = (e: React.FormEvent) => {
+  const handleAddScene = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUrl.trim()) return;
     
-    addScene(newUrl.trim());
-    setNewUrl('');
+    setIsAddingScene(true);
+    setAddSceneError(null);
+    
+    // Update debug info
+    setDebugInfo({
+      lastAction: 'Adding scene',
+      timestamp: Date.now(),
+      details: { url: newUrl.trim() }
+    });
+    
+    try {
+      console.log('Adding scene with URL:', newUrl.trim());
+      await addScene(newUrl.trim());
+      setNewUrl('');
+      
+      // Update debug info on success
+      setDebugInfo(prev => ({
+        lastAction: 'Scene added successfully',
+        timestamp: Date.now(),
+        details: { 
+          url: newUrl.trim(),
+          previousAction: prev?.lastAction 
+        }
+      }));
+    } catch (error) {
+      console.error('Error adding scene:', error);
+      setAddSceneError(error instanceof Error ? error.message : 'Failed to add scene');
+      
+      // Update debug info on error
+      setDebugInfo(prev => ({
+        lastAction: 'Error adding scene',
+        timestamp: Date.now(),
+        details: { 
+          url: newUrl.trim(),
+          error: error instanceof Error ? error.message : 'Unknown error',
+          previousAction: prev?.lastAction 
+        }
+      }));
+    } finally {
+      setIsAddingScene(false);
+    }
+  };
+  
+  // Pre-fill the input with the example URL for testing
+  const fillExampleUrl = () => {
+    setNewUrl('https://www.reddit.com/r/ARTIST/comments/1j6sswr/what_comes_to_ur_mind_when_seeing_my_art/');
+  };
+  
+  // Handle retrying scene loading
+  const handleRetryLoad = async (url: string) => {
+    try {
+      // Update debug info
+      setDebugInfo({
+        lastAction: 'Retrying scene load',
+        timestamp: Date.now(),
+        details: { url }
+      });
+      
+      await addScene(url);
+    } catch (error) {
+      // Error is handled by the scene component
+      console.error('Error retrying scene load:', error);
+    }
   };
   
   // Project creation form
@@ -67,8 +159,14 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           <button
             type="submit"
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+            disabled={isLoading}
           >
-            Create Project
+            {isLoading ? (
+              <span className="flex items-center justify-center">
+                <LoaderIcon className="h-5 w-5 mr-2 animate-spin" />
+                Creating...
+              </span>
+            ) : 'Create Project'}
           </button>
         </form>
       </div>
@@ -86,8 +184,14 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         <button
           onClick={() => setIsCreating(true)}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          disabled={isLoading}
         >
-          Create a New Project
+          {isLoading ? (
+            <span className="flex items-center justify-center">
+              <LoaderIcon className="h-5 w-5 mr-2 animate-spin" />
+              Loading...
+            </span>
+          ) : 'Create a New Project'}
         </button>
       </div>
     );
@@ -113,6 +217,17 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       {/* Add new scene form */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4">Add a new scene</h2>
+        
+        {addSceneError && (
+          <div className="mb-4">
+            <ErrorDisplay 
+              error={addSceneError} 
+              type="extraction" 
+              className="mb-4"
+            />
+          </div>
+        )}
+        
         <form onSubmit={handleAddScene} className="flex gap-2">
           <input
             type="url"
@@ -121,20 +236,57 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
             placeholder="Paste a Reddit URL here"
             className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
+            disabled={isAddingScene}
           />
           <button
             type="submit"
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors inline-flex items-center"
+            disabled={isAddingScene || !newUrl.trim()}
           >
-            <PlusCircleIcon className="h-5 w-5 mr-1" />
-            Add Scene
+            {isAddingScene ? (
+              <LoaderIcon className="h-5 w-5 mr-1 animate-spin" />
+            ) : (
+              <PlusCircleIcon className="h-5 w-5 mr-1" />
+            )}
+            {isAddingScene ? 'Adding...' : 'Add Scene'}
           </button>
         </form>
+        
+        <div className="mt-2 flex justify-end">
+          <button 
+            onClick={fillExampleUrl}
+            className="text-blue-600 text-sm hover:underline"
+          >
+            Use example URL
+          </button>
+        </div>
       </div>
+      
+      {/* Debug Information */}
+      {debugInfo && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-yellow-800 flex items-center">
+            <AlertIcon className="h-4 w-4 mr-1" />
+            Debug Information
+          </h3>
+          <div className="mt-2 text-sm text-yellow-700">
+            <p><strong>Last Action:</strong> {debugInfo.lastAction}</p>
+            <p><strong>Timestamp:</strong> {new Date(debugInfo.timestamp).toLocaleTimeString()}</p>
+            {debugInfo.details && (
+              <div>
+                <p><strong>Details:</strong></p>
+                <pre className="bg-yellow-100 p-2 rounded mt-1 overflow-auto max-h-40">
+                  {JSON.stringify(debugInfo.details, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Scenes list */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Scenes</h2>
+        <h2 className="text-xl font-semibold mb-4">Scenes ({currentProject.scenes.length})</h2>
         
         {currentProject.scenes.length === 0 ? (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
@@ -151,6 +303,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                 index={index}
                 onRemove={removeScene}
                 onTextChange={updateSceneText}
+                onRetryLoad={handleRetryLoad}
               />
             ))}
           </div>
@@ -166,7 +319,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         </button>
         <button
           className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-          disabled={currentProject.scenes.length === 0}
+          disabled={currentProject.scenes.length === 0 || currentProject.scenes.some(scene => scene.isLoading || scene.error)}
         >
           Generate Video
         </button>

@@ -2,14 +2,16 @@
 
 import React, { useState } from 'react';
 import { Scene } from './ProjectProvider';
-import { Trash2 as TrashIcon, Edit as EditIcon, GripVertical as GripVerticalIcon } from 'lucide-react';
+import { Trash2 as TrashIcon, Edit as EditIcon, GripVertical as GripVerticalIcon, RefreshCw as RefreshIcon } from 'lucide-react';
 import Image from 'next/image';
+import ErrorDisplay from '../ErrorDisplay';
 
 interface SceneComponentProps {
   scene: Scene;
   index: number;
   onRemove: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
+  onRetryLoad?: (url: string) => Promise<void>;
   isDragging?: boolean;
 }
 
@@ -18,10 +20,12 @@ export default function SceneComponent({
   index, 
   onRemove, 
   onTextChange,
+  onRetryLoad,
   isDragging = false
 }: SceneComponentProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(scene.text);
+  const [isRetrying, setIsRetrying] = useState(false);
   
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
@@ -35,6 +39,55 @@ export default function SceneComponent({
   const handleCancel = () => {
     setText(scene.text);
     setIsEditing(false);
+  };
+
+  const handleRetry = async () => {
+    if (!onRetryLoad || !scene.url) return;
+    
+    setIsRetrying(true);
+    try {
+      await onRetryLoad(scene.url);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+  
+  // Function to render loading state
+  const renderLoadingState = () => {
+    return (
+      <div className="w-full">
+        <div className="bg-gray-100 w-full h-48 flex items-center justify-center rounded-t-lg">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700 mb-2"></div>
+            <p className="text-gray-600 text-sm">Loading content...</p>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2 animate-pulse"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2 mb-2 animate-pulse"></div>
+          <div className="h-4 bg-gray-200 rounded w-5/6 animate-pulse"></div>
+        </div>
+      </div>
+    );
+  };
+
+  // Function to render error state
+  const renderErrorState = () => {
+    return (
+      <div className="w-full">
+        <div className="bg-red-50 w-full p-4 rounded-t-lg">
+          <ErrorDisplay 
+            error={scene.error || 'Failed to load content'} 
+            type="extraction" 
+            showRetry={!!onRetryLoad}
+            onRetry={handleRetry}
+          />
+        </div>
+        <div className="p-4 border-t border-gray-200">
+          <p className="text-sm text-gray-600">URL: {scene.url}</p>
+        </div>
+      </div>
+    );
   };
   
   // Function to render the appropriate media component
@@ -51,13 +104,16 @@ export default function SceneComponent({
       case 'image':
         return (
           <div className="relative w-full h-48 bg-gray-100 rounded-t-lg overflow-hidden">
-            <Image
-              src={scene.media.url}
-              alt={scene.text || 'Scene image'}
-              layout="fill"
-              objectFit="cover"
-              className="rounded-t-lg"
-            />
+            <div className="w-full h-full flex items-center justify-center">
+              <Image
+                src={scene.media.url}
+                alt={scene.text || 'Scene image'}
+                width={400}
+                height={200}
+                className="rounded-t-lg max-h-48 object-contain"
+                style={{ maxWidth: '100%' }}
+              />
+            </div>
           </div>
         );
         
@@ -76,15 +132,18 @@ export default function SceneComponent({
         // For simplicity, just show the first image of the gallery
         return (
           <div className="relative w-full h-48 bg-gray-100 rounded-t-lg overflow-hidden">
-            <Image
-              src={scene.media.url}
-              alt={scene.text || 'Gallery image'}
-              layout="fill"
-              objectFit="cover"
-              className="rounded-t-lg"
-            />
-            <div className="absolute bottom-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 text-xs rounded">
-              Gallery
+            <div className="w-full h-full flex items-center justify-center">
+              <Image
+                src={scene.media.url}
+                alt={scene.text || 'Gallery image'}
+                width={400}
+                height={200}
+                className="rounded-t-lg max-h-48 object-contain"
+                style={{ maxWidth: '100%' }}
+              />
+              <div className="absolute bottom-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 text-xs rounded">
+                Gallery
+              </div>
             </div>
           </div>
         );
@@ -114,58 +173,82 @@ export default function SceneComponent({
         {index + 1}
       </div>
       
-      {/* Media section */}
-      {renderMedia()}
-      
-      {/* Content section */}
-      <div className="p-4">
-        {/* Source info */}
-        <div className="flex items-center text-xs text-gray-500 mb-2">
-          <span className="mr-2">Source: {scene.source.platform}</span>
-          {scene.source.author && <span className="mr-2">Author: {scene.source.author}</span>}
-          {scene.source.subreddit && <span>Subreddit: r/{scene.source.subreddit}</span>}
-        </div>
-        
-        {/* Text content */}
-        {isEditing ? (
-          <div>
-            <textarea
-              value={text}
-              onChange={handleTextChange}
-              className="w-full h-24 p-2 border border-gray-300 rounded mb-2"
-              placeholder="Enter scene text..."
-            />
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={handleCancel}
-                className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Save
-              </button>
+      {/* Content based on scene state */}
+      {scene.isLoading ? (
+        renderLoadingState()
+      ) : scene.error ? (
+        renderErrorState()
+      ) : (
+        <>
+          {/* Media section */}
+          {renderMedia()}
+          
+          {/* Content section */}
+          <div className="p-4">
+            {/* Source info */}
+            <div className="flex items-center text-xs text-gray-500 mb-2">
+              <span className="mr-2">Source: {scene.source.platform}</span>
+              {scene.source.author && <span className="mr-2">Author: {scene.source.author}</span>}
+              {scene.source.subreddit && <span>Subreddit: r/{scene.source.subreddit}</span>}
             </div>
+            
+            {/* Text content */}
+            {isEditing ? (
+              <div>
+                <textarea
+                  value={text}
+                  onChange={handleTextChange}
+                  className="w-full h-24 p-2 border border-gray-300 rounded mb-2"
+                  placeholder="Enter scene text..."
+                />
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={handleCancel}
+                    className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="min-h-[5rem]">
+                <p className="text-gray-800">{scene.text || '<No text provided>'}</p>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="min-h-[5rem]">
-            <p className="text-gray-800">{scene.text || '<No text provided>'}</p>
-          </div>
-        )}
-      </div>
+        </>
+      )}
       
       {/* Controls */}
       <div className="border-t border-gray-200 p-3 flex justify-end space-x-2">
-        <button
-          onClick={() => setIsEditing(true)}
-          className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-          aria-label="Edit scene"
-        >
-          <EditIcon className="h-4 w-4" />
-        </button>
+        {scene.error && onRetryLoad && (
+          <button
+            onClick={handleRetry}
+            disabled={isRetrying}
+            className="p-2 text-blue-600 hover:bg-blue-50 rounded flex items-center"
+            aria-label="Retry loading content"
+          >
+            <RefreshIcon className={`h-4 w-4 ${isRetrying ? 'animate-spin' : ''}`} />
+            <span className="ml-1 text-xs">Retry</span>
+          </button>
+        )}
+        {!scene.isLoading && !scene.error && (
+          <>
+            <button
+              onClick={() => setIsEditing(true)}
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+              aria-label="Edit scene"
+            >
+              <EditIcon className="h-4 w-4" />
+            </button>
+          </>
+        )}
         <button
           onClick={() => onRemove(scene.id)}
           className="p-2 text-red-600 hover:bg-red-50 rounded"
