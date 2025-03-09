@@ -1,75 +1,102 @@
 # Auto Shorts Web App
 
-A web application for automating the creation of short-form videos. This tool streamlines the process of creating engaging video content by automating several key steps.
+A web application that allows users to convert social media content (primarily from Reddit) into engaging short-form videos.
 
-## Features
+## Core Concept
 
-- **Content Download**: Download images and videos from various sources
-- **AI Text Rewriting**: Rewrite text using OpenAI's GPT models to make it more engaging
-- **Voice Generation**: Convert text to speech using ElevenLabs' voice synthesis
-- **Media Merging**: Combine images, text, and audio into short-form videos
+This application enables users to:
+1. Retrieve content from URLs
+2. Rewrite text using AI
+3. Generate voiceovers
+4. Assemble videos with the content and voiceover
 
-## Requirements
+## Technology Stack
 
-- Python 3.8+
-- ffmpeg (for video processing)
-- API keys for:
-  - OpenAI
-  - ElevenLabs
-  - Google Docs (for some features)
+- **Frontend**: Next.js with React + Tailwind CSS
+- **Backend**: FastAPI (Python)
+- **Database**: MongoDB Atlas
+- **Storage**: Cloudflare R2
+- **Media Processing**: Google Cloud Run
+- **Hosting**: Vercel
 
-## Installation
+## Business Model
 
-1. Clone this repository:
-   ```
-   git clone https://github.com/G4Q95/AutoShortsWebApp.git
-   cd AutoShortsWebApp
-   ```
+- **Freemium approach** with tiered access:
+  - Free tier with limited features and usage caps
+  - Premium tier ($15/month) with expanded features and higher limits
+  - Pro tier ($30/month) with unlimited access and priority processing
 
-2. Create a virtual environment:
-   ```
-   python -m venv venv
-   source venv/bin/activate  # On Windows, use: venv\Scripts\activate
-   ```
-
-3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-4. Set up configuration:
-   - Create a `.env` file in the `configs` directory
-   - Add your API keys:
-     ```
-     OPENAI_API_KEY=your_openai_key
-     ELEVENLABS_API_KEY=your_elevenlabs_key
-     ```
-
-## Usage
-
-The application provides several command scripts in the `commands` directory:
-
-- `download.command`: Download content
-- `rewrite.command`: Rewrite text using AI
-- `voice.command`: Generate voice narration from text
-- `merge.command`: Combine media into videos
-
-Double-click on these command files (on macOS) or run them from the terminal to use each feature.
-
-## Directory Structure
+## Project Structure
 
 ```
 Auto Shorts Web App/
-├── commands/          # Command scripts to run features
-├── configs/           # Configuration files and API keys
-├── data/              # Data storage
-│   ├── audio/         # Audio files
-│   ├── images/        # Image files
-│   ├── output/        # Output videos
-│   └── temp/          # Temporary files
-└── scripts/           # Python scripts
+├── legacy/                  # Original scripts
+│
+├── web/                     # New web application
+│   ├── frontend/            # Next.js application
+│   │   ├── public/          # Static assets
+│   │   ├── src/             # React components, pages, etc.
+│   │   └── package.json     # Frontend dependencies
+│   │
+│   ├── backend/             # FastAPI application
+│   │   ├── app/             # API code
+│   │   │   ├── core/        # Core functionality
+│   │   │   ├── api/         # API routes
+│   │   │   ├── services/    # Business logic
+│   │   │   └── models/      # Data models
+│   │   │
+│   │   ├── requirements.txt # Backend dependencies
+│   │   └── Dockerfile       # For containerization
+│
+├── docs/                    # Project documentation
+│   ├── PROJECT_OVERVIEW.md
+│   └── PROJECT_INSTRUCTIONS.md
+│
+└── README.md               # This file
 ```
 
-## License
+## Development Setup
 
-MIT 
+### Frontend (Next.js)
+
+```bash
+cd web/frontend
+npm install
+npm run dev
+```
+
+The frontend will be available at `http://localhost:3000`.
+
+### Backend (FastAPI)
+
+```bash
+cd web/backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+The backend API will be available at `http://localhost:8000`.
+
+API documentation will be available at:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+## Deployment
+
+- Frontend: Deployed on Vercel
+- Backend: Deployed on Google Cloud Run
+
+## Key Features
+
+1. **MVP**:
+   - URL-based content submission
+   - Basic video generation
+   - Google authentication
+   - Free tier limitations
+
+2. **Future Versions**:
+   - Enhanced video editing options
+   - Multiple voice styles
+   - Background music options
+   - Video templates
+   - Advanced analytics 

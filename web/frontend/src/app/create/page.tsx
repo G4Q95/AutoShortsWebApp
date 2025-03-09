@@ -1,46 +1,80 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createVideo } from '@/lib/api-client';
-import { isValidUrl } from '@/lib/utils';
+import { isValidUrl, validateVideoForm, FormValidationErrors } from '@/lib/utils';
 import Link from 'next/link';
-import { VideoIcon, Loader2Icon } from 'lucide-react';
+import { VideoIcon, Loader2Icon, AlertCircleIcon } from 'lucide-react';
 
 export default function CreateVideoPage() {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<FormValidationErrors>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [touched, setTouched] = useState<{title: boolean, url: boolean}>({title: false, url: false});
+  
+  // Clear field errors when user types
+  useEffect(() => {
+    if (touched.title && errors.title) {
+      const newErrors = {...errors};
+      delete newErrors.title;
+      setErrors(newErrors);
+    }
+  }, [title, touched.title, errors]);
+  
+  useEffect(() => {
+    if (touched.url && errors.url) {
+      const newErrors = {...errors};
+      delete newErrors.url;
+      setErrors(newErrors);
+    }
+  }, [url, touched.url, errors]);
+  
+  // Handle field blur for validation
+  const handleTitleBlur = () => {
+    setTouched(prev => ({...prev, title: true}));
+    const validationErrors = validateVideoForm(title, url);
+    if (validationErrors.title) {
+      setErrors(prev => ({...prev, title: validationErrors.title}));
+    }
+  };
+  
+  const handleUrlBlur = () => {
+    setTouched(prev => ({...prev, url: true}));
+    const validationErrors = validateVideoForm(title, url);
+    if (validationErrors.url) {
+      setErrors(prev => ({...prev, url: validationErrors.url}));
+    }
+  };
   
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     
-    // Validate inputs
-    if (!title) {
-      setError('Please enter a title for your video');
+    // Validate all inputs
+    const validationErrors = validateVideoForm(title, url);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setTouched({title: true, url: true});
       return;
     }
     
-    if (!url || !isValidUrl(url)) {
-      setError('Please enter a valid URL');
-      return;
-    }
-    
-    setError(null);
+    setErrors({});
+    setSubmitError(null);
     setLoading(true);
     
     try {
       const response = await createVideo(url, title);
       
       if (response.error) {
-        setError(response.error.detail);
+        setSubmitError(response.error.detail);
       } else {
         // Set the task ID
         setTaskId(response.data.task_id);
       }
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      setSubmitError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -79,11 +113,12 @@ export default function CreateVideoPage() {
             </Link>
           </div>
         </div>
-      ) : (
+      ) :
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6">
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md">
-              {error}
+          {submitError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md flex items-start">
+              <AlertCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+              <span>{submitError}</span>
             </div>
           )}
           
@@ -96,10 +131,17 @@ export default function CreateVideoPage() {
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleBlur}
               placeholder="Enter a title for your video"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full p-3 border ${errors.title ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 ${errors.title ? 'focus:ring-red-500' : 'focus:ring-blue-500'}`}
               disabled={loading}
             />
+            {errors.title && (
+              <p className="mt-1 text-sm text-red-600 flex items-center">
+                <AlertCircleIcon className="h-4 w-4 mr-1" />
+                {errors.title}
+              </p>
+            )}
           </div>
           
           <div className="mb-6">
@@ -111,13 +153,20 @@ export default function CreateVideoPage() {
               id="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              onBlur={handleUrlBlur}
               placeholder="https://example.com/your-content"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full p-3 border ${errors.url ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 ${errors.url ? 'focus:ring-red-500' : 'focus:ring-blue-500'}`}
               disabled={loading}
             />
             <p className="mt-1 text-sm text-gray-500">
               Enter a URL containing the content you want to convert to a video.
             </p>
+            {errors.url && (
+              <p className="mt-1 text-sm text-red-600 flex items-center">
+                <AlertCircleIcon className="h-4 w-4 mr-1" />
+                {errors.url}
+              </p>
+            )}
           </div>
           
           <button
@@ -135,7 +184,7 @@ export default function CreateVideoPage() {
             )}
           </button>
         </form>
-      )}
+      }
     </div>
   );
 } 
