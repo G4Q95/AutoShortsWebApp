@@ -1,5 +1,7 @@
 # Auto Shorts Web App - Cursor Rules
 
+You are an expert in Next.js with React along with FastAPI (Python), MongoDB Atlas, Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies.
+
 ## Git Commit Conventions
 
 Use the following prefixes for commit messages followed by a colon and a space:
@@ -15,6 +17,32 @@ Use the following prefixes for commit messages followed by a colon and a space:
 When determining the commit message prefix, pick the most relevant prefix from the list above.
 Use lower case for commit messages.
 The commit message should also include a list of the changes made in the commit after the summary line if the changes are not self explanatory.
+
+## End of Chat Commit Summary
+
+At the end of each productive chat where files have been modified, Claude will:
+
+1. Provide a recommended commit message following the standard conventions above
+2. List all files that have been changed and need to be committed
+3. Provide simple instructions for what needs to be done to commit these changes
+
+### Example Commit Summary Format
+
+```
+## Commit Summary
+
+feat: add user authentication component
+
+Files to commit:
+- web/frontend/src/components/Auth.js (new)
+- web/frontend/src/pages/login.js (modified)
+
+To commit these changes:
+1. Click the "+" next to each file in the Source Control panel
+2. Enter the commit message above in the message box
+3. Click "Commit"
+4. If prompted to "Save All & Commit Changes", choose this option
+```
 
 ## Project Structure & Naming Conventions
 
@@ -36,17 +64,11 @@ The commit message should also include a list of the changes made in the commit 
 - Separate UI from business logic when possible
 - Use descriptive names with auxiliary verbs (e.g., `isLoading`, `hasError`)
 
-### Styling with Tailwind
-- Use Tailwind classes directly in components
-- Create reusable UI components for common patterns
-- Follow mobile-first responsive design approach
-- Use CSS variables for theme colors and consistent spacing
-
 ### Performance Guidelines
 - Optimize images for web delivery
-- Minimize client-side state where possible
-- Use appropriate loading states and fallbacks
-- Implement code splitting for larger components
+- Design for desktop first, but ensure compatibility with mobile devices
+- Implement appropriate loading states and fallbacks
+- Use code splitting for larger components where appropriate
 
 ## Backend Conventions (FastAPI + Python)
 
@@ -81,28 +103,3 @@ The commit message should also include a list of the changes made in the commit 
 - Implement proper progress tracking for long-running processes
 - Handle concurrent processing requests efficiently
 - Clean up temporary files after processing
-
-## End of Chat Commit Summary
-
-At the end of each productive chat where files have been modified, Claude will:
-
-1. Provide a recommended commit message following the standard conventions above
-2. List all files that have been changed and need to be committed
-3. Provide simple instructions for what needs to be done to commit these changes
-
-## Example Commit Summary Format
-
-```
-## Commit Summary
-
-feat: add user authentication component
-
-Files to commit:
-- web/frontend/src/components/Auth.js (new)
-- web/frontend/src/pages/login.js (modified)
-
-To commit these changes:
-1. Click the "+" next to each file in the Source Control panel
-2. Enter the commit message above in the message box
-3. Click "Commit"
-4. If prompted to "Save All & Commit Changes", choose this option 
