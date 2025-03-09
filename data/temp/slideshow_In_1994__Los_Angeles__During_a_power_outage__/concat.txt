@@ -1,2 +1,0 @@
-file '/Users/georgegood/Desktop/Auto Shorts Web App/data/temp/slideshow_In_1994__Los_Angeles__During_a_power_outage__/segment_1.mp4'
-file '/Users/georgegood/Desktop/Auto Shorts Web App/data/temp/slideshow_In_1994__Los_Angeles__During_a_power_outage__/segment_2.mp4'
