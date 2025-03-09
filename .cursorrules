@@ -13,6 +13,59 @@ The current focus is on implementing a video project workspace with draggable sc
    - Drag-and-drop functionality for scene reordering
    - Project state management for scene data
 
+## Browser MCP Tool Usage Guidelines
+
+When working with the browser frontend:
+1. **Proactive Log Checking**: Check console logs, errors, and network activity at these key moments:
+   - At the beginning of each chat session
+   - After any code changes
+   - Before and after testing frontend functionality
+   - When debugging issues
+   - Every few minutes during active development
+
+2. **Network Monitoring**:
+   - Check network requests when working with API endpoints
+   - Examine request/response payloads for debugging
+   - Monitor for 4xx/5xx errors in network calls
+
+3. **Console Error Priority**:
+   - Treat console errors as high-priority issues
+   - Address JS errors before proceeding with new features
+   - Check warning messages that may indicate potential issues
+
+4. **Screenshot Strategy**:
+   - Take screenshots to verify UI changes
+   - Capture the UI state before and after interactions
+   - Use screenshots to document the current state for reference
+
+5. **Element Examination**:
+   - Check rendered components when implementing or debugging UI
+   - Verify CSS classes are applied correctly
+   - Examine DOM structure when working with dynamic content
+
+## GitHub MCP Tool Usage Guidelines
+
+When working with GitHub:
+1. **Repository Interaction**:
+   - Use `mcp__get_file_contents` to examine external repositories for reference code
+   - Use `mcp__push_files` for batch commits that belong together
+   - Use `mcp__search_code` to find relevant code examples in GitHub
+
+2. **Issue Management**:
+   - Check existing issues before creating new ones
+   - Reference related issues in commit messages
+   - Update issue status when implementing fixes
+
+3. **Pull Request Workflow**:
+   - Create feature branches for each major task
+   - Include comprehensive descriptions in PRs
+   - Link PRs to relevant issues
+
+4. **Best Practices**:
+   - Always check for file existence before attempting to update
+   - Use meaningful commit messages following the convention
+   - Batch related changes into single commits
+
 ## Git Commit Conventions
 
 Use the following prefixes for commit messages followed by a colon and a space:

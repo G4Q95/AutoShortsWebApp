@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { VideoIcon } from 'lucide-react';
+import { VideoIcon, Layers as LayersIcon } from 'lucide-react';
 
 export default function Header() {
   return (
@@ -10,6 +10,15 @@ export default function Header() {
             <VideoIcon className="h-8 w-8 text-blue-600" />
             <span className="text-xl font-bold">Auto Shorts</span>
           </Link>
+          
+          <nav className="hidden md:flex items-center space-x-6">
+            <Link href="/create" className="text-gray-600 hover:text-blue-600">
+              Create Video
+            </Link>
+            <Link href="/projects" className="text-gray-600 hover:text-blue-600">
+              Projects
+            </Link>
+          </nav>
           
           <div className="flex items-center space-x-4">
             <button 

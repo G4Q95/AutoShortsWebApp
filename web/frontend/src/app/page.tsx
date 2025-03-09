@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, VideoIcon } from 'lucide-react';
+import { ArrowRight, VideoIcon, Layers as LayersIcon } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -14,13 +14,20 @@ export default function Home() {
             <p className="text-xl text-gray-600 mb-8">
               Auto Shorts automatically creates short-form videos from Reddit posts in minutes. Perfect for TikTok, Instagram, and YouTube Shorts.
             </p>
-            <div className="w-full max-w-md">
+            <div className="w-full max-w-md flex flex-col gap-4 md:flex-row">
               <Link 
                 href="/create" 
                 className="w-full px-6 py-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-center font-medium flex items-center justify-center"
               >
                 Create Video
                 <ArrowRight className="ml-2 h-5 w-5" />
+              </Link>
+              <Link
+                href="/projects"
+                className="w-full px-6 py-4 bg-white border border-gray-300 text-gray-800 rounded-md hover:bg-gray-50 transition-colors text-center font-medium flex items-center justify-center"
+              >
+                Try Projects
+                <LayersIcon className="ml-2 h-5 w-5" />
               </Link>
             </div>
             
@@ -35,15 +42,15 @@ export default function Home() {
                     <ol className="text-left text-gray-700 space-y-2 max-w-md mx-auto">
                       <li className="flex items-start">
                         <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm mr-2 mt-0.5">1</span>
-                        <span>Enter a Reddit URL and a title for your video</span>
+                        <span>Create a project with multiple scenes from Reddit URLs</span>
                       </li>
                       <li className="flex items-start">
                         <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm mr-2 mt-0.5">2</span>
-                        <span>Our AI extracts content and creates a script</span>
+                        <span>Arrange and edit your scenes in any order</span>
                       </li>
                       <li className="flex items-start">
                         <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm mr-2 mt-0.5">3</span>
-                        <span>Download your ready-to-share video</span>
+                        <span>Generate and download your custom video</span>
                       </li>
                     </ol>
                   </div>
