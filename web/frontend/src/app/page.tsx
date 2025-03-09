@@ -23,10 +23,10 @@ export default function Home() {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
               <Link
-                href="/projects"
+                href="/projects/create"
                 className="w-full px-6 py-4 bg-white border border-gray-300 text-gray-800 rounded-md hover:bg-gray-50 transition-colors text-center font-medium flex items-center justify-center"
               >
-                Try Projects
+                Create Project
                 <LayersIcon className="ml-2 h-5 w-5" />
               </Link>
             </div>

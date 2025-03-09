@@ -9,5 +9,6 @@ python-multipart==0.0.7
 openai==1.12.0
 boto3==1.34.22
 pytest==7.4.4
-gunicorn==21.2.0 aiofiles
+gunicorn==21.2.0
+aiofiles
 email-validator
