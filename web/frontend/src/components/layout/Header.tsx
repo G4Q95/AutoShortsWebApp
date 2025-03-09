@@ -11,25 +11,14 @@ export default function Header() {
             <span className="text-xl font-bold">Auto Shorts</span>
           </Link>
           
-          <nav className="hidden md:flex space-x-6">
-            <Link href="/" className="text-gray-600 hover:text-blue-600">
-              Home
-            </Link>
-            <Link href="/dashboard" className="text-gray-600 hover:text-blue-600">
-              Dashboard
-            </Link>
-            <Link href="/pricing" className="text-gray-600 hover:text-blue-600">
-              Pricing
-            </Link>
-          </nav>
-          
           <div className="flex items-center space-x-4">
-            <Link 
-              href="/login" 
-              className="hidden md:inline-block px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+            <button 
+              disabled
+              className="hidden md:inline-block px-4 py-2 border border-gray-300 text-gray-400 rounded-md cursor-not-allowed"
+              title="Login functionality coming soon"
             >
               Log In
-            </Link>
+            </button>
             <Link 
               href="/create" 
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
