@@ -39,20 +39,311 @@ Auto Shorts Web App/           # Main repository
 ├── README.md                  # Main project documentation
 └── .gitignore                 # Git ignore file
 ```
-Try and brake 
 
-## Development Steps
-1. Create the directory structure
-2. Move existing scripts to legacy/
-3. Initialize Next.js in web/frontend
-4. Initialize FastAPI in web/backend
-5. Port functionality from legacy code, one component at a time
-6. Implement user authentication with Google login
-7. Create URL-based content submission interface
-8. Implement text rewriting with OpenAI
-9. Implement voice generation with ElevenLabs
-10. Create video assembly with FFMPEG in containers
-11. Deploy to chosen infrastructure
+## Detailed Development Steps
+
+### 1. Set Up Development Environment
+
+#### 1.1 Create Project Directory Structure
+```bash
+# Create directories for legacy code
+mkdir -p legacy/scripts legacy/configs legacy/commands legacy/data legacy/utils
+
+# Create directories for new web application
+mkdir -p web/frontend/public web/frontend/src
+mkdir -p web/backend/app/core web/backend/app/api web/backend/app/services web/backend/app/models
+```
+
+#### 1.2 Move Existing Scripts to Legacy Directory
+```bash
+# Move scripts to the legacy directory (adjust paths as needed)
+mv scripts/* legacy/scripts/
+mv configs/* legacy/configs/
+mv commands/* legacy/commands/
+mv data/* legacy/data/
+mv utils/* legacy/utils/
+```
+
+#### 1.3 Set Up Git for Version Control
+```bash
+# Initialize Git repository (if not already done)
+git init
+
+# Create .gitignore file
+touch .gitignore
+```
+
+Add the following to .gitignore:
+```
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Node.js
+node_modules/
+.next/
+out/
+
+# IDE/Editor folders
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Temporary files
+*.tmp
+temp/
+
+# API keys and secrets
+*.pem
+*.key
+```
+
+### 2. Set Up Frontend (Next.js)
+
+#### 2.1 Install Node.js and npm
+- Download and install Node.js from https://nodejs.org/ (which includes npm)
+- Verify installation:
+```bash
+node --version
+npm --version
+```
+
+#### 2.2 Create Next.js Application
+```bash
+# Navigate to the frontend directory
+cd web/frontend
+
+# Initialize a new Next.js app
+npx create-next-app@latest .
+```
+During setup, select:
+- TypeScript: No (unless you're familiar with it)
+- ESLint: Yes
+- Tailwind CSS: Yes
+- 'src/' directory: Yes
+- App Router: Yes
+- Customize default import alias: No
+
+#### 2.3 Install Additional Dependencies
+```bash
+# Install required packages
+npm install axios react-query clsx
+```
+
+#### 2.4 Set Up Basic Project Structure
+Create the following folders within `web/frontend/src`:
+- `components` - For reusable UI components
+- `hooks` - For custom React hooks
+- `lib` - For utility functions
+- `styles` - For any custom CSS
+
+### 3. Set Up Backend (FastAPI)
+
+#### 3.1 Set Up Python Virtual Environment
+```bash
+# Navigate to the backend directory
+cd web/backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+# venv\Scripts\activate
+```
+
+#### 3.2 Install FastAPI and Dependencies
+```bash
+# Install required packages
+pip install fastapi uvicorn python-dotenv httpx pymongo python-multipart pydantic motor
+```
+
+#### 3.3 Create requirements.txt
+```bash
+# Generate requirements file
+pip freeze > requirements.txt
+```
+
+#### 3.4 Create Basic FastAPI Application
+Create a file `web/backend/app/main.py`:
+```python
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="Auto Shorts Web App API")
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Auto Shorts Web App API"}
+```
+
+#### 3.5 Create Basic API Structure
+Set up basic files for backend structure:
+- `app/core/config.py` - For configuration settings
+- `app/core/security.py` - For authentication-related code
+- `app/api/endpoints` - For API routes by feature
+
+### 4. Set Up Cloud Services
+
+#### 4.1 MongoDB Atlas Setup
+1. Create a MongoDB Atlas account at https://www.mongodb.com/cloud/atlas
+2. Create a new project
+3. Build a new cluster (free tier is sufficient for development)
+4. Create a database user
+5. Get your connection string
+6. Save the connection string as an environment variable
+
+#### 4.2 Cloudflare R2 Setup
+1. Create a Cloudflare account if you don't have one
+2. Navigate to R2 in the dashboard
+3. Create a new bucket
+4. Generate API keys for accessing the bucket
+5. Save the API keys as environment variables
+
+#### 4.3 Google Cloud Run Setup
+1. Create a Google Cloud account
+2. Enable Cloud Run API
+3. Install Google Cloud CLI
+4. Set up authentication
+5. Create a project
+
+### 5. Port Legacy Code to Web App
+
+#### 5.1 Content Retrieval Module
+1. Study `legacy/scripts/download.py`
+2. Create new service in `web/backend/app/services/content_retrieval.py`
+3. Adapt code to work as an API endpoint
+4. Create frontend interface for URL submission
+
+#### 5.2 Text Rewriting Module
+1. Study `legacy/scripts/rewrite.py`
+2. Create new service in `web/backend/app/services/text_rewriting.py`
+3. Adapt OpenAI integration for web use
+4. Create frontend interface for viewing and editing rewritten text
+
+#### 5.3 Voice Generation Module
+1. Study `legacy/scripts/google_to_elevenlabs.py`
+2. Create new service in `web/backend/app/services/voice_generation.py`
+3. Adapt for web-based flow
+4. Create frontend interface for voice selection and preview
+
+#### 5.4 Video Assembly Module
+1. Study `legacy/scripts/merge.sh`
+2. Create new service in `web/backend/app/services/video_assembly.py`
+3. Adapt for containerized execution
+4. Create frontend interface for video preview and download
+
+### 6. Implement User Authentication
+
+#### 6.1 Set Up Authentication Backend
+1. Create user models in MongoDB
+2. Implement Google OAuth integration
+3. Set up JWT token generation and validation
+4. Create login/logout endpoints
+
+#### 6.2 Create Frontend Authentication UI
+1. Create login page component
+2. Implement authentication state management
+3. Create protected routes
+4. Add user profile component
+
+### 7. Create Content Submission Flow
+
+#### 7.1 URL Submission Interface
+1. Create form for URL input
+2. Implement validation and submission
+3. Display loading states
+4. Handle and display errors
+
+#### 7.2 Content Preview and Selection
+1. Create content preview components
+2. Implement selection interface
+3. Add edit capabilities for text
+4. Create navigation between steps
+
+### 8. Implement Text Rewriting
+
+#### 8.1 OpenAI Integration
+1. Create secure API key management
+2. Implement prompt construction
+3. Handle API rate limiting
+4. Implement caching for common requests
+
+#### 8.2 Text Editing Interface
+1. Create text editor component
+2. Add before/after view
+3. Implement character counting
+4. Create style/tone selection interface
+
+### 9. Implement Voice Generation
+
+#### 9.1 ElevenLabs Integration
+1. Create secure API key management
+2. Implement voice selection interface
+3. Create audio preview component
+4. Implement character limits and tracking
+
+#### 9.2 Voice Customization
+1. Add voice selection interface
+2. Create controls for voice parameters
+3. Implement audio playback
+4. Add favorite voices functionality
+
+### 10. Create Video Assembly Pipeline
+
+#### 10.1 Media Processing Setup
+1. Create container configuration for FFMPEG
+2. Set up Cloud Run job definitions
+3. Implement progress tracking
+4. Create error handling and retries
+
+#### 10.2 Video Preview and Export
+1. Create video player component
+2. Implement download functionality
+3. Add platform-specific export options
+4. Create video management interface
+
+### 11. Deploy Application
+
+#### 11.1 Frontend Deployment (Vercel)
+1. Create Vercel account
+2. Connect GitHub repository
+3. Configure build settings
+4. Set up environment variables
+
+#### 11.2 Backend Deployment (Google Cloud Run)
+1. Create Dockerfile for backend
+2. Configure Cloud Run service
+3. Set up environment variables
+4. Configure scaling and memory settings
+
+#### 11.3 Set Up Monitoring and Logging
+1. Implement error tracking
+2. Set up usage analytics
+3. Create cost monitoring
+4. Implement performance tracking
 
 ## Key Implementation Notes
 
