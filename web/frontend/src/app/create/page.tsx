@@ -1,84 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createVideo } from '@/lib/api-client';
-import { isValidUrl, validateVideoForm, FormValidationErrors } from '@/lib/utils';
+import { useVideoCreationForm } from '@/lib/form-handlers';
 import Link from 'next/link';
-import { VideoIcon, Loader2Icon, AlertCircleIcon } from 'lucide-react';
+import { VideoIcon, Loader2Icon, AlertCircleIcon, RefreshCwIcon } from 'lucide-react';
 
 export default function CreateVideoPage() {
-  const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [errors, setErrors] = useState<FormValidationErrors>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [touched, setTouched] = useState<{title: boolean, url: boolean}>({title: false, url: false});
+  const { 
+    state, 
+    setUrl, 
+    setTitle, 
+    handleTitleBlur, 
+    handleUrlBlur, 
+    handleSubmit,
+    retrySubmit 
+  } = useVideoCreationForm();
   
-  // Clear field errors when user types
-  useEffect(() => {
-    if (touched.title && errors.title) {
-      const newErrors = {...errors};
-      delete newErrors.title;
-      setErrors(newErrors);
-    }
-  }, [title, touched.title, errors]);
+  const { url, title, errors, submitError, loading, taskId, touched } = state;
   
-  useEffect(() => {
-    if (touched.url && errors.url) {
-      const newErrors = {...errors};
-      delete newErrors.url;
-      setErrors(newErrors);
-    }
-  }, [url, touched.url, errors]);
-  
-  // Handle field blur for validation
-  const handleTitleBlur = () => {
-    setTouched(prev => ({...prev, title: true}));
-    const validationErrors = validateVideoForm(title, url);
-    if (validationErrors.title) {
-      setErrors(prev => ({...prev, title: validationErrors.title}));
-    }
-  };
-  
-  const handleUrlBlur = () => {
-    setTouched(prev => ({...prev, url: true}));
-    const validationErrors = validateVideoForm(title, url);
-    if (validationErrors.url) {
-      setErrors(prev => ({...prev, url: validationErrors.url}));
-    }
-  };
-  
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    
-    // Validate all inputs
-    const validationErrors = validateVideoForm(title, url);
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      setTouched({title: true, url: true});
-      return;
-    }
-    
-    setErrors({});
-    setSubmitError(null);
-    setLoading(true);
-    
-    try {
-      const response = await createVideo(url, title);
-      
-      if (response.error) {
-        setSubmitError(response.error.detail);
-      } else {
-        // Set the task ID
-        setTaskId(response.data.task_id);
-      }
-    } catch (err) {
-      setSubmitError('An unexpected error occurred. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Check if error is likely a network error
+  const isNetworkError = submitError && (
+    submitError.includes('Network') || 
+    submitError.includes('connect') || 
+    submitError.includes('server')
+  );
   
   return (
     <div className="max-w-3xl mx-auto">
@@ -116,9 +60,34 @@ export default function CreateVideoPage() {
       ) :
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6">
           {submitError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md flex items-start">
-              <AlertCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-              <span>{submitError}</span>
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
+              <div className="flex items-start">
+                <AlertCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                <span>{submitError}</span>
+              </div>
+              
+              {isNetworkError && (
+                <div className="mt-3 text-center">
+                  <button
+                    type="button"
+                    onClick={retrySubmit}
+                    className="inline-flex items-center px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />
+                        Retrying...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCwIcon className="w-4 h-4 mr-2" />
+                        Retry Connection
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
           
