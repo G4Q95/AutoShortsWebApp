@@ -35,6 +35,13 @@ async def root():
 async def health_check():
     return {"status": "ok"}
 
+@app.get("/api/v1/health")
+async def health_check():
+    """
+    Health check endpoint for API status monitoring
+    """
+    return {"status": "available", "version": "1.0"}
+
 # Include API routers
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(videos.router, prefix=settings.API_V1_STR)

@@ -2,7 +2,7 @@
 
 import { useVideoCreationForm } from '@/lib/form-handlers';
 import Link from 'next/link';
-import { VideoIcon, Loader2Icon, AlertCircleIcon, RefreshCwIcon } from 'lucide-react';
+import { VideoIcon, Loader2Icon, AlertCircleIcon, RefreshCwIcon, WifiIcon, WifiOffIcon, TimerIcon } from 'lucide-react';
 
 export default function CreateVideoPage() {
   const { 
@@ -12,16 +12,27 @@ export default function CreateVideoPage() {
     handleTitleBlur, 
     handleUrlBlur, 
     handleSubmit,
-    retrySubmit 
+    retrySubmit,
+    checkApiConnection
   } = useVideoCreationForm();
   
-  const { url, title, errors, submitError, loading, taskId, touched } = state;
+  const { 
+    url, 
+    title, 
+    errors, 
+    submitError, 
+    loading, 
+    taskId, 
+    touched,
+    apiStatus 
+  } = state;
   
   // Check if error is likely a network error
   const isNetworkError = submitError && (
     submitError.includes('Network') || 
     submitError.includes('connect') || 
-    submitError.includes('server')
+    submitError.includes('server') ||
+    submitError.includes('timed out')
   );
   
   return (
@@ -59,6 +70,40 @@ export default function CreateVideoPage() {
         </div>
       ) :
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6">
+          {/* API Status Indicator */}
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center">
+              {apiStatus.connected ? (
+                <div className="flex items-center text-green-600">
+                  <WifiIcon className="h-4 w-4 mr-1" />
+                  <span className="text-xs font-medium">Backend Connected</span>
+                </div>
+              ) : (
+                <div className="flex items-center text-red-600">
+                  <WifiOffIcon className="h-4 w-4 mr-1" />
+                  <span className="text-xs font-medium">Backend Disconnected</span>
+                </div>
+              )}
+              
+              {apiStatus.responseTime && (
+                <div className="flex items-center text-gray-500 ml-3">
+                  <TimerIcon className="h-3 w-3 mr-1" />
+                  <span className="text-xs">{Math.round(apiStatus.responseTime)}ms</span>
+                </div>
+              )}
+            </div>
+            
+            <button
+              type="button"
+              onClick={checkApiConnection}
+              className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+              disabled={loading}
+            >
+              <RefreshCwIcon className="h-3 w-3 mr-1" />
+              Check Connection
+            </button>
+          </div>
+          
           {submitError && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
               <div className="flex items-start">
@@ -140,18 +185,36 @@ export default function CreateVideoPage() {
           
           <button
             type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
+            disabled={loading || !apiStatus.connected}
+            className={`w-full py-3 ${apiStatus.connected ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'} text-white rounded-md transition-colors flex items-center justify-center`}
           >
             {loading ? (
               <>
                 <Loader2Icon className="w-5 h-5 mr-2 animate-spin" />
                 Processing...
               </>
+            ) : !apiStatus.connected ? (
+              <>
+                <WifiOffIcon className="w-5 h-5 mr-2" />
+                Backend Unavailable
+              </>
             ) : (
               'Create Video'
             )}
           </button>
+          
+          {!apiStatus.connected && !submitError && (
+            <p className="mt-2 text-sm text-center text-red-600">
+              Cannot connect to the backend server. 
+              <button 
+                type="button" 
+                onClick={checkApiConnection}
+                className="ml-1 text-blue-600 hover:text-blue-800 underline"
+              >
+                Retry connection
+              </button>
+            </p>
+          )}
         </form>
       }
     </div>
