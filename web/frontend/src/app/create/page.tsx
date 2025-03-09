@@ -3,6 +3,8 @@
 import { useVideoCreationForm } from '@/lib/form-handlers';
 import Link from 'next/link';
 import { VideoIcon, Loader2Icon, AlertCircleIcon, RefreshCwIcon, WifiIcon, WifiOffIcon, TimerIcon } from 'lucide-react';
+import ErrorDisplay, { ErrorType } from '@/components/ErrorDisplay';
+import UrlPreview from '@/components/UrlPreview';
 
 export default function CreateVideoPage() {
   const { 
@@ -27,13 +29,34 @@ export default function CreateVideoPage() {
     apiStatus 
   } = state;
   
-  // Check if error is likely a network error
-  const isNetworkError = submitError && (
-    submitError.includes('Network') || 
-    submitError.includes('connect') || 
-    submitError.includes('server') ||
-    submitError.includes('timed out')
-  );
+  // Determine error type for better error display
+  const getErrorType = (): ErrorType => {
+    if (!submitError) return 'general';
+    
+    const errorLower = submitError.toLowerCase();
+    
+    if (errorLower.includes('network') || 
+        errorLower.includes('connect') || 
+        errorLower.includes('server') ||
+        errorLower.includes('timed out')) {
+      return 'network';
+    }
+    
+    if (errorLower.includes('reddit') || 
+        errorLower.includes('redirect') ||
+        errorLower.includes('extraction') ||
+        errorLower.includes('content')) {
+      return 'extraction';
+    }
+    
+    if (errorLower.includes('invalid') || 
+        errorLower.includes('required') ||
+        errorLower.includes('format')) {
+      return 'validation';
+    }
+    
+    return 'general';
+  };
   
   return (
     <div className="max-w-3xl mx-auto">
@@ -104,36 +127,14 @@ export default function CreateVideoPage() {
             </button>
           </div>
           
+          {/* Enhanced Error Display */}
           {submitError && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
-              <div className="flex items-start">
-                <AlertCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-                <span>{submitError}</span>
-              </div>
-              
-              {isNetworkError && (
-                <div className="mt-3 text-center">
-                  <button
-                    type="button"
-                    onClick={retrySubmit}
-                    className="inline-flex items-center px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />
-                        Retrying...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCwIcon className="w-4 h-4 mr-2" />
-                        Retry Connection
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
+            <ErrorDisplay 
+              error={submitError} 
+              type={getErrorType()} 
+              onRetry={retrySubmit}
+              showRetry={getErrorType() === 'network' || getErrorType() === 'extraction'}
+            />
           )}
           
           <div className="mb-4">
@@ -181,6 +182,9 @@ export default function CreateVideoPage() {
                 {errors.url}
               </p>
             )}
+            
+            {/* URL Preview */}
+            {url && !errors.url && <UrlPreview url={url} />}
           </div>
           
           <button
