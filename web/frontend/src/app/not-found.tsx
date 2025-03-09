@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { HomeIcon, VideoIcon } from 'lucide-react';
 
-export default function NotFound() {
+export default function NotFoundPage() {
   return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
       <VideoIcon className="h-16 w-16 text-blue-600 mb-6" />
