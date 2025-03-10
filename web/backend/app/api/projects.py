@@ -1,17 +1,32 @@
-from fastapi import APIRouter, HTTPException, status, Body
-from typing import List, Dict, Any
+from fastapi import APIRouter, HTTPException, status, Body, BackgroundTasks
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
 from app.models.project import Project, ProjectCreate, ProjectResponse
 from app.core.database import db
 from datetime import datetime
 from bson import ObjectId
 import motor.motor_asyncio
 from fastapi.responses import JSONResponse
+from app.services.video_processing import video_processor
+import uuid
+import asyncio
 
 router = APIRouter(
     prefix="/projects",
     tags=["projects"],
     responses={404: {"description": "Not found"}},
 )
+
+# Define models for project processing
+class ProcessProjectRequest(BaseModel):
+    mode: str = "custom"  # 'custom' or 'fast'
+
+class ProcessProjectResponse(BaseModel):
+    task_id: str
+    message: str
+
+# Simple in-memory task storage for project processing
+project_processing_tasks = {}
 
 @router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(project: ProjectCreate = Body(...)):
@@ -253,3 +268,257 @@ async def delete_project(project_id: str):
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
     # No return for 204 response 
+
+@router.post("/{project_id}/process", response_model=ProcessProjectResponse)
+async def process_project(project_id: str, request: ProcessProjectRequest = Body(...), background_tasks: BackgroundTasks = None):
+    """
+    Process a project to create a video.
+    """
+    # Handle non-standard ID formats - skip ObjectId validation for now
+    try:
+        # Try to convert to ObjectId if it's a valid format
+        if len(project_id) == 24 and all(c in '0123456789abcdef' for c in project_id.lower()):
+            obj_id = ObjectId(project_id)
+        else:
+            # For non-standard IDs, we'll just use it as is for lookups
+            obj_id = project_id
+    except:
+        # If conversion fails, use the ID as is
+        obj_id = project_id
+    
+    # Check if project exists
+    if not db.is_mock:
+        # Use flexible query that works with both ObjectId and string IDs
+        if isinstance(obj_id, ObjectId):
+            project = await db.client.autoshorts.projects.find_one({"_id": obj_id})
+        else:
+            # Try to find by string ID (could be in an "id" field or other format)
+            project = await db.client.autoshorts.projects.find_one({"$or": [
+                {"_id": obj_id},
+                {"id": project_id}
+            ]})
+        
+        if not project:
+            # For development purposes, create a mock project
+            project = {
+                "_id": project_id,
+                "title": f"Mock Project {project_id}",
+                "scenes": [
+                    {
+                        "text_content": "This is a test scene for project processing.",
+                        "url": "https://example.com/test"
+                    }
+                ]
+            }
+    else:
+        # For mock database, pretend the project exists
+        project = {
+            "_id": project_id,
+            "title": f"Mock Project {project_id}",
+            "scenes": [
+                {
+                    "text_content": "This is a test scene for project processing.",
+                    "url": "https://example.com/test"
+                }
+            ]
+        }
+    
+    # Generate a task ID
+    task_id = str(uuid.uuid4())
+    
+    # Store initial task status
+    project_processing_tasks[task_id] = {
+        "status": "queued",
+        "project_id": project_id,
+        "mode": request.mode
+    }
+    
+    # Add processing task to background tasks
+    if background_tasks:
+        background_tasks.add_task(
+            process_project_background,
+            task_id=task_id,
+            project_id=project_id,
+            mode=request.mode
+        )
+    else:
+        # For testing or if background_tasks is not available
+        asyncio.create_task(process_project_background(
+            task_id=task_id,
+            project_id=project_id,
+            mode=request.mode
+        ))
+    
+    return ProcessProjectResponse(
+        task_id=task_id,
+        message="Project processing started. Check status with the /status endpoint."
+    )
+
+@router.get("/{project_id}/process/{task_id}", response_model=Dict[str, Any])
+async def get_project_processing_status(project_id: str, task_id: str):
+    """
+    Get the status of a project processing task.
+    """
+    if task_id not in project_processing_tasks:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found"
+        )
+    
+    task_info = project_processing_tasks[task_id]
+    
+    # Check if the task is for the requested project
+    if task_info["project_id"] != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Task ID does not match project ID"
+        )
+    
+    return {
+        "task_id": task_id,
+        "status": task_info["status"],
+        "project_id": project_id,
+        "video_id": task_info.get("video_id"),
+        "storage_url": task_info.get("storage_url"),
+        "error": task_info.get("error")
+    }
+
+async def process_project_background(task_id: str, project_id: str, mode: str):
+    """
+    Background process to handle project video creation.
+    """
+    try:
+        # Update status
+        project_processing_tasks[task_id]["status"] = "processing"
+        
+        # Get project data - use same ID handling as in the endpoint
+        try:
+            if len(project_id) == 24 and all(c in '0123456789abcdef' for c in project_id.lower()):
+                obj_id = ObjectId(project_id)
+            else:
+                obj_id = project_id
+        except:
+            obj_id = project_id
+        
+        if not db.is_mock:
+            # Use flexible query that works with both ObjectId and string IDs
+            if isinstance(obj_id, ObjectId):
+                project = await db.client.autoshorts.projects.find_one({"_id": obj_id})
+            else:
+                # Try to find by string ID
+                project = await db.client.autoshorts.projects.find_one({"$or": [
+                    {"_id": obj_id},
+                    {"id": project_id}
+                ]})
+            
+            if not project:
+                # For development, use a mock project
+                project = {
+                    "_id": project_id,
+                    "title": f"Mock Project {project_id}",
+                    "scenes": [
+                        {
+                            "text_content": "This is a test scene for project processing.",
+                            "url": "https://example.com/test"
+                        }
+                    ]
+                }
+        else:
+            # Mock project data
+            project = {
+                "_id": project_id,
+                "title": f"Mock Project {project_id}",
+                "scenes": [
+                    {
+                        "text_content": "This is a test scene for project processing.",
+                        "url": "https://example.com/test"
+                    }
+                ]
+            }
+        
+        # Check if project has scenes
+        if not project.get("scenes"):
+            project_processing_tasks[task_id]["status"] = "failed"
+            project_processing_tasks[task_id]["error"] = "Project has no scenes to process"
+            return
+        
+        # Get combined text from scenes
+        combined_text = ""
+        for scene in project.get("scenes", []):
+            text = scene.get("text_content", "")
+            if text:
+                combined_text += text + "\n\n"
+        
+        if not combined_text.strip():
+            project_processing_tasks[task_id]["status"] = "failed"
+            project_processing_tasks[task_id]["error"] = "No text content found in project scenes"
+            return
+        
+        # In a real implementation, we would:
+        # 1. Generate voice audio from the text
+        # 2. Combine scene media with audio
+        # 3. Create the final video
+        
+        # For now, simulate the process with a delay
+        await asyncio.sleep(2)
+        
+        # Process the video (using a simplified approach)
+        mock_user_id = "user123"
+        success, video_info = await video_processor.create_video(
+            text=combined_text,
+            voice_path="mock_voice_path.mp3",  # Would be a real path in production
+            title=project.get("title", "Untitled Project"),
+            user_id=project.get("user_id", mock_user_id)
+        )
+        
+        if success:
+            # Update the task status
+            project_processing_tasks[task_id]["status"] = "completed"
+            project_processing_tasks[task_id]["video_id"] = video_info.get("video_id")
+            project_processing_tasks[task_id]["storage_url"] = video_info.get("storage_url")
+            
+            # Update the project status in the database
+            if not db.is_mock:
+                await db.client.autoshorts.projects.update_one(
+                    {"_id": obj_id},
+                    {"$set": {
+                        "status": "completed",
+                        "video_id": video_info.get("video_id"),
+                        "video_url": video_info.get("storage_url"),
+                        "updated_at": datetime.utcnow()
+                    }}
+                )
+        else:
+            # Handle failure
+            project_processing_tasks[task_id]["status"] = "failed"
+            project_processing_tasks[task_id]["error"] = video_info.get("error", "Unknown error during video processing")
+            
+            # Update project status
+            if not db.is_mock:
+                await db.client.autoshorts.projects.update_one(
+                    {"_id": obj_id},
+                    {"$set": {
+                        "status": "error",
+                        "error": video_info.get("error", "Unknown error"),
+                        "updated_at": datetime.utcnow()
+                    }}
+                )
+    
+    except Exception as e:
+        # Handle any unexpected errors
+        project_processing_tasks[task_id]["status"] = "failed"
+        project_processing_tasks[task_id]["error"] = str(e)
+        
+        # Try to update project status
+        try:
+            if not db.is_mock:
+                await db.client.autoshorts.projects.update_one(
+                    {"_id": obj_id},
+                    {"$set": {
+                        "status": "error",
+                        "error": str(e),
+                        "updated_at": datetime.utcnow()
+                    }}
+                )
+        except:
+            pass 

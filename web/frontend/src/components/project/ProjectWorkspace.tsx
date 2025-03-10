@@ -7,7 +7,7 @@ import SceneComponent from './SceneComponent';
 import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon, AlertTriangle as AlertIcon, Save as SaveIcon, Check as CheckIcon, Zap as ZapIcon } from 'lucide-react';
 import ErrorDisplay from '../ErrorDisplay';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { processVideoWithCustomization, processVideoFast, getUrlPreview } from '@/lib/project-utils';
+import { processVideoWithCustomization, processVideoFast } from '@/lib/project-utils';
 
 interface ProjectWorkspaceProps {
   projectId?: string;
@@ -20,26 +20,26 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     addScene, 
     removeScene, 
     updateSceneText, 
-    setProjectTitle, 
-    createProject,
-    reorderScenes,
-    isLoading,
-    error,
+    createProject, 
+    isSaving, 
+    lastSaved,
+    setProjectTitle,
     saveCurrentProject,
-    isSaving,
-    lastSaved
+    reorderScenes
   } = useProject();
   
-  const [urls, setUrls] = useState<string[]>(['']);
-  const [urlPreviews, setUrlPreviews] = useState<{[key: string]: any}>({});
   const [isCreating, setIsCreating] = useState(!projectId);
   const [title, setTitle] = useState('');
+  const [urls, setUrls] = useState<string[]>(['']);
   const [isAddingScene, setIsAddingScene] = useState(false);
   const [addSceneError, setAddSceneError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(!!projectId);
+  const [error, setError] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState<{isChecked: boolean, isAvailable: boolean}>({
     isChecked: false,
     isAvailable: false
   });
+  const [lastAction, setLastAction] = useState<string | null>(null);
   
   // Debug information
   const [debugInfo, setDebugInfo] = useState<{
@@ -96,14 +96,6 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     setAddSceneError(null);
     
     try {
-      // Fetch preview data using utility function
-      const previewData = await getUrlPreview(urls[index]);
-      
-      setUrlPreviews({
-        ...urlPreviews,
-        [urls[index]]: previewData
-      });
-      
       // Add scene to project
       await addScene(urls[index]);
       
@@ -113,7 +105,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       }
       
       setDebugInfo({
-        lastAction: 'URL added with preview',
+        lastAction: 'URL added',
         timestamp: Date.now(),
         details: { url: urls[index] }
       });
@@ -309,7 +301,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
 
   // Project workspace
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto bg-white">
       {isCreating ? (
         <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow">
           <h1 className="text-2xl font-bold mb-6">Create Video</h1>
@@ -338,12 +330,12 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           </form>
         </div>
       ) : isLoading ? (
-        <div className="flex justify-center items-center py-12">
+        <div className="flex justify-center items-center py-12 bg-white">
           <LoaderIcon className="h-8 w-8 text-blue-500 animate-spin" />
           <span className="ml-2 text-lg text-gray-600">Loading project...</span>
         </div>
       ) : currentProject ? (
-        <>
+        <div className="bg-white p-6 rounded-lg shadow">
           {/* Project header */}
           <div className="mb-6 flex justify-between items-center">
             <div>
@@ -351,7 +343,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                 type="text" 
                 value={currentProject.title}
                 onChange={(e) => setProjectTitle(e.target.value)}
-                className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5" 
+                className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800" 
                 aria-label="Project title" 
               />
               {lastSaved && (
@@ -423,17 +415,6 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                     )}
                   </button>
                 </div>
-                
-                {/* URL Preview */}
-                {urlPreviews[url] && (
-                  <div className="mt-2 p-3 border rounded bg-gray-50">
-                    <h3 className="font-medium">{urlPreviews[url].title || 'No title'}</h3>
-                    {urlPreviews[url].thumbnail && (
-                      <img src={urlPreviews[url].thumbnail} alt="Preview" className="mt-2 max-h-32" />
-                    )}
-                    <p className="text-sm text-gray-600 mt-1">{urlPreviews[url].description || 'No description'}</p>
-                  </div>
-                )}
               </div>
             ))}
             
@@ -494,24 +475,25 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
             <div className="mb-8">
               <h2 className="text-xl font-semibold mb-4">Scenes</h2>
               <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="scenes">
+                <Droppable droppableId="scenes" direction="horizontal">
                   {(provided) => (
                     <div
                       {...provided.droppableProps}
                       ref={provided.innerRef}
-                      className="pl-8" // Space for drag handle
+                      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
                     >
-                      {currentProject.scenes.map((scene, index) => (
-                        <Draggable key={scene.id} draggableId={scene.id} index={index}>
+                      {currentProject.scenes.map((scene, i) => (
+                        <Draggable key={scene.id} draggableId={scene.id} index={i}>
                           {(provided, snapshot) => (
                             <div
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
+                              className="h-full"
                             >
-                              <SceneComponent
+                              <SceneComponent 
                                 scene={scene}
-                                index={index}
+                                index={i}
                                 onRemove={removeScene}
                                 onTextChange={updateSceneText}
                                 onRetryLoad={handleRetryLoad}
@@ -529,20 +511,21 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
             </div>
           )}
           
-          {/* Debug info in development */}
-          {process.env.NODE_ENV === 'development' && debugInfo && (
-            <div className="mt-8 border-t pt-4 text-xs text-gray-500">
-              <h3 className="font-semibold mb-1">Debug Info</h3>
-              <div>Last action: {debugInfo.lastAction}</div>
-              <div>Timestamp: {new Date(debugInfo.timestamp).toLocaleTimeString()}</div>
-              {debugInfo.details && (
-                <pre className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-20">
-                  {JSON.stringify(debugInfo.details, null, 2)}
-                </pre>
-              )}
+          {/* Debug information */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-8 border-t pt-4">
+              <h3 className="text-sm font-medium text-gray-500 mb-2">Debug Info</h3>
+              <div className="text-xs text-gray-500">
+                Last action: {debugInfo?.lastAction || 'Component mounted'}
+                <br />
+                Timestamp: {new Date().toLocaleTimeString()}
+              </div>
+              <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                {JSON.stringify({ hasCurrentProject: !!currentProject }, null, 2)}
+              </pre>
             </div>
           )}
-        </>
+        </div>
       ) : error ? (
         <ErrorDisplay error={error} />
       ) : (

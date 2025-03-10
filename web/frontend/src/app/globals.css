@@ -18,24 +18,13 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #111111;
-    --foreground: #f3f4f6;
-    --input-background: #1f2937;
-    --input-foreground: #f3f4f6;
-    --input-border: #374151;
-    --input-placeholder: #9ca3af;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Fix input styling for dark mode */
+/* Fix input styling */
 input, textarea, select {
   background-color: var(--input-background);
   color: var(--input-foreground);
@@ -46,7 +35,7 @@ input::placeholder, textarea::placeholder {
   color: var(--input-placeholder);
 }
 
-/* Ensure Auto Shorts logo is visible in dark mode */
+/* Logo styling */
 .dark-mode-compatible-logo {
-  filter: brightness(1.2) contrast(1.2);
+  filter: none; /* Removed dark mode filter */
 }

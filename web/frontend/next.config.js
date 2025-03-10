@@ -19,8 +19,12 @@ const nextConfig = {
         destination: 'http://localhost:8001/api/v1/content/preview',
       },
       {
+        source: '/api/projects/:projectId/process',
+        destination: 'http://localhost:8001/api/v1/projects/:projectId/process',
+      },
+      {
         source: '/api/:path*',
-        destination: 'http://localhost:8001/api/:path*',
+        destination: 'http://localhost:8001/api/v1/:path*',
       },
       {
         source: '/health',
