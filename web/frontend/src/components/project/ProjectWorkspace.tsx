@@ -5,6 +5,7 @@ import { useProject } from './ProjectProvider';
 import SceneComponent from './SceneComponent';
 import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon, AlertTriangle as AlertIcon } from 'lucide-react';
 import ErrorDisplay from '../ErrorDisplay';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface ProjectWorkspaceProps {
   projectId?: string;
@@ -18,6 +19,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     updateSceneText, 
     setProjectTitle, 
     createProject,
+    reorderScenes,
     isLoading,
     error 
   } = useProject();
@@ -132,6 +134,46 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       // Error is handled by the scene component
       console.error('Error retrying scene load:', error);
     }
+  };
+  
+  // Handle drag end event
+  const handleDragEnd = (result: DropResult) => {
+    const { destination, source } = result;
+    
+    // Update debug info
+    setDebugInfo({
+      lastAction: 'Drag operation',
+      timestamp: Date.now(),
+      details: { source, destination }
+    });
+    
+    // If dropped outside the list or at the same position
+    if (!destination || 
+        (destination.droppableId === source.droppableId && 
+         destination.index === source.index)) {
+      return;
+    }
+    
+    // Get the current scene IDs in order
+    const sceneIds = currentProject?.scenes.map(scene => scene.id) || [];
+    
+    // Reorder the list
+    const newSceneIds = Array.from(sceneIds);
+    const [movedId] = newSceneIds.splice(source.index, 1);
+    newSceneIds.splice(destination.index, 0, movedId);
+    
+    // Call the reorderScenes function from context
+    reorderScenes(newSceneIds);
+    
+    // Update debug info again
+    setDebugInfo(prev => ({
+      lastAction: 'Scenes reordered',
+      timestamp: Date.now(),
+      details: { 
+        newOrder: newSceneIds,
+        previousAction: prev?.lastAction 
+      }
+    }));
   };
   
   // Project creation form
@@ -279,20 +321,41 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {currentProject.scenes.map((scene, index) => (
-              <div key={scene.id} className="relative pl-0">
-                <SceneComponent
-                  key={scene.id}
-                  scene={scene}
-                  index={index}
-                  onRemove={removeScene}
-                  onTextChange={updateSceneText}
-                  onRetryLoad={handleRetryLoad}
-                />
-              </div>
-            ))}
-          </div>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="scenes" type="grid" direction="horizontal">
+              {(provided, snapshot) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                >
+                  {currentProject.scenes.map((scene, index) => (
+                    <Draggable key={scene.id} draggableId={scene.id} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                          className="h-full"
+                        >
+                          <SceneComponent
+                            key={scene.id}
+                            scene={scene}
+                            index={index}
+                            onRemove={removeScene}
+                            onTextChange={updateSceneText}
+                            onRetryLoad={handleRetryLoad}
+                            isDragging={snapshot.isDragging}
+                          />
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
         )}
       </div>
       

@@ -6,6 +6,11 @@ import { Trash2 as TrashIcon, Edit as EditIcon, GripVertical as GripVerticalIcon
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
 
+// Utility function to clean post text by removing "Post by u/Username:" prefix
+const cleanPostText = (text: string): string => {
+  return text.replace(/^Post by u\/[^:]+:\s*/i, '');
+};
+
 interface SceneComponentProps {
   scene: Scene;
   index: number;
@@ -24,7 +29,7 @@ export default function SceneComponent({
   isDragging = false
 }: SceneComponentProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [text, setText] = useState(scene.text);
+  const [text, setText] = useState(cleanPostText(scene.text));
   const [isRetrying, setIsRetrying] = useState(false);
   
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -37,7 +42,7 @@ export default function SceneComponent({
   };
   
   const handleCancel = () => {
-    setText(scene.text);
+    setText(cleanPostText(scene.text));
     setIsEditing(false);
   };
 
@@ -160,7 +165,7 @@ export default function SceneComponent({
   return (
     <div 
       className={`relative border rounded-lg mb-4 ${
-        isDragging ? 'border-blue-500 shadow-lg' : 'border-gray-300'
+        isDragging ? 'border-blue-500 shadow-lg bg-blue-50' : 'border-gray-300'
       }`}
     >
       {/* Drag handle */}
@@ -186,10 +191,10 @@ export default function SceneComponent({
           {/* Content section */}
           <div className="p-4">
             {/* Source info */}
-            <div className="flex items-center text-xs text-gray-500 mb-2">
-              <span className="mr-2">Source: {scene.source.platform}</span>
-              {scene.source.author && <span className="mr-2">Author: {scene.source.author}</span>}
-              {scene.source.subreddit && <span>Subreddit: r/{scene.source.subreddit}</span>}
+            <div className="flex flex-wrap items-center text-xs text-gray-500 mb-2">
+              <span className="mr-2 truncate">Source: {scene.source.platform}</span>
+              {scene.source.author && <span className="mr-2 truncate">Author: {scene.source.author}</span>}
+              {scene.source.subreddit && <span className="truncate">Subreddit: r/{scene.source.subreddit}</span>}
             </div>
             
             {/* Text content */}
@@ -218,7 +223,7 @@ export default function SceneComponent({
               </div>
             ) : (
               <div className="min-h-[5rem]">
-                <p className="text-gray-800">{scene.text || '<No text provided>'}</p>
+                <p className="text-gray-800">{cleanPostText(scene.text) || '<No text provided>'}</p>
               </div>
             )}
           </div>
