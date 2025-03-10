@@ -30,7 +30,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   
   const [isCreating, setIsCreating] = useState(!projectId);
   const [title, setTitle] = useState('');
-  const [urls, setUrls] = useState<string[]>(['']);
+  const [url, setUrl] = useState('');
   const [isAddingScene, setIsAddingScene] = useState(false);
   const [addSceneError, setAddSceneError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(!!projectId);
@@ -76,38 +76,29 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     });
   };
   
-  // Add URL input field function
-  const addUrlInput = () => {
-    setUrls([...urls, '']);
-  };
-  
   // Function to handle URL changes
-  const handleUrlChange = (index: number, value: string) => {
-    const newUrls = [...urls];
-    newUrls[index] = value;
-    setUrls(newUrls);
+  const handleUrlChange = (value: string) => {
+    setUrl(value);
   };
   
   // Function to handle URL submission (Enter key)
-  const handleUrlSubmit = async (index: number) => {
-    if (!urls[index] || urls[index].trim() === '') return;
+  const handleUrlSubmit = async () => {
+    if (!url || url.trim() === '') return;
     
     setIsAddingScene(true);
     setAddSceneError(null);
     
     try {
       // Add scene to project
-      await addScene(urls[index]);
+      await addScene(url);
       
-      // Add a new input field if this is the last one
-      if (index === urls.length - 1) {
-        addUrlInput();
-      }
+      // Clear the URL input field after adding
+      setUrl('');
       
       setDebugInfo({
         lastAction: 'URL added',
         timestamp: Date.now(),
-        details: { url: urls[index] }
+        details: { url }
       });
       
     } catch (error) {
@@ -220,12 +211,11 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     });
   };
 
-  // Function to add a new scene from URL
+  // Function to handle adding a scene from form
   const handleAddScene = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Use the first URL in the array
-    const url = urls[0];
+    // Use url instead of urls array
     if (!url || !url.trim()) return;
     
     setIsAddingScene(true);
@@ -235,10 +225,8 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       console.log('Adding scene with URL:', url);
       await addScene(url);
       
-      // Clear the first URL input and add a new one if needed
-      const newUrls = [...urls];
-      newUrls[0] = '';
-      setUrls(newUrls);
+      // Clear the URL input after adding
+      setUrl('');
       
       setDebugInfo({
         lastAction: 'Scene added',
@@ -255,9 +243,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
 
   // Fill an example URL for easy testing
   const fillExampleUrl = () => {
-    const newUrls = [...urls];
-    newUrls[0] = 'https://www.reddit.com/r/oddlyterrifying/comments/1j7csx4/some_sorta_squid_in_australian_street/';
-    setUrls(newUrls);
+    setUrl('https://www.reddit.com/r/oddlyterrifying/comments/1j7csx4/some_sorta_squid_in_australian_street/');
   };
 
   // Function to retry loading a scene
@@ -346,6 +332,16 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                 className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800" 
                 aria-label="Project title" 
               />
+            </div>
+            <div className="flex flex-col items-end">
+              <button
+                onClick={handleManualSave}
+                className="flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm"
+                disabled={isSaving}
+              >
+                <SaveIcon className="h-4 w-4 mr-1" />
+                Save
+              </button>
               {lastSaved && (
                 <div className="text-xs text-gray-500 mt-1 flex items-center">
                   {isSaving ? (
@@ -362,14 +358,6 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                 </div>
               )}
             </div>
-            <button
-              onClick={handleManualSave}
-              className="flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm"
-              disabled={isSaving}
-            >
-              <SaveIcon className="h-4 w-4 mr-1" />
-              Save
-            </button>
           </div>
           
           {/* API status warning */}
@@ -391,32 +379,30 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           <div className="mb-8 bg-white p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">Add Content</h2>
             
-            {urls.map((url, index) => (
-              <div key={index} className="mb-4">
-                <div className="flex items-center">
-                  <input
-                    type="text"
-                    value={url}
-                    onChange={(e) => handleUrlChange(index, e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit(index)}
-                    placeholder="Enter Reddit URL"
-                    className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={isAddingScene}
-                  />
-                  <button 
-                    onClick={() => handleUrlSubmit(index)}
-                    className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                    disabled={isAddingScene || !url.trim()}
-                  >
-                    {isAddingScene ? (
-                      <LoaderIcon className="h-5 w-5 animate-spin" />
-                    ) : (
-                      'Add'
-                    )}
-                  </button>
-                </div>
+            <div className="mb-4">
+              <div className="flex items-center">
+                <input
+                  type="text"
+                  value={url}
+                  onChange={(e) => handleUrlChange(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
+                  placeholder="Enter Reddit URL"
+                  className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isAddingScene}
+                />
+                <button 
+                  onClick={() => handleUrlSubmit()}
+                  className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  disabled={isAddingScene || !url.trim()}
+                >
+                  {isAddingScene ? (
+                    <LoaderIcon className="h-5 w-5 animate-spin" />
+                  ) : (
+                    'Add'
+                  )}
+                </button>
               </div>
-            ))}
+            </div>
             
             {addSceneError && (
               <div className="text-red-500 text-sm mt-2 mb-4">
@@ -432,45 +418,10 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
               >
                 Fill with example URL
               </button>
-              <button 
-                type="button" 
-                onClick={addUrlInput}
-                className="flex items-center text-blue-600 text-sm"
-              >
-                <PlusCircleIcon className="h-4 w-4 mr-1" />
-                Add another URL
-              </button>
             </div>
           </div>
           
-          {/* Process buttons */}
-          {currentProject.scenes.length > 0 && (
-            <div className="mb-8 flex flex-col space-y-4">
-              <button 
-                onClick={handleProcessVideo}
-                className="px-4 py-3 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
-                disabled={isAddingScene || isSaving}
-              >
-                Process Video (Customize Each Scene)
-              </button>
-              
-              <button 
-                onClick={handleFastVideo}
-                className="px-4 py-3 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
-                disabled={isAddingScene || isSaving}
-              >
-                <ZapIcon className="h-5 w-5 mr-2" />
-                Fast Video (Automated Processing)
-              </button>
-              
-              <p className="text-sm text-gray-600 mt-1">
-                <strong>Process Video:</strong> Customize each scene before processing<br />
-                <strong>Fast Video:</strong> Automatically process with default settings
-              </p>
-            </div>
-          )}
-          
-          {/* Scenes list */}
+          {/* Scenes list - MOVED UP */}
           {currentProject.scenes.length > 0 && (
             <div className="mb-8">
               <h2 className="text-xl font-semibold mb-4">Scenes</h2>
@@ -508,6 +459,33 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                   )}
                 </Droppable>
               </DragDropContext>
+            </div>
+          )}
+          
+          {/* Process buttons - MOVED DOWN */}
+          {currentProject.scenes.length > 0 && (
+            <div className="mb-8 flex flex-col space-y-4">
+              <button 
+                onClick={handleProcessVideo}
+                className="px-4 py-3 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
+                disabled={isAddingScene || isSaving}
+              >
+                Process Video
+              </button>
+              
+              <button 
+                onClick={handleFastVideo}
+                className="px-4 py-3 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
+                disabled={isAddingScene || isSaving}
+              >
+                <ZapIcon className="h-5 w-5 mr-2" />
+                Fast Video
+              </button>
+              
+              <p className="text-sm text-gray-600 mt-1">
+                <strong>Process Video:</strong> Customize each scene before processing<br />
+                <strong>Fast Video:</strong> Automatically process with default settings
+              </p>
             </div>
           )}
           
