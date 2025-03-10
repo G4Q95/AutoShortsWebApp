@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useProject } from './ProjectProvider';
-import MediaContentItem from './MediaContentItem';
-import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon } from 'lucide-react';
+import SceneComponent from './SceneComponent';
+import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon, AlertTriangle as AlertIcon } from 'lucide-react';
 import ErrorDisplay from '../ErrorDisplay';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface ProjectWorkspaceProps {
   projectId?: string;
@@ -19,7 +18,6 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     updateSceneText, 
     setProjectTitle, 
     createProject,
-    reorderScenes,
     isLoading,
     error 
   } = useProject();
@@ -134,46 +132,6 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       // Error is handled by the scene component
       console.error('Error retrying scene load:', error);
     }
-  };
-  
-  // Handle drag end event
-  const handleDragEnd = (result: DropResult) => {
-    const { destination, source } = result;
-    
-    // Update debug info
-    setDebugInfo({
-      lastAction: 'Drag operation',
-      timestamp: Date.now(),
-      details: { source, destination }
-    });
-    
-    // If dropped outside the list or at the same position
-    if (!destination || 
-        (destination.droppableId === source.droppableId && 
-         destination.index === source.index)) {
-      return;
-    }
-    
-    // Get the current scene IDs in order
-    const sceneIds = currentProject?.scenes.map(scene => scene.id) || [];
-    
-    // Reorder the list
-    const newSceneIds = Array.from(sceneIds);
-    const [movedId] = newSceneIds.splice(source.index, 1);
-    newSceneIds.splice(destination.index, 0, movedId);
-    
-    // Call the reorderScenes function from context
-    reorderScenes(newSceneIds);
-    
-    // Update debug info again
-    setDebugInfo(prev => ({
-      lastAction: 'Scenes reordered',
-      timestamp: Date.now(),
-      details: { 
-        newOrder: newSceneIds,
-        previousAction: prev?.lastAction 
-      }
-    }));
   };
   
   // Project creation form
@@ -315,52 +273,26 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
         <h2 className="text-xl font-semibold mb-2">Project Scenes</h2>
         
         {currentProject.scenes.length === 0 ? (
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center justify-center text-center">
-            <div className="text-gray-400 mb-2">
-              <PlusCircleIcon size={48} />
-            </div>
-            <h3 className="text-lg font-medium text-gray-600 mb-1">No scenes added yet</h3>
-            <p className="text-gray-500 max-w-sm">
-              Add scenes by pasting a Reddit URL in the form above. Scenes will appear here.
+          <div className="text-center py-16 bg-gray-50 rounded-lg border border-gray-200">
+            <p className="text-gray-600 mb-4">
+              No scenes added yet. Add your first scene using the form above.
             </p>
           </div>
         ) : (
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="scenes">
-              {(provided, snapshot) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className={`pl-8 relative transition-colors ${
-                    snapshot.isDraggingOver ? 'bg-blue-50 rounded-lg p-2' : ''
-                  }`}
-                >
-                  {currentProject.scenes.map((scene, index) => (
-                    <Draggable key={scene.id} draggableId={scene.id} index={index}>
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                          className="mb-4"
-                        >
-                          <MediaContentItem
-                            scene={scene}
-                            index={index}
-                            onRemove={removeScene}
-                            onTextChange={updateSceneText}
-                            onRetryLoad={handleRetryLoad}
-                            isDragging={snapshot.isDragging}
-                          />
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {currentProject.scenes.map((scene, index) => (
+              <div key={scene.id} className="relative pl-0">
+                <SceneComponent
+                  key={scene.id}
+                  scene={scene}
+                  index={index}
+                  onRemove={removeScene}
+                  onTextChange={updateSceneText}
+                  onRetryLoad={handleRetryLoad}
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
       
