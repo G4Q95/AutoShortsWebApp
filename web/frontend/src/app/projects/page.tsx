@@ -6,8 +6,13 @@ import { ProjectProvider, useProject } from '@/components/project/ProjectProvide
 import { PlusCircle as PlusCircleIcon, Layers as LayersIcon } from 'lucide-react';
 
 function ProjectsList() {
-  const { projects } = useProject();
+  const { projects, loadProjects } = useProject();
   
+  // Load projects on mount
+  React.useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-8">
