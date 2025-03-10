@@ -52,6 +52,8 @@ export default function SceneComponent({
     setIsRetrying(true);
     try {
       await onRetryLoad(scene.url);
+    } catch (error) {
+      console.error('Failed to retry loading content:', error);
     } finally {
       setIsRetrying(false);
     }
