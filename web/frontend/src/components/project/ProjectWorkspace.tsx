@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useProject } from './ProjectProvider';
-import SceneComponent from './SceneComponent';
-import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon, AlertTriangle as AlertIcon } from 'lucide-react';
+import MediaContentItem from './MediaContentItem';
+import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon } from 'lucide-react';
 import ErrorDisplay from '../ErrorDisplay';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface ProjectWorkspaceProps {
   projectId?: string;
@@ -18,6 +19,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     updateSceneText, 
     setProjectTitle, 
     createProject,
+    reorderScenes,
     isLoading,
     error 
   } = useProject();
@@ -134,6 +136,46 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     }
   };
   
+  // Handle drag end event
+  const handleDragEnd = (result: DropResult) => {
+    const { destination, source } = result;
+    
+    // Update debug info
+    setDebugInfo({
+      lastAction: 'Drag operation',
+      timestamp: Date.now(),
+      details: { source, destination }
+    });
+    
+    // If dropped outside the list or at the same position
+    if (!destination || 
+        (destination.droppableId === source.droppableId && 
+         destination.index === source.index)) {
+      return;
+    }
+    
+    // Get the current scene IDs in order
+    const sceneIds = currentProject?.scenes.map(scene => scene.id) || [];
+    
+    // Reorder the list
+    const newSceneIds = Array.from(sceneIds);
+    const [movedId] = newSceneIds.splice(source.index, 1);
+    newSceneIds.splice(destination.index, 0, movedId);
+    
+    // Call the reorderScenes function from context
+    reorderScenes(newSceneIds);
+    
+    // Update debug info again
+    setDebugInfo(prev => ({
+      lastAction: 'Scenes reordered',
+      timestamp: Date.now(),
+      details: { 
+        newOrder: newSceneIds,
+        previousAction: prev?.lastAction 
+      }
+    }));
+  };
+  
   // Project creation form
   if (isCreating) {
     return (
@@ -228,102 +270,132 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
           </div>
         )}
         
-        <form onSubmit={handleAddScene} className="flex gap-2">
-          <input
-            type="url"
-            value={newUrl}
-            onChange={(e) => setNewUrl(e.target.value)}
-            placeholder="Paste a Reddit URL here"
-            className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-            disabled={isAddingScene}
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors inline-flex items-center"
-            disabled={isAddingScene || !newUrl.trim()}
-          >
-            {isAddingScene ? (
-              <LoaderIcon className="h-5 w-5 mr-1 animate-spin" />
-            ) : (
-              <PlusCircleIcon className="h-5 w-5 mr-1" />
-            )}
-            {isAddingScene ? 'Adding...' : 'Add Scene'}
-          </button>
+        <form onSubmit={handleAddScene} className="flex flex-col gap-3">
+          <div className="flex gap-2 w-full">
+            <input
+              type="url"
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              placeholder="Paste a Reddit URL here"
+              className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              disabled={isAddingScene}
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors inline-flex items-center"
+              disabled={isAddingScene || !newUrl.trim()}
+            >
+              {isAddingScene ? (
+                <LoaderIcon className="h-5 w-5 mr-1 animate-spin" />
+              ) : (
+                <PlusCircleIcon className="h-5 w-5 mr-1" />
+              )}
+              Add Scene
+            </button>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <div className="text-xs text-gray-500">
+              {currentProject.scenes.length} scene{currentProject.scenes.length !== 1 ? 's' : ''} in project
+            </div>
+            <button
+              type="button"
+              onClick={fillExampleUrl}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Use Example URL
+            </button>
+          </div>
         </form>
-        
-        <div className="mt-2 flex justify-end">
-          <button 
-            onClick={fillExampleUrl}
-            className="text-blue-600 text-sm hover:underline"
-          >
-            Use example URL
-          </button>
-        </div>
       </div>
       
-      {/* Debug Information */}
-      {debugInfo && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <h3 className="font-semibold text-yellow-800 flex items-center">
-            <AlertIcon className="h-4 w-4 mr-1" />
-            Debug Information
-          </h3>
-          <div className="mt-2 text-sm text-yellow-700">
-            <p><strong>Last Action:</strong> {debugInfo.lastAction}</p>
-            <p><strong>Timestamp:</strong> {new Date(debugInfo.timestamp).toLocaleTimeString()}</p>
-            {debugInfo.details && (
-              <div>
-                <p><strong>Details:</strong></p>
-                <pre className="bg-yellow-100 p-2 rounded mt-1 overflow-auto max-h-40">
-                  {JSON.stringify(debugInfo.details, null, 2)}
-                </pre>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      
-      {/* Scenes list */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Scenes ({currentProject.scenes.length})</h2>
+      {/* Scenes list container with drag and drop */}
+      <div className="flex flex-col space-y-4 mb-8 min-h-[200px]">
+        <h2 className="text-xl font-semibold mb-2">Project Scenes</h2>
         
         {currentProject.scenes.length === 0 ? (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-            <p className="text-gray-600 mb-4">
-              No scenes added yet. Add your first scene using the form above.
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center justify-center text-center">
+            <div className="text-gray-400 mb-2">
+              <PlusCircleIcon size={48} />
+            </div>
+            <h3 className="text-lg font-medium text-gray-600 mb-1">No scenes added yet</h3>
+            <p className="text-gray-500 max-w-sm">
+              Add scenes by pasting a Reddit URL in the form above. Scenes will appear here.
             </p>
           </div>
         ) : (
-          <div className="pl-10"> {/* Add padding for the drag handles */}
-            {currentProject.scenes.map((scene, index) => (
-              <SceneComponent
-                key={scene.id}
-                scene={scene}
-                index={index}
-                onRemove={removeScene}
-                onTextChange={updateSceneText}
-                onRetryLoad={handleRetryLoad}
-              />
-            ))}
-          </div>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="scenes">
+              {(provided, snapshot) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className={`pl-8 relative transition-colors ${
+                    snapshot.isDraggingOver ? 'bg-blue-50 rounded-lg p-2' : ''
+                  }`}
+                >
+                  {currentProject.scenes.map((scene, index) => (
+                    <Draggable key={scene.id} draggableId={scene.id} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                          className="mb-4"
+                        >
+                          <MediaContentItem
+                            scene={scene}
+                            index={index}
+                            onRemove={removeScene}
+                            onTextChange={updateSceneText}
+                            onRetryLoad={handleRetryLoad}
+                            isDragging={snapshot.isDragging}
+                          />
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
         )}
       </div>
       
-      {/* Project actions */}
-      <div className="flex justify-end space-x-3 mb-12">
+      {/* Process button - disabled if no scenes */}
+      <div className="mt-8 mb-16">
         <button
-          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+          disabled={currentProject.scenes.length === 0}
+          className={`w-full py-3 rounded-md transition-colors ${
+            currentProject.scenes.length === 0
+              ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+              : 'bg-green-600 hover:bg-green-700 text-white'
+          }`}
         >
-          Save Draft
+          Process Video
         </button>
-        <button
-          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-          disabled={currentProject.scenes.length === 0 || currentProject.scenes.some(scene => scene.isLoading || scene.error)}
-        >
-          Generate Video
-        </button>
+        {currentProject.scenes.length === 0 && (
+          <p className="mt-2 text-sm text-center text-gray-500">
+            Add at least one scene to process the video
+          </p>
+        )}
       </div>
+      
+      {/* Debug information - only in development, can be removed in production */}
+      {debugInfo && process.env.NODE_ENV === 'development' && (
+        <div className="mt-10 p-4 border border-gray-300 rounded bg-gray-50 text-sm text-gray-700">
+          <h3 className="font-bold mb-2">Debug Info:</h3>
+          <p>Last action: {debugInfo.lastAction}</p>
+          <p>Timestamp: {new Date(debugInfo.timestamp).toLocaleTimeString()}</p>
+          {debugInfo.details && (
+            <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto max-h-40">
+              {JSON.stringify(debugInfo.details, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   );
 } 
