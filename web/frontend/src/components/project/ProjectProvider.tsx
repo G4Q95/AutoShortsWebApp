@@ -81,7 +81,9 @@ type ProjectAction =
   | { type: 'LOAD_PROJECTS'; payload: { projects: Project[] } }
   | { type: 'SET_SAVING'; payload: { isSaving: boolean } }
   | { type: 'SET_LAST_SAVED'; payload: { timestamp: number } }
-  | { type: 'LOAD_PROJECT_SUCCESS'; payload: { project: Project } };
+  | { type: 'LOAD_PROJECT_SUCCESS'; payload: { project: Project } }
+  | { type: 'DUPLICATE_PROJECT_SUCCESS'; payload: { project: Project } }
+  | { type: 'DELETE_ALL_PROJECTS_SUCCESS' };
 
 // Helper to generate unique IDs
 const generateId = (): string => {
@@ -370,6 +372,24 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
       };
     }
     
+    case 'DUPLICATE_PROJECT_SUCCESS': {
+      return {
+        ...state,
+        projects: [...state.projects, action.payload.project],
+        currentProject: action.payload.project,
+        error: null
+      };
+    }
+    
+    case 'DELETE_ALL_PROJECTS_SUCCESS': {
+      return {
+        ...state,
+        projects: [],
+        currentProject: null,
+        error: null
+      };
+    }
+    
     default:
       return state;
   }
@@ -389,6 +409,8 @@ const ProjectContext = createContext<ProjectState & {
   loadProjects: () => Promise<void>;
   loadProject: (projectId: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
+  duplicateProject: (projectId: string) => Promise<Project>;
+  deleteAllProjects: () => Promise<void>;
 }>({
   ...initialState,
   createProject: () => {},
@@ -402,7 +424,9 @@ const ProjectContext = createContext<ProjectState & {
   saveCurrentProject: async () => {},
   loadProjects: async () => {},
   loadProject: async () => {},
-  deleteProject: async () => {}
+  deleteProject: async () => {},
+  duplicateProject: async () => ({ id: '', title: '', scenes: [], createdAt: 0, updatedAt: 0, status: 'draft' }),
+  deleteAllProjects: async () => {}
 });
 
 // Project Provider component
@@ -412,36 +436,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Auto-save timer reference
   const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   
-  // Load projects from localStorage on initial mount
-  useEffect(() => {
-    loadProjects();
-  }, []);
-  
-  // Set up auto-save whenever currentProject changes
-  useEffect(() => {
-    // If we have a current project, set up auto-save
-    if (state.currentProject) {
-      // Clear existing timer if any
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-      
-      // Set new timer for auto-save (3 seconds after last change)
-      autoSaveTimerRef.current = setTimeout(() => {
-        saveCurrentProject();
-      }, 3000);
-    }
-    
-    // Clean up timer on component unmount
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, [state.currentProject]);
-  
-  // Function to load all projects from localStorage
-  const loadProjects = async () => {
+  // Function to load all projects from localStorage - moved to useCallback
+  const loadProjects = useCallback(async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
       
@@ -474,36 +470,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  };
+  }, [dispatch]);
   
-  // Function to load a specific project from localStorage
-  const loadProject = async (projectId: string) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-      
-      if (!projectExists(projectId)) {
-        throw new Error(`Project with ID ${projectId} not found`);
-      }
-      
-      const project = await getProject(projectId);
-      
-      dispatch({ 
-        type: 'LOAD_PROJECT_SUCCESS', 
-        payload: { project } 
-      });
-    } catch (error) {
-      console.error('Failed to load project:', error);
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: { error: 'Failed to load project' } 
-      });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
-    }
-  };
+  // Load projects from localStorage on initial mount
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
   
   // Function to save the current project to localStorage
-  const saveCurrentProject = async () => {
+  const saveCurrentProject = useCallback(async () => {
     if (!state.currentProject) {
       console.warn('No active project to save');
       return;
@@ -527,10 +502,59 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     } finally {
       dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
     }
-  };
+  }, [state.currentProject, dispatch]);
+  
+  // Set up auto-save whenever currentProject changes
+  useEffect(() => {
+    // If we have a current project, set up auto-save
+    if (state.currentProject) {
+      // Clear existing timer if any
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      
+      // Set new timer for auto-save (3 seconds after last change)
+      autoSaveTimerRef.current = setTimeout(() => {
+        saveCurrentProject();
+      }, 3000);
+    }
+    
+    // Clean up timer on component unmount
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [state.currentProject, saveCurrentProject]);
+  
+  // Function to load a specific project from localStorage
+  const loadProject = useCallback(async (projectId: string) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
+      
+      if (!projectExists(projectId)) {
+        throw new Error(`Project with ID ${projectId} not found`);
+      }
+      
+      const project = await getProject(projectId);
+      
+      dispatch({ 
+        type: 'LOAD_PROJECT_SUCCESS', 
+        payload: { project } 
+      });
+    } catch (error) {
+      console.error('Failed to load project:', error);
+      dispatch({ 
+        type: 'SET_ERROR', 
+        payload: { error: 'Failed to load project' } 
+      });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+    }
+  }, [dispatch]);
   
   // Function to delete a project
-  const deleteCurrentProject = async (projectId: string) => {
+  const deleteCurrentProject = useCallback(async (projectId: string) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
       
@@ -560,15 +584,31 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  };
+  }, [dispatch, state.currentProject, loadProjects]);
   
-  // Original functions
-  const createProject = (title: string) => {
-    dispatch({ type: 'CREATE_PROJECT', payload: { title } });
-    // Auto-save will happen via the useEffect
-  };
+  /**
+   * Creates a new project
+   * @param title The title of the project
+   * @returns The created project
+   */
+  const createProject = useCallback((title: string) => {
+    const action: ProjectAction = { type: 'CREATE_PROJECT', payload: { title } };
+    dispatch(action);
+    
+    // Get the project from the state after dispatching
+    const newProject = state.projects.find(p => p.title === title);
+    
+    // Save the project to storage
+    if (newProject) {
+      saveProject(newProject).catch(error => {
+        console.error('Failed to save new project:', error);
+      });
+    }
+    
+    return newProject;
+  }, [dispatch, state.projects]);
   
-  const setCurrentProject = async (projectId: string) => {
+  const setCurrentProject = useCallback(async (projectId: string) => {
     // If the project exists in state, just set it
     if (state.projects.some(p => p.id === projectId)) {
       dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
@@ -577,39 +617,34 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     
     // Otherwise, try to load it from storage
     await loadProject(projectId);
-  };
+  }, [dispatch, state.projects, loadProject]);
   
-  const addScene = async (url: string) => {
-    console.log('addScene called with URL:', url);
-    
-    if (!state.currentProject) {
-      dispatch({ type: 'SET_ERROR', payload: { error: 'No active project to add scene to' } });
-      return;
-    }
-    
+  // Function to add a scene with a URL
+  const addScene = useCallback(async (url: string) => {
+    // Generate a unique scene ID
     const sceneId = generateId();
-    console.log('Generated scene ID:', sceneId);
     
-    // First dispatch to show loading state
-    dispatch({ type: 'ADD_SCENE_LOADING', payload: { sceneId, url } });
+    // First add a placeholder scene
+    dispatch({ 
+      type: 'ADD_SCENE_LOADING', 
+      payload: { 
+        sceneId, 
+        url 
+      } 
+    });
     
+    // Then fetch content for the scene
     try {
-      // Use functions from API client to fetch content
-      console.log('ProjectProvider: Fetching content for URL:', url);
-      console.log('ProjectProvider: Using extractContent function to fetch from backend API');
-      
-      console.log('Before API call');
+      console.log('ProjectProvider: Extracting content from URL:', url);
       const response = await extractContent(url);
-      console.log('After API call, response:', response);
       
-      // Handle API errors
-      if (response.error) {
+      if (response.error || !response.data) {
         console.error('ProjectProvider: API error:', response.error);
         dispatch({ 
           type: 'ADD_SCENE_ERROR', 
           payload: { 
             sceneId, 
-            error: response.error.detail || 'Failed to extract content from URL' 
+            error: response.error?.detail || 'Failed to extract content from URL' 
           } 
         });
         return;
@@ -685,48 +720,100 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         } 
       });
     }
-  };
+  }, [dispatch]);
   
-  // Helper function to determine media type from API response
-  const determineMediaType = (data: any): 'image' | 'video' | 'gallery' => {
-    if (data.media_type) {
-      if (data.media_type === 'video') return 'video';
-      if (data.media_type === 'image') return 'image';
-    }
-    
-    // Check URL patterns as fallback
-    const mediaUrl = data.media_url || '';
-    if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) return 'video';
-    if (mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return 'image';
-    
-    // Handle gallery type
-    if (data.preview_images && data.preview_images.length > 1) {
-      return 'gallery';
-    }
-    
-    // Default to image for safety
-    return 'image';
-  };
-  
-  const removeScene = (sceneId: string) => {
+  const removeScene = useCallback((sceneId: string) => {
     dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
-  };
+  }, [dispatch]);
   
-  const updateSceneText = (sceneId: string, text: string) => {
+  const updateSceneText = useCallback((sceneId: string, text: string) => {
     dispatch({ type: 'UPDATE_SCENE_TEXT', payload: { sceneId, text } });
-  };
+  }, [dispatch]);
   
-  const reorderScenes = (sceneIds: string[]) => {
+  const reorderScenes = useCallback((sceneIds: string[]) => {
     dispatch({ type: 'REORDER_SCENES', payload: { sceneIds } });
-  };
+  }, [dispatch]);
   
-  const setProjectTitle = (title: string) => {
+  const setProjectTitle = useCallback((title: string) => {
     dispatch({ type: 'SET_PROJECT_TITLE', payload: { title } });
-  };
+  }, [dispatch]);
   
-  const clearError = () => {
+  const clearError = useCallback(() => {
     dispatch({ type: 'CLEAR_ERROR' });
-  };
+  }, [dispatch]);
+  
+  /**
+   * Duplicates a project
+   * @param projectId The ID of the project to duplicate
+   */
+  const duplicateProject = useCallback(async (projectId: string) => {
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
+    
+    try {
+      // Find the project to duplicate
+      const projectToDuplicate = state.projects.find(p => p.id === projectId);
+      
+      if (!projectToDuplicate) {
+        throw new Error('Project not found');
+      }
+      
+      // Create a new project with the same data but different ID
+      const duplicatedProject: Project = {
+        ...JSON.parse(JSON.stringify(projectToDuplicate)), // Deep clone
+        id: generateId(),
+        title: `${projectToDuplicate.title} (Copy)`,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      
+      // Save the duplicated project
+      await saveProject(duplicatedProject);
+      
+      dispatch({
+        type: 'DUPLICATE_PROJECT_SUCCESS',
+        payload: { project: duplicatedProject }
+      });
+      
+      return duplicatedProject;
+    } catch (error) {
+      console.error('Failed to duplicate project:', error);
+      dispatch({
+        type: 'SET_ERROR',
+        payload: { error: error instanceof Error ? error.message : 'Failed to duplicate project' }
+      });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+    }
+  }, [dispatch, state.projects]);
+  
+  /**
+   * Deletes all projects
+   */
+  const deleteAllProjects = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
+    
+    try {
+      // Get all project IDs
+      const projectIds = state.projects.map(project => project.id);
+      
+      // Delete each project
+      for (const id of projectIds) {
+        await deleteProject(id);
+      }
+      
+      dispatch({ type: 'DELETE_ALL_PROJECTS_SUCCESS' });
+    } catch (error) {
+      console.error('Failed to delete all projects:', error);
+      dispatch({
+        type: 'SET_ERROR',
+        payload: { error: error instanceof Error ? error.message : 'Failed to delete all projects' }
+      });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+    }
+  }, [dispatch, state.projects]);
   
   const value = {
     ...state,
@@ -741,7 +828,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     saveCurrentProject,
     loadProjects,
     loadProject,
-    deleteProject: deleteCurrentProject
+    deleteProject: deleteCurrentProject,
+    duplicateProject,
+    deleteAllProjects
   };
   
   return (
@@ -758,4 +847,25 @@ export function useProject() {
     throw new Error('useProject must be used within a ProjectProvider');
   }
   return context;
-} 
+}
+
+// Helper function to determine media type from API response
+const determineMediaType = (data: any): 'image' | 'video' | 'gallery' => {
+  if (data.media_type) {
+    if (data.media_type === 'video') return 'video';
+    if (data.media_type === 'image') return 'image';
+  }
+  
+  // Check URL patterns as fallback
+  const mediaUrl = data.media_url || '';
+  if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) return 'video';
+  if (mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return 'image';
+  
+  // Handle gallery type
+  if (data.preview_images && data.preview_images.length > 1) {
+    return 'gallery';
+  }
+  
+  // Default to image for safety
+  return 'image';
+}; 

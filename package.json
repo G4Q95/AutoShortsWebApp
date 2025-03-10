@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@agentdeskai/browser-tools-server": "^1.2.0",
     "express": "^4.21.2"
   }
 }

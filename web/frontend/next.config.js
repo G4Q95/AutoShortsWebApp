@@ -15,12 +15,16 @@ const nextConfig = {
   async rewrites() {
     return [
       {
+        source: '/api/preview',
+        destination: 'http://localhost:8001/api/v1/content/preview',
+      },
+      {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*',
+        destination: 'http://localhost:8001/api/:path*',
       },
       {
         source: '/health',
-        destination: 'http://localhost:8000/health',
+        destination: 'http://localhost:8001/api/v1/health',
       },
     ];
   },

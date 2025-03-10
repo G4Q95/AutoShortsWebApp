@@ -1,17 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useProject } from './ProjectProvider';
 import SceneComponent from './SceneComponent';
-import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon, AlertTriangle as AlertIcon, Save as SaveIcon, Check as CheckIcon } from 'lucide-react';
+import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon, AlertTriangle as AlertIcon, Save as SaveIcon, Check as CheckIcon, Zap as ZapIcon } from 'lucide-react';
 import ErrorDisplay from '../ErrorDisplay';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { processVideoWithCustomization, processVideoFast, getUrlPreview } from '@/lib/project-utils';
 
 interface ProjectWorkspaceProps {
   projectId?: string;
 }
 
 export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
+  const router = useRouter();
   const { 
     currentProject, 
     addScene, 
@@ -27,7 +30,8 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     lastSaved
   } = useProject();
   
-  const [newUrl, setNewUrl] = useState('');
+  const [urls, setUrls] = useState<string[]>(['']);
+  const [urlPreviews, setUrlPreviews] = useState<{[key: string]: any}>({});
   const [isCreating, setIsCreating] = useState(!projectId);
   const [title, setTitle] = useState('');
   const [isAddingScene, setIsAddingScene] = useState(false);
@@ -72,6 +76,56 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     });
   };
   
+  // Add URL input field function
+  const addUrlInput = () => {
+    setUrls([...urls, '']);
+  };
+  
+  // Function to handle URL changes
+  const handleUrlChange = (index: number, value: string) => {
+    const newUrls = [...urls];
+    newUrls[index] = value;
+    setUrls(newUrls);
+  };
+  
+  // Function to handle URL submission (Enter key)
+  const handleUrlSubmit = async (index: number) => {
+    if (!urls[index] || urls[index].trim() === '') return;
+    
+    setIsAddingScene(true);
+    setAddSceneError(null);
+    
+    try {
+      // Fetch preview data using utility function
+      const previewData = await getUrlPreview(urls[index]);
+      
+      setUrlPreviews({
+        ...urlPreviews,
+        [urls[index]]: previewData
+      });
+      
+      // Add scene to project
+      await addScene(urls[index]);
+      
+      // Add a new input field if this is the last one
+      if (index === urls.length - 1) {
+        addUrlInput();
+      }
+      
+      setDebugInfo({
+        lastAction: 'URL added with preview',
+        timestamp: Date.now(),
+        details: { url: urls[index] }
+      });
+      
+    } catch (error) {
+      console.error("Error processing URL:", error);
+      setAddSceneError(error instanceof Error ? error.message : 'Failed to process URL');
+    } finally {
+      setIsAddingScene(false);
+    }
+  };
+  
   // Manual save handler
   const handleManualSave = async () => {
     if (!currentProject) return;
@@ -85,6 +139,46 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
       });
     } catch (error) {
       console.error('Failed to manually save project:', error);
+    }
+  };
+
+  // Process video with customization
+  const handleProcessVideo = async () => {
+    if (!currentProject) return;
+    
+    try {
+      // Save the project first
+      await saveCurrentProject();
+      
+      // Use utility function to process video
+      await processVideoWithCustomization(currentProject.id);
+      
+      // Redirect to processing status page
+      router.push(`/processing/${currentProject.id}`);
+      
+    } catch (error) {
+      console.error('Error processing video:', error);
+      // Handle error (show error message)
+    }
+  };
+  
+  // Process video fast (automated)
+  const handleFastVideo = async () => {
+    if (!currentProject) return;
+    
+    try {
+      // Save the project first
+      await saveCurrentProject();
+      
+      // Use utility function to process video in fast mode
+      await processVideoFast(currentProject.id);
+      
+      // Redirect to processing status page
+      router.push(`/processing/${currentProject.id}`);
+      
+    } catch (error) {
+      console.error('Error processing video in fast mode:', error);
+      // Handle error (show error message)
     }
   };
 
@@ -138,19 +232,26 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   const handleAddScene = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newUrl.trim()) return;
+    // Use the first URL in the array
+    const url = urls[0];
+    if (!url || !url.trim()) return;
     
     setIsAddingScene(true);
     setAddSceneError(null);
     
     try {
-      console.log('Adding scene with URL:', newUrl);
-      await addScene(newUrl);
-      setNewUrl('');
+      console.log('Adding scene with URL:', url);
+      await addScene(url);
+      
+      // Clear the first URL input and add a new one if needed
+      const newUrls = [...urls];
+      newUrls[0] = '';
+      setUrls(newUrls);
+      
       setDebugInfo({
         lastAction: 'Scene added',
         timestamp: Date.now(),
-        details: { url: newUrl }
+        details: { url }
       });
     } catch (error) {
       console.error('Error adding scene:', error);
@@ -162,7 +263,9 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
 
   // Fill an example URL for easy testing
   const fillExampleUrl = () => {
-    setNewUrl('https://www.reddit.com/r/oddlyterrifying/comments/1j7csx4/some_sorta_squid_in_australian_street/');
+    const newUrls = [...urls];
+    newUrls[0] = 'https://www.reddit.com/r/oddlyterrifying/comments/1j7csx4/some_sorta_squid_in_australian_street/';
+    setUrls(newUrls);
   };
 
   // Function to retry loading a scene
@@ -209,11 +312,11 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     <div className="max-w-3xl mx-auto">
       {isCreating ? (
         <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow">
-          <h1 className="text-2xl font-bold mb-6">Create New Project</h1>
+          <h1 className="text-2xl font-bold mb-6">Create Video</h1>
           <form onSubmit={handleCreateProject}>
             <div className="mb-4">
               <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                Project Title
+                Video Title
               </label>
               <input 
                 type="text" 
@@ -221,7 +324,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter a title for your project"
+                placeholder="Enter a title for your video"
                 required
               />
             </div>
@@ -230,7 +333,7 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
               className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
               disabled={!title.trim()}
             >
-              Create Project
+              Create Video
             </button>
           </form>
         </div>
@@ -248,110 +351,155 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                 type="text" 
                 value={currentProject.title}
                 onChange={(e) => setProjectTitle(e.target.value)}
-                className="text-3xl font-bold border-none focus:outline-none focus:ring-0 p-0 bg-transparent w-full"
-                aria-label="Project title"
+                className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5" 
+                aria-label="Project title" 
               />
-              <p className="text-gray-500 text-sm mt-1">
-                Created: {new Date(currentProject.createdAt).toLocaleDateString()}
-              </p>
+              {lastSaved && (
+                <div className="text-xs text-gray-500 mt-1 flex items-center">
+                  {isSaving ? (
+                    <>
+                      <LoaderIcon className="inline-block h-3 w-3 mr-1 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckIcon className="inline-block h-3 w-3 mr-1 text-green-500" />
+                      Last saved: {formatSavedTime()}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
+            <button
+              onClick={handleManualSave}
+              className="flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm"
+              disabled={isSaving}
+            >
+              <SaveIcon className="h-4 w-4 mr-1" />
+              Save
+            </button>
+          </div>
+          
+          {/* API status warning */}
+          {apiStatus.isChecked && !apiStatus.isAvailable && (
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+              <div className="flex">
+                <AlertIcon className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-yellow-700">
+                    The Auto Shorts API is currently unavailable. You can still create and edit projects,
+                    but you won't be able to process videos until the API is back online.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Add URL form */}
+          <div className="mb-8 bg-white p-6 rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">Add Content</h2>
             
-            {/* Save indicator */}
-            <div className="flex items-center">
-              {isSaving ? (
-                <div className="flex items-center text-blue-600 mr-2">
-                  <LoaderIcon className="h-4 w-4 animate-spin mr-1" />
-                  <span className="text-sm">Saving...</span>
+            {urls.map((url, index) => (
+              <div key={index} className="mb-4">
+                <div className="flex items-center">
+                  <input
+                    type="text"
+                    value={url}
+                    onChange={(e) => handleUrlChange(index, e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit(index)}
+                    placeholder="Enter Reddit URL"
+                    className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={isAddingScene}
+                  />
+                  <button 
+                    onClick={() => handleUrlSubmit(index)}
+                    className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    disabled={isAddingScene || !url.trim()}
+                  >
+                    {isAddingScene ? (
+                      <LoaderIcon className="h-5 w-5 animate-spin" />
+                    ) : (
+                      'Add'
+                    )}
+                  </button>
                 </div>
-              ) : lastSaved ? (
-                <div className="flex items-center text-green-600 mr-2">
-                  <CheckIcon className="h-4 w-4 mr-1" />
-                  <span className="text-sm">{formatSavedTime()}</span>
-                </div>
-              ) : null}
-              
-              <button
-                onClick={handleManualSave}
-                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                title="Save project"
+                
+                {/* URL Preview */}
+                {urlPreviews[url] && (
+                  <div className="mt-2 p-3 border rounded bg-gray-50">
+                    <h3 className="font-medium">{urlPreviews[url].title || 'No title'}</h3>
+                    {urlPreviews[url].thumbnail && (
+                      <img src={urlPreviews[url].thumbnail} alt="Preview" className="mt-2 max-h-32" />
+                    )}
+                    <p className="text-sm text-gray-600 mt-1">{urlPreviews[url].description || 'No description'}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+            
+            {addSceneError && (
+              <div className="text-red-500 text-sm mt-2 mb-4">
+                Error: {addSceneError}
+              </div>
+            )}
+            
+            <div className="flex justify-between items-center">
+              <button 
+                type="button" 
+                onClick={fillExampleUrl}
+                className="text-blue-600 text-sm underline"
               >
-                <SaveIcon className="h-5 w-5" />
+                Fill with example URL
+              </button>
+              <button 
+                type="button" 
+                onClick={addUrlInput}
+                className="flex items-center text-blue-600 text-sm"
+              >
+                <PlusCircleIcon className="h-4 w-4 mr-1" />
+                Add another URL
               </button>
             </div>
           </div>
           
-          {/* Add new scene form */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-semibold mb-4">Add a new scene</h2>
-            
-            {addSceneError && (
-              <div className="mb-4">
-                <ErrorDisplay 
-                  error={addSceneError} 
-                  type="extraction" 
-                  className="mb-4"
-                />
-              </div>
-            )}
-            
-            <form onSubmit={handleAddScene} className="flex flex-col gap-3">
-              <div className="flex gap-2 w-full">
-                <input
-                  type="url"
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                  placeholder="Paste a Reddit URL here"
-                  className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                  disabled={isAddingScene}
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors inline-flex items-center"
-                  disabled={isAddingScene || !newUrl.trim()}
-                >
-                  {isAddingScene ? (
-                    <LoaderIcon className="h-5 w-5 mr-1 animate-spin" />
-                  ) : (
-                    <PlusCircleIcon className="h-5 w-5 mr-1" />
-                  )}
-                  Add Scene
-                </button>
-              </div>
+          {/* Process buttons */}
+          {currentProject.scenes.length > 0 && (
+            <div className="mb-8 flex flex-col space-y-4">
+              <button 
+                onClick={handleProcessVideo}
+                className="px-4 py-3 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
+                disabled={isAddingScene || isSaving}
+              >
+                Process Video (Customize Each Scene)
+              </button>
               
-              <div className="flex justify-between items-center">
-                <div className="text-xs text-gray-500">
-                  {currentProject.scenes.length} scene{currentProject.scenes.length !== 1 ? 's' : ''} in project
-                </div>
-                <button
-                  type="button"
-                  onClick={fillExampleUrl}
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  Use Example URL
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Scenes list container with drag and drop */}
-          <div className="flex flex-col space-y-4 mb-8 min-h-[200px]">
-            <h2 className="text-xl font-semibold mb-2">Project Scenes</h2>
-            
-            {currentProject.scenes.length === 0 ? (
-              <div className="text-center py-16 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-gray-600 mb-4">
-                  No scenes added yet. Add your first scene using the form above.
-                </p>
-              </div>
-            ) : (
+              <button 
+                onClick={handleFastVideo}
+                className="px-4 py-3 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
+                disabled={isAddingScene || isSaving}
+              >
+                <ZapIcon className="h-5 w-5 mr-2" />
+                Fast Video (Automated Processing)
+              </button>
+              
+              <p className="text-sm text-gray-600 mt-1">
+                <strong>Process Video:</strong> Customize each scene before processing<br />
+                <strong>Fast Video:</strong> Automatically process with default settings
+              </p>
+            </div>
+          )}
+          
+          {/* Scenes list */}
+          {currentProject.scenes.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold mb-4">Scenes</h2>
               <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="scenes" type="grid" direction="horizontal">
-                  {(provided, snapshot) => (
+                <Droppable droppableId="scenes">
+                  {(provided) => (
                     <div
                       {...provided.droppableProps}
                       ref={provided.innerRef}
-                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                      className="pl-8" // Space for drag handle
                     >
                       {currentProject.scenes.map((scene, index) => (
                         <Draggable key={scene.id} draggableId={scene.id} index={index}>
@@ -360,11 +508,9 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              className="h-full"
                             >
-                              <SceneComponent 
-                                key={scene.id}
-                                scene={scene} 
+                              <SceneComponent
+                                scene={scene}
                                 index={index}
                                 onRemove={removeScene}
                                 onTextChange={updateSceneText}
@@ -380,50 +526,29 @@ export default function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
                   )}
                 </Droppable>
               </DragDropContext>
-            )}
-          </div>
+            </div>
+          )}
           
-          {/* Process button - disabled if no scenes */}
-          <div className="mt-8 mb-16">
-            <button
-              disabled={currentProject.scenes.length === 0}
-              className={`w-full py-3 rounded-md transition-colors ${
-                currentProject.scenes.length === 0
-                  ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-                  : 'bg-green-600 hover:bg-green-700 text-white'
-              }`}
-            >
-              Process Video
-            </button>
-            {currentProject.scenes.length === 0 && (
-              <p className="mt-2 text-sm text-center text-gray-500">
-                Add at least one scene to process the video
-              </p>
-            )}
-          </div>
-          
-          {/* Debug information - only in development, can be removed in production */}
-          {debugInfo && process.env.NODE_ENV === 'development' && (
-            <div className="mt-10 p-4 border border-gray-300 rounded bg-gray-50 text-sm text-gray-700">
-              <h3 className="font-bold mb-2">Debug Info:</h3>
-              <p>Last action: {debugInfo.lastAction}</p>
-              <p>Timestamp: {new Date(debugInfo.timestamp).toLocaleTimeString()}</p>
+          {/* Debug info in development */}
+          {process.env.NODE_ENV === 'development' && debugInfo && (
+            <div className="mt-8 border-t pt-4 text-xs text-gray-500">
+              <h3 className="font-semibold mb-1">Debug Info</h3>
+              <div>Last action: {debugInfo.lastAction}</div>
+              <div>Timestamp: {new Date(debugInfo.timestamp).toLocaleTimeString()}</div>
               {debugInfo.details && (
-                <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto max-h-40">
+                <pre className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-20">
                   {JSON.stringify(debugInfo.details, null, 2)}
                 </pre>
               )}
             </div>
           )}
         </>
+      ) : error ? (
+        <ErrorDisplay error={error} />
       ) : (
-        <div className="py-12 text-center">
-          <AlertIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-semibold text-gray-800 mb-2">Project Not Found</h2>
-          <p className="text-gray-600 mb-6">
-            The project you're looking for doesn't exist or couldn't be loaded.
-          </p>
-          {error && <ErrorDisplay error={error} />}
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">No project selected</h2>
+          <p className="text-gray-500 mb-6">Please select a project or create a new one.</p>
         </div>
       )}
     </div>

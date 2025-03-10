@@ -14,20 +14,13 @@ export default function Home() {
             <p className="text-xl text-gray-600 mb-8">
               Auto Shorts automatically creates short-form videos from Reddit posts in minutes. Perfect for TikTok, Instagram, and YouTube Shorts.
             </p>
-            <div className="w-full max-w-md flex flex-col gap-4 md:flex-row">
+            <div className="w-full max-w-md">
               <Link 
-                href="/create" 
+                href="/projects/create" 
                 className="w-full px-6 py-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-center font-medium flex items-center justify-center"
               >
                 Create Video
                 <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-              <Link
-                href="/projects/create"
-                className="w-full px-6 py-4 bg-white border border-gray-300 text-gray-800 rounded-md hover:bg-gray-50 transition-colors text-center font-medium flex items-center justify-center"
-              >
-                Create Project
-                <LayersIcon className="ml-2 h-5 w-5" />
               </Link>
             </div>
             
