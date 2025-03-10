@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import db
-from app.api import users, videos, content, ai, video_creation
+from app.api import users, videos, content, ai, video_creation, projects
 
 app = FastAPI(
     title="Auto Shorts API",
@@ -47,4 +47,5 @@ app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(videos.router, prefix=settings.API_V1_STR)
 app.include_router(content.router, prefix=settings.API_V1_STR)
 app.include_router(ai.router, prefix=settings.API_V1_STR)
-app.include_router(video_creation.router, prefix=settings.API_V1_STR) 
+app.include_router(video_creation.router, prefix=settings.API_V1_STR)
+app.include_router(projects.router, prefix=settings.API_V1_STR) 
