@@ -13,6 +13,11 @@ import {
 import { Scene } from './ProjectProvider';
 import ErrorDisplay from '../ErrorDisplay';
 
+// Utility function to clean post text by removing "Post by u/Username:" prefix
+const cleanPostText = (text: string): string => {
+  return text.replace(/^Post by u\/[^:]+:\s*/i, '');
+};
+
 interface MediaContentItemProps {
   scene: Scene;
   index: number;
@@ -39,7 +44,7 @@ export default function MediaContentItem({
   
   // Update component state when scene changes
   useEffect(() => {
-    setText(scene.text);
+    setText(cleanPostText(scene.text));
   }, [scene.text]);
   
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -293,7 +298,7 @@ export default function MediaContentItem({
               </div>
             ) : (
               <div className="min-h-[5rem]">
-                <p className="text-gray-800">{scene.text || '<No text provided>'}</p>
+                <p className="text-gray-800">{cleanPostText(scene.text) || '<No text provided>'}</p>
               </div>
             )}
           </div>
