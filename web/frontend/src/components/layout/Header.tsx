@@ -15,7 +15,8 @@ export default function Header() {
             <Link href="/create" className="text-gray-600 hover:text-blue-600">
               Create Video
             </Link>
-            <Link href="/projects" className="text-gray-600 hover:text-blue-600">
+            <Link href="/projects" className="text-gray-600 hover:text-blue-600 flex items-center">
+              <LayersIcon className="h-4 w-4 mr-1" />
               Projects
             </Link>
           </nav>
@@ -28,6 +29,13 @@ export default function Header() {
             >
               Log In
             </button>
+            <Link 
+              href="/projects/create" 
+              className="hidden sm:inline-flex items-center px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+            >
+              <LayersIcon className="h-4 w-4 mr-1" />
+              New Project
+            </Link>
             <Link 
               href="/create" 
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
