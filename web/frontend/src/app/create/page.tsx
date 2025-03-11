@@ -1,12 +1,26 @@
 'use client';
 
+/**
+ * SIMPLE VIDEO CREATION FLOW
+ * 
+ * This is the simple video creation page that allows users to:
+ * 1. Enter a single video title
+ * 2. Enter a single URL to extract content from
+ * 3. Create a video with minimal configuration
+ * 
+ * Route: /create
+ * 
+ * Note: This is different from the COMPLEX flow at /projects/create
+ * which offers more advanced features like multiple scenes and drag-and-drop.
+ */
+
 import { useVideoCreationForm } from '@/lib/form-handlers';
 import Link from 'next/link';
 import { VideoIcon, Loader2Icon, AlertCircleIcon, RefreshCwIcon, WifiIcon, WifiOffIcon, TimerIcon } from 'lucide-react';
 import ErrorDisplay, { ErrorType } from '@/components/ErrorDisplay';
 import UrlPreview from '@/components/UrlPreview';
 
-export default function CreateVideoPage() {
+export default function SimpleVideoCreationPage() {
   const { 
     state, 
     setUrl, 

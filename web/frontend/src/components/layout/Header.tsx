@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { VideoIcon, Layers as LayersIcon, PlusCircle as PlusCircleIcon } from 'lucide-react';
 
+/**
+ * Main application header with navigation links.
+ * Note: "Create Video" buttons point to the COMPLEX flow
+ */
 export default function Header() {
   return (
     <header className="bg-white border-b border-gray-200">
@@ -12,7 +16,8 @@ export default function Header() {
           </Link>
           
           <nav className="hidden md:flex items-center space-x-6">
-            <Link href="/create-video" className="text-gray-600 hover:text-blue-600">
+            {/* Points to COMPLEX video creation flow */}
+            <Link href="/projects/create" className="text-gray-600 hover:text-blue-600">
               Create Video
             </Link>
             <Link href="/projects" className="text-gray-600 hover:text-blue-600 flex items-center">
@@ -36,8 +41,9 @@ export default function Header() {
               <LayersIcon className="h-4 w-4 mr-1" />
               My Projects
             </Link>
+            {/* Points to COMPLEX video creation flow */}
             <Link 
-              href="/create-video" 
+              href="/projects/create" 
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center"
             >
               <PlusCircleIcon className="h-4 w-4 mr-1" />

@@ -1,5 +1,17 @@
 'use client';
 
+/**
+ * COMPLEX VIDEO CREATION - Main Workspace Component
+ * 
+ * This component provides the full project workspace interface for the COMPLEX video creation flow, including:
+ * - Adding multiple Reddit URL scenes
+ * - Reordering scenes via drag-and-drop
+ * - Editing scene content
+ * - Saving and processing the project
+ * 
+ * It is used in the /projects/create route and other project-related pages.
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProject, Scene, Project } from './ProjectProvider';
@@ -11,11 +23,12 @@ import { processVideoWithCustomization, processVideoFast } from '@/lib/project-u
 import { getProject } from '@/lib/storage-utils';
 
 interface ProjectWorkspaceProps {
-  projectId: string;
+  projectId?: string;
   preloadedProject?: Project;
+  initialProjectName?: string;
 }
 
-export default function ProjectWorkspace({ projectId, preloadedProject }: ProjectWorkspaceProps) {
+export default function ProjectWorkspace({ projectId, preloadedProject, initialProjectName }: ProjectWorkspaceProps) {
   const router = useRouter();
   const {
     currentProject,
@@ -27,22 +40,23 @@ export default function ProjectWorkspace({ projectId, preloadedProject }: Projec
     setProjectTitle,
     saveCurrentProject,
     reorderScenes,
-    isLoading,
+    isLoading: isContextLoading,
     isSaving,
-    lastSaved
+    lastSaved,
+    createProject
   } = useProject();
   
   const [url, setUrl] = useState('');
   const [isAddingScene, setIsAddingScene] = useState(false);
   const [addSceneError, setAddSceneError] = useState<string | null>(null);
   const [localProject, setLocalProject] = useState<Project | null>(preloadedProject || null);
-  const [localLoading, setLocalLoading] = useState(false);
+  const [localLoading, setLocalLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState<{isChecked: boolean, isAvailable: boolean}>({
     isChecked: false,
     isAvailable: false
   });
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(initialProjectName || 'New Project');
   const [isCreating, setIsCreating] = useState(false);
   const [debugInfo, setDebugInfo] = useState<{lastAction?: string}>({});
 
@@ -50,6 +64,7 @@ export default function ProjectWorkspace({ projectId, preloadedProject }: Projec
   const loadAttemptedRef = useRef(false);
   const mountCountRef = useRef(0);
   const instanceIdRef = useRef(`workspace-${Math.random().toString(36).substring(2, 7)}`);
+  const newProjectCreatedRef = useRef(false);
 
   useEffect(() => {
     mountCountRef.current += 1;
@@ -64,16 +79,31 @@ export default function ProjectWorkspace({ projectId, preloadedProject }: Projec
     if (preloadedProject) {
       console.log(`[${instanceIdRef.current}] Using preloaded project:`, preloadedProject.id);
       setLocalProject(preloadedProject);
+      setLocalLoading(false);
       return;
     }
 
-    // Otherwise attempt to load via context if we haven't already tried
-    if (!loadAttemptedRef.current && projectId && !currentProject) {
+    // If we have a project ID, attempt to load it
+    if (projectId && !loadAttemptedRef.current && !currentProject) {
       loadAttemptedRef.current = true;
       console.log(`[${instanceIdRef.current}] Loading project via context:`, projectId);
       setCurrentProject(projectId);
+      return;
     }
-  }, [projectId, preloadedProject, currentProject, setCurrentProject]);
+
+    // If we don't have a project ID or preloaded project, create a new one
+    if (!projectId && !preloadedProject && !currentProject && !newProjectCreatedRef.current) {
+      newProjectCreatedRef.current = true;
+      console.log(`[${instanceIdRef.current}] Creating new project automatically`);
+      
+      // Create a new project with the provided title or default
+      createProject(initialProjectName || "New Video Project");
+      
+      setDebugInfo(prev => ({ ...prev, lastAction: "Created new project automatically" }));
+    }
+
+    setLocalLoading(false);
+  }, [projectId, preloadedProject, currentProject, setCurrentProject, createProject, initialProjectName]);
 
   // Use either preloaded project, local state, or context project
   const effectiveProject = localProject || currentProject;
@@ -186,7 +216,7 @@ export default function ProjectWorkspace({ projectId, preloadedProject }: Projec
     }
   };
 
-  if (isLoading) {
+  if (isContextLoading) {
     return (
       <div className="flex justify-center items-center py-12 bg-white">
         <LoaderIcon className="h-8 w-8 text-blue-500 animate-spin" />

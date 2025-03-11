@@ -85,7 +85,7 @@ export default function ProjectsPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Your Projects</h1>
         <Link 
-          href="/create-video" 
+          href="/projects/create" 
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center"
         >
           <PlusCircleIcon className="h-5 w-5 mr-2" />
@@ -107,7 +107,7 @@ export default function ProjectsPage() {
             Create your first video project.
           </p>
           <Link 
-            href="/create-video" 
+            href="/projects/create" 
             className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors inline-flex items-center"
           >
             <PlusCircleIcon className="h-5 w-5 mr-2" />
