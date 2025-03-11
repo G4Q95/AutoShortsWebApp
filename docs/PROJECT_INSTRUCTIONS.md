@@ -490,3 +490,36 @@ To commit these changes:
 - Build bulk import functionality for multiple URLs
 - Develop premium features and payment processing
 - Optimize for production deployment 
+
+## Code Quality & Formatting
+
+### Frontend (Next.js)
+- **ESLint**: For catching JavaScript/React errors and enforcing best practices
+  - Configuration: `.eslintrc.json`
+  - Running: `npm run lint` or `npm run lint:fix` (to automatically fix issues)
+- **Prettier**: For consistent code formatting
+  - Configuration: `.prettierrc`
+  - Running: `npm run format` (to format code) or `npm run format:check` (to check for issues)
+
+### Backend (FastAPI/Python)
+- **Flake8**: For catching Python errors and code style issues
+  - Configuration: `setup.cfg`
+  - Running: `flake8 .`
+- **Black**: For consistent Python code formatting
+  - Configuration: `pyproject.toml`
+  - Running: `black .`
+- **isort**: For sorting Python imports consistently
+  - Configuration: `setup.cfg`
+  - Running: `isort .`
+- **mypy**: For Python type checking
+  - Configuration: `setup.cfg`
+  - Running: `mypy app/`
+
+### Whole Project
+- **EditorConfig**: For consistent editor settings across IDEs
+  - Configuration: `.editorconfig` at the root
+- **Format Script**: For formatting the entire codebase
+  - Script: `format_codebase.sh` at the root
+  - Running: `./format_codebase.sh`
+- **GitHub Actions**: For CI/CD linting checks
+  - Configuration: `.github/workflows/lint.yml` 

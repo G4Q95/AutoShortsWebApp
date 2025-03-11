@@ -1,0 +1,56 @@
+name: Lint and Format
+
+on:
+  push:
+    branches: [main, 'feature/**', 'fix/**', 'lightweight-refactoring']
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: web/frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: cd web/frontend && npm ci
+      
+      - name: Run linting
+        run: cd web/frontend && npm run lint
+      
+      - name: Check formatting
+        run: cd web/frontend && npm run format:check
+  
+  lint-backend:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd web/backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run isort check
+        run: cd web/backend && isort . --check
+      
+      - name: Run black check
+        run: cd web/backend && black . --check
+      
+      - name: Run flake8
+        run: cd web/backend && flake8 . 

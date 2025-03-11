@@ -1,18 +1,23 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
+
 from pydantic import BaseModel, Field, HttpUrl
+
 
 class VideoBase(BaseModel):
     title: str
     source_url: HttpUrl
     user_id: str
-    
+
+
 class VideoCreate(VideoBase):
     pass
+
 
 class VideoUpdate(BaseModel):
     title: Optional[str] = None
     status: Optional[str] = None
+
 
 class VideoInDB(VideoBase):
     id: str = Field(alias="_id")
@@ -24,7 +29,8 @@ class VideoInDB(VideoBase):
     character_count: Optional[int] = None
     expires_at: Optional[datetime] = None
     voice_id: Optional[str] = None
-    
+
+
 class Video(VideoInDB):
     class Config:
-        from_attributes = True 
+        from_attributes = True

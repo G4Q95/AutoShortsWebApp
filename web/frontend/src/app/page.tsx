@@ -12,18 +12,19 @@ export default function Home() {
               Transform Content into <span className="text-blue-600">Engaging Short Videos</span>
             </h1>
             <p className="text-xl text-gray-600 mb-8">
-              Auto Shorts automatically creates short-form videos from Reddit posts in minutes. Perfect for TikTok, Instagram, and YouTube Shorts.
+              Auto Shorts automatically creates short-form videos from Reddit posts in minutes.
+              Perfect for TikTok, Instagram, and YouTube Shorts.
             </p>
             <div className="w-full max-w-md">
-              <Link 
-                href="/projects/create" 
+              <Link
+                href="/projects/create"
                 className="w-full px-6 py-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-center font-medium flex items-center justify-center"
               >
                 Create Video
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </div>
-            
+
             {/* Simple visual indicator */}
             <div className="mt-16 relative w-full max-w-2xl">
               <div className="aspect-video bg-gray-100 rounded-lg shadow-lg border border-gray-200 overflow-hidden">
@@ -34,15 +35,21 @@ export default function Home() {
                     <h3 className="text-xl font-semibold mb-2">How it works:</h3>
                     <ol className="text-left text-gray-700 space-y-2 max-w-md mx-auto">
                       <li className="flex items-start">
-                        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm mr-2 mt-0.5">1</span>
+                        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm mr-2 mt-0.5">
+                          1
+                        </span>
                         <span>Create a project with multiple scenes from Reddit URLs</span>
                       </li>
                       <li className="flex items-start">
-                        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm mr-2 mt-0.5">2</span>
+                        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm mr-2 mt-0.5">
+                          2
+                        </span>
                         <span>Arrange and edit your scenes in any order</span>
                       </li>
                       <li className="flex items-start">
-                        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm mr-2 mt-0.5">3</span>
+                        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-semibold text-sm mr-2 mt-0.5">
+                          3
+                        </span>
                         <span>Generate and download your custom video</span>
                       </li>
                     </ol>

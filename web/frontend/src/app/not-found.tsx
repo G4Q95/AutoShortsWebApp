@@ -7,7 +7,7 @@ export default function NotFoundPage() {
       <VideoIcon className="h-16 w-16 text-blue-600 mb-6" />
       <h1 className="text-4xl font-bold text-gray-900 mb-2">Page Not Found</h1>
       <p className="text-xl text-gray-600 mb-8 max-w-md">
-        The page you're looking for doesn't exist or is still under development.
+        The page you&apos;re looking for doesn&apos;t exist or is still under development.
       </p>
       <div className="flex space-x-4">
         <Link
@@ -26,4 +26,4 @@ export default function NotFoundPage() {
       </div>
     </div>
   );
-} 
+}

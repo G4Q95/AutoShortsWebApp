@@ -2,13 +2,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { 
-  Trash2 as TrashIcon, 
-  Edit as EditIcon, 
+import {
+  Trash2 as TrashIcon,
+  Edit as EditIcon,
   RefreshCw as RefreshIcon,
   Maximize as MaximizeIcon,
   Play as PlayIcon,
-  GripVertical as GripVerticalIcon
+  GripVertical as GripVerticalIcon,
 } from 'lucide-react';
 import { Scene } from './ProjectProvider';
 import ErrorDisplay from '../ErrorDisplay';
@@ -33,7 +33,7 @@ export default function MediaContentItem({
   onRemove,
   onTextChange,
   onRetryLoad,
-  isDragging = false
+  isDragging = false,
 }: MediaContentItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(scene.text);
@@ -41,21 +41,21 @@ export default function MediaContentItem({
   const [videoIsPlaying, setVideoIsPlaying] = useState(false);
   const [expandedView, setExpandedView] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  
+
   // Update component state when scene changes
   useEffect(() => {
     setText(cleanPostText(scene.text));
   }, [scene.text]);
-  
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
   };
-  
+
   const handleSave = () => {
     onTextChange(scene.id, text);
     setIsEditing(false);
   };
-  
+
   const handleCancel = () => {
     setText(scene.text);
     setIsEditing(false);
@@ -63,7 +63,7 @@ export default function MediaContentItem({
 
   const handleRetry = async () => {
     if (!onRetryLoad || !scene.url) return;
-    
+
     setIsRetrying(true);
     try {
       await onRetryLoad(scene.url);
@@ -71,7 +71,7 @@ export default function MediaContentItem({
       setIsRetrying(false);
     }
   };
-  
+
   const toggleVideoPlay = () => {
     if (videoRef.current) {
       if (videoRef.current.paused) {
@@ -83,11 +83,11 @@ export default function MediaContentItem({
       }
     }
   };
-  
+
   const toggleExpandedView = () => {
     setExpandedView(!expandedView);
   };
-  
+
   // Function to render loading state
   const renderLoadingState = () => {
     return (
@@ -112,9 +112,9 @@ export default function MediaContentItem({
     return (
       <div className="w-full">
         <div className="bg-red-50 w-full p-4 rounded-t-lg">
-          <ErrorDisplay 
-            error={scene.error || 'Failed to load content'} 
-            type="extraction" 
+          <ErrorDisplay
+            error={scene.error || 'Failed to load content'}
+            type="extraction"
             showRetry={!!onRetryLoad}
             onRetry={handleRetry}
           />
@@ -125,7 +125,7 @@ export default function MediaContentItem({
       </div>
     );
   };
-  
+
   // Function to render the appropriate media component
   const renderMedia = () => {
     if (!scene.media) {
@@ -135,13 +135,15 @@ export default function MediaContentItem({
         </div>
       );
     }
-    
+
     const mediaHeight = expandedView ? 'h-[300px]' : 'h-48';
-    
+
     switch (scene.media.type) {
       case 'image':
         return (
-          <div className={`relative w-full ${mediaHeight} bg-gray-100 rounded-t-lg overflow-hidden group`}>
+          <div
+            className={`relative w-full ${mediaHeight} bg-gray-100 rounded-t-lg overflow-hidden group`}
+          >
             <div className="w-full h-full flex items-center justify-center">
               <Image
                 src={scene.media.url}
@@ -151,23 +153,25 @@ export default function MediaContentItem({
                 className="rounded-t-lg object-contain h-full w-full"
               />
             </div>
-            
+
             {/* Controls overlay */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={toggleExpandedView}
                 className="p-1.5 bg-black bg-opacity-60 hover:bg-opacity-80 text-white rounded-full"
-                aria-label={expandedView ? "Minimize" : "Maximize"}
+                aria-label={expandedView ? 'Minimize' : 'Maximize'}
               >
                 <MaximizeIcon className="h-4 w-4" />
               </button>
             </div>
           </div>
         );
-        
+
       case 'video':
         return (
-          <div className={`relative w-full ${mediaHeight} bg-black rounded-t-lg overflow-hidden group`}>
+          <div
+            className={`relative w-full ${mediaHeight} bg-black rounded-t-lg overflow-hidden group`}
+          >
             <video
               ref={videoRef}
               src={scene.media.url}
@@ -177,10 +181,10 @@ export default function MediaContentItem({
               onPause={() => setVideoIsPlaying(false)}
               onEnded={() => setVideoIsPlaying(false)}
             />
-            
+
             {/* Play button overlay */}
             {!videoIsPlaying && (
-              <div 
+              <div
                 className="absolute inset-0 flex items-center justify-center cursor-pointer"
                 onClick={toggleVideoPlay}
               >
@@ -189,23 +193,25 @@ export default function MediaContentItem({
                 </div>
               </div>
             )}
-            
+
             {/* Controls overlay */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={toggleExpandedView}
                 className="p-1.5 bg-black bg-opacity-60 hover:bg-opacity-80 text-white rounded-full"
-                aria-label={expandedView ? "Minimize" : "Maximize"}
+                aria-label={expandedView ? 'Minimize' : 'Maximize'}
               >
                 <MaximizeIcon className="h-4 w-4" />
               </button>
             </div>
           </div>
         );
-        
+
       case 'gallery':
         return (
-          <div className={`relative w-full ${mediaHeight} bg-gray-100 rounded-t-lg overflow-hidden group`}>
+          <div
+            className={`relative w-full ${mediaHeight} bg-gray-100 rounded-t-lg overflow-hidden group`}
+          >
             <div className="w-full h-full flex items-center justify-center">
               <Image
                 src={scene.media.url}
@@ -218,20 +224,20 @@ export default function MediaContentItem({
                 Gallery
               </div>
             </div>
-            
+
             {/* Controls overlay */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={toggleExpandedView}
                 className="p-1.5 bg-black bg-opacity-60 hover:bg-opacity-80 text-white rounded-full"
-                aria-label={expandedView ? "Minimize" : "Maximize"}
+                aria-label={expandedView ? 'Minimize' : 'Maximize'}
               >
                 <MaximizeIcon className="h-4 w-4" />
               </button>
             </div>
           </div>
         );
-        
+
       default:
         return (
           <div className="bg-gray-200 w-full h-48 flex items-center justify-center rounded-t-lg">
@@ -240,9 +246,9 @@ export default function MediaContentItem({
         );
     }
   };
-  
+
   return (
-    <div 
+    <div
       className={`relative border rounded-lg ${
         isDragging ? 'border-blue-500 shadow-lg bg-blue-50' : 'border-gray-300'
       } ${expandedView ? 'shadow-md' : ''}`}
@@ -251,7 +257,7 @@ export default function MediaContentItem({
       <div className="absolute top-2 left-2 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm z-10">
         {index + 1}
       </div>
-      
+
       {/* Content based on scene state */}
       {scene.isLoading ? (
         renderLoadingState()
@@ -261,17 +267,29 @@ export default function MediaContentItem({
         <>
           {/* Media section */}
           {renderMedia()}
-          
+
           {/* Content section */}
           <div className="p-4">
             {/* Source info */}
             <div className="flex flex-wrap items-center text-xs text-gray-500 mb-2">
               <span className="mr-2">Source: {scene.source.platform}</span>
               {scene.source.author && <span className="mr-2">Author: {scene.source.author}</span>}
-              {scene.source.subreddit && <span className="mr-2">Subreddit: r/{scene.source.subreddit}</span>}
-              <span>URL: <a href={scene.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{scene.url.substring(0, 30)}...</a></span>
+              {scene.source.subreddit && (
+                <span className="mr-2">Subreddit: r/{scene.source.subreddit}</span>
+              )}
+              <span>
+                URL:{' '}
+                <a
+                  href={scene.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline"
+                >
+                  {scene.url.substring(0, 30)}...
+                </a>
+              </span>
             </div>
-            
+
             {/* Text content */}
             {isEditing ? (
               <div>
@@ -304,7 +322,7 @@ export default function MediaContentItem({
           </div>
         </>
       )}
-      
+
       {/* Controls */}
       <div className="border-t border-gray-200 p-3 flex justify-between">
         {/* Drag handle indicator */}
@@ -312,7 +330,7 @@ export default function MediaContentItem({
           <GripVerticalIcon className="h-4 w-4 mr-1" />
           <span className="text-xs">Drag to reorder</span>
         </div>
-            
+
         {/* Actions */}
         <div className="flex space-x-2">
           {scene.error && onRetryLoad && (
@@ -348,4 +366,4 @@ export default function MediaContentItem({
       </div>
     </div>
   );
-} 
+}

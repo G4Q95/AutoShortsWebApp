@@ -2,15 +2,15 @@
 
 /**
  * COMPLEX VIDEO CREATION FLOW
- * 
+ *
  * This is the advanced video creation page that offers a full project workspace with:
  * 1. Multiple scenes from different Reddit URLs
  * 2. Drag-and-drop scene reordering
  * 3. Text editing for each scene
  * 4. Full project management
- * 
+ *
  * Route: /projects/create
- * 
+ *
  * Note: This is different from the SIMPLE flow at /create
  * which offers a basic single URL form for quick video creation.
  */
@@ -29,7 +29,7 @@ export default function ComplexProjectWorkspacePage() {
   const [showNameInput, setShowNameInput] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [submittedName, setSubmittedName] = useState<string | null>(null);
-  
+
   useEffect(() => {
     // Check if we have a project ID in the query params
     const id = searchParams.get('id');
@@ -52,11 +52,11 @@ export default function ComplexProjectWorkspacePage() {
   const handleNameSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!projectName.trim()) return;
-    
+
     // Store the submitted name and hide the form
     setSubmittedName(projectName);
     setShowNameInput(false);
-    
+
     console.log(`Project name submitted: ${projectName}`);
   };
 
@@ -75,7 +75,7 @@ export default function ComplexProjectWorkspacePage() {
       <div className="container mx-auto py-8 max-w-md">
         <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
           <h1 className="text-2xl font-bold text-gray-800 mb-6">Create New Video Project</h1>
-          
+
           <form onSubmit={handleNameSubmit} className="space-y-4">
             <div>
               <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -92,7 +92,7 @@ export default function ComplexProjectWorkspacePage() {
                 autoFocus
               />
             </div>
-            
+
             <button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-200"
@@ -108,11 +108,11 @@ export default function ComplexProjectWorkspacePage() {
   return (
     <div className="container mx-auto py-8">
       <ProjectProvider>
-        <ProjectWorkspace 
-          projectId={projectId || undefined} 
+        <ProjectWorkspace
+          projectId={projectId || undefined}
           initialProjectName={submittedName || undefined}
         />
       </ProjectProvider>
     </div>
   );
-} 
+}

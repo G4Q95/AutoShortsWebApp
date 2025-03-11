@@ -11,17 +11,17 @@ interface ErrorDisplayProps {
   className?: string;
 }
 
-export default function ErrorDisplay({ 
-  error, 
-  type = 'general', 
-  onRetry, 
+export default function ErrorDisplay({
+  error,
+  type = 'general',
+  onRetry,
   showRetry = false,
-  className = '' 
+  className = '',
 }: ErrorDisplayProps) {
   // Determine if error is likely due to Reddit URL issues
-  const isRedditError = error.toLowerCase().includes('reddit') || 
-                        error.toLowerCase().includes('redirect');
-  
+  const isRedditError =
+    error.toLowerCase().includes('reddit') || error.toLowerCase().includes('redirect');
+
   // Custom styling based on error type
   const getContainerStyles = () => {
     switch (type) {
@@ -37,7 +37,7 @@ export default function ErrorDisplay({
         return 'bg-red-50 border-red-200 text-red-700';
     }
   };
-  
+
   // Get the appropriate icon
   const getIcon = () => {
     switch (type) {
@@ -47,7 +47,7 @@ export default function ErrorDisplay({
         return <AlertCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />;
     }
   };
-  
+
   // Generate helpful suggestions based on error type
   const getSuggestion = () => {
     if (isRedditError) {
@@ -62,7 +62,7 @@ export default function ErrorDisplay({
         </div>
       );
     }
-    
+
     switch (type) {
       case 'network':
         return (
@@ -73,32 +73,35 @@ export default function ErrorDisplay({
       case 'extraction':
         return (
           <p className="mt-2 text-sm">
-            The content couldn't be extracted from the provided URL. 
-            Try a different URL or check if the content is accessible.
+            The content couldn&apos;t be extracted from the provided URL. Try a different URL or
+            check if the content is accessible.
           </p>
         );
       default:
         return null;
     }
   };
-  
+
   return (
     <div className={`p-4 border rounded-md mb-4 ${getContainerStyles()} ${className}`}>
       <div className="flex items-start">
         {getIcon()}
         <span>{error}</span>
       </div>
-      
+
       {getSuggestion()}
-      
+
       {showRetry && onRetry && (
         <div className="mt-3 text-center">
           <button
             type="button"
             onClick={onRetry}
             className={`inline-flex items-center px-4 py-2 rounded-md hover:bg-opacity-80 transition-colors
-              ${type === 'network' ? 'bg-red-100 text-red-700 hover:bg-red-200' : 
-                'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+              ${
+                type === 'network'
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              }`}
           >
             <RefreshCwIcon className="w-4 h-4 mr-2" />
             Retry
@@ -107,4 +110,4 @@ export default function ErrorDisplay({
       )}
     </div>
   );
-} 
+}

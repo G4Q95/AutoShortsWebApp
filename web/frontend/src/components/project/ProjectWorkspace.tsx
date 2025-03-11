@@ -2,13 +2,13 @@
 
 /**
  * COMPLEX VIDEO CREATION - Main Workspace Component
- * 
+ *
  * This component provides the full project workspace interface for the COMPLEX video creation flow, including:
  * - Adding multiple Reddit URL scenes
  * - Reordering scenes via drag-and-drop
  * - Editing scene content
  * - Saving and processing the project
- * 
+ *
  * It is used in the /projects/create route and other project-related pages.
  */
 
@@ -16,7 +16,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProject, Scene, Project } from './ProjectProvider';
 import SceneComponent from './SceneComponent';
-import { PlusCircle as PlusCircleIcon, Loader2 as LoaderIcon, AlertTriangle as AlertIcon, Save as SaveIcon, Check as CheckIcon, Zap as ZapIcon } from 'lucide-react';
+import {
+  PlusCircle as PlusCircleIcon,
+  Loader2 as LoaderIcon,
+  AlertTriangle as AlertIcon,
+  Save as SaveIcon,
+  Check as CheckIcon,
+  Zap as ZapIcon,
+} from 'lucide-react';
 import ErrorDisplay from '../ErrorDisplay';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { processVideoWithCustomization, processVideoFast } from '@/lib/project-utils';
@@ -28,7 +35,11 @@ interface ProjectWorkspaceProps {
   initialProjectName?: string;
 }
 
-export default function ProjectWorkspace({ projectId, preloadedProject, initialProjectName }: ProjectWorkspaceProps) {
+export default function ProjectWorkspace({
+  projectId,
+  preloadedProject,
+  initialProjectName,
+}: ProjectWorkspaceProps) {
   const router = useRouter();
   const {
     currentProject,
@@ -43,22 +54,22 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
     isLoading: isContextLoading,
     isSaving,
     lastSaved,
-    createProject
+    createProject,
   } = useProject();
-  
+
   const [url, setUrl] = useState('');
   const [isAddingScene, setIsAddingScene] = useState(false);
   const [addSceneError, setAddSceneError] = useState<string | null>(null);
   const [localProject, setLocalProject] = useState<Project | null>(preloadedProject || null);
   const [localLoading, setLocalLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [apiStatus, setApiStatus] = useState<{isChecked: boolean, isAvailable: boolean}>({
+  const [apiStatus, setApiStatus] = useState<{ isChecked: boolean; isAvailable: boolean }>({
     isChecked: false,
-    isAvailable: false
+    isAvailable: false,
   });
   const [title, setTitle] = useState(initialProjectName || 'New Project');
   const [isCreating, setIsCreating] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<{lastAction?: string}>({});
+  const [debugInfo, setDebugInfo] = useState<{ lastAction?: string }>({});
 
   // Local state to track if we're already loaded from the preloaded project
   const loadAttemptedRef = useRef(false);
@@ -68,12 +79,15 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
 
   useEffect(() => {
     mountCountRef.current += 1;
-    console.log(`[${instanceIdRef.current}] ProjectWorkspace mounted (count: ${mountCountRef.current})`, {
-      projectId,
-      preloadedProject: preloadedProject ? preloadedProject.id : null,
-      localProject: localProject ? localProject.id : null,
-      currentProject: currentProject ? currentProject.id : null,
-    });
+    console.log(
+      `[${instanceIdRef.current}] ProjectWorkspace mounted (count: ${mountCountRef.current})`,
+      {
+        projectId,
+        preloadedProject: preloadedProject ? preloadedProject.id : null,
+        localProject: localProject ? localProject.id : null,
+        currentProject: currentProject ? currentProject.id : null,
+      }
+    );
 
     // If we have a preloaded project, use it and don't trigger context loading
     if (preloadedProject) {
@@ -95,27 +109,34 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
     if (!projectId && !preloadedProject && !currentProject && !newProjectCreatedRef.current) {
       newProjectCreatedRef.current = true;
       console.log(`[${instanceIdRef.current}] Creating new project automatically`);
-      
+
       // Create a new project with the provided title or default
-      createProject(initialProjectName || "New Video Project");
-      
-      setDebugInfo(prev => ({ ...prev, lastAction: "Created new project automatically" }));
+      createProject(initialProjectName || 'New Video Project');
+
+      setDebugInfo((prev) => ({ ...prev, lastAction: 'Created new project automatically' }));
     }
 
     setLocalLoading(false);
-  }, [projectId, preloadedProject, currentProject, setCurrentProject, createProject, initialProjectName]);
+  }, [
+    projectId,
+    preloadedProject,
+    currentProject,
+    setCurrentProject,
+    createProject,
+    initialProjectName,
+  ]);
 
   // Use either preloaded project, local state, or context project
   const effectiveProject = localProject || currentProject;
 
   const formatSavedTime = () => {
     if (!lastSaved) return '';
-    
+
     const now = new Date();
     const savedTime = new Date(lastSaved);
     const diffMs = now.getTime() - savedTime.getTime();
     const diffSecs = Math.floor(diffMs / 1000);
-    
+
     if (diffSecs < 60) return 'just now';
     if (diffSecs < 3600) return `${Math.floor(diffSecs / 60)} min ago`;
     if (diffSecs < 86400) return `${Math.floor(diffSecs / 3600)} hours ago`;
@@ -130,10 +151,10 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
 
   const handleUrlSubmit = async () => {
     if (!url.trim() || !addScene) return;
-    
+
     setIsAddingScene(true);
     setAddSceneError(null);
-    
+
     try {
       await addScene(url.trim());
       setUrl('');
@@ -146,15 +167,17 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
   };
 
   const fillExampleUrl = () => {
-    setUrl('https://www.reddit.com/r/oddlyterrifying/comments/1j7csx4/some_sorta_squid_in_australian_street/');
+    setUrl(
+      'https://www.reddit.com/r/oddlyterrifying/comments/1j7csx4/some_sorta_squid_in_australian_street/'
+    );
   };
 
   const handleRetryLoad = async (sceneId: string, url: string) => {
     if (!removeScene || !addScene) return;
-    
+
     // First remove the scene
     await removeScene(sceneId);
-    
+
     // Then add it again with the same URL
     try {
       await addScene(url);
@@ -165,38 +188,38 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination || !reorderScenes) return;
-    
+
     const sourceIndex = result.source.index;
     const destinationIndex = result.destination.index;
-    
+
     if (sourceIndex === destinationIndex) return;
-    
+
     if (effectiveProject) {
-      const newSceneIds = [...effectiveProject.scenes.map(scene => scene.id)];
+      const newSceneIds = [...effectiveProject.scenes.map((scene) => scene.id)];
       const [removed] = newSceneIds.splice(sourceIndex, 1);
       newSceneIds.splice(destinationIndex, 0, removed);
-      
+
       reorderScenes(newSceneIds);
     }
   };
-  
+
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    
+
     setIsCreating(true);
     // Implementation would go here
   };
-  
+
   const handleManualSave = () => {
     if (saveCurrentProject) {
       saveCurrentProject();
     }
   };
-  
+
   const handleProcessVideo = async () => {
     if (!effectiveProject) return;
-    
+
     try {
       await processVideoWithCustomization(effectiveProject.id);
     } catch (error) {
@@ -204,10 +227,10 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
       setError('Failed to process video');
     }
   };
-  
+
   const handleFastVideo = async () => {
     if (!effectiveProject) return;
-    
+
     try {
       await processVideoFast(effectiveProject.id);
     } catch (error) {
@@ -240,12 +263,12 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
         {/* Project header */}
         <div className="mb-6 flex justify-between items-center">
           <div>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={effectiveProject.title}
               onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
-              className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800" 
-              aria-label="Project title" 
+              className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800"
+              aria-label="Project title"
             />
           </div>
           <div className="flex flex-col items-end">
@@ -274,7 +297,7 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
             )}
           </div>
         </div>
-        
+
         {/* API status warning */}
         {apiStatus.isChecked && !apiStatus.isAvailable && (
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
@@ -282,18 +305,19 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
               <AlertIcon className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0" />
               <div>
                 <p className="text-sm text-yellow-700">
-                  The Auto Shorts API is currently unavailable. You can still create and edit projects,
-                  but you won't be able to process videos until the API is back online.
+                  The Auto Shorts API is currently unavailable. You can still create and edit
+                  projects, but you won&apos;t be able to process videos until the API is back
+                  online.
                 </p>
               </div>
             </div>
           </div>
         )}
-      
+
         {/* Add URL form */}
         <div className="mb-8 bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-4">Add Content</h2>
-          
+
           <div className="mb-4">
             <div className="flex items-center">
               <input
@@ -305,29 +329,23 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
                 className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isAddingScene}
               />
-              <button 
+              <button
                 onClick={() => handleUrlSubmit()}
                 className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 disabled={isAddingScene || !url.trim()}
               >
-                {isAddingScene ? (
-                  <LoaderIcon className="h-5 w-5 animate-spin" />
-                ) : (
-                  'Add'
-                )}
+                {isAddingScene ? <LoaderIcon className="h-5 w-5 animate-spin" /> : 'Add'}
               </button>
             </div>
           </div>
-          
+
           {addSceneError && (
-            <div className="text-red-500 text-sm mt-2 mb-4">
-              Error: {addSceneError}
-            </div>
+            <div className="text-red-500 text-sm mt-2 mb-4">Error: {addSceneError}</div>
           )}
-          
+
           <div className="flex justify-between items-center">
             <button
-              type="button" 
+              type="button"
               onClick={fillExampleUrl}
               className="text-blue-600 text-sm underline"
             >
@@ -335,7 +353,7 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
             </button>
           </div>
         </div>
-        
+
         {/* Scenes list */}
         {effectiveProject.scenes.length > 0 && (
           <div className="mb-8">
@@ -357,7 +375,7 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
                             {...provided.dragHandleProps}
                             className="h-full"
                           >
-                            <SceneComponent 
+                            <SceneComponent
                               scene={scene}
                               index={i}
                               onRemove={removeScene}
@@ -376,19 +394,19 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
             </DragDropContext>
           </div>
         )}
-        
+
         {/* Process buttons */}
         {effectiveProject.scenes.length > 0 && (
           <div className="mb-8 flex flex-col space-y-4">
-            <button 
+            <button
               onClick={handleProcessVideo}
               className="px-4 py-3 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
               disabled={isAddingScene || isSaving}
             >
               Process Video
             </button>
-            
-            <button 
+
+            <button
               onClick={handleFastVideo}
               className="px-4 py-3 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
               disabled={isAddingScene || isSaving}
@@ -396,14 +414,15 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
               <ZapIcon className="h-5 w-5 mr-2" />
               Fast Video
             </button>
-            
+
             <p className="text-sm text-gray-600 mt-1">
-              <strong>Process Video:</strong> Customize each scene before processing<br />
+              <strong>Process Video:</strong> Customize each scene before processing
+              <br />
               <strong>Fast Video:</strong> Automatically process with default settings
             </p>
           </div>
         )}
-        
+
         {/* Debug information */}
         {process.env.NODE_ENV === 'development' && (
           <div className="mt-8 border-t pt-4">
@@ -414,15 +433,19 @@ export default function ProjectWorkspace({ projectId, preloadedProject, initialP
               Timestamp: {new Date().toLocaleTimeString()}
             </div>
             <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-              {JSON.stringify({ 
-                hasCurrentProject: !!currentProject,
-                hasLocalProject: !!localProject,
-                effectiveProjectId: effectiveProject?.id
-              }, null, 2)}
+              {JSON.stringify(
+                {
+                  hasCurrentProject: !!currentProject,
+                  hasLocalProject: !!localProject,
+                  effectiveProjectId: effectiveProject?.id,
+                },
+                null,
+                2
+              )}
             </pre>
           </div>
         )}
       </div>
     </div>
   );
-} 
+}

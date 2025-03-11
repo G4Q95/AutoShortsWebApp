@@ -20,7 +20,7 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
     { key: 'generating_audio', label: 'Generating Voice Audio' },
     { key: 'creating_video', label: 'Creating Video' },
     { key: 'uploading', label: 'Uploading Video' },
-    { key: 'completed', label: 'Video Completed' }
+    { key: 'completed', label: 'Video Completed' },
   ];
 
   useEffect(() => {
@@ -28,10 +28,10 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
     const interval = setInterval(async () => {
       try {
         const data = await getProcessingStatus(projectId);
-        
+
         setStatus(data.status);
         setProgress(data.progress || 0);
-        
+
         if (data.status === 'completed') {
           clearInterval(interval);
           // After a delay, redirect to the video page
@@ -39,7 +39,7 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
             router.push(`/video/${projectId}`);
           }, 3000);
         }
-        
+
         if (data.status === 'error') {
           clearInterval(interval);
           setError(data.errorMessage || 'An error occurred during processing');
@@ -57,9 +57,9 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
     if (!confirm('Are you sure you want to cancel processing? This cannot be undone.')) {
       return;
     }
-    
+
     setIsCancelling(true);
-    
+
     try {
       await cancelProcessing(projectId);
       router.push(`/project/${projectId}`);
@@ -70,12 +70,12 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const currentStepIndex = statusSteps.findIndex(step => step.key === status);
+  const currentStepIndex = statusSteps.findIndex((step) => step.key === status);
 
   return (
     <div className="max-w-3xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-8">Processing Your Video</h1>
-      
+
       {error ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
           <div className="flex items-center mb-3">
@@ -83,7 +83,7 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
             <h2 className="text-lg font-medium text-red-800">Processing Error</h2>
           </div>
           <p className="text-red-700 mb-4">{error}</p>
-          <button 
+          <button
             onClick={() => router.push(`/project/${projectId}`)}
             className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >
@@ -107,14 +107,14 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
               <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-100">
-                <div 
-                  style={{ width: `${progress}%` }} 
+                <div
+                  style={{ width: `${progress}%` }}
                   className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500 transition-all duration-500"
                 ></div>
               </div>
             </div>
           </div>
-          
+
           <div className="space-y-4 mb-8">
             {statusSteps.map((step, index) => {
               let statusDisplay;
@@ -128,19 +128,26 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
                 // Future step
                 statusDisplay = <div className="w-6 h-6 rounded-full border border-gray-300"></div>;
               }
-              
+
               return (
                 <div key={step.key} className="flex items-center">
                   <div className="mr-4">{statusDisplay}</div>
-                  <div className={`${index === currentStepIndex ? 'font-medium text-blue-800' : 
-                    (index < currentStepIndex ? 'text-green-700' : 'text-gray-500')}`}>
+                  <div
+                    className={`${
+                      index === currentStepIndex
+                        ? 'font-medium text-blue-800'
+                        : index < currentStepIndex
+                          ? 'text-green-700'
+                          : 'text-gray-500'
+                    }`}
+                  >
                     {step.label}
                   </div>
                 </div>
               );
             })}
           </div>
-          
+
           <div className="flex justify-center">
             <button
               onClick={handleCancelProcessing}
@@ -154,4 +161,4 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
       )}
     </div>
   );
-} 
+}

@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from app.models.user import User, UserCreate, UserUpdate
 
 router = APIRouter(
@@ -7,6 +9,7 @@ router = APIRouter(
     tags=["users"],
     responses={404: {"description": "Not found"}},
 )
+
 
 @router.get("/", response_model=List[User])
 async def read_users():
@@ -17,6 +20,7 @@ async def read_users():
     # TODO: Implement authorization (admin only)
     return []
 
+
 @router.get("/me", response_model=User)
 async def read_user_me():
     """
@@ -24,6 +28,7 @@ async def read_user_me():
     """
     # TODO: Implement user authentication
     raise HTTPException(status_code=501, detail="Not implemented")
+
 
 @router.post("/", response_model=User)
 async def create_user(user: UserCreate):
@@ -33,6 +38,7 @@ async def create_user(user: UserCreate):
     # TODO: Implement user creation
     raise HTTPException(status_code=501, detail="Not implemented")
 
+
 @router.put("/me", response_model=User)
 async def update_user_me(user: UserUpdate):
     """
@@ -41,10 +47,11 @@ async def update_user_me(user: UserUpdate):
     # TODO: Implement user update
     raise HTTPException(status_code=501, detail="Not implemented")
 
+
 @router.get("/{user_id}", response_model=User)
 async def read_user(user_id: str):
     """
     Get a specific user by ID.
     """
     # TODO: Implement user retrieval
-    raise HTTPException(status_code=501, detail="Not implemented") 
+    raise HTTPException(status_code=501, detail="Not implemented")

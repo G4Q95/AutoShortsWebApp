@@ -12,3 +12,9 @@ pytest==7.4.4
 gunicorn==21.2.0
 aiofiles
 email-validator
+
+# Development dependencies
+flake8==7.1.2
+black==25.1.0
+isort==6.0.1
+mypy==1.15.0

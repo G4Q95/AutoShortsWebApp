@@ -15,43 +15,43 @@ function CreateVideoForm() {
 
   const handleCreateVideo = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!title.trim()) return;
-    
+
     setIsCreating(true);
     setError(null);
-    
+
     try {
       console.log(`Creating project with title: "${title}"`);
-      
+
       // Call createProject and get project ID from localStorage
       createProject(title.trim());
-      
+
       // Get the newly created project ID from localStorage
       const projectId = localStorage.getItem('lastCreatedProjectId');
-      
+
       if (!projectId) {
-        throw new Error("Project creation failed - no project ID found in localStorage");
+        throw new Error('Project creation failed - no project ID found in localStorage');
       }
-      
+
       console.log(`Created project: ${projectId}`);
-      
+
       // Get the project to make sure it exists
       const project = await getProject(projectId);
-      
+
       if (!project) {
-        throw new Error("Project not found in localStorage after creation");
+        throw new Error('Project not found in localStorage after creation');
       }
-      
+
       // Short delay to ensure all async operations complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       console.log(`Redirecting to project workspace: ${projectId}`);
-      
+
       // Use router.replace instead of push to prevent going back to this page
       router.replace(`/projects/${projectId}`);
     } catch (error) {
-      console.error("Error creating project:", error);
+      console.error('Error creating project:', error);
       setError(error instanceof Error ? error.message : 'Failed to create project');
       setIsCreating(false);
     }
@@ -60,14 +60,14 @@ function CreateVideoForm() {
   return (
     <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow">
       <h1 className="text-2xl font-bold mb-6">Create Video</h1>
-      
+
       <form onSubmit={handleCreateVideo}>
         <div className="mb-4">
           <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
             Video Title
           </label>
-          <input 
-            type="text" 
+          <input
+            type="text"
             id="title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -77,9 +77,9 @@ function CreateVideoForm() {
             required
           />
         </div>
-        
-        <button 
-          type="submit" 
+
+        <button
+          type="submit"
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors flex justify-center items-center"
           disabled={!title.trim() || isCreating}
         >
@@ -96,7 +96,7 @@ function CreateVideoForm() {
           )}
         </button>
       </form>
-      
+
       {error && (
         <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded">
           <p className="text-sm">{error}</p>
@@ -114,4 +114,4 @@ export default function CreateVideoPage() {
       </div>
     </ProjectProvider>
   );
-} 
+}

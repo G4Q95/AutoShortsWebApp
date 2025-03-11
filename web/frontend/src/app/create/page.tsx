@@ -2,76 +2,81 @@
 
 /**
  * SIMPLE VIDEO CREATION FLOW
- * 
+ *
  * This is the simple video creation page that allows users to:
  * 1. Enter a single video title
  * 2. Enter a single URL to extract content from
  * 3. Create a video with minimal configuration
- * 
+ *
  * Route: /create
- * 
+ *
  * Note: This is different from the COMPLEX flow at /projects/create
  * which offers more advanced features like multiple scenes and drag-and-drop.
  */
 
 import { useVideoCreationForm } from '@/lib/form-handlers';
 import Link from 'next/link';
-import { VideoIcon, Loader2Icon, AlertCircleIcon, RefreshCwIcon, WifiIcon, WifiOffIcon, TimerIcon } from 'lucide-react';
+import {
+  VideoIcon,
+  Loader2Icon,
+  AlertCircleIcon,
+  RefreshCwIcon,
+  WifiIcon,
+  WifiOffIcon,
+  TimerIcon,
+} from 'lucide-react';
 import ErrorDisplay, { ErrorType } from '@/components/ErrorDisplay';
 import UrlPreview from '@/components/UrlPreview';
 
 export default function SimpleVideoCreationPage() {
-  const { 
-    state, 
-    setUrl, 
-    setTitle, 
-    handleTitleBlur, 
-    handleUrlBlur, 
+  const {
+    state,
+    setUrl,
+    setTitle,
+    handleTitleBlur,
+    handleUrlBlur,
     handleSubmit,
     retrySubmit,
-    checkApiConnection
+    checkApiConnection,
   } = useVideoCreationForm();
-  
-  const { 
-    url, 
-    title, 
-    errors, 
-    submitError, 
-    loading, 
-    taskId, 
-    touched,
-    apiStatus 
-  } = state;
-  
+
+  const { url, title, errors, submitError, loading, taskId, touched, apiStatus } = state;
+
   // Determine error type for better error display
   const getErrorType = (): ErrorType => {
     if (!submitError) return 'general';
-    
+
     const errorLower = submitError.toLowerCase();
-    
-    if (errorLower.includes('network') || 
-        errorLower.includes('connect') || 
-        errorLower.includes('server') ||
-        errorLower.includes('timed out')) {
+
+    if (
+      errorLower.includes('network') ||
+      errorLower.includes('connect') ||
+      errorLower.includes('server') ||
+      errorLower.includes('timed out')
+    ) {
       return 'network';
     }
-    
-    if (errorLower.includes('reddit') || 
-        errorLower.includes('redirect') ||
-        errorLower.includes('extraction') ||
-        errorLower.includes('content')) {
+
+    if (
+      errorLower.includes('reddit') ||
+      errorLower.includes('redirect') ||
+      errorLower.includes('extraction') ||
+      errorLower.includes('content')
+    ) {
       return 'extraction';
     }
-    
-    if (errorLower.includes('invalid') || 
-        errorLower.includes('required') ||
-        errorLower.includes('format')) {
+
+    if (
+      errorLower.includes('invalid') ||
+      errorLower.includes('required') ||
+      errorLower.includes('format')
+    ) {
       return 'validation';
     }
-    
+
     return 'general';
   };
-  
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-8">
@@ -80,7 +85,7 @@ export default function SimpleVideoCreationPage() {
           Turn any online content into an engaging short-form video in minutes.
         </p>
       </div>
-      
+
       {taskId ? (
         <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
           <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -88,24 +93,24 @@ export default function SimpleVideoCreationPage() {
           </div>
           <h2 className="text-xl font-bold mb-2">Video Creation Started!</h2>
           <p className="mb-4 text-gray-600">
-            Your video is being processed. You can check its status or view it when it's ready.
+            Your video is being processed. You can check its status or view it when it&apos;s ready.
           </p>
           <div className="flex justify-center space-x-4">
-            <Link 
-              href={`/status/${taskId}`} 
+            <Link
+              href={`/status/${taskId}`}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               Check Status
             </Link>
-            <Link 
-              href="/dashboard" 
+            <Link
+              href="/dashboard"
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
             >
               Go to Dashboard
             </Link>
           </div>
         </div>
-      ) :
+      ) : (
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6">
           {/* API Status Indicator */}
           <div className="mb-4 flex items-center justify-between">
@@ -121,7 +126,7 @@ export default function SimpleVideoCreationPage() {
                   <span className="text-xs font-medium">Backend Disconnected</span>
                 </div>
               )}
-              
+
               {apiStatus.responseTime && (
                 <div className="flex items-center text-gray-500 ml-3">
                   <TimerIcon className="h-3 w-3 mr-1" />
@@ -129,7 +134,7 @@ export default function SimpleVideoCreationPage() {
                 </div>
               )}
             </div>
-            
+
             <button
               type="button"
               onClick={checkApiConnection}
@@ -140,17 +145,17 @@ export default function SimpleVideoCreationPage() {
               Check Connection
             </button>
           </div>
-          
+
           {/* Enhanced Error Display */}
           {submitError && (
-            <ErrorDisplay 
-              error={submitError} 
-              type={getErrorType()} 
+            <ErrorDisplay
+              error={submitError}
+              type={getErrorType()}
               onRetry={retrySubmit}
               showRetry={getErrorType() === 'network' || getErrorType() === 'extraction'}
             />
           )}
-          
+
           <div className="mb-4">
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
               Video Title
@@ -172,7 +177,7 @@ export default function SimpleVideoCreationPage() {
               </p>
             )}
           </div>
-          
+
           <div className="mb-6">
             <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-1">
               Content URL
@@ -196,11 +201,11 @@ export default function SimpleVideoCreationPage() {
                 {errors.url}
               </p>
             )}
-            
+
             {/* URL Preview */}
             {url && !errors.url && <UrlPreview url={url} />}
           </div>
-          
+
           <button
             type="submit"
             disabled={loading || !apiStatus.connected}
@@ -220,12 +225,12 @@ export default function SimpleVideoCreationPage() {
               'Create Video'
             )}
           </button>
-          
+
           {!apiStatus.connected && !submitError && (
             <p className="mt-2 text-sm text-center text-red-600">
-              Cannot connect to the backend server. 
-              <button 
-                type="button" 
+              Cannot connect to the backend server.
+              <button
+                type="button"
                 onClick={checkApiConnection}
                 className="ml-1 text-blue-600 hover:text-blue-800 underline"
               >
@@ -234,7 +239,7 @@ export default function SimpleVideoCreationPage() {
             </p>
           )}
         </form>
-      }
+      )}
     </div>
   );
-} 
+}

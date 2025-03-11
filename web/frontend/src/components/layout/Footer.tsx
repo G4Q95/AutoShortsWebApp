@@ -11,7 +11,7 @@ export default function Footer() {
               Create engaging short-form videos automatically from online content.
             </p>
           </div>
-          
+
           {/* Simple copyright notice */}
           <div className="border-t border-gray-200 mt-4 pt-4 w-full">
             <p className="text-sm text-gray-600 text-center">
@@ -22,4 +22,4 @@ export default function Footer() {
       </div>
     </footer>
   );
-} 
+}

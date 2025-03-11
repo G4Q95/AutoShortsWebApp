@@ -2,7 +2,12 @@
 
 import React, { useState } from 'react';
 import { Scene } from './ProjectProvider';
-import { Trash2 as TrashIcon, Edit as EditIcon, GripVertical as GripVerticalIcon, RefreshCw as RefreshIcon } from 'lucide-react';
+import {
+  Trash2 as TrashIcon,
+  Edit as EditIcon,
+  GripVertical as GripVerticalIcon,
+  RefreshCw as RefreshIcon,
+} from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
 
@@ -20,27 +25,27 @@ interface SceneComponentProps {
   isDragging?: boolean;
 }
 
-export default function SceneComponent({ 
-  scene, 
-  index, 
-  onRemove, 
+export default function SceneComponent({
+  scene,
+  index,
+  onRemove,
   onTextChange,
   onRetryLoad,
-  isDragging = false
+  isDragging = false,
 }: SceneComponentProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(cleanPostText(scene.text));
   const [isRetrying, setIsRetrying] = useState(false);
-  
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
   };
-  
+
   const handleSave = () => {
     onTextChange(scene.id, text);
     setIsEditing(false);
   };
-  
+
   const handleCancel = () => {
     setText(cleanPostText(scene.text));
     setIsEditing(false);
@@ -48,7 +53,7 @@ export default function SceneComponent({
 
   const handleRetry = async () => {
     if (!onRetryLoad || !scene.url) return;
-    
+
     setIsRetrying(true);
     try {
       await onRetryLoad(scene.url);
@@ -58,7 +63,7 @@ export default function SceneComponent({
       setIsRetrying(false);
     }
   };
-  
+
   // Function to render loading state
   const renderLoadingState = () => {
     return (
@@ -83,9 +88,9 @@ export default function SceneComponent({
     return (
       <div className="w-full">
         <div className="bg-red-50 w-full p-4 rounded-t-lg">
-          <ErrorDisplay 
-            error={scene.error || 'Failed to load content'} 
-            type="extraction" 
+          <ErrorDisplay
+            error={scene.error || 'Failed to load content'}
+            type="extraction"
             showRetry={!!onRetryLoad}
             onRetry={handleRetry}
           />
@@ -96,7 +101,7 @@ export default function SceneComponent({
       </div>
     );
   };
-  
+
   // Function to render the appropriate media component
   const renderMedia = () => {
     if (!scene.media) {
@@ -106,7 +111,7 @@ export default function SceneComponent({
         </div>
       );
     }
-    
+
     switch (scene.media.type) {
       case 'image':
         return (
@@ -123,7 +128,7 @@ export default function SceneComponent({
             </div>
           </div>
         );
-        
+
       case 'video':
         return (
           <div className="relative w-full h-40 bg-black rounded-t-lg overflow-hidden">
@@ -134,7 +139,7 @@ export default function SceneComponent({
             />
           </div>
         );
-        
+
       case 'gallery':
         // For simplicity, just show the first image of the gallery
         return (
@@ -151,7 +156,7 @@ export default function SceneComponent({
             </div>
           </div>
         );
-      
+
       default:
         return (
           <div className="bg-gray-200 w-full h-40 flex items-center justify-center rounded-t-lg">
@@ -160,19 +165,17 @@ export default function SceneComponent({
         );
     }
   };
-  
+
   return (
-    <div 
+    <div
       className={`relative rounded-lg border overflow-hidden shadow-sm bg-white 
-      ${
-        isDragging ? 'border-blue-500 shadow-lg bg-blue-50' : 'border-gray-300'
-      }`}
+      ${isDragging ? 'border-blue-500 shadow-lg bg-blue-50' : 'border-gray-300'}`}
     >
       {/* Scene number indicator */}
       <div className="absolute top-2 left-2 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium z-10">
         {index + 1}
       </div>
-      
+
       {/* Content based on scene state */}
       {scene.isLoading ? (
         renderLoadingState()
@@ -182,15 +185,19 @@ export default function SceneComponent({
         <>
           {/* Media section */}
           {renderMedia()}
-          
+
           {/* Content section */}
           <div className="p-3">
             {/* Source info */}
             <div className="flex flex-wrap items-center text-xs text-gray-500 mb-1">
-              {scene.source.author && <span className="mr-1 truncate">By: {scene.source.author}</span>}
-              {scene.source.subreddit && <span className="truncate">r/{scene.source.subreddit}</span>}
+              {scene.source.author && (
+                <span className="mr-1 truncate">By: {scene.source.author}</span>
+              )}
+              {scene.source.subreddit && (
+                <span className="truncate">r/{scene.source.subreddit}</span>
+              )}
             </div>
-            
+
             {/* Text content */}
             {isEditing ? (
               <div>
@@ -221,7 +228,7 @@ export default function SceneComponent({
               </div>
             )}
           </div>
-          
+
           {/* Controls */}
           <div className="border-t border-gray-200 p-2 flex justify-end space-x-1">
             {scene.error && onRetryLoad && (
@@ -256,4 +263,4 @@ export default function SceneComponent({
       )}
     </div>
   );
-} 
+}

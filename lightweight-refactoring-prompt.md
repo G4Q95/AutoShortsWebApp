@@ -2,7 +2,7 @@
 
 I'm working on the Auto Shorts Web App project, a Next.js and FastAPI application that's in the early stages of development. I've created a dedicated Git branch called `lightweight-refactoring` for making code improvements without disrupting ongoing feature development.
 
-Please help me implement the lightweight refactoring plan as detailed in our `2024-05-19-Code-Cleanup-Refactoring.md` document. We'll be focusing on the "Lightweight Implementation Plan" section, which outlines a 4-week plan with specific tasks and safety measures.
+I need your help to implement the lightweight refactoring plan as detailed in our `2024-05-19-Code-Cleanup-Refactoring.md` document. Please focus on the "Lightweight Implementation Plan" section, which outlines a 4-week plan with specific tasks and safety measures.
 
 ## Key Information
 
@@ -12,28 +12,28 @@ Please help me implement the lightweight refactoring plan as detailed in our `20
 - We need to minimize risk of breaking existing functionality
 - The plan focuses on high-impact, low-risk improvements
 
-## Current Approach
+## What I Need From You
 
-Please guide me through implementing the Week 1 tasks first:
+I'd like you to lead the implementation of the Week 1 tasks:
 
 1. Setup linting & formatting tools (Days 1-2)
 2. Remove redundant files (Day 3)
 3. Document current patterns (Days 4-5)
 
-For each task:
+For each task, please:
 - Explain what we're doing and why
-- Show the specific steps to implement the changes
-- Provide the exact code/configuration changes needed
+- Provide the specific steps to implement the changes
+- Include the exact code/configuration changes needed
 - Explain how to test the changes before committing
-- Help create clear commit messages for each step
+- Suggest clear commit messages for each step
 
 ## Safety Precautions
 
-As we implement these changes:
+As we implement these changes, please help me:
 - Verify each change individually before proceeding to the next
-- Make sure we back up any critical files before modifying them
+- Back up any critical files before modifying them
 - Keep changes small and focused
 - Test thoroughly after each change
 - Be ready to revert if anything breaks
 
-Let's start with the first task: setting up linting and formatting tools. Can you guide me through the process of adding ESLint and Prettier to the Auto Shorts Web App project? 
+Please start by implementing the first task: setting up linting and formatting tools for the Auto Shorts Web App project. I'll follow your guidance to make these changes in my codebase. 
