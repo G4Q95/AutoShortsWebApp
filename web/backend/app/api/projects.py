@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import motor.motor_asyncio
 from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -94,7 +95,10 @@ async def create_project(project: ProjectCreate = Body(...)):
                 }
                 logger.debug(f"Project created with ID: {response['id']}")
                 return response
-            raise HTTPException(status_code=404, detail=f"Project not found after creation")
+            raise HTTPException(
+                status_code=404,
+                detail="Project not found after creation"
+            )
         else:
             # Mock database response
             mock_id = str(ObjectId())
@@ -229,63 +233,60 @@ async def get_projects():
 @router.get("/{project_id}", response_model=ProjectResponse, response_class=MongoJSONResponse)
 async def get_project(project_id: str):
     """
-    Retrieve a specific project by ID.
+    Get a project by its ID.
     """
     try:
-        obj_id = ObjectId(project_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid project ID format")
-
-    try:
-        logger.debug(f"Retrieving project with ID: {project_id}")
-        if not db.is_mock:
-            mongo_db = db.get_db()
-            project = await mongo_db.projects.find_one({"_id": obj_id})
-
-            if project:
-                # Create a clean project response
-                response = {
-                    "id": str(project.get("_id")),
-                    "title": project.get("title", ""),
-                    "description": project.get("description"),
-                    "user_id": project.get("user_id"),
-                    "scenes": project.get("scenes", []),
-                    "created_at": project.get("created_at") or project.get("createdAt"),
-                    "updated_at": project.get("updated_at") or project.get("created_at"),
-                }
-
-                logger.debug(f"Found project: {project.get('title')}")
-                return response
-
-            raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+        # Try to convert to ObjectId if it's a valid format
+        if len(project_id) == 24 and all(
+            c in "0123456789abcdef" for c in project_id.lower()
+        ):
+            obj_id = ObjectId(project_id)
         else:
-            # Return mock data for a specific project
-            mock_id = project_id
+            # For non-standard IDs, we'll just use it as is for lookups
+            obj_id = project_id
+    except Exception:
+        # If conversion fails, use the ID as is
+        obj_id = project_id
+
+    if not db.is_mock:
+        # Use flexible query that works with both ObjectId and string IDs
+        project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
+        if project:
             return {
-                "id": mock_id,
-                "title": "Mock Project Detail",
-                "description": "This is a mock project detail",
-                "user_id": None,
-                "scenes": [],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "id": str(project["_id"]),
+                "title": project.get("title", ""),
+                "description": project.get("description", ""),
+                "status": project.get("status", ""),
+                "error": project.get("error", ""),
+                "created_at": project.get("created_at"),
+                "updated_at": project.get("updated_at"),
             }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error retrieving project: {str(e)}")
-        logger.exception("Full traceback:")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project with ID {project_id} not found"
+        )
+    else:
+        # Return mock data for a specific project
+        mock_id = project_id
+        return {
+            "id": mock_id,
+            "title": "Mock Project Detail",
+            "description": "This is a mock project detail",
+            "user_id": None,
+            "scenes": [],
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
 async def update_project(project_id: str, project_update: ProjectCreate = Body(...)):
     """
-    Update a project.
+    Update a project by ID.
     """
     try:
         obj_id = ObjectId(project_id)
-    except:
+    except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
     update_data = project_update.model_dump(exclude_unset=True)
@@ -331,11 +332,11 @@ async def update_project(project_id: str, project_update: ProjectCreate = Body(.
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(project_id: str):
     """
-    Delete a project.
+    Delete a project by ID.
     """
     try:
         obj_id = ObjectId(project_id)
-    except:
+    except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
     if not db.is_mock:
@@ -354,7 +355,7 @@ async def process_project(
     """
     Process a project to create a video.
     """
-    # Handle non-standard ID formats - skip ObjectId validation for now
+    # Try to convert project_id to ObjectId if possible
     try:
         # Try to convert to ObjectId if it's a valid format
         if len(project_id) == 24 and all(c in "0123456789abcdef" for c in project_id.lower()):
@@ -362,7 +363,7 @@ async def process_project(
         else:
             # For non-standard IDs, we'll just use it as is for lookups
             obj_id = project_id
-    except:
+    except Exception:
         # If conversion fails, use the ID as is
         obj_id = project_id
 
@@ -457,7 +458,7 @@ async def get_project_processing_status(project_id: str, task_id: str):
 
 async def process_project_background(task_id: str, project_id: str, mode: str):
     """
-    Background process to handle project video creation.
+    Background task to process a project and create a video.
     """
     try:
         # Update status
@@ -469,7 +470,7 @@ async def process_project_background(task_id: str, project_id: str, mode: str):
                 obj_id = ObjectId(project_id)
             else:
                 obj_id = project_id
-        except:
+        except Exception:
             obj_id = project_id
 
         if not db.is_mock:
@@ -593,5 +594,6 @@ async def process_project_background(task_id: str, project_id: str, mode: str):
                     {"_id": obj_id},
                     {"$set": {"status": "error", "error": str(e), "updated_at": datetime.utcnow()}},
                 )
-        except:
+        except Exception as db_error:
+            print(f"Failed to update project error status: {db_error}")
             pass

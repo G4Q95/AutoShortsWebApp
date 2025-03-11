@@ -36,14 +36,22 @@ async def rewrite_content(request: TextRewriteRequest):
         max_length = settings.FREE_TIER_MAX_CHARS
 
     # Call rewrite service
-    rewritten = await rewrite_text(text=request.text, style=request.style, max_length=max_length)
+    rewritten = await rewrite_text(
+        text=request.text,
+        style=request.style,
+        max_length=max_length
+    )
 
     if not rewritten:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Failed to rewrite the text. Please try again with different content.",
+            detail=(
+                "Failed to rewrite the text. Please try again with different content."
+            ),
         )
 
     return TextRewriteResponse(
-        original=request.text, rewritten=rewritten, character_count=len(rewritten)
+        original=request.text,
+        rewritten=rewritten,
+        character_count=len(rewritten)
     )

@@ -70,7 +70,8 @@ async def create_video(request: CreateVideoRequest, background_tasks: Background
     )
 
     return CreateVideoResponse(
-        task_id=task_id, message="Video creation started. Check status with the /status endpoint."
+        task_id=task_id,
+        message="Video creation started. Check status with the /status endpoint."
     )
 
 
@@ -94,12 +95,23 @@ async def get_video_status(task_id: str):
 
 
 async def process_video_creation(
-    task_id: str, source_url: str, title: str, voice_id: str, text_style: str
+    task_id: str,
+    source_url: str,
+    title: str,
+    voice_id: str,
+    text_style: str
 ):
     """
-    Background process to handle video creation.
+    Process video creation in the background.
     """
     try:
+        # Update task status to processing
+        await update_task_status(
+            task_id,
+            "processing",
+            "Starting video creation process..."
+        )
+
         # Update status
         video_tasks[task_id]["status"] = "extracting_content"
 

@@ -22,6 +22,9 @@ export default function ErrorDisplay({
   const isRedditError =
     error.toLowerCase().includes('reddit') || error.toLowerCase().includes('redirect');
 
+  const isRateLimitError = error.toLowerCase().includes('rate limit') || 
+    error.toLowerCase().includes('too many requests');
+
   // Custom styling based on error type
   const getContainerStyles = () => {
     switch (type) {
@@ -50,6 +53,19 @@ export default function ErrorDisplay({
 
   // Generate helpful suggestions based on error type
   const getSuggestion = () => {
+    if (isRateLimitError) {
+      return (
+        <div className="mt-2 text-sm">
+          <p className="font-medium">Rate Limit Detected:</p>
+          <ul className="list-disc pl-5 mt-1">
+            <li>Please wait a few minutes before trying again</li>
+            <li>Consider using a different Reddit post</li>
+            <li>Ensure you're not making too many requests in a short time</li>
+          </ul>
+        </div>
+      );
+    }
+
     if (isRedditError) {
       return (
         <div className="mt-2 text-sm">
@@ -58,6 +74,7 @@ export default function ErrorDisplay({
             <li>Use the direct permalink to the post</li>
             <li>Try using old.reddit.com instead of www.reddit.com</li>
             <li>Ensure the post is public and not in a private subreddit</li>
+            <li>Check if the post has been deleted or removed</li>
           </ul>
         </div>
       );

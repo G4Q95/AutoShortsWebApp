@@ -30,10 +30,17 @@ async def generate_voice(
     # In a real implementation, we would call the ElevenLabs API
 
     try:
-        logger.info(f"Mock generating voice for text of length {len(text)} with voice {voice_id}")
+        logger.info(
+            "Mock generating voice for text of length %s with voice %s",
+            len(text),
+            voice_id
+        )
 
         # Create a temporary file for the audio
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f".{output_format}")
+        temp_file = tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=f".{output_format}"
+        )
         temp_file.close()
 
         # In the actual implementation, we would call the ElevenLabs API

@@ -43,13 +43,25 @@ class Database:
         Connect to MongoDB Atlas, or use a mock if not available
         """
         try:
-            logger.info(
-                f"Connecting to MongoDB using URI: {settings.MONGODB_URI.split('@')[0]}:***@{settings.MONGODB_URI.split('@')[1] if '@' in settings.MONGODB_URI else '...'}"
+            # Create a sanitized URI for logging (hide password)
+            if '@' in settings.MONGODB_URI:
+                uri_prefix = settings.MONGODB_URI.split('@')[0]
+                uri_suffix = settings.MONGODB_URI.split('@')[1]
+                sanitized_uri = f"{uri_prefix.rsplit(':', 1)[0]}:***@{uri_suffix}"
+            else:
+                sanitized_uri = "..."
+            
+            logger.info(f"Connecting to MongoDB using URI: {sanitized_uri}")
+            
+            self.client = AsyncIOMotorClient(
+                settings.MONGODB_URI, 
+                serverSelectionTimeoutMS=5000
             )
-            self.client = AsyncIOMotorClient(settings.MONGODB_URI, serverSelectionTimeoutMS=5000)
             # Validate connection
             await self.client.admin.command("ping")
-            logger.info(f"Connected to MongoDB successfully. Using database: {self.db_name}")
+            logger.info(
+                f"Connected to MongoDB successfully. Using database: {self.db_name}"
+            )
 
             # Log available collections
             db = self.client[self.db_name]
