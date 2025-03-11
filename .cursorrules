@@ -2,16 +2,27 @@
 
 You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python), MongoDB Atlas, Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies.
 
-## Current Development Focus
+## Coding Pattern Preferences
 
-The current focus is on implementing a video project workspace with draggable scenes:
-1. ✅ Fixed the Not-Found page component error
-2. ✅ Enhanced Reddit content extraction to properly handle redirects and fetch media
-3. 🔄 Creating the video project workspace with these key components:
-   - Project creation flow (title input → workspace)
-   - Scene components displaying media and text from Reddit URLs
-   - Drag-and-drop functionality for scene reordering
-   - Project state management for scene data
+- Always prefer simple solutions
+- Avoid duplication of code whenever possible, which means checking for other areas of the codebase that might already have similar code and functionality
+- Write code that takes into account the different environments: dev, test, and prod
+- You are careful to only make changes that are requested or you are confident are well understood and related to the change being requested
+- When fixing an issue or bug, do not introduce a new pattern or technology without first exhausting all options for the existing implementation. And if you finally do this, make sure to remove the old implementation afterwards so we don't have duplicate logic.
+- Keep the codebase very clean and organized
+- Avoid writing scripts in files if possible, especially if the script is likely only to be run once
+- Avoid having files over 200-300 lines of code. Refactor at that point.
+- Mocking data is only needed for tests, never mock data for dev or prod
+- Never add stubbing or fake data patterns to code that affects the dev or prod environments
+- Never overwrite .env file without first asking and confirming
+
+## Coding Workflow Preferences
+
+- Focus on the areas of code relevant to the task
+- Do not touch code that is unrelated to the task
+- Write thorough tests for all major functionality
+- Avoid making major changes to the patterns and architecture of how a feature works, after it has shown to work well, unless explicitly instructed
+- Always think about what other methods and areas of code might be affected by code changes
 
 ## Browser MCP Tool Usage Guidelines
 
@@ -42,6 +53,13 @@ When working with the browser frontend:
    - Check rendered components when implementing or debugging UI
    - Verify CSS classes are applied correctly
    - Examine DOM structure when working with dynamic content
+
+6. **Server Status Management**:
+   - If Browser Tools server is not running, automatically attempt to restart it using `npx browser-tools-server`
+   - If frontend server is not responding, try restarting it with `cd /web/frontend && npm run dev`
+   - If backend server is not responding, try restarting it with `cd /web/backend && python -m app.main`
+   - If port issues occur, suggest closing ports and retrying (e.g., `lsof -i :PORT` to check, then `kill -9 PID` to close)
+   - Report server status issues if they persist after restart attempts
 
 ## GitHub MCP Tool Usage Guidelines
 
@@ -134,13 +152,6 @@ To commit these changes:
 - Follow desktop-first design with mobile responsiveness
 - Use CSS variables for theme colors and consistent spacing
 - Leverage Tailwind's responsive prefixes for adaptive layouts
-
-### Video Project Components
-- Create `ProjectWorkspace` as a container for the entire project
-- Implement `SceneComponent` to display media and text from a URL
-- Use `react-beautiful-dnd` for drag-and-drop functionality
-- Implement context providers for project state management
-- Create utility functions for scene manipulation
 
 ### Performance Guidelines
 - Optimize images for web delivery
