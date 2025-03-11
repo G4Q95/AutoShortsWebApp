@@ -60,7 +60,7 @@ interface ProjectState {
   isSaving: boolean;
 }
 
-// Initial state
+// Initial state - ensure projects is always initialized as an empty array, never null
 const initialState: ProjectState = {
   projects: [],
   currentProject: null,
@@ -152,10 +152,15 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
         updatedAt: Date.now(),
       };
 
+      // Create updated projects array, safely handling project updates
+      const updatedProjects = state.projects.filter(Boolean).map(p => 
+        p && p.id === updatedProject.id ? updatedProject : p
+      );
+
       return {
         ...state,
         currentProject: updatedProject,
-        projects: state.projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)),
+        projects: updatedProjects,
         error: null,
       };
     }
@@ -183,7 +188,7 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
       return {
         ...state,
         currentProject: updatedProject,
-        projects: state.projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)),
+        projects: state.projects.map((p) => (p && p.id === updatedProject.id ? updatedProject : p)),
         error: null,
       };
     }
@@ -211,7 +216,7 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
       return {
         ...state,
         currentProject: updatedProject,
-        projects: state.projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)),
+        projects: state.projects.map((p) => (p && p.id === updatedProject.id ? updatedProject : p)),
         error: null,
       };
     }
@@ -237,7 +242,7 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
       return {
         ...state,
         currentProject: updatedProject,
-        projects: state.projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)),
+        projects: state.projects.map((p) => (p && p.id === updatedProject.id ? updatedProject : p)),
         error: null,
       };
     }
@@ -267,7 +272,7 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
       return {
         ...state,
         currentProject: updatedProject,
-        projects: state.projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)),
+        projects: state.projects.map((p) => (p && p.id === updatedProject.id ? updatedProject : p)),
         error: null,
       };
     }
@@ -293,7 +298,7 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
       return {
         ...state,
         currentProject: updatedProject,
-        projects: state.projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)),
+        projects: state.projects.map((p) => (p && p.id === updatedProject.id ? updatedProject : p)),
         error: null,
       };
     }
@@ -315,7 +320,7 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
       return {
         ...state,
         currentProject: updatedProject,
-        projects: state.projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)),
+        projects: state.projects.map((p) => (p && p.id === updatedProject.id ? updatedProject : p)),
         error: null,
       };
     }
@@ -367,7 +372,7 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
         currentProject: action.payload.project,
         projects: projectExists
           ? state.projects.map((p) =>
-              p.id === action.payload.project.id ? action.payload.project : p
+              p && p.id === action.payload.project.id ? action.payload.project : p
             )
           : [...state.projects, action.payload.project],
         isLoading: false,

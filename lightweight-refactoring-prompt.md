@@ -1,39 +1,62 @@
-# Lightweight Refactoring Implementation Guide
+# Auto Shorts Web App - Lightweight Refactoring Plan
 
-I'm working on the Auto Shorts Web App project, a Next.js and FastAPI application that's in the early stages of development. I've created a dedicated Git branch called `lightweight-refactoring` for making code improvements without disrupting ongoing feature development.
+## Progress Update - Day 2
 
-I need your help to implement the lightweight refactoring plan as detailed in our `2024-05-19-Code-Cleanup-Refactoring.md` document. Please focus on the "Lightweight Implementation Plan" section, which outlines a 4-week plan with specific tasks and safety measures.
+### Completed Tasks
+✅ Content Extraction and Error Handling
+- Simplified Reddit API interaction
+- Removed complex retry logic
+- Improved error feedback
+- Fixed backend server configuration
+- Enhanced frontend error display
 
-## Key Information
+### Current Focus
+🔄 Backend Optimization
+- FastAPI event handler modernization
+- API error standardization
+- Code organization improvements
 
-- We're in the early stages of development (only a few days in)
-- The site currently has basic functionality but is growing quickly
-- We want to establish good patterns early without a massive overhaul
-- We need to minimize risk of breaking existing functionality
-- The plan focuses on high-impact, low-risk improvements
+### Next Steps
+1. Update FastAPI Event Handlers
+   - Replace deprecated `on_event` with lifespan handlers
+   - Implement proper async context management
+   - Update startup/shutdown logic
 
-## What I Need From You
+2. Frontend State Management
+   - Simplify project state handling
+   - Reduce unnecessary re-renders
+   - Implement consistent loading states
+   - Clean up error handling patterns
 
-I'd like you to lead the implementation of the Week 1 tasks:
+3. API Standardization
+   - Create consistent error format
+   - Implement proper status codes
+   - Add detailed error messages
+   - Standardize error handling
 
-1. Setup linting & formatting tools (Days 1-2)
-2. Remove redundant files (Day 3)
-3. Document current patterns (Days 4-5)
+4. Code Organization
+   - Move common utilities
+   - Standardize imports
+   - Clean up unused code
+   - Organize related functionality
 
-For each task, please:
-- Explain what we're doing and why
-- Provide the specific steps to implement the changes
-- Include the exact code/configuration changes needed
-- Explain how to test the changes before committing
-- Suggest clear commit messages for each step
-
-## Safety Precautions
-
-As we implement these changes, please help me:
-- Verify each change individually before proceeding to the next
-- Back up any critical files before modifying them
-- Keep changes small and focused
+## Implementation Guidelines
+- Keep changes minimal and focused
+- Maintain existing functionality
+- Improve code reliability
+- Reduce technical debt gradually
 - Test thoroughly after each change
-- Be ready to revert if anything breaks
 
-Please start by implementing the first task: setting up linting and formatting tools for the Auto Shorts Web App project. I'll follow your guidance to make these changes in my codebase. 
+## Timeline
+- Day 1: ✅ Initial assessment and planning
+- Day 2: ✅ Content extraction and error handling fixes
+- Day 3: Backend optimization and FastAPI updates
+- Day 4: Frontend state management cleanup
+- Day 5: API standardization and documentation
+
+## Success Metrics
+- Reduced error rates in content extraction
+- Improved code maintainability
+- Better error handling and user feedback
+- More consistent API responses
+- Cleaner codebase organization 
