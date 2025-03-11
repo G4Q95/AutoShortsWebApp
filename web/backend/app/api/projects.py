@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, status, Body, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status, Body, BackgroundTasks, Response
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from app.models.project import Project, ProjectCreate, ProjectResponse
-from app.core.database import db
+from app.core.database import db, MongoJSONEncoder
 from datetime import datetime
 from bson import ObjectId
 import motor.motor_asyncio
@@ -10,6 +10,24 @@ from fastapi.responses import JSONResponse
 from app.services.video_processing import video_processor
 import uuid
 import asyncio
+import logging
+import json
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Custom JSON response for handling MongoDB ObjectId
+class MongoJSONResponse(JSONResponse):
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            cls=MongoJSONEncoder,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
 router = APIRouter(
     prefix="/projects",
@@ -28,38 +46,59 @@ class ProcessProjectResponse(BaseModel):
 # Simple in-memory task storage for project processing
 project_processing_tasks = {}
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED, response_class=MongoJSONResponse)
 async def create_project(project: ProjectCreate = Body(...)):
     """
     Create a new project.
     """
-    # Convert pydantic model to dict for MongoDB
-    project_dict = project.model_dump()
-    
-    # Add timestamps
-    project_dict["created_at"] = datetime.utcnow()
-    project_dict["updated_at"] = project_dict["created_at"]
-    
-    # Insert project document
-    if not db.is_mock:
-        result = await db.client.autoshorts.projects.insert_one(project_dict)
-        project_id = result.inserted_id
+    try:
+        logger.debug(f"Creating new project: {project.title}")
+        # Convert pydantic model to dict for MongoDB
+        project_dict = project.model_dump(by_alias=True)
         
-        # Retrieve created project
-        created_project = await db.client.autoshorts.projects.find_one({"_id": project_id})
-        if created_project:
-            # Convert ObjectId to string for the response
-            created_project["id"] = str(created_project["_id"])
-            return created_project
-        raise HTTPException(status_code=404, detail=f"Project not found after creation")
-    else:
-        # Mock database response
-        mock_id = str(ObjectId())
-        return {
-            "id": mock_id,
-            "_id": mock_id,
-            **project_dict
-        }
+        # Add timestamps
+        project_dict["created_at"] = datetime.utcnow()
+        project_dict["updated_at"] = project_dict["created_at"]
+        
+        # Insert project document
+        if not db.is_mock:
+            mongo_db = db.get_db()
+            result = await mongo_db.projects.insert_one(project_dict)
+            project_id = result.inserted_id
+            
+            # Retrieve created project
+            created_project = await mongo_db.projects.find_one({"_id": project_id})
+            if created_project:
+                # Create a clean project response
+                response = {
+                    "id": str(created_project.get("_id")),
+                    "title": created_project.get("title", ""),
+                    "description": created_project.get("description"),
+                    "user_id": created_project.get("user_id"),
+                    "scenes": created_project.get("scenes", []),
+                    "created_at": created_project.get("created_at"),
+                    "updated_at": created_project.get("updated_at")
+                }
+                logger.debug(f"Project created with ID: {response['id']}")
+                return response
+            raise HTTPException(status_code=404, detail=f"Project not found after creation")
+        else:
+            # Mock database response
+            mock_id = str(ObjectId())
+            response = {
+                "id": mock_id,
+                "title": project.title,
+                "description": project.description,
+                "user_id": project.user_id,
+                "scenes": project.scenes,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            return response
+    except Exception as e:
+        logger.error(f"Error creating project: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @router.get("/test", response_model=Dict[str, Any])
 async def test_projects():
@@ -69,7 +108,7 @@ async def test_projects():
     if not db.is_mock:
         try:
             # Get a single project
-            project = await db.client.autoshorts.projects.find_one()
+            project = await db.client[db.db_name].projects.find_one()
             if project:
                 project["id"] = str(project["_id"])
                 return {"status": "ok", "project": project}
@@ -87,7 +126,7 @@ async def get_projects_raw():
     if not db.is_mock:
         try:
             # Convert to list first
-            cursor = db.client.autoshorts.projects.find()
+            cursor = db.client[db.db_name].projects.find()
             projects_list = await cursor.to_list(length=100)
             
             # Convert ObjectId to string
@@ -114,94 +153,115 @@ async def get_projects_raw():
             }
         ]
 
-@router.get("/", response_model=List[ProjectResponse])
+@router.get("/", response_model=List[ProjectResponse], response_class=MongoJSONResponse)
 async def get_projects():
     """
     Retrieve all projects.
     """
-    if not db.is_mock:
-        try:
-            # Simpler approach: convert to list first
-            cursor = db.client.autoshorts.projects.find()
-            projects_list = await cursor.to_list(length=100)
-            
-            # Add id field to each project and normalize field names
-            for project in projects_list:
-                project["id"] = str(project["_id"])
+    try:
+        logger.debug("Retrieving all projects...")
+        if not db.is_mock:
+            try:
+                # Get database reference
+                mongo_db = db.get_db()
+                logger.debug(f"Using database: {db.db_name}")
                 
-                # Handle different field names for timestamps
-                if "createdAt" in project and "created_at" not in project:
-                    project["created_at"] = project["createdAt"]
+                # Get projects
+                cursor = mongo_db.projects.find()
+                projects_list = await cursor.to_list(length=100)
                 
-                # Ensure all required fields exist
-                if "description" not in project:
-                    project["description"] = None
-                if "user_id" not in project:
-                    project["user_id"] = None
-                if "scenes" not in project:
-                    project["scenes"] = []
-                if "updated_at" not in project:
-                    project["updated_at"] = project.get("created_at") or project.get("createdAt")
+                logger.debug(f"Found {len(projects_list)} projects")
                 
-            return projects_list
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    else:
-        # Return mock data
-        return [
-            {
-                "id": str(ObjectId()),
-                "title": "Mock Project",
-                "description": "This is a mock project",
-                "user_id": None,
-                "scenes": [],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
-            }
-        ]
+                # Process the projects for the response
+                formatted_projects = []
+                for project in projects_list:
+                    # Create a clean project dictionary
+                    processed_project = {
+                        "id": str(project.get("_id")),
+                        "title": project.get("title", ""),
+                        "description": project.get("description"),
+                        "user_id": project.get("user_id"),
+                        "scenes": project.get("scenes", []),
+                        "created_at": project.get("created_at") or project.get("createdAt"),
+                        "updated_at": project.get("updated_at") or project.get("created_at")
+                    }
+                    formatted_projects.append(processed_project)
+                
+                logger.debug("Returning projects list")
+                return formatted_projects
+            except Exception as e:
+                logger.error(f"Database error: {str(e)}")
+                logger.exception("Full traceback:")
+                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        else:
+            # Return mock data
+            logger.debug("Using mock data")
+            return [
+                {
+                    "id": str(ObjectId()),
+                    "title": "Mock Project",
+                    "description": "This is a mock project",
+                    "user_id": None,
+                    "scenes": [],
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow()
+                }
+            ]
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get("/{project_id}", response_model=ProjectResponse, response_class=MongoJSONResponse)
 async def get_project(project_id: str):
     """
     Retrieve a specific project by ID.
     """
     try:
         obj_id = ObjectId(project_id)
-    except:
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
     
-    if not db.is_mock:
-        project = await db.client.autoshorts.projects.find_one({"_id": obj_id})
-        if project:
-            project["id"] = str(project["_id"])
+    try:
+        logger.debug(f"Retrieving project with ID: {project_id}")
+        if not db.is_mock:
+            mongo_db = db.get_db()
+            project = await mongo_db.projects.find_one({"_id": obj_id})
             
-            # Handle different field names for timestamps
-            if "createdAt" in project and "created_at" not in project:
-                project["created_at"] = project["createdAt"]
-            
-            # Ensure all required fields exist
-            if "description" not in project:
-                project["description"] = None
-            if "user_id" not in project:
-                project["user_id"] = None
-            if "scenes" not in project:
-                project["scenes"] = []
-            if "updated_at" not in project:
-                project["updated_at"] = project.get("created_at") or project.get("createdAt")
+            if project:
+                # Create a clean project response
+                response = {
+                    "id": str(project.get("_id")),
+                    "title": project.get("title", ""),
+                    "description": project.get("description"),
+                    "user_id": project.get("user_id"),
+                    "scenes": project.get("scenes", []),
+                    "created_at": project.get("created_at") or project.get("createdAt"),
+                    "updated_at": project.get("updated_at") or project.get("created_at")
+                }
                 
-            return project
-        raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
-    else:
-        # Return mock data
-        return {
-            "id": project_id,
-            "title": "Mock Project",
-            "description": "This is a mock project",
-            "user_id": None,
-            "scenes": [],
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
+                logger.debug(f"Found project: {project.get('title')}")
+                return response
+            
+            raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+        else:
+            # Return mock data for a specific project
+            mock_id = project_id
+            return {
+                "id": mock_id,
+                "title": "Mock Project Detail",
+                "description": "This is a mock project detail",
+                "user_id": None,
+                "scenes": [],
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving project: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @router.put("/{project_id}", response_model=ProjectResponse)
 async def update_project(project_id: str, project_update: ProjectCreate = Body(...)):
@@ -217,7 +277,7 @@ async def update_project(project_id: str, project_update: ProjectCreate = Body(.
     update_data["updated_at"] = datetime.utcnow()
     
     if not db.is_mock:
-        result = await db.client.autoshorts.projects.update_one(
+        result = await db.client[db.db_name].projects.update_one(
             {"_id": obj_id},
             {"$set": update_data}
         )
@@ -226,7 +286,7 @@ async def update_project(project_id: str, project_update: ProjectCreate = Body(.
             raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
             
         # Retrieve updated project
-        updated_project = await db.client.autoshorts.projects.find_one({"_id": obj_id})
+        updated_project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
         if updated_project:
             updated_project["id"] = str(updated_project["_id"])
             
@@ -264,7 +324,7 @@ async def delete_project(project_id: str):
         raise HTTPException(status_code=400, detail="Invalid project ID format")
     
     if not db.is_mock:
-        result = await db.client.autoshorts.projects.delete_one({"_id": obj_id})
+        result = await db.client[db.db_name].projects.delete_one({"_id": obj_id})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
     # No return for 204 response 
@@ -290,10 +350,10 @@ async def process_project(project_id: str, request: ProcessProjectRequest = Body
     if not db.is_mock:
         # Use flexible query that works with both ObjectId and string IDs
         if isinstance(obj_id, ObjectId):
-            project = await db.client.autoshorts.projects.find_one({"_id": obj_id})
+            project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
         else:
             # Try to find by string ID (could be in an "id" field or other format)
-            project = await db.client.autoshorts.projects.find_one({"$or": [
+            project = await db.client[db.db_name].projects.find_one({"$or": [
                 {"_id": obj_id},
                 {"id": project_id}
             ]})
@@ -403,10 +463,10 @@ async def process_project_background(task_id: str, project_id: str, mode: str):
         if not db.is_mock:
             # Use flexible query that works with both ObjectId and string IDs
             if isinstance(obj_id, ObjectId):
-                project = await db.client.autoshorts.projects.find_one({"_id": obj_id})
+                project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
             else:
                 # Try to find by string ID
-                project = await db.client.autoshorts.projects.find_one({"$or": [
+                project = await db.client[db.db_name].projects.find_one({"$or": [
                     {"_id": obj_id},
                     {"id": project_id}
                 ]})
@@ -479,7 +539,7 @@ async def process_project_background(task_id: str, project_id: str, mode: str):
             
             # Update the project status in the database
             if not db.is_mock:
-                await db.client.autoshorts.projects.update_one(
+                await db.client[db.db_name].projects.update_one(
                     {"_id": obj_id},
                     {"$set": {
                         "status": "completed",
@@ -495,7 +555,7 @@ async def process_project_background(task_id: str, project_id: str, mode: str):
             
             # Update project status
             if not db.is_mock:
-                await db.client.autoshorts.projects.update_one(
+                await db.client[db.db_name].projects.update_one(
                     {"_id": obj_id},
                     {"$set": {
                         "status": "error",
@@ -512,7 +572,7 @@ async def process_project_background(task_id: str, project_id: str, mode: str):
         # Try to update project status
         try:
             if not db.is_mock:
-                await db.client.autoshorts.projects.update_one(
+                await db.client[db.db_name].projects.update_one(
                     {"_id": obj_id},
                     {"$set": {
                         "status": "error",

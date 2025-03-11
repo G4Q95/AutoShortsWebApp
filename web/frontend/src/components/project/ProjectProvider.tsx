@@ -347,15 +347,28 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
     }
 
     case 'LOAD_PROJECT_SUCCESS': {
-      return {
+      console.log(`[ProjectReducer] LOAD_PROJECT_SUCCESS action received`);
+      console.log(`[ProjectReducer] Loaded project:`, action.payload.project ? 
+        `id: ${action.payload.project.id}, title: "${action.payload.project.title}"` : 'null');
+      
+      // Check if project is already in the projects array
+      const projectExists = state.projects.some(p => p.id === action.payload.project.id);
+      console.log(`[ProjectReducer] Project already exists in state: ${projectExists}`);
+      
+      const newState = {
         ...state,
         currentProject: action.payload.project,
-        projects: state.projects.some(p => p.id === action.payload.project.id)
+        projects: projectExists
           ? state.projects.map(p => p.id === action.payload.project.id ? action.payload.project : p)
           : [...state.projects, action.payload.project],
         isLoading: false,
         error: null
       };
+      
+      console.log(`[ProjectReducer] Updated state with loaded project, currentProject set to:`, 
+        newState.currentProject ? `id: ${newState.currentProject.id}` : 'null');
+      
+      return newState;
     }
 
     case 'SET_SAVING': {
@@ -529,26 +542,36 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   
   // Function to load a specific project from localStorage
   const loadProject = useCallback(async (projectId: string) => {
+    console.log(`[ProjectProvider] loadProject called with projectId: ${projectId}`);
     try {
+      console.log(`[ProjectProvider] Setting loading state to true`);
       dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
       
+      console.log(`[ProjectProvider] Checking if project exists in localStorage`);
       if (!projectExists(projectId)) {
+        console.log(`[ProjectProvider] Project with ID ${projectId} not found in localStorage`);
         throw new Error(`Project with ID ${projectId} not found`);
       }
       
+      console.log(`[ProjectProvider] Project exists, retrieving project data`);
       const project = await getProject(projectId);
+      console.log(`[ProjectProvider] Project retrieved:`, 
+        project ? `title: "${project.title}", scenes: ${project.scenes.length}` : 'null');
       
+      console.log(`[ProjectProvider] Dispatching LOAD_PROJECT_SUCCESS action`);
       dispatch({ 
         type: 'LOAD_PROJECT_SUCCESS', 
         payload: { project } 
       });
+      console.log(`[ProjectProvider] LOAD_PROJECT_SUCCESS action dispatched`);
     } catch (error) {
-      console.error('Failed to load project:', error);
+      console.error('[ProjectProvider] Failed to load project:', error);
       dispatch({ 
         type: 'SET_ERROR', 
         payload: { error: 'Failed to load project' } 
       });
     } finally {
+      console.log(`[ProjectProvider] Setting loading state to false`);
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
   }, [dispatch]);
@@ -600,6 +623,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     
     // Save the project to storage
     if (newProject) {
+      // Store the ID for easy retrieval
+      localStorage.setItem('lastCreatedProjectId', newProject.id);
+      
       saveProject(newProject).catch(error => {
         console.error('Failed to save new project:', error);
       });
@@ -609,15 +635,79 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [dispatch, state.projects]);
   
   const setCurrentProject = useCallback(async (projectId: string) => {
-    // If the project exists in state, just set it
-    if (state.projects.some(p => p.id === projectId)) {
-      dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
-      return;
-    }
+    console.log(`[ProjectProvider] setCurrentProject called with projectId: ${projectId}`);
     
-    // Otherwise, try to load it from storage
-    await loadProject(projectId);
-  }, [dispatch, state.projects, loadProject]);
+    // Set loading state immediately to true
+    console.log(`[ProjectProvider] Setting loading state to true before any operations`);
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
+    
+    try {
+      // Check if the project exists in state
+      console.log(`[ProjectProvider] Checking if project exists in state`);
+      const projectExistsInState = state.projects.some(p => p.id === projectId);
+      console.log(`[ProjectProvider] Project exists in state: ${projectExistsInState}`);
+      
+      if (projectExistsInState) {
+        console.log(`[ProjectProvider] Setting current project directly from state`);
+        dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
+        console.log(`[ProjectProvider] Current project set from state`);
+        
+        // Set loading state to false since we're done
+        console.log(`[ProjectProvider] Setting loading state to false`);
+        dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+        return;
+      }
+      
+      // If not in state, check if it exists in localStorage first
+      console.log(`[ProjectProvider] Project not in state, checking localStorage`);
+      if (!projectExists(projectId)) {
+        console.log(`[ProjectProvider] Project does not exist in localStorage`);
+        dispatch({ 
+          type: 'SET_ERROR', 
+          payload: { error: `Project with ID ${projectId} not found` } 
+        });
+        dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+        return;
+      }
+      
+      // Now load it from storage
+      console.log(`[ProjectProvider] Project exists in localStorage, loading it`);
+      const project = await getProject(projectId);
+      
+      if (!project) {
+        console.log(`[ProjectProvider] Failed to load project from localStorage`);
+        dispatch({ 
+          type: 'SET_ERROR', 
+          payload: { error: `Failed to load project from storage` } 
+        });
+        dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+        return;
+      }
+      
+      console.log(`[ProjectProvider] Project loaded from localStorage: ${project.title}`);
+      console.log(`[ProjectProvider] Dispatching LOAD_PROJECT_SUCCESS action`);
+      
+      // Dispatch the action to set the loaded project
+      dispatch({ 
+        type: 'LOAD_PROJECT_SUCCESS', 
+        payload: { project } 
+      });
+      
+      console.log(`[ProjectProvider] LOAD_PROJECT_SUCCESS action dispatched`);
+      
+      // Set loading state to false
+      console.log(`[ProjectProvider] Setting loading state to false after successful load`);
+      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+      
+    } catch (error) {
+      console.error('[ProjectProvider] Error in setCurrentProject:', error);
+      dispatch({ 
+        type: 'SET_ERROR', 
+        payload: { error: 'Failed to set current project' } 
+      });
+      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+    }
+  }, [dispatch, state.projects]);
   
   // Function to add a scene with a URL
   const addScene = useCallback(async (url: string) => {

@@ -104,7 +104,7 @@ export default function ProjectsPage() {
           <LayersIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-700 mb-2">No projects yet</h2>
           <p className="text-gray-500 mb-6 max-w-md mx-auto">
-            Create your first video project to start organizing content for your videos.
+            Create your first video project.
           </p>
           <Link 
             href="/create-video" 
@@ -123,7 +123,7 @@ export default function ProjectsPage() {
                 className="border border-gray-200 rounded-lg hover:shadow-md transition-shadow bg-white overflow-hidden"
               >
                 <Link 
-                  href={`/project/${project.id}`}
+                  href={`/projects/${project.id}`}
                   className="block p-6"
                 >
                   <div className="flex justify-between items-start">

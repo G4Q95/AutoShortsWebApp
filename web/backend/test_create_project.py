@@ -3,6 +3,11 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import json
 from bson import ObjectId
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
@@ -12,41 +17,46 @@ class JSONEncoder(json.JSONEncoder):
             return o.isoformat()
         return json.JSONEncoder.default(self, o)
 
-async def create_project():
+async def create_test_project():
+    # Get MongoDB URI from environment
+    mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/autoshorts")
+    
     # Connect to MongoDB
-    client = AsyncIOMotorClient("mongodb://localhost:27017/autoshorts")
+    client = AsyncIOMotorClient(mongodb_uri)
     
     # Get a reference to the database
-    db = client.autoshorts
+    db = client.autoshortsdb
     
-    # Get a reference to the collection
-    collection = db.projects
-    
-    # Create a new project
+    # Create a test project
     project = {
-        "title": "Test Project from Script",
-        "description": "A test project created from a Python script",
+        "title": "Sample Project",
+        "description": "A sample project for testing MongoDB integration",
         "user_id": None,
-        "scenes": [],
+        "scenes": [
+            {
+                "url": "https://www.reddit.com/r/funny/comments/sample",
+                "title": "Sample Scene",
+                "text_content": "This is a sample scene for testing",
+                "media_url": None,
+                "media_type": None,
+                "author": "test_user"
+            }
+        ],
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()
     }
     
     # Insert the project
-    result = await collection.insert_one(project)
-    
-    # Print the result
+    result = await db.projects.insert_one(project)
     print(f"Inserted project with ID: {result.inserted_id}")
     
-    # Find all documents
-    cursor = collection.find()
-    documents = await cursor.to_list(length=100)
-    
-    # Print the documents
-    print(json.dumps(documents, cls=JSONEncoder, indent=2))
+    # Retrieve and verify the project
+    inserted_project = await db.projects.find_one({"_id": result.inserted_id})
+    print("\nRetrieved project:")
+    print(json.dumps(inserted_project, cls=JSONEncoder, indent=2))
     
     # Close the connection
     client.close()
 
 if __name__ == "__main__":
-    asyncio.run(create_project()) 
+    asyncio.run(create_test_project()) 
