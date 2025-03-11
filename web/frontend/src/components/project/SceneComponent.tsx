@@ -36,6 +36,7 @@ export default function SceneComponent({
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(cleanPostText(scene.text));
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
@@ -61,6 +62,22 @@ export default function SceneComponent({
       console.error('Failed to retry loading content:', error);
     } finally {
       setIsRetrying(false);
+    }
+  };
+
+  // Handle scene removal with additional logging and state
+  const handleRemoveScene = () => {
+    if (isRemoving) return; // Prevent multiple clicks
+    
+    console.log('Removing scene:', scene.id);
+    setIsRemoving(true);
+    
+    try {
+      onRemove(scene.id);
+      console.log('Scene removal dispatched:', scene.id);
+    } catch (error) {
+      console.error('Error removing scene:', error);
+      setIsRemoving(false);
     }
   };
 
@@ -252,11 +269,12 @@ export default function SceneComponent({
               </button>
             )}
             <button
-              onClick={() => onRemove(scene.id)}
-              className="p-1 text-red-600 hover:bg-red-50 rounded-sm text-xs"
+              onClick={handleRemoveScene}
+              disabled={isRemoving}
+              className={`p-1 text-red-600 hover:bg-red-50 rounded-sm text-xs ${isRemoving ? 'opacity-50' : ''}`}
               aria-label="Remove scene"
             >
-              <TrashIcon className="h-3 w-3" />
+              <TrashIcon className={`h-3 w-3 ${isRemoving ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </>

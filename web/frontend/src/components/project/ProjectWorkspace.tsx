@@ -154,13 +154,17 @@ export default function ProjectWorkspace({
 
     setIsAddingScene(true);
     setAddSceneError(null);
+    setDebugInfo({ lastAction: `Adding scene URL: ${url.trim()}` });
 
     try {
       await addScene(url.trim());
       setUrl('');
+      // Explicitly mark this action in debug info
+      setDebugInfo({ lastAction: `Successfully added scene with URL: ${url.trim()}` });
     } catch (error) {
       console.error('Error adding scene:', error);
       setAddSceneError(error instanceof Error ? error.message : 'Failed to add scene');
+      setDebugInfo({ lastAction: `Error adding scene: ${error instanceof Error ? error.message : 'Unknown error'}` });
     } finally {
       setIsAddingScene(false);
     }
@@ -187,7 +191,10 @@ export default function ProjectWorkspace({
   };
 
   const handleDragEnd = (result: DropResult) => {
-    if (!result.destination || !reorderScenes) return;
+    if (!result.destination || !reorderScenes) {
+      console.log('Invalid drag result or reorderScenes not available:', result);
+      return;
+    }
 
     const sourceIndex = result.source.index;
     const destinationIndex = result.destination.index;
@@ -195,11 +202,19 @@ export default function ProjectWorkspace({
     if (sourceIndex === destinationIndex) return;
 
     if (effectiveProject) {
+      setDebugInfo({ lastAction: `Reordering scenes: ${sourceIndex} → ${destinationIndex}` });
+      
       const newSceneIds = [...effectiveProject.scenes.map((scene) => scene.id)];
       const [removed] = newSceneIds.splice(sourceIndex, 1);
       newSceneIds.splice(destinationIndex, 0, removed);
 
+      // Log the scene IDs for debugging
+      console.log('Reordering scenes with IDs:', newSceneIds);
+      
       reorderScenes(newSceneIds);
+      
+      // Log completion of reordering
+      setDebugInfo({ lastAction: `Completed reordering scenes: ${sourceIndex} → ${destinationIndex}` });
     }
   };
 

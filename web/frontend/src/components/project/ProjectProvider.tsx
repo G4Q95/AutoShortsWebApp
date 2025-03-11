@@ -144,6 +144,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     return () => {
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
       }
     };
   }, [state.currentProject, saveCurrentProject]);
@@ -261,16 +262,26 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
     
-    // Auto-save after removing a scene
-    saveCurrentProject().catch(error => {
-      console.error('Error saving project after scene removal:', error);
-    });
+    // We need to manually trigger a save here instead of relying only on the auto-save
+    // This ensures the change is persisted immediately
+    setTimeout(() => {
+      saveCurrentProject().catch(error => {
+        console.error('Error saving project after scene removal:', error);
+      });
+    }, 100);
   }, [state.currentProject, saveCurrentProject]);
 
   // Reorder scenes
   const reorderScenes = useCallback((sceneIds: string[]) => {
     dispatch({ type: 'REORDER_SCENES', payload: { sceneIds } });
-  }, []);
+    
+    // We need to manually trigger a save here to ensure reordering is persisted
+    setTimeout(() => {
+      saveCurrentProject().catch(error => {
+        console.error('Error saving project after reordering scenes:', error);
+      });
+    }, 100);
+  }, [saveCurrentProject]);
 
   // Update scene text
   const updateSceneText = useCallback((sceneId: string, text: string) => {
