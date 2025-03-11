@@ -8,9 +8,15 @@ const API_VERSION = '/api/v1';
 // Default timeout for API requests in milliseconds
 const DEFAULT_TIMEOUT_MS = 10000;
 
-interface ApiError {
+export interface ApiError {
   detail: string;
   status: number;
+  code?: string;
+  details?: Array<{
+    loc?: string[];
+    msg: string;
+    type: string;
+  }>;
 }
 
 export interface ApiResponse<T> {
@@ -49,6 +55,14 @@ export async function fetchAPI<T = any>(
 
   try {
     const url = `${API_BASE_URL}${API_VERSION}${endpoint}`;
+    
+    // Log requests in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`API Request: ${options.method || 'GET'} ${url}`);
+      if (options.body) {
+        console.log('Request Body:', options.body);
+      }
+    }
 
     // Default headers
     const headers = {
@@ -85,6 +99,12 @@ export async function fetchAPI<T = any>(
       statusText: response.statusText,
     };
 
+    // Log response in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`API Response: ${response.status} ${response.statusText}`);
+      console.log('Response Time:', Math.round(timing.duration), 'ms');
+    }
+
     // Update API health if this was a successful request
     if (response.ok) {
       apiHealth.lastChecked = Date.now();
@@ -103,11 +123,30 @@ export async function fetchAPI<T = any>(
       // Try to parse error message from the response
       try {
         const data = await response.json();
+        
+        // Handle different error formats
         if (data.detail) {
+          // Standard FastAPI error
           error.detail = data.detail;
+        } else if (data.message) {
+          // Our custom error format
+          error.detail = data.message;
+          error.code = data.error_code;
+          error.details = data.details;
+        } else if (typeof data === 'string') {
+          error.detail = data;
+        } else if (data.error) {
+          error.detail = data.error;
+        }
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.error('API Error:', data);
         }
       } catch (e) {
         // Ignore parsing errors
+        if (process.env.NODE_ENV === 'development') {
+          console.error('API Error (failed to parse response):', e);
+        }
       }
 
       return { error, timing, connectionInfo };
@@ -119,6 +158,16 @@ export async function fetchAPI<T = any>(
     }
 
     const data = await response.json();
+    
+    // Log data in development (truncated for large responses)
+    if (process.env.NODE_ENV === 'development') {
+      const dataStr = JSON.stringify(data);
+      console.log('Response Data:', dataStr.length > 1000 
+        ? dataStr.substring(0, 1000) + '... [truncated]' 
+        : data
+      );
+    }
+    
     return { data, timing, connectionInfo };
   } catch (error) {
     const endTime = performance.now();
@@ -127,6 +176,11 @@ export async function fetchAPI<T = any>(
       end: endTime,
       duration: endTime - startTime,
     };
+
+    // Log error in development
+    if (process.env.NODE_ENV === 'development') {
+      console.error('API Error:', error);
+    }
 
     // Check if it's an AbortError (timeout)
     if (error instanceof DOMException && error.name === 'AbortError') {
@@ -185,19 +239,15 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
   apiHealth.checkInProgress = true;
 
   try {
-    // Log the API_BASE_URL for debugging
-    console.log('Attempting to connect to backend at:', API_BASE_URL);
-
     // Use a short timeout for health checks and use the Next.js rewrite
     const url = '/health'; // This will be rewritten to the backend
-    console.log('Full health check URL:', url);
+    console.log('Checking API health at:', url);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     const startTime = performance.now();
 
-    console.log('Sending fetch request...');
     const fetchResponse = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -207,10 +257,10 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
     clearTimeout(timeoutId);
     const endTime = performance.now();
 
-    console.log('Fetch response received:', fetchResponse.status, fetchResponse.statusText);
+    console.log('Health check response:', fetchResponse.status, fetchResponse.statusText);
 
     const data = await fetchResponse.json();
-    console.log('Response data:', data);
+    console.log('Health check data:', data);
 
     apiHealth.lastChecked = Date.now();
     apiHealth.isAvailable = fetchResponse.ok;
@@ -259,7 +309,12 @@ export async function extractContent(url: string): Promise<ApiResponse<any>> {
     });
   } catch (error) {
     console.error('Error extracting content:', error);
-    throw new Error('Failed to extract content from URL');
+    return {
+      error: {
+        detail: error instanceof Error ? error.message : 'Failed to extract content from URL',
+        status: 500,
+      },
+    };
   }
 }
 

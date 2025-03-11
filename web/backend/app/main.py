@@ -12,7 +12,7 @@ from pydantic import ValidationError as PydanticValidationError
 from app.api import ai, content, projects, users, video_creation, videos
 from app.core.config import settings
 from app.core.database import MongoJSONEncoder, db
-from app.core.errors import create_error_response
+from app.core.errors import create_error_response, ErrorCodes
 
 # Configure logging
 logging.basicConfig(
@@ -76,11 +76,11 @@ class CustomJSONResponse(JSONResponse):
 async def global_exception_handler(request: Request, exc: Exception):
     error_message = str(exc)
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-    error_code = "internal_server_error"
+    error_code = ErrorCodes.INTERNAL_SERVER_ERROR
 
     if isinstance(exc, PydanticValidationError):
         status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-        error_code = "validation_error"
+        error_code = ErrorCodes.VALIDATION_ERROR
         
         # Extract validation error details
         details = []

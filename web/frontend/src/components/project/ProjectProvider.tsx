@@ -44,7 +44,7 @@ const ProjectContext = createContext<(ProjectState & {
   saveCurrentProject: () => Promise<void>;
   deleteCurrentProject: () => Promise<void>;
   loadProject: (projectId: string) => Promise<void>;
-  duplicateProject: (projectId: string) => Promise<void>;
+  duplicateProject: (projectId: string) => Promise<string | null>;
   deleteAllProjects: () => Promise<void>;
   refreshProjects: () => Promise<void>;
 }) | undefined>(undefined);
@@ -95,7 +95,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Load projects from localStorage on initial mount
   useEffect(() => {
     loadProjects();
-  }, [loadProjects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Function to save the current project to localStorage
   const saveCurrentProject = useCallback(async () => {
@@ -157,59 +158,84 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
   }, []);
 
-  // Add a scene
+  // Add a scene - enhanced with better error handling
   const addScene = useCallback(async (url: string) => {
-    // Generate a temporary ID for the scene
-    const sceneId = generateId();
+    // First check if a current project exists
+    if (!state.currentProject) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: { error: 'No active project to add scene to' },
+      });
+      return;
+    }
 
-    // Add the scene to the project with loading state
+    const sceneId = generateId();
     dispatch({
       type: 'ADD_SCENE_LOADING',
       payload: { sceneId, url },
     });
 
     try {
-      // Extract content from the URL
-      const contentResponse = await extractContent(url);
-      
-      if (!contentResponse.data || contentResponse.error) {
-        throw new Error(contentResponse.error?.detail || 'Failed to extract content from URL');
-      }
-      
-      const data = contentResponse.data;
+      const response = await extractContent(url);
 
-      // Determine media type based on content
-      const mediaType = determineMediaType(data);
-
-      // Create scene data from extracted content
-      const sceneData: Partial<Scene> = {
-        text: data.text || data.title || '',
-        source: {
-          author: data.author || undefined,
-          subreddit: data.subreddit || undefined,
-          platform: data.platform || 'reddit',
-        },
-      };
-
-      // Set media based on type
-      if (data.media_url || data.thumbnail_url) {
-        sceneData.media = {
-          type: mediaType,
-          url: data.media_url || data.thumbnail_url || '',
-          thumbnailUrl: data.thumbnail_url,
-          width: data.width,
-          height: data.height,
-          duration: data.duration,
-        };
+      if (response.error) {
+        dispatch({
+          type: 'ADD_SCENE_ERROR',
+          payload: {
+            sceneId,
+            error: response.error.detail || 'Failed to extract content',
+          },
+        });
+        return;
       }
 
-      // Update scene with extracted data
+      const sceneData = response.data;
+      if (!sceneData) {
+        dispatch({
+          type: 'ADD_SCENE_ERROR',
+          payload: {
+            sceneId,
+            error: 'No content data returned from API',
+          },
+        });
+        return;
+      }
+
+      // Process the response into a scene object
+      let mediaType: 'image' | 'video' | 'gallery' | null = null;
+      let mediaUrl: string | null = null;
+
+      // Process media from the response - handle direct media properties
+      if (sceneData.has_media && sceneData.media_url) {
+        mediaType = sceneData.media_type || 'image'; // Default to image if not specified
+        mediaUrl = sceneData.media_url;
+      }
+
+      // Ensure we have a valid scene object
       dispatch({
         type: 'ADD_SCENE_SUCCESS',
-        payload: { sceneId, sceneData },
+        payload: {
+          sceneId,
+          sceneData: {
+            text: sceneData.text || '',
+            media: mediaUrl && mediaType ? { 
+              type: mediaType as 'image' | 'video' | 'gallery', 
+              url: mediaUrl,
+              thumbnailUrl: sceneData.thumbnail_url,
+              width: sceneData.width,
+              height: sceneData.height,
+              duration: sceneData.duration
+            } : undefined,
+            source: {
+              platform: 'reddit',
+              author: sceneData.author,
+              subreddit: sceneData.subreddit,
+            },
+          },
+        },
       });
 
-      // Auto-save project with new scene
+      // Auto-save after adding a scene
       await saveCurrentProject();
     } catch (error) {
       console.error('Error adding scene:', error);
@@ -217,16 +243,29 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         type: 'ADD_SCENE_ERROR',
         payload: {
           sceneId,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error ? error.message : 'Unknown error occurred',
         },
       });
     }
-  }, [saveCurrentProject]);
+  }, [state.currentProject, saveCurrentProject]);
 
   // Remove a scene
   const removeScene = useCallback((sceneId: string) => {
+    if (!state.currentProject) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: { error: 'No active project to remove scene from' },
+      });
+      return;
+    }
+
     dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
-  }, []);
+    
+    // Auto-save after removing a scene
+    saveCurrentProject().catch(error => {
+      console.error('Error saving project after scene removal:', error);
+    });
+  }, [state.currentProject, saveCurrentProject]);
 
   // Reorder scenes
   const reorderScenes = useCallback((sceneIds: string[]) => {
@@ -251,8 +290,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      await deleteProject(state.currentProject.id);
-      loadProjects(); // Refresh projects list after deletion
+      const projectId = state.currentProject.id;
+      await deleteProject(projectId);
+      
+      // Only refresh projects after successful deletion
+      await loadProjects();
     } catch (error) {
       console.error('Failed to delete project:', error);
       dispatch({
@@ -302,39 +344,39 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Duplicate a project
+  // Create a duplicate of a project
   const duplicateProject = useCallback(async (projectId: string) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
 
-      // Check if source project exists
-      const exists = await projectExists(projectId);
-      if (!exists) {
-        throw new Error(`Project with ID ${projectId} not found`);
+      // Get the original project
+      const originalProject = await getProject(projectId);
+      if (!originalProject) {
+        throw new Error(`Project with ID ${projectId} not found for duplication`);
       }
 
-      // Load the source project
-      const sourceProject = await getProject(projectId);
-      if (!sourceProject) {
-        throw new Error(`Failed to load project with ID ${projectId}`);
-      }
+      // Create a new project ID
+      const newProjectId = generateId();
 
-      // Create a new project with the same data but new ID
-      const newProject: Project = {
-        ...sourceProject,
-        id: generateId(),
-        title: `${sourceProject.title} (Copy)`,
+      // Create a duplicate project with a new ID and updated timestamps
+      const duplicatedProject: Project = {
+        ...originalProject,
+        id: newProjectId,
+        title: `${originalProject.title} (Copy)`,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
-      // Save the new project
-      await saveProject(newProject);
+      // Save the duplicated project
+      await saveProject(duplicatedProject);
 
+      // Update the state with the new project
       dispatch({
         type: 'DUPLICATE_PROJECT_SUCCESS',
-        payload: { project: newProject },
+        payload: { project: duplicatedProject },
       });
+
+      return duplicatedProject.id;
     } catch (error) {
       console.error('Failed to duplicate project:', error);
       dispatch({
@@ -345,6 +387,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           }`,
         },
       });
+      return null;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
@@ -390,44 +433,58 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loadProjects]);
 
   // Memoize the context value to prevent unnecessary re-renders
-  // CHANGE: Now we spread state properties directly into the context value
-  // to maintain compatibility with existing components
-  const contextValue = useMemo(
-    () => ({
-      // Spread all state properties
-      ...state,
-      // Include all action methods
-      createProject,
-      setCurrentProject,
-      addScene,
-      removeScene,
-      reorderScenes,
-      updateSceneText,
-      setProjectTitle,
-      saveCurrentProject,
-      deleteCurrentProject,
-      loadProject,
-      duplicateProject,
-      deleteAllProjects,
-      refreshProjects,
-    }),
-    [
-      state,
-      createProject,
-      setCurrentProject,
-      addScene,
-      removeScene,
-      reorderScenes,
-      updateSceneText,
-      setProjectTitle,
-      saveCurrentProject,
-      deleteCurrentProject,
-      loadProject,
-      duplicateProject,
-      deleteAllProjects,
-      refreshProjects,
-    ]
-  );
+  // Split context values into separate memoized objects
+  const stateValues = useMemo(() => ({
+    projects: state.projects,
+    currentProject: state.currentProject,
+    isLoading: state.isLoading,
+    error: state.error,
+    lastSaved: state.lastSaved,
+    isSaving: state.isSaving,
+  }), [
+    state.projects,
+    state.currentProject,
+    state.isLoading,
+    state.error,
+    state.lastSaved,
+    state.isSaving
+  ]);
+
+  const actions = useMemo(() => ({
+    createProject,
+    setCurrentProject,
+    addScene,
+    removeScene,
+    reorderScenes,
+    updateSceneText,
+    setProjectTitle,
+    saveCurrentProject,
+    deleteCurrentProject,
+    loadProject,
+    duplicateProject,
+    deleteAllProjects,
+    refreshProjects,
+  }), [
+    createProject,
+    setCurrentProject,
+    addScene,
+    removeScene,
+    reorderScenes,
+    updateSceneText,
+    setProjectTitle,
+    saveCurrentProject,
+    deleteCurrentProject,
+    loadProject,
+    duplicateProject,
+    deleteAllProjects,
+    refreshProjects,
+  ]);
+
+  // Combine state and actions only when either changes
+  const contextValue = useMemo(() => ({
+    ...stateValues,
+    ...actions
+  }), [stateValues, actions]);
 
   return (
     <ProjectContext.Provider value={contextValue}>

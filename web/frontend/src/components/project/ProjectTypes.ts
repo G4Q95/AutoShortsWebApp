@@ -77,9 +77,11 @@ export const initialState: ProjectState = {
 
 // Helper function to determine media type from API response
 export const determineMediaType = (data: any): 'image' | 'video' | 'gallery' => {
+  // If media_type is directly provided (from backend API response)
   if (data.media_type) {
     if (data.media_type === 'video') return 'video';
     if (data.media_type === 'image') return 'image';
+    if (data.media_type === 'gallery') return 'gallery';
   }
 
   // Check URL patterns as fallback
