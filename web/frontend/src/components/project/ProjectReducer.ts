@@ -144,14 +144,28 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
 
     case 'REMOVE_SCENE': {
       if (!state.currentProject) {
+        console.error('REMOVE_SCENE action failed: No active project in state');
         return {
           ...state,
           error: 'No active project to remove scene from',
         };
       }
 
-      const updatedScenes = state.currentProject.scenes.filter(
-        (scene) => scene.id !== action.payload.sceneId
+      const sceneId = action.payload.sceneId;
+      console.log(`Reducer: Removing scene ${sceneId} from project ${state.currentProject.id}`);
+
+      // Verify the scene exists and log scene IDs for debugging
+      const projectScenes = state.currentProject.scenes || [];
+      const currentSceneIds = projectScenes.map(s => s.id);
+      const sceneExists = currentSceneIds.includes(sceneId);
+      
+      if (!sceneExists) {
+        console.warn(`Scene with ID ${sceneId} not found in project ${state.currentProject.id}. Available scenes: ${JSON.stringify(currentSceneIds)}`);
+      }
+
+      // Remove the scene from the array even if it doesn't exist (idempotent operation)
+      const updatedScenes = projectScenes.filter(
+        (scene) => scene.id !== sceneId
       );
 
       const updatedProject: Project = {
@@ -159,6 +173,8 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         scenes: updatedScenes,
         updatedAt: Date.now(),
       };
+
+      console.log(`Reducer: Project updated after scene removal. Original count: ${projectScenes.length}, New count: ${updatedScenes.length}`);
 
       // Safely update projects array
       const updatedProjects = state.projects.map((p) => 
@@ -169,6 +185,7 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         ...state,
         currentProject: updatedProject,
         projects: updatedProjects,
+        error: null, // Clear any previous errors
       };
     }
 

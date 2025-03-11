@@ -106,14 +106,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      // Capture project reference to ensure it doesn't change during save operation
+      const projectToSave = { ...state.currentProject };
+      
+      console.log(`Saving project: ${projectToSave.id}, ${projectToSave.title}, scenes: ${projectToSave.scenes.length}`);
       dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
 
-      await saveProject(state.currentProject);
+      await saveProject(projectToSave);
 
       const timestamp = Date.now();
       dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp } });
 
-      console.log(`Project "${state.currentProject.title}" saved successfully`);
+      console.log(`Project "${projectToSave.title}" saved successfully`);
     } catch (error) {
       console.error('Failed to save project:', error);
       dispatch({
@@ -250,9 +254,22 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [state.currentProject, saveCurrentProject]);
 
-  // Remove a scene
+  // Remove a scene - completely overhauled for reliability
   const removeScene = useCallback((sceneId: string) => {
-    if (!state.currentProject) {
+    // Get the current project from state
+    const project = state.currentProject;
+    
+    // Robust logging for debugging
+    console.log(`Attempting to remove scene ${sceneId}`, {
+      hasProject: !!project,
+      projectId: project?.id,
+      scenesCount: project?.scenes?.length || 0,
+      sceneIds: project?.scenes?.map(s => s.id)
+    });
+    
+    // If no current project in context state, log error and return
+    if (!project) {
+      console.error('No active project in context state to remove scene from - cannot remove scene:', sceneId);
       dispatch({
         type: 'SET_ERROR',
         payload: { error: 'No active project to remove scene from' },
@@ -260,16 +277,60 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
-    
-    // We need to manually trigger a save here instead of relying only on the auto-save
-    // This ensures the change is persisted immediately
-    setTimeout(() => {
-      saveCurrentProject().catch(error => {
-        console.error('Error saving project after scene removal:', error);
+    try {
+      // Find the scene index to verify it exists, but continue regardless
+      const sceneIndex = project.scenes.findIndex(scene => scene.id === sceneId);
+      if (sceneIndex === -1) {
+        console.warn(`Scene ${sceneId} not found in project ${project.id}, but will proceed with UI removal`);
+        // Dispatch removal anyway to update UI and ensure consistency
+        dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
+        return; // Skip saving since there's nothing to update in storage
+      }
+      
+      // First, create an updated project with the scene removed to use for saving
+      const updatedScenes = project.scenes.filter(scene => scene.id !== sceneId);
+      const updatedProject = {
+        ...project,
+        scenes: updatedScenes,
+        updatedAt: Date.now()
+      };
+      
+      console.log(`Dispatching scene removal for scene: ${sceneId} in project: ${project.id}`);
+      
+      // Immediately dispatch action to update UI
+      dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
+      
+      // Then save the updated project directly
+      console.log(`Saving project after removing scene ${sceneId}`);
+      
+      // Use a try/catch for saving to ensure UI is updated even if save fails
+      try {
+        saveProject(updatedProject)
+          .then(() => {
+            console.log(`Project saved successfully after scene removal`);
+            dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
+          })
+          .catch(saveError => {
+            console.error('Error saving project after scene removal:', saveError);
+            // Still mark as removed in UI, but show error about save failing
+            dispatch({
+              type: 'SET_ERROR',
+              payload: { error: 'Scene removed, but changes could not be saved permanently' },
+            });
+          });
+      } catch (saveError) {
+        console.error('Exception during save after scene removal:', saveError);
+      }
+    } catch (error) {
+      console.error('Error during scene removal process:', error);
+      // Still proceed with the UI update to maintain consistency
+      dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
+      dispatch({
+        type: 'SET_ERROR',
+        payload: { error: `Error removing scene: ${error instanceof Error ? error.message : 'Unknown error'}` },
       });
-    }, 100);
-  }, [state.currentProject, saveCurrentProject]);
+    }
+  }, [state.currentProject, dispatch]);
 
   // Reorder scenes
   const reorderScenes = useCallback((sceneIds: string[]) => {

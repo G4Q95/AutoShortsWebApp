@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Scene } from './ProjectProvider';
 import {
   Trash2 as TrashIcon,
@@ -18,32 +18,65 @@ const cleanPostText = (text: string): string => {
 
 interface SceneComponentProps {
   scene: Scene;
+  preview: string | null;
   index: number;
-  onRemove: (id: string) => void;
-  onTextChange: (id: string, text: string) => void;
-  onRetryLoad?: (url: string) => Promise<void>;
+  onSceneRemove: (id: string) => void;
+  onSceneMove: (id: string, newIndex: number) => void;
+  onSceneReorder: (id: string, newIndex: number) => void;
+  reorderMode?: boolean;
+  readOnly?: boolean;
+  editorRef?: React.RefObject<HTMLTextAreaElement>;
   isDragging?: boolean;
+  isFullWidth?: boolean;
+  customStyles?: React.CSSProperties;
 }
 
-export default function SceneComponent({
+export const SceneComponent: React.FC<SceneComponentProps> = memo(function SceneComponent({
   scene,
+  preview,
   index,
-  onRemove,
-  onTextChange,
-  onRetryLoad,
+  onSceneRemove,
+  onSceneMove,
+  onSceneReorder,
+  reorderMode = false,
+  readOnly = false,
+  editorRef,
   isDragging = false,
+  isFullWidth = false,
+  customStyles = {}
 }: SceneComponentProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(cleanPostText(scene.text));
   const [isRetrying, setIsRetrying] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [manuallyRemoving, setManuallyRemoving] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
+  const removingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const localPreview = useRef<string | null>(null);
+  const isRemovedRef = useRef<boolean>(false);
+  
+  // Store local preview reference for potential fallbacks
+  useEffect(() => {
+    if (preview && !localPreview.current) {
+      localPreview.current = preview;
+    }
+  }, [preview]);
+
+  // Reset removing state if component gets new scene
+  useEffect(() => {
+    return () => {
+      if (removingTimeoutRef.current) {
+        clearTimeout(removingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
   };
 
   const handleSave = () => {
-    onTextChange(scene.id, text);
+    onSceneReorder(scene.id, index);
     setIsEditing(false);
   };
 
@@ -53,11 +86,11 @@ export default function SceneComponent({
   };
 
   const handleRetry = async () => {
-    if (!onRetryLoad || !scene.url) return;
+    if (!scene.url) return;
 
     setIsRetrying(true);
     try {
-      await onRetryLoad(scene.url);
+      await onSceneReorder(scene.id, index);
     } catch (error) {
       console.error('Failed to retry loading content:', error);
     } finally {
@@ -65,21 +98,71 @@ export default function SceneComponent({
     }
   };
 
-  // Handle scene removal with additional logging and state
-  const handleRemoveScene = () => {
-    if (isRemoving) return; // Prevent multiple clicks
-    
-    console.log('Removing scene:', scene.id);
-    setIsRemoving(true);
+  const handleRemoveScene = useCallback(() => {
+    if (isRemoving || isRemovedRef.current) {
+      console.log(`Already removing scene ${scene.id}, ignoring duplicate request`);
+      return;
+    }
     
     try {
-      onRemove(scene.id);
-      console.log('Scene removal dispatched:', scene.id);
+      console.log(`Initiating removal for scene: ${scene.id}`);
+      setIsRemoving(true);
+      setFadeOut(true);
+      
+      // Start UI removal animation
+      const sceneElement = document.getElementById(`scene-${scene.id}`);
+      if (sceneElement) {
+        sceneElement.style.transition = 'opacity 0.5s ease-out';
+        sceneElement.style.opacity = '0.5';
+      }
+      
+      // Call the actual removal function
+      onSceneRemove(scene.id);
+      
+      // Set a backup timeout to forcibly remove component from UI
+      // if the backend removal takes too long
+      removingTimeoutRef.current = setTimeout(() => {
+        console.log(`Scene ${scene.id} removal timeout reached, forcing UI update`);
+        setManuallyRemoving(true);
+        isRemovedRef.current = true;
+        
+        // Fully hide the element
+        if (sceneElement) {
+          sceneElement.style.opacity = '0';
+          sceneElement.style.height = '0';
+          sceneElement.style.margin = '0';
+          sceneElement.style.padding = '0';
+          sceneElement.style.overflow = 'hidden';
+        }
+        
+        // Check if component is still mounted after 3 seconds
+        // and reset state if it is (meaning removal failed)
+        setTimeout(() => {
+          const stillExists = document.getElementById(`scene-${scene.id}`);
+          if (stillExists) {
+            console.warn(`Scene ${scene.id} still in DOM after forced removal, resetting state`);
+            setManuallyRemoving(false);
+            setIsRemoving(false);
+            setFadeOut(false);
+            isRemovedRef.current = false;
+            
+            // Restore visibility
+            if (stillExists) {
+              stillExists.style.opacity = '1';
+              stillExists.style.height = '';
+              stillExists.style.margin = '';
+              stillExists.style.padding = '';
+              stillExists.style.overflow = '';
+            }
+          }
+        }, 3000);
+      }, 2000);
     } catch (error) {
-      console.error('Error removing scene:', error);
+      console.error(`Error initiating scene removal for ${scene.id}:`, error);
       setIsRemoving(false);
+      setFadeOut(false);
     }
-  };
+  }, [scene.id, isRemoving, onSceneRemove]);
 
   // Function to render loading state
   const renderLoadingState = () => {
@@ -108,7 +191,7 @@ export default function SceneComponent({
           <ErrorDisplay
             error={scene.error || 'Failed to load content'}
             type="extraction"
-            showRetry={!!onRetryLoad}
+            showRetry={!!scene.url}
             onRetry={handleRetry}
           />
         </div>
@@ -183,10 +266,16 @@ export default function SceneComponent({
     }
   };
 
-  return (
+  return manuallyRemoving ? null : (
     <div
+      id={`scene-${scene.id}`}
       className={`relative rounded-lg border overflow-hidden shadow-sm bg-white 
-      ${isDragging ? 'border-blue-500 shadow-lg bg-blue-50' : 'border-gray-300'}`}
+      ${isDragging ? 'border-blue-500 shadow-lg bg-blue-50' : 'border-gray-300'}
+      ${isRemoving ? 'opacity-50' : 'opacity-100'} transition-opacity duration-300`}
+      style={{
+        opacity: fadeOut ? 0.6 : 1,
+        transition: 'opacity 0.5s ease-out'
+      }}
     >
       {/* Scene number indicator */}
       <div className="absolute top-2 left-2 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium z-10">
@@ -248,7 +337,7 @@ export default function SceneComponent({
 
           {/* Controls */}
           <div className="border-t border-gray-200 p-2 flex justify-end space-x-1">
-            {scene.error && onRetryLoad && (
+            {scene.error && scene.url && (
               <button
                 onClick={handleRetry}
                 disabled={isRetrying}
@@ -281,4 +370,4 @@ export default function SceneComponent({
       )}
     </div>
   );
-}
+});

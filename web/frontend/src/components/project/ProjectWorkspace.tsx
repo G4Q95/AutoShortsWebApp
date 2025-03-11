@@ -12,10 +12,10 @@
  * It is used in the /projects/create route and other project-related pages.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProject, Scene, Project } from './ProjectProvider';
-import SceneComponent from './SceneComponent';
+import { SceneComponent } from './SceneComponent';
 import {
   PlusCircle as PlusCircleIcon,
   Loader2 as LoaderIcon,
@@ -55,6 +55,7 @@ export default function ProjectWorkspace({
     isSaving,
     lastSaved,
     createProject,
+    loadProject,
   } = useProject();
 
   const [url, setUrl] = useState('');
@@ -69,14 +70,16 @@ export default function ProjectWorkspace({
   });
   const [title, setTitle] = useState(initialProjectName || 'New Project');
   const [isCreating, setIsCreating] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<{ lastAction?: string }>({});
+  const [debugInfo, setDebugInfo] = useState<{ lastAction: string }>({ lastAction: 'Initial load' });
 
   // Local state to track if we're already loaded from the preloaded project
   const loadAttemptedRef = useRef(false);
   const mountCountRef = useRef(0);
   const instanceIdRef = useRef(`workspace-${Math.random().toString(36).substring(2, 7)}`);
   const newProjectCreatedRef = useRef(false);
+  const projectLoadingRef = useRef(false); // New ref to track if project is currently loading
 
+  // Single unified effect for project initialization
   useEffect(() => {
     mountCountRef.current += 1;
     console.log(
@@ -89,6 +92,11 @@ export default function ProjectWorkspace({
       }
     );
 
+    // If we're already loading a project, don't do anything
+    if (projectLoadingRef.current) {
+      return;
+    }
+
     // If we have a preloaded project, use it and don't trigger context loading
     if (preloadedProject) {
       console.log(`[${instanceIdRef.current}] Using preloaded project:`, preloadedProject.id);
@@ -97,22 +105,48 @@ export default function ProjectWorkspace({
       return;
     }
 
+    // If we already have a current project, don't load again
+    if (currentProject) {
+      console.log(`[${instanceIdRef.current}] Using existing current project:`, currentProject.id);
+      setLocalLoading(false);
+      return;
+    }
+
     // If we have a project ID, attempt to load it
-    if (projectId && !loadAttemptedRef.current && !currentProject) {
+    if (projectId && !loadAttemptedRef.current && loadProject) {
       loadAttemptedRef.current = true;
-      console.log(`[${instanceIdRef.current}] Loading project via context:`, projectId);
-      setCurrentProject(projectId);
+      projectLoadingRef.current = true;
+      console.log(`[${instanceIdRef.current}] Loading project via API:`, projectId);
+      
+      setLocalLoading(true);
+      loadProject(projectId)
+        .then(() => {
+          console.log(`Successfully loaded project ${projectId}`);
+          
+          // Check if we need to explicitly set the project as current
+          if (!currentProject) {
+            console.log(`Project ${projectId} was not set as current project after loading, setting it now`);
+            setCurrentProject(projectId);
+          }
+        })
+        .catch((err) => {
+          console.error(`Failed to load project ${projectId}:`, err);
+          setError(`Failed to load project: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        })
+        .finally(() => {
+          setLocalLoading(false);
+          projectLoadingRef.current = false;
+        });
       return;
     }
 
     // If we don't have a project ID or preloaded project, create a new one
-    if (!projectId && !preloadedProject && !currentProject && !newProjectCreatedRef.current) {
+    if (!projectId && !preloadedProject && !currentProject && !newProjectCreatedRef.current && createProject) {
       newProjectCreatedRef.current = true;
       console.log(`[${instanceIdRef.current}] Creating new project automatically`);
 
       // Create a new project with the provided title or default
       createProject(initialProjectName || 'New Video Project');
-
       setDebugInfo((prev) => ({ ...prev, lastAction: 'Created new project automatically' }));
     }
 
@@ -123,11 +157,25 @@ export default function ProjectWorkspace({
     currentProject,
     setCurrentProject,
     createProject,
+    loadProject,
     initialProjectName,
+    setLocalProject,
+    setLocalLoading,
+    setError,
+    setDebugInfo
   ]);
 
   // Use either preloaded project, local state, or context project
   const effectiveProject = localProject || currentProject;
+
+  // Add an effect to ensure effectiveProject is always synchronized with currentProject
+  useEffect(() => {
+    if (effectiveProject && setCurrentProject && 
+        (!currentProject || currentProject.id !== effectiveProject.id)) {
+      console.log(`Synchronizing effectiveProject as currentProject: ${effectiveProject.id}`);
+      setCurrentProject(effectiveProject.id);
+    }
+  }, [effectiveProject, currentProject, setCurrentProject]);
 
   const formatSavedTime = () => {
     if (!lastSaved) return '';
@@ -253,6 +301,75 @@ export default function ProjectWorkspace({
       setError('Failed to process video');
     }
   };
+
+  // Wrapper for scene removal with better debugging
+  const handleRemoveScene = useCallback((sceneId: string) => {
+    if (!removeScene) {
+      console.error('Cannot remove scene: removeScene function is not available');
+      setError('Cannot remove scene: app not initialized properly');
+      return;
+    }
+
+    if (!effectiveProject) {
+      console.error('Cannot remove scene: no active project');
+      setError('Cannot remove scene: no active project');
+      return;
+    }
+
+    // Get available scene IDs for debugging
+    const availableSceneIds = effectiveProject.scenes.map(s => s.id);
+
+    console.log(`ProjectWorkspace: Removing scene ${sceneId} from project ${effectiveProject.id}`, {
+      effectiveProjectId: effectiveProject.id,
+      currentProjectId: currentProject?.id,
+      sceneCount: effectiveProject.scenes.length,
+      availableSceneIds,
+      sceneExists: availableSceneIds.includes(sceneId)
+    });
+    
+    // Always ensure we have the current project set 
+    if (setCurrentProject && (!currentProject || currentProject.id !== effectiveProject.id)) {
+      console.log(`Synchronizing project state before removal: ${effectiveProject.id}`);
+      
+      // Store a local reference to the scene information
+      const sceneToRemove = effectiveProject.scenes.find(s => s.id === sceneId);
+      
+      // Set current project and wait to ensure it's available
+      setCurrentProject(effectiveProject.id);
+      
+      setDebugInfo({ lastAction: `Synchronizing project for scene removal: ${sceneId}` });
+      
+      // Wait for state update then attempt removal
+      setTimeout(() => {
+        try {
+          console.log(`Executing delayed scene removal after sync: ${sceneId}`);
+          
+          // If we couldn't find the scene in our local reference, warn but still try
+          if (!sceneToRemove) {
+            console.warn(`Scene to remove (${sceneId}) not found in effectiveProject, but will attempt removal anyway`);
+          }
+          
+          removeScene(sceneId);
+          setDebugInfo({ lastAction: `Removed scene: ${sceneId} after synchronization` });
+        } catch (error) {
+          console.error('Error in delayed scene removal:', error);
+          setError(`Failed to remove scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }, 200);
+      return;
+    }
+    
+    // If project is already synchronized, execute removal with delay for UI feedback
+    setTimeout(() => {
+      try {
+        removeScene(sceneId);
+        setDebugInfo({ lastAction: `Removed scene: ${sceneId}` });
+      } catch (error) {
+        console.error('Error in removeScene handler:', error);
+        setError(`Failed to remove scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }, 50);
+  }, [removeScene, effectiveProject, currentProject, setCurrentProject, setDebugInfo, setError]);
 
   if (isContextLoading) {
     return (
@@ -392,10 +509,11 @@ export default function ProjectWorkspace({
                           >
                             <SceneComponent
                               scene={scene}
+                              preview={scene.url || null}
                               index={i}
-                              onRemove={removeScene}
-                              onTextChange={updateSceneText}
-                              onRetryLoad={(url) => handleRetryLoad(scene.id, url)}
+                              onSceneRemove={handleRemoveScene}
+                              onSceneMove={(id, newIndex) => console.log(`Move scene ${id} to position ${newIndex}`)}
+                              onSceneReorder={(id, newIndex) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
                               isDragging={snapshot.isDragging}
                             />
                           </div>

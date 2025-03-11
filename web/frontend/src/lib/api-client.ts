@@ -203,17 +203,38 @@ export async function fetchAPI<T = any>(
     apiHealth.isAvailable = false;
     apiHealth.lastChecked = Date.now();
 
+    // Handle "Failed to fetch" errors with more user-friendly messages
+    let errorDetail = error instanceof Error ? error.message : 'An unknown error occurred';
+    let errorStatus = 500;
+    let errorStatusText = 'Server Error';
+    
+    // More descriptive error messages based on common error patterns
+    if (errorDetail === 'Failed to fetch') {
+      errorDetail = 'Could not connect to the backend server. Please ensure the server is running.';
+      errorStatus = 503; // Service Unavailable
+      errorStatusText = 'Backend Unavailable';
+    } else if (errorDetail.includes('NetworkError')) {
+      errorDetail = 'Network error: Check your internet connection or backend server status.';
+      errorStatus = 503;
+      errorStatusText = 'Network Error';
+    } else if (errorDetail.includes('CORS')) {
+      errorDetail = 'CORS policy error: The backend server is not properly configured for cross-origin requests.';
+      errorStatus = 520; // Custom status for CORS
+      errorStatusText = 'CORS Policy Error';
+    }
+
     return {
       error: {
-        detail: error instanceof Error ? error.message : 'An unknown error occurred',
-        status: 500,
+        detail: errorDetail,
+        status: errorStatus,
+        code: error instanceof Error ? error.name : 'UnknownError',
       },
       timing,
       connectionInfo: {
         success: false,
         server: API_BASE_URL,
-        status: 0,
-        statusText: 'Not Connected',
+        status: errorStatus,
+        statusText: errorStatusText,
       },
     };
   }
