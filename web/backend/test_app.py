@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import traceback
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -18,12 +19,9 @@ logger = logging.getLogger(__name__)
 # Load environment variables from .env file
 load_dotenv()
 
-app = FastAPI(title="Test API")
-
-# MongoDB connection
+# MongoDB client (initialized in lifespan)
 client = None
 db_name = "autoshortsdb"
-
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
@@ -33,9 +31,12 @@ class JSONEncoder(json.JSONEncoder):
             return o.isoformat()
         return json.JSONEncoder.default(self, o)
 
-
-@app.on_event("startup")
-async def startup_db_client():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for test FastAPI application.
+    Handles startup and shutdown events.
+    """
     global client
     try:
         # Get MongoDB URI from environment
@@ -50,24 +51,27 @@ async def startup_db_client():
         logger.debug("Testing connection with ping...")
         await client.admin.command("ping")
         logger.debug("Ping successful!")
+        
+        yield  # Application runs here
+        
     except Exception as e:
         logger.error(f"Error connecting to MongoDB: {str(e)}")
         logger.error(traceback.format_exc())
         raise
+    finally:
+        # Cleanup
+        if client:
+            client.close()
+            logger.debug("MongoDB connection closed")
 
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    global client
-    if client:
-        client.close()
-        logger.debug("MongoDB connection closed")
-
+app = FastAPI(
+    title="Test API",
+    lifespan=lifespan
+)
 
 @app.get("/")
 async def root():
     return {"message": "Test API is running"}
-
 
 @app.get("/projects")
 async def get_projects():
@@ -95,7 +99,6 @@ async def get_projects():
         logger.error(f"Error retrieving projects: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
-
 
 if __name__ == "__main__":
     uvicorn.run("test_app:app", host="0.0.0.0", port=8005, reload=True)
