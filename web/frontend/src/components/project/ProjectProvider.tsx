@@ -28,9 +28,8 @@ import {
 } from './ProjectTypes';
 import { projectReducer } from './ProjectReducer';
 
-// Create the context with proper typing
-type ProjectContextType = {
-  state: ProjectState;
+// Create the context with a merged type that includes state and actions
+const ProjectContext = createContext<(ProjectState & {
   createProject: (title: string) => void;
   setCurrentProject: (projectId: string) => void;
   addScene: (url: string) => Promise<void>;
@@ -44,10 +43,7 @@ type ProjectContextType = {
   duplicateProject: (projectId: string) => Promise<void>;
   deleteAllProjects: () => Promise<void>;
   refreshProjects: () => Promise<void>;
-};
-
-// Create the context with a default value
-const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
+}) | undefined>(undefined);
 
 // Provider component
 export function ProjectProvider({ children }: { children: ReactNode }) {
@@ -157,29 +153,26 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
   }, []);
 
-  // Add a scene with URL extraction
+  // Add a scene
   const addScene = useCallback(async (url: string) => {
-    // Generate a temp ID for tracking this scene
+    // Generate a temporary ID for the scene
     const sceneId = generateId();
 
+    // Add the scene to the project with loading state
+    dispatch({
+      type: 'ADD_SCENE_LOADING',
+      payload: { sceneId, url },
+    });
+
     try {
-      // Create placeholder scene first with loading state
-      dispatch({
-        type: 'ADD_SCENE_LOADING',
-        payload: { sceneId, url },
-      });
-
-      // Extract content from URL
-      console.log(`Extracting content from URL: ${url}`);
-      const contentData = await extractContent(url);
-      console.log('Extracted content:', contentData);
-
-      if (!contentData || !contentData.data) {
-        throw new Error('Failed to extract content from URL');
+      // Extract content from the URL
+      const contentResponse = await extractContent(url);
+      
+      if (!contentResponse.data || contentResponse.error) {
+        throw new Error(contentResponse.error?.detail || 'Failed to extract content from URL');
       }
-
-      // Get the actual content data from the response
-      const data = contentData.data;
+      
+      const data = contentResponse.data;
 
       // Determine media type based on content
       const mediaType = determineMediaType(data);
@@ -393,9 +386,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loadProjects]);
 
   // Memoize the context value to prevent unnecessary re-renders
+  // CHANGE: Now we spread state properties directly into the context value
+  // to maintain compatibility with existing components
   const contextValue = useMemo(
     () => ({
-      state,
+      // Spread all state properties
+      ...state,
+      // Include all action methods
       createProject,
       setCurrentProject,
       addScene,
