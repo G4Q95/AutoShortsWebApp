@@ -5,6 +5,7 @@ import {
   Scene, 
   generateId 
 } from './ProjectTypes';
+import { getProject } from '../../lib/storage-utils';
 
 /**
  * Project state reducer
@@ -33,19 +34,17 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     case 'SET_CURRENT_PROJECT': {
       const project = state.projects.find((p) => p && p.id === action.payload.projectId) || null;
       
-      // If the project wasn't found in the projects array but we have a projectId
-      // Try to load from localStorage here - this handles rehydration issues
+      // If project not found, log it and attempt to load it from localStorage
       if (!project && action.payload.projectId) {
-        console.log(`Project ${action.payload.projectId} not found in state, will attempt to load it directly`);
+        console.log(`Project ${action.payload.projectId} not found in state projects array, will attempt to load from localStorage`);
         
-        // Return current state - the component should handle loading via getProject
+        // Return current state for now - component should handle loading via the loadProject function
+        // The next action will be LOAD_PROJECT_SUCCESS which will properly set the current project
         return {
           ...state,
-          error: `Project with ID ${action.payload.projectId} not found in state`,
+          error: `Project with ID ${action.payload.projectId} not found in state, attempting to load...`,
         };
       }
-      
-      console.log(`SET_CURRENT_PROJECT: ${project ? 'Found' : 'Not found'} project ${action.payload.projectId}`);
       
       return {
         ...state,

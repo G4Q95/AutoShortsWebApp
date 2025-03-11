@@ -254,22 +254,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [state.currentProject, saveCurrentProject]);
 
-  // Remove a scene - completely overhauled for reliability
+  // Remove a scene - simplified for reliability
   const removeScene = useCallback((sceneId: string) => {
     // Get the current project from state
     const project = state.currentProject;
     
-    // Robust logging for debugging
-    console.log(`Attempting to remove scene ${sceneId}`, {
-      hasProject: !!project,
-      projectId: project?.id,
-      scenesCount: project?.scenes?.length || 0,
-      sceneIds: project?.scenes?.map(s => s.id)
-    });
-    
     // If no current project in context state, log error and return
     if (!project) {
-      console.error('No active project in context state to remove scene from - cannot remove scene:', sceneId);
+      console.error('No active project in context state to remove scene from');
       dispatch({
         type: 'SET_ERROR',
         payload: { error: 'No active project to remove scene from' },
@@ -278,16 +270,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // Find the scene index to verify it exists, but continue regardless
+      // Check if the scene exists
       const sceneIndex = project.scenes.findIndex(scene => scene.id === sceneId);
       if (sceneIndex === -1) {
-        console.warn(`Scene ${sceneId} not found in project ${project.id}, but will proceed with UI removal`);
-        // Dispatch removal anyway to update UI and ensure consistency
-        dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
-        return; // Skip saving since there's nothing to update in storage
+        console.warn(`Scene ${sceneId} not found in project ${project.id}, proceeding with UI update only`);
       }
       
-      // First, create an updated project with the scene removed to use for saving
+      // Create an updated project with the scene removed
       const updatedScenes = project.scenes.filter(scene => scene.id !== sceneId);
       const updatedProject = {
         ...project,
@@ -295,57 +284,38 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         updatedAt: Date.now()
       };
       
-      console.log(`Dispatching scene removal for scene: ${sceneId} in project: ${project.id}`);
-      
-      // Immediately dispatch action to update UI
+      // Update UI first for responsiveness
       dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
       
-      // Then save the updated project directly
-      console.log(`Saving project after removing scene ${sceneId}`);
+      // Then save to storage
+      dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
       
-      // Use a try/catch for saving to ensure UI is updated even if save fails
-      try {
-        // Create a deep clone of the updated project to avoid race conditions
-        const projectToSave = JSON.parse(JSON.stringify(updatedProject));
-        
-        // Display optimistic saving message to user
-        dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
-        
-        // Immediately save the project to local storage
-        saveProject(projectToSave)
-          .then(() => {
-            console.log(`Project saved successfully after scene removal`);
-            dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
-            dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
-            
-            // Update currentProject again to ensure it's fully synchronized
-            dispatch({
-              type: 'LOAD_PROJECT_SUCCESS',
-              payload: { project: projectToSave },
-            });
-          })
-          .catch(saveError => {
-            console.error('Error saving project after scene removal:', saveError);
-            dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
-            // Still mark as removed in UI, but show error about save failing
-            dispatch({
-              type: 'SET_ERROR',
-              payload: { error: 'Scene removed, but changes could not be saved permanently' },
-            });
+      saveProject(updatedProject)
+        .then(() => {
+          dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
+          dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
+          
+          // Ensure currentProject is updated with the change
+          dispatch({
+            type: 'LOAD_PROJECT_SUCCESS',
+            payload: { project: updatedProject },
           });
-      } catch (saveError) {
-        console.error('Exception during save after scene removal:', saveError);
-        dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
-      }
+        })
+        .catch(error => {
+          console.error('Error saving project after scene removal:', error);
+          dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
+          dispatch({
+            type: 'SET_ERROR',
+            payload: { error: 'Scene removed, but changes could not be saved' },
+          });
+        });
     } catch (error) {
-      console.error('Error during scene removal process:', error);
-      // Still proceed with the UI update to maintain consistency
-      dispatch({ type: 'REMOVE_SCENE', payload: { sceneId } });
+      console.error('Error during scene removal:', error);
+      dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
       dispatch({
         type: 'SET_ERROR',
         payload: { error: `Error removing scene: ${error instanceof Error ? error.message : 'Unknown error'}` },
       });
-      dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
     }
   }, [state.currentProject, dispatch]);
 
@@ -414,34 +384,21 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         throw new Error(`Failed to load project with ID ${projectId}`);
       }
 
-      console.log(`ProjectProvider: Successfully loaded project ${projectId}`, {
-        id: project.id,
-        title: project.title,
-        scenesCount: project.scenes?.length || 0
-      });
+      console.log(`Loading project: ${projectId}`);
 
-      // Store a reference for later use in case we need to retry
-      const loadedProject = { ...project };
-
-      // Dispatch the project to the reducer with some data validation
+      // Update state with loaded project
       dispatch({
         type: 'LOAD_PROJECT_SUCCESS',
-        payload: { project: loadedProject },
+        payload: { project },
       });
 
-      // Extra verification that the project was set successfully
-      setTimeout(() => {
-        if (!state.currentProject || state.currentProject.id !== projectId) {
-          console.log(`ProjectProvider: Project ${projectId} not set as current after load, retrying...`);
-          // Try explicitly setting it
-          dispatch({
-            type: 'SET_CURRENT_PROJECT',
-            payload: { projectId: loadedProject.id },
-          });
-        }
-      }, 100);
+      // Ensure project is set as current
+      dispatch({
+        type: 'SET_CURRENT_PROJECT',
+        payload: { projectId },
+      });
 
-      return loadedProject; // Return the loaded project for potential use by caller
+      return project;
     } catch (error) {
       console.error('Failed to load project:', error);
       dispatch({
@@ -452,11 +409,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           }`,
         },
       });
-      throw error; // Re-throw to allow caller to handle
+      throw error;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  }, [state.currentProject, dispatch]);
+  }, [dispatch]);
 
   // Create a duplicate of a project
   const duplicateProject = useCallback(async (projectId: string) => {

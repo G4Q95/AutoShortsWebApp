@@ -173,28 +173,24 @@ export default function ProjectWorkspace({
     if (effectiveProject && setCurrentProject && 
         (!currentProject || currentProject.id !== effectiveProject.id)) {
       console.log(`Synchronizing effectiveProject as currentProject: ${effectiveProject.id}`);
-      setCurrentProject(effectiveProject.id);
       
-      // Add a verification step to ensure synchronization worked
-      setTimeout(() => {
-        if (!currentProject || currentProject.id !== effectiveProject.id) {
-          console.log('Verification: Project sync may have failed, attempting secondary sync');
-          setCurrentProject(effectiveProject.id);
-        }
-      }, 300);
-    }
-  }, [effectiveProject, currentProject, setCurrentProject]);
-
-  // Add a new effect to verify the project is correctly set as current after loading
-  useEffect(() => {
-    // If we have a project loaded (either from preload or from context) but it's not set as current
-    if (effectiveProject && 
-        (!currentProject || currentProject.id !== effectiveProject.id) && 
-        setCurrentProject) {
-      console.log(`Project verification: ensuring project ${effectiveProject.id} is set as current`);
+      // If we're setting a project that doesn't exist in context yet, we may need to load it
+      if (projectId && loadProject && 
+          (!currentProject || currentProject.id !== projectId)) {
+        console.log(`Project ${projectId} needs to be loaded before setting as current`);
+        loadProject(projectId)
+          .then(() => {
+            console.log(`Successfully loaded project ${projectId} during sync`);
+          })
+          .catch(err => {
+            console.error(`Error loading project during sync: ${err}`);
+          });
+        return;
+      }
+      
       setCurrentProject(effectiveProject.id);
     }
-  }, [effectiveProject, currentProject, setCurrentProject]);
+  }, [effectiveProject, currentProject, setCurrentProject, projectId, loadProject]);
 
   const formatSavedTime = () => {
     if (!lastSaved) return '';
@@ -299,13 +295,36 @@ export default function ProjectWorkspace({
       return;
     }
     
-    // Additional verification before saving
+    // Ensure the project is set as current before saving
     if (!currentProject && effectiveProject && setCurrentProject) {
-      console.log('Project not in context before save, attempting to set');
+      console.log('Project not in context before save, setting as current project');
+      
+      // First check if we need to load the project from localStorage
+      if (loadProject && projectId) {
+        console.log(`Loading project ${projectId} before saving`);
+        setLocalLoading(true);
+        
+        loadProject(projectId)
+          .then(() => {
+            console.log(`Successfully loaded project ${projectId} for saving`);
+            setTimeout(() => {
+              saveCurrentProject();
+              setLocalLoading(false);
+            }, 100);
+          })
+          .catch((err) => {
+            console.error(`Failed to load project ${projectId} for saving:`, err);
+            setError(`Failed to load project for saving: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            setLocalLoading(false);
+          });
+        return;
+      }
+      
+      // If we have the project in local state but not in context, set it directly
       setCurrentProject(effectiveProject.id);
+      
       // Wait briefly to let the state update
       setTimeout(() => {
-        console.log('Executing delayed save after setting project');
         saveCurrentProject();
       }, 100);
       return;
@@ -350,60 +369,21 @@ export default function ProjectWorkspace({
       return;
     }
 
-    // Get available scene IDs for debugging
-    const availableSceneIds = effectiveProject.scenes.map(s => s.id);
-
-    console.log(`ProjectWorkspace: Removing scene ${sceneId} from project ${effectiveProject.id}`, {
-      effectiveProjectId: effectiveProject.id,
-      currentProjectId: currentProject?.id,
-      sceneCount: effectiveProject.scenes.length,
-      availableSceneIds,
-      sceneExists: availableSceneIds.includes(sceneId)
-    });
-    
-    // Always ensure we have the current project set 
+    // Ensure we have the current project set correctly
     if (setCurrentProject && (!currentProject || currentProject.id !== effectiveProject.id)) {
       console.log(`Synchronizing project state before removal: ${effectiveProject.id}`);
-      
-      // Store a local reference to the scene information
-      const sceneToRemove = effectiveProject.scenes.find(s => s.id === sceneId);
-      
-      // Set current project and wait to ensure it's available
       setCurrentProject(effectiveProject.id);
       
-      setDebugInfo({ lastAction: `Synchronizing project for scene removal: ${sceneId}` });
-      
-      // Wait for state update then attempt removal
+      // Add a small delay to ensure state updates before scene removal
       setTimeout(() => {
-        try {
-          console.log(`Executing delayed scene removal after sync: ${sceneId}`);
-          
-          // If we couldn't find the scene in our local reference, warn but still try
-          if (!sceneToRemove) {
-            console.warn(`Scene to remove (${sceneId}) not found in effectiveProject, but will attempt removal anyway`);
-          }
-          
-          removeScene(sceneId);
-          setDebugInfo({ lastAction: `Removed scene: ${sceneId} after synchronization` });
-        } catch (error) {
-          console.error('Error in delayed scene removal:', error);
-          setError(`Failed to remove scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      }, 200);
+        removeScene(sceneId);
+      }, 100);
       return;
     }
     
-    // If project is already synchronized, execute removal with delay for UI feedback
-    setTimeout(() => {
-      try {
-        removeScene(sceneId);
-        setDebugInfo({ lastAction: `Removed scene: ${sceneId}` });
-      } catch (error) {
-        console.error('Error in removeScene handler:', error);
-        setError(`Failed to remove scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }, 50);
-  }, [removeScene, effectiveProject, currentProject, setCurrentProject, setDebugInfo, setError]);
+    // If project is already synchronized, execute removal
+    removeScene(sceneId);
+  }, [removeScene, effectiveProject, currentProject, setCurrentProject, setError]);
 
   if (isContextLoading) {
     return (
