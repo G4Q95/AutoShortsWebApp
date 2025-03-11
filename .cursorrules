@@ -11,7 +11,6 @@ You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python
 - When fixing an issue or bug, do not introduce a new pattern or technology without first exhausting all options for the existing implementation. And if you finally do this, make sure to remove the old implementation afterwards so we don't have duplicate logic.
 - Keep the codebase very clean and organized
 - Avoid writing scripts in files if possible, especially if the script is likely only to be run once
-- Avoid having files over 200-300 lines of code. Refactor at that point.
 - Mocking data is only needed for tests, never mock data for dev or prod
 - Never add stubbing or fake data patterns to code that affects the dev or prod environments
 - Never overwrite .env file without first asking and confirming
@@ -99,6 +98,37 @@ Use the following prefixes for commit messages followed by a colon and a space:
 When determining the commit message prefix, pick the most relevant prefix from the list above.
 Use lower case for commit messages.
 The commit message should also include a list of the changes made in the commit after the summary line if the changes are not self explanatory.
+
+## Documentation Update Guidelines
+
+When making changes to the codebase, documentation must be updated to maintain accuracy. Follow these guidelines:
+
+1. **progress.md** - Update with every significant change
+   - Update after each completed feature or bug fix
+   - Modify at the end of each productive chat session with Claude
+   - Move completed items from "In Progress" to "Completed Tasks"
+   - Add new items to "Next Steps" when they become relevant
+   - Update implementation status percentages to reflect actual progress
+
+2. **PROJECT_INSTRUCTIONS.md** - Update when implementation plans change
+   - Update the "Current Implementation Tasks" section when tasks are completed
+   - Add new implementation tasks when the roadmap changes
+   - Keep technical implementation details accurate and current
+
+3. **README.md** - Update when user-facing information changes
+   - Update the "Current Development Status" when major milestones are reached
+   - Revise setup instructions when dependencies or processes change
+   - Modify the feature list when new features are implemented
+
+4. **PROJECT_OVERVIEW.md** - Update for significant architectural changes
+   - Update only when business model, architecture, or core concepts change
+   - Remove the "Project Status Update" section (use progress.md instead)
+   - Keep technical decisions and rationale sections current
+
+When updating documentation:
+- Always explain the changes in your message to the user
+- Include which files were updated and why
+- Highlight any significant changes to project status or architecture
 
 ## End of Chat Commit Summary
 

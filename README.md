@@ -70,12 +70,17 @@ Auto Shorts Web App/
 
 - Basic infrastructure setup completed
 - Connected frontend and backend services
-- Implemented URL submission form
+- Implemented URL submission form with validation
 - Enhanced error handling functionality
+- Fixed Not-Found page errors
+- Improved Reddit content extraction for better media handling
+- Implemented MongoDB Atlas for project storage and persistence
+- Created project workspace with drag-and-drop scene management
+- Implemented scene reordering and content organization
 - Working on:
-  - Fixing Not-Found page errors
-  - Improving Reddit content extraction
-  - Building the project workspace with draggable scenes
+  - Completing the video processing pipeline
+  - Enhancing content extraction capabilities
+  - Implementing video preview and download functionality
 
 ## Development Setup
 
@@ -123,3 +128,21 @@ API documentation will be available at:
    - Background music options
    - Video templates
    - Advanced analytics 
+
+## Documentation Overview
+
+This project has several documentation files for different purposes:
+
+| File | Location | Purpose |
+|------|----------|---------|
+| **README.md** | `/` | Project overview and quick start guide |
+| **PROJECT_OVERVIEW.md** | `/docs/` | Comprehensive project concept, architecture, and business model |
+| **PROJECT_INSTRUCTIONS.md** | `/docs/` | Detailed implementation steps and technical requirements |
+| **progress.md** | `/` | Current development status, completed tasks, and upcoming work |
+| **instructions.md** | `/` | Development environment setup and workflow instructions |
+| **.cursorrules** | `/` | Coding patterns, conventions, and AI assistant guidelines |
+| **CONVERSATION_SUMMARY.md** | `/docs/` | Summary of key development conversations and decisions |
+| **frontend/README.md** | `/web/frontend/` | Frontend-specific setup and development information |
+| **backend/README.md** | `/web/backend/` | Backend-specific setup and development information |
+
+When starting a new chat in Cursor with Claude, consider adding relevant context files (especially `.cursorrules` and appropriate documentation) to ensure consistent development patterns. 
