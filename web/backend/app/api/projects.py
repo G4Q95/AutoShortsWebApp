@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.core.database import MongoJSONEncoder, db
+from app.core.errors import DatabaseError, NotFoundError, create_error_response
 from app.models.project import Project, ProjectCreate, ProjectResponse
 from app.services.video_processing import video_processor
 
@@ -233,8 +234,11 @@ async def get_projects():
 @router.get("/{project_id}", response_model=ProjectResponse, response_class=MongoJSONResponse)
 async def get_project(project_id: str):
     """
-    Get a project by its ID.
+    Get a project by ID
     """
+    mongo_db = db.get_db()
+    logger.debug(f"Getting project with ID: {project_id}")
+
     try:
         # Try to convert to ObjectId if it's a valid format
         if len(project_id) == 24 and all(
@@ -242,41 +246,33 @@ async def get_project(project_id: str):
         ):
             obj_id = ObjectId(project_id)
         else:
-            # For non-standard IDs, we'll just use it as is for lookups
-            obj_id = project_id
-    except Exception:
-        # If conversion fails, use the ID as is
-        obj_id = project_id
-
-    if not db.is_mock:
-        # Use flexible query that works with both ObjectId and string IDs
-        project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
-        if project:
-            return {
-                "id": str(project["_id"]),
-                "title": project.get("title", ""),
-                "description": project.get("description", ""),
-                "status": project.get("status", ""),
-                "error": project.get("error", ""),
-                "created_at": project.get("created_at"),
-                "updated_at": project.get("updated_at"),
-            }
+            # Invalid ObjectId format
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid project ID format"
+            )
+    except InvalidId:
+        # This could happen if the ID has the right length but isn't a valid ObjectId
         raise HTTPException(
-            status_code=404,
-            detail=f"Project with ID {project_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid project ID format"
         )
-    else:
-        # Return mock data for a specific project
-        mock_id = project_id
-        return {
-            "id": mock_id,
-            "title": "Mock Project Detail",
-            "description": "This is a mock project detail",
-            "user_id": None,
-            "scenes": [],
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        }
+        
+    project = await mongo_db.projects.find_one({"_id": obj_id})
+    
+    if not project:
+        error_response = create_error_response(
+            status_code=status.HTTP_404_NOT_FOUND,
+            message=f"Project with ID {project_id} not found",
+            error_code="resource_not_found",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=error_response
+        )
+        
+    # Format the project for response
+    return format_project(project)
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)

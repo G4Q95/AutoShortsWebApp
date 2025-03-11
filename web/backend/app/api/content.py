@@ -3,6 +3,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, status
 from pydantic import HttpUrl
 
+from app.core.errors import create_error_response
 from app.services.content_retrieval import extract_url_content
 
 router = APIRouter(
@@ -19,9 +20,14 @@ async def extract_content(url: HttpUrl):
     """
     content = await extract_url_content(str(url))
     if not content:
+        error_response = create_error_response(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            message="Unable to extract content from the provided URL",
+            error_code="content_extraction_error"
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Unable to extract content from the provided URL",
+            detail=error_response
         )
     return content
 
@@ -33,9 +39,14 @@ async def preview_url(url: HttpUrl):
     """
     content = await extract_url_content(str(url))
     if not content:
+        error_response = create_error_response(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            message="Unable to generate preview for the provided URL",
+            error_code="content_extraction_error"
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Unable to generate preview for the provided URL",
+            detail=error_response
         )
 
     # Return a simplified preview format
@@ -48,7 +59,6 @@ async def preview_url(url: HttpUrl):
         "author": content.get("author"),
         "subreddit": content.get("subreddit"),
         "platform": content.get("platform", "unknown"),
-        "url": str(url),
     }
-
+    
     return preview
