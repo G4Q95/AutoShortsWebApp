@@ -15,17 +15,6 @@ export default function Header() {
             <span className="text-xl font-bold text-gray-900">Auto Shorts</span>
           </Link>
 
-          <nav className="hidden md:flex items-center space-x-6">
-            {/* Points to COMPLEX video creation flow */}
-            <Link href="/projects/create" className="text-gray-600 hover:text-blue-600">
-              Create Video
-            </Link>
-            <Link href="/projects" className="text-gray-600 hover:text-blue-600 flex items-center">
-              <LayersIcon className="h-4 w-4 mr-1" />
-              Projects
-            </Link>
-          </nav>
-
           <div className="flex items-center space-x-4">
             <button
               disabled
