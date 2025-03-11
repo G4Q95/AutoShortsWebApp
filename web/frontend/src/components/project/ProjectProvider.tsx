@@ -167,12 +167,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const addScene = useCallback(async (url: string) => {
     // First check if a current project exists
     if (!state.currentProject) {
+      console.error('No active project to add scene to');
       dispatch({
         type: 'SET_ERROR',
         payload: { error: 'No active project to add scene to' },
       });
       return;
     }
+
+    // Create a local reference to the current project to ensure consistency
+    const currentProject = { ...state.currentProject };
+    console.log(`Adding scene to project: ${currentProject.id}, current scene count: ${currentProject.scenes.length}`);
 
     const sceneId = generateId();
     dispatch({
@@ -216,32 +221,51 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         mediaUrl = sceneData.media_url;
       }
 
-      // Ensure we have a valid scene object
-      dispatch({
-        type: 'ADD_SCENE_SUCCESS',
-        payload: {
-          sceneId,
-          sceneData: {
-            text: sceneData.text || '',
-            media: mediaUrl && mediaType ? { 
-              type: mediaType as 'image' | 'video' | 'gallery', 
-              url: mediaUrl,
-              thumbnailUrl: sceneData.thumbnail_url,
-              width: sceneData.width,
-              height: sceneData.height,
-              duration: sceneData.duration
-            } : undefined,
-            source: {
-              platform: 'reddit',
-              author: sceneData.author,
-              subreddit: sceneData.subreddit,
-            },
-          },
+      // Create the new scene object
+      const newScene: Scene = {
+        id: sceneId,
+        url,
+        text: sceneData.text || '',
+        media: mediaUrl && mediaType ? { 
+          type: mediaType as 'image' | 'video' | 'gallery', 
+          url: mediaUrl,
+          thumbnailUrl: sceneData.thumbnail_url,
+          width: sceneData.width,
+          height: sceneData.height,
+          duration: sceneData.duration
+        } : undefined,
+        source: {
+          platform: 'reddit',
+          author: sceneData.author,
+          subreddit: sceneData.subreddit,
         },
-      });
+        createdAt: Date.now(),
+      };
 
-      // Auto-save after adding a scene
-      await saveCurrentProject();
+      // Create the updated project with the new scene
+      const updatedProject: Project = {
+        ...currentProject,
+        scenes: [...currentProject.scenes, newScene],
+        updatedAt: Date.now()
+      };
+
+      // 1. First save to localStorage for persistence
+      console.log(`Saving project with new scene to localStorage: ${updatedProject.id}`);
+      await saveProject(updatedProject);
+      
+      // 2. Update the UI state
+      dispatch({
+        type: 'LOAD_PROJECT_SUCCESS',
+        payload: { project: updatedProject },
+      });
+      
+      // 3. Track last saved time
+      dispatch({ 
+        type: 'SET_LAST_SAVED', 
+        payload: { timestamp: Date.now() } 
+      });
+      
+      console.log(`Scene added successfully. Project now has ${updatedProject.scenes.length} scenes.`);
     } catch (error) {
       console.error('Error adding scene:', error);
       dispatch({
@@ -252,7 +276,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         },
       });
     }
-  }, [state.currentProject, saveCurrentProject]);
+  }, [state.currentProject, dispatch]);
 
   // Remove a scene - simplified for reliability
   const removeScene = useCallback((sceneId: string) => {

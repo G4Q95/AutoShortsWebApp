@@ -192,6 +192,14 @@ export default function ProjectWorkspace({
     }
   }, [effectiveProject, currentProject, setCurrentProject, projectId, loadProject]);
 
+  // Add an effect to update localProject whenever currentProject changes
+  useEffect(() => {
+    if (currentProject) {
+      console.log(`Current project updated in context, syncing to local state: ${currentProject.id} (${currentProject.scenes.length} scenes)`);
+      setLocalProject(currentProject);
+    }
+  }, [currentProject]);
+
   const formatSavedTime = () => {
     if (!lastSaved) return '';
 
@@ -219,9 +227,65 @@ export default function ProjectWorkspace({
     setAddSceneError(null);
     setDebugInfo({ lastAction: `Adding scene URL: ${url.trim()}` });
 
+    // Ensure the project is set as current before adding a scene
+    if (effectiveProject && (!currentProject || currentProject.id !== effectiveProject.id) && setCurrentProject) {
+      console.log(`Synchronizing project state before adding scene: ${effectiveProject.id}`);
+      
+      // If we need to load the project first
+      if (projectId && loadProject && (!currentProject || currentProject.id !== projectId)) {
+        console.log(`Loading project ${projectId} before adding scene`);
+        
+        try {
+          await loadProject(projectId);
+          console.log(`Successfully loaded project ${projectId} for adding scene`);
+        } catch (err) {
+          console.error(`Failed to load project ${projectId} for adding scene:`, err);
+          setAddSceneError(`Failed to load project: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          setIsAddingScene(false);
+          return;
+        }
+      } else {
+        // Set the effective project as current
+        setCurrentProject(effectiveProject.id);
+        
+        // Small delay to let state update
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    const projectToUse = effectiveProject?.id || (currentProject?.id);
+    if (!projectToUse) {
+      setAddSceneError('No active project to add scene to');
+      setIsAddingScene(false);
+      return;
+    }
+
     try {
+      // Add the scene
+      console.log(`Attempting to add scene to project ${projectToUse}`);
       await addScene(url.trim());
       setUrl('');
+      
+      // Direct approach: Get the fresh project data from localStorage
+      console.log(`Scene added, now fetching updated project ${projectToUse} from storage`);
+      try {
+        const updatedProject = await getProject(projectToUse);
+        if (updatedProject) {
+          console.log(`Successfully fetched updated project with ${updatedProject.scenes.length} scenes`);
+          // Update both local state and context
+          setLocalProject(updatedProject);
+          
+          // Explicitly load the project into context
+          if (loadProject) {
+            await loadProject(projectToUse);
+          }
+        } else {
+          console.error(`Failed to fetch updated project ${projectToUse} after adding scene`);
+        }
+      } catch (fetchErr) {
+        console.error('Error fetching updated project:', fetchErr);
+      }
+      
       // Explicitly mark this action in debug info
       setDebugInfo({ lastAction: `Successfully added scene with URL: ${url.trim()}` });
     } catch (error) {

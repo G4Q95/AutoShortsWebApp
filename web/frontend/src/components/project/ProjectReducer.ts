@@ -99,17 +99,47 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         };
       }
 
-      const updatedScenes = state.currentProject.scenes.map((scene) =>
-        scene.id === action.payload.sceneId
-          ? { ...scene, ...action.payload.sceneData, isLoading: false, error: undefined }
-          : scene
+      // Find the scene with the matching ID
+      const existingSceneIndex = state.currentProject.scenes.findIndex(
+        (scene) => scene.id === action.payload.sceneId
       );
+
+      let updatedScenes;
+      if (existingSceneIndex >= 0) {
+        // Update existing scene
+        updatedScenes = state.currentProject.scenes.map((scene) =>
+          scene.id === action.payload.sceneId
+            ? { 
+                ...scene, 
+                ...action.payload.sceneData, 
+                isLoading: false, 
+                error: undefined,
+                url: scene.url // Preserve the original URL
+              }
+            : scene
+        );
+      } else {
+        // Scene doesn't exist yet, add it as a new scene
+        console.log(`Scene ${action.payload.sceneId} not found in current scenes, adding as new scene`);
+        const newScene: Scene = {
+          id: action.payload.sceneId,
+          url: action.payload.sceneData.url || '', // Use URL from sceneData if available
+          text: action.payload.sceneData.text || '', // Ensure text is provided and not undefined
+          source: action.payload.sceneData.source || { platform: 'reddit' }, // Ensure source is provided
+          ...action.payload.sceneData,
+          isLoading: false,
+          createdAt: Date.now(),
+        };
+        updatedScenes = [...state.currentProject.scenes, newScene];
+      }
 
       const updatedProject: Project = {
         ...state.currentProject,
         scenes: updatedScenes,
         updatedAt: Date.now(),
       };
+
+      console.log(`Updated project scenes count: ${updatedScenes.length}`);
 
       // Safely update projects array
       const updatedProjects = state.projects.map((p) => 
