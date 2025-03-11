@@ -174,6 +174,25 @@ export default function ProjectWorkspace({
         (!currentProject || currentProject.id !== effectiveProject.id)) {
       console.log(`Synchronizing effectiveProject as currentProject: ${effectiveProject.id}`);
       setCurrentProject(effectiveProject.id);
+      
+      // Add a verification step to ensure synchronization worked
+      setTimeout(() => {
+        if (!currentProject || currentProject.id !== effectiveProject.id) {
+          console.log('Verification: Project sync may have failed, attempting secondary sync');
+          setCurrentProject(effectiveProject.id);
+        }
+      }, 300);
+    }
+  }, [effectiveProject, currentProject, setCurrentProject]);
+
+  // Add a new effect to verify the project is correctly set as current after loading
+  useEffect(() => {
+    // If we have a project loaded (either from preload or from context) but it's not set as current
+    if (effectiveProject && 
+        (!currentProject || currentProject.id !== effectiveProject.id) && 
+        setCurrentProject) {
+      console.log(`Project verification: ensuring project ${effectiveProject.id} is set as current`);
+      setCurrentProject(effectiveProject.id);
     }
   }, [effectiveProject, currentProject, setCurrentProject]);
 
@@ -275,9 +294,24 @@ export default function ProjectWorkspace({
   };
 
   const handleManualSave = () => {
-    if (saveCurrentProject) {
-      saveCurrentProject();
+    if (!saveCurrentProject) {
+      console.error('Save function not available');
+      return;
     }
+    
+    // Additional verification before saving
+    if (!currentProject && effectiveProject && setCurrentProject) {
+      console.log('Project not in context before save, attempting to set');
+      setCurrentProject(effectiveProject.id);
+      // Wait briefly to let the state update
+      setTimeout(() => {
+        console.log('Executing delayed save after setting project');
+        saveCurrentProject();
+      }, 100);
+      return;
+    }
+    
+    saveCurrentProject();
   };
 
   const handleProcessVideo = async () => {

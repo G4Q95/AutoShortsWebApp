@@ -32,10 +32,25 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
 
     case 'SET_CURRENT_PROJECT': {
       const project = state.projects.find((p) => p && p.id === action.payload.projectId) || null;
+      
+      // If the project wasn't found in the projects array but we have a projectId
+      // Try to load from localStorage here - this handles rehydration issues
+      if (!project && action.payload.projectId) {
+        console.log(`Project ${action.payload.projectId} not found in state, will attempt to load it directly`);
+        
+        // Return current state - the component should handle loading via getProject
+        return {
+          ...state,
+          error: `Project with ID ${action.payload.projectId} not found in state`,
+        };
+      }
+      
+      console.log(`SET_CURRENT_PROJECT: ${project ? 'Found' : 'Not found'} project ${action.payload.projectId}`);
+      
       return {
         ...state,
         currentProject: project,
-        error: project ? null : 'Project not found',
+        error: project ? null : `Project with ID ${action.payload.projectId} not found`,
       };
     }
 

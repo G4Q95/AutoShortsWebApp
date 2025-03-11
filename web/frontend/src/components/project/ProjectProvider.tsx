@@ -43,7 +43,7 @@ const ProjectContext = createContext<(ProjectState & {
   setProjectTitle: (title: string) => void;
   saveCurrentProject: () => Promise<void>;
   deleteCurrentProject: () => Promise<void>;
-  loadProject: (projectId: string) => Promise<void>;
+  loadProject: (projectId: string) => Promise<Project | undefined>;
   duplicateProject: (projectId: string) => Promise<string | null>;
   deleteAllProjects: () => Promise<void>;
   refreshProjects: () => Promise<void>;
@@ -305,13 +305,28 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       
       // Use a try/catch for saving to ensure UI is updated even if save fails
       try {
-        saveProject(updatedProject)
+        // Create a deep clone of the updated project to avoid race conditions
+        const projectToSave = JSON.parse(JSON.stringify(updatedProject));
+        
+        // Display optimistic saving message to user
+        dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
+        
+        // Immediately save the project to local storage
+        saveProject(projectToSave)
           .then(() => {
             console.log(`Project saved successfully after scene removal`);
             dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
+            dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
+            
+            // Update currentProject again to ensure it's fully synchronized
+            dispatch({
+              type: 'LOAD_PROJECT_SUCCESS',
+              payload: { project: projectToSave },
+            });
           })
           .catch(saveError => {
             console.error('Error saving project after scene removal:', saveError);
+            dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
             // Still mark as removed in UI, but show error about save failing
             dispatch({
               type: 'SET_ERROR',
@@ -320,6 +335,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           });
       } catch (saveError) {
         console.error('Exception during save after scene removal:', saveError);
+        dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
       }
     } catch (error) {
       console.error('Error during scene removal process:', error);
@@ -329,6 +345,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         type: 'SET_ERROR',
         payload: { error: `Error removing scene: ${error instanceof Error ? error.message : 'Unknown error'}` },
       });
+      dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
     }
   }, [state.currentProject, dispatch]);
 
@@ -397,10 +414,34 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         throw new Error(`Failed to load project with ID ${projectId}`);
       }
 
+      console.log(`ProjectProvider: Successfully loaded project ${projectId}`, {
+        id: project.id,
+        title: project.title,
+        scenesCount: project.scenes?.length || 0
+      });
+
+      // Store a reference for later use in case we need to retry
+      const loadedProject = { ...project };
+
+      // Dispatch the project to the reducer with some data validation
       dispatch({
         type: 'LOAD_PROJECT_SUCCESS',
-        payload: { project },
+        payload: { project: loadedProject },
       });
+
+      // Extra verification that the project was set successfully
+      setTimeout(() => {
+        if (!state.currentProject || state.currentProject.id !== projectId) {
+          console.log(`ProjectProvider: Project ${projectId} not set as current after load, retrying...`);
+          // Try explicitly setting it
+          dispatch({
+            type: 'SET_CURRENT_PROJECT',
+            payload: { projectId: loadedProject.id },
+          });
+        }
+      }, 100);
+
+      return loadedProject; // Return the loaded project for potential use by caller
     } catch (error) {
       console.error('Failed to load project:', error);
       dispatch({
@@ -411,10 +452,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           }`,
         },
       });
+      throw error; // Re-throw to allow caller to handle
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  }, []);
+  }, [state.currentProject, dispatch]);
 
   // Create a duplicate of a project
   const duplicateProject = useCallback(async (projectId: string) => {
