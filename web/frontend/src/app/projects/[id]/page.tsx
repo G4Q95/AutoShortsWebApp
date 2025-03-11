@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ProjectWorkspace from '@/components/project/ProjectWorkspace';
-import { Project } from '@/components/project/ProjectProvider';
+import { Project, ProjectProvider } from '@/components/project/ProjectProvider';
 import { Loader2 as LoaderIcon, AlertTriangle as AlertIcon } from 'lucide-react';
 import { getProject, projectExists } from '@/lib/storage-utils';
 
@@ -164,7 +164,9 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   // Render project workspace with the loaded project
   return (
     <div key={`project-${project.id}`}>
-      <ProjectWorkspace projectId={project.id} preloadedProject={project} />
+      <ProjectProvider>
+        <ProjectWorkspace projectId={project.id} preloadedProject={project} />
+      </ProjectProvider>
     </div>
   );
 }

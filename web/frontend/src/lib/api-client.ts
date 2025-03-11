@@ -2,7 +2,7 @@
  * API client for interacting with the Auto Shorts backend
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_VERSION = '/api/v1';
 
 // Default timeout for API requests in milliseconds

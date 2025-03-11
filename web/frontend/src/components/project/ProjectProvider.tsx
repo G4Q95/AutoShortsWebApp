@@ -28,6 +28,10 @@ import {
 } from './ProjectTypes';
 import { projectReducer } from './ProjectReducer';
 
+// Re-export types for convenience
+export type { Project, Scene, ProjectState };
+export { generateId, determineMediaType };
+
 // Create the context with a merged type that includes state and actions
 const ProjectContext = createContext<(ProjectState & {
   createProject: (title: string) => void;
