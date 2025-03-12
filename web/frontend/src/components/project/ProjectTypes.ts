@@ -1,5 +1,7 @@
 // Types for the project management system
 
+import { generateId } from '../../lib/id-utils';
+
 // Define the structure of a scene
 export interface Scene {
   id: string;
@@ -98,7 +100,5 @@ export const determineMediaType = (data: any): 'image' | 'video' | 'gallery' => 
   return 'image';
 };
 
-// Helper to generate unique IDs
-export const generateId = (): string => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}; 
+// Re-export generateId for backward compatibility
+export { generateId }; 
