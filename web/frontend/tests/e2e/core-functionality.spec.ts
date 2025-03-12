@@ -20,6 +20,8 @@ const SCENE_NUMBER_SELECTOR = '[class*="number"]'; // Looking for elements with 
 const SCENE_CONTAINER_SELECTOR = '[class*="scene"]:visible'; // Looking for any visible elements with "scene" in their class
 const SCENE_CARD_SELECTOR = '[data-testid="scene-card"]'; // If you use data-testid attributes
 const BLUE_NUMBER_SELECTOR = '.bg-blue-600:has-text("1"), .bg-blue-600:has-text("2"), .bg-blue-600:has-text("3")'; // The blue numbers in circles
+const MEDIA_SELECTOR = 'video[src], img[src]'; // Selector for any video or image with a src attribute
+const SCENE_MEDIA_TIMEOUT = 30000; // 30 seconds timeout for media loading
 
 test.describe('Auto Shorts Core Functionality', () => {
   
@@ -145,73 +147,56 @@ test.describe('Auto Shorts Core Functionality', () => {
     const inputCount = await page.locator('input').count();
     console.log(`Found ${inputCount} input fields on the page`);
     
-    // Dump the HTML of the main section
-    const mainHTML = await page.locator('main').innerHTML();
-    console.log('Main content HTML excerpt:', mainHTML.substring(0, 500) + '...');
-    
     // Try with a more general selector first - find any input field
     await page.waitForSelector('input', { timeout: PAGE_LOAD_TIMEOUT });
     console.log('Found at least one input field on the page');
     
-    // Try different ways to find the project title input
-    try {
-      // Try exact text match first
-      const titleInput = page.getByPlaceholder('Enter project name');
-      await titleInput.fill(TEST_PROJECT_NAME);
-      console.log('Found and filled input using getByPlaceholder');
-    } catch (e) {
-      console.log('Could not find input with getByPlaceholder, trying alternative methods');
-      
-      // Try with CSS selector for any input
-      const inputs = await page.locator('input').all();
-      if (inputs.length > 0) {
-        // Use the first input we find
-        await inputs[0].fill(TEST_PROJECT_NAME);
-        console.log('Filled the first input field found');
-      } else {
-        throw new Error('No input fields found on the create project page');
-      }
-    }
+    // Fill in project name
+    await page.getByPlaceholder('Enter project name').fill(TEST_PROJECT_NAME);
+    await page.getByRole('button', { name: 'Create Project' }).click();
     
-    // Find the submit button - try a few different approaches
-    try {
-      // Try with exact text first
-      await page.getByRole('button', { name: 'Create Project' }).click();
-      console.log('Clicked "Create Project" button using exact name');
-    } catch (e) {
-      console.log('Could not find button with exact name, trying alternatives');
-      
-      try {
-        // Try with partial text
-        await page.getByRole('button', { name: /create/i }).click();
-        console.log('Clicked button containing "create" text');
-      } catch (e2) {
-        console.log('Could not find button with partial text, trying any button');
-        
-        // Try any button
-        const buttons = await page.locator('button').all();
-        if (buttons.length > 0) {
-          await buttons[0].click();
-          console.log('Clicked the first button found');
-        } else {
-          throw new Error('No buttons found on the create project page');
-        }
-      }
-    }
-    
-    // Verify we're in the project workspace by checking URL pattern
+    // Wait for project workspace to load
     await page.waitForURL(/.*\/projects\/[a-z0-9]+$/, { timeout: NAVIGATION_TIMEOUT });
     console.log('Successfully navigated to project workspace:', await page.url());
     
-    // Take a screenshot in the workspace
-    await page.screenshot({ path: 'debug-project-workspace.png' });
+    // Add first scene - Photo post
+    console.log('Adding first scene...');
+    const urlInput = page.getByPlaceholder('Enter Reddit URL');
+    await expect(urlInput).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
+    await urlInput.fill(TEST_REDDIT_PHOTO_URL);
+    await urlInput.press('Enter');
     
-    // Check for project title in the page
-    const pageContent = await page.content();
-    console.log('Project workspace page contains project name:', pageContent.includes(TEST_PROJECT_NAME));
+    // Verify first scene number and media content
+    console.log('Verifying first scene...');
+    await expect(page.locator('.bg-blue-600:has-text("1")')).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
+    await expect(page.locator(MEDIA_SELECTOR).first()).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
     
-    // Wait for save operation to complete
-    await page.waitForSelector('[data-testid="save-status-saved"]', { state: 'visible' });
+    // Add second scene - Video post
+    console.log('Adding second scene...');
+    await urlInput.clear();
+    await urlInput.fill(TEST_REDDIT_VIDEO_URL);
+    await page.getByRole('button', { name: 'Add' }).click();
+    console.log('Clicked Add button for second scene');
+    
+    // Wait for second scene to appear (represented by the blue number 2)
+    console.log('Waiting for second scene (blue number 2) to appear...');
+    await expect(page.locator('.bg-blue-600:has-text("2")')).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
+    console.log('Second scene added successfully (blue number 2 is visible)');
+
+    // Wait for both scenes' media to be visible
+    console.log('Waiting for both scenes\' media to load...');
+    await expect(page.locator(MEDIA_SELECTOR).first()).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
+    await expect(page.locator(MEDIA_SELECTOR).nth(1)).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
+    console.log('Both scenes\' media are now visible');
+
+    // Now verify we have exactly two media elements
+    console.log('Verifying second scene media content is loaded...');
+    const mediaCount = await page.locator(MEDIA_SELECTOR).count();
+    expect(mediaCount).toBe(2);
+    console.log('Second scene media content verified');
+    
+    // Take a screenshot after second scene
+    await page.screenshot({ path: 'debug-second-scene.png' });
     
     console.log('Project creation test completed');
   });
@@ -297,7 +282,13 @@ test.describe('Auto Shorts Core Functionality', () => {
     // Use a more specific selector that targets the blue circled number
     await expect(page.locator('.bg-blue-600:has-text("1")')).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
     console.log('First scene added successfully (blue number 1 is visible)');
-    
+
+    // Verify media content is loaded
+    console.log('Verifying media content is loaded...');
+    // Wait for media container and check for either video or image
+    await expect(page.locator(MEDIA_SELECTOR)).toBeVisible({ timeout: CONTENT_LOAD_TIMEOUT });
+    console.log('Media content verified - found video or image element');
+
     // Take a screenshot after first scene
     await page.screenshot({ path: 'debug-first-scene.png' });
     
@@ -310,25 +301,20 @@ test.describe('Auto Shorts Core Functionality', () => {
     
     // Wait for second scene to appear (represented by the blue number 2)
     console.log('Waiting for second scene (blue number 2) to appear...');
-    // Use a more specific selector that targets the blue circled number
     await expect(page.locator('.bg-blue-600:has-text("2")')).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
     console.log('Second scene added successfully (blue number 2 is visible)');
-    
-    // Enhanced debugging - check for both scenes
-    if (DEBUG) {
-      // Count the number of blue numbered circles - fix the invalid regex selector
-      // const numScenes = await page.locator('.bg-blue-600:has-text(/[1-3]/)').count();
-      const blueOne = await page.locator('.bg-blue-600:has-text("1")').count();
-      const blueTwo = await page.locator('.bg-blue-600:has-text("2")').count();
-      const blueThree = await page.locator('.bg-blue-600:has-text("3")').count();
-      const numScenes = blueOne + blueTwo + blueThree;
-      console.log(`Found ${numScenes} blue numbered scene elements (${blueOne} ones, ${blueTwo} twos, ${blueThree} threes)`);
-      
-      // Check if specific numbers exist
-      const hasOne = await page.locator('.bg-blue-600:has-text("1")').isVisible();
-      const hasTwo = await page.locator('.bg-blue-600:has-text("2")').isVisible();
-      console.log(`Blue number 1 visible: ${hasOne}, Blue number 2 visible: ${hasTwo}`);
-    }
+
+    // Wait for both scenes' media to be visible
+    console.log('Waiting for both scenes\' media to load...');
+    await expect(page.locator(MEDIA_SELECTOR).first()).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
+    await expect(page.locator(MEDIA_SELECTOR).nth(1)).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
+    console.log('Both scenes\' media are now visible');
+
+    // Now verify we have exactly two media elements
+    console.log('Verifying second scene media content is loaded...');
+    const mediaCount = await page.locator(MEDIA_SELECTOR).count();
+    expect(mediaCount).toBe(2);
+    console.log('Second scene media content verified');
     
     // Take a screenshot after second scene
     await page.screenshot({ path: 'debug-second-scene.png' });
@@ -417,7 +403,13 @@ test.describe('Auto Shorts Core Functionality', () => {
     // Use a more specific selector that targets the blue circled number
     await expect(page.locator('.bg-blue-600:has-text("1")')).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
     console.log('Scene added successfully (blue number 1 is visible)');
-    
+
+    // Verify media content is loaded
+    console.log('Verifying media content is loaded...');
+    // Wait for media container and check for either video or image
+    await expect(page.locator(MEDIA_SELECTOR)).toBeVisible({ timeout: CONTENT_LOAD_TIMEOUT });
+    console.log('Media content verified - found video or image element');
+
     // Take a screenshot before deletion attempt to see the UI
     await page.screenshot({ path: 'debug-before-deletion.png' });
     
@@ -673,6 +665,11 @@ test.describe('Auto Shorts Core Functionality', () => {
     });
     console.log('Save status indicates success');
 
+    // Verify first scene media content
+    console.log('Verifying first scene media content...');
+    await expect(page.locator(MEDIA_SELECTOR).first()).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
+    console.log('First scene media content verified');
+
     // Get project ID from URL
     const url = page.url();
     const projectId = url.split('/').pop();
@@ -741,6 +738,14 @@ test.describe('Auto Shorts Core Functionality', () => {
     // Wait for second scene to appear
     await expect(page.locator('.bg-blue-600:has-text("2")')).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
     console.log('Second scene added successfully');
+
+    // Verify both scenes' media content
+    console.log('Verifying both scenes\' media content...');
+    await expect(page.locator(MEDIA_SELECTOR).first()).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
+    await expect(page.locator(MEDIA_SELECTOR).nth(1)).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
+    const mediaCount = await page.locator(MEDIA_SELECTOR).count();
+    expect(mediaCount).toBe(2);
+    console.log('Both scenes\' media content verified');
 
     // Verify both scenes are visible
     const blueOne = await page.locator('.bg-blue-600:has-text("1")').isVisible();
