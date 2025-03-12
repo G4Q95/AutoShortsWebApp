@@ -156,6 +156,20 @@ This document outlines the development workflow for the Auto Shorts Web App proj
    - Use proper status codes and consistent response formats
    - Validate that OpenAPI schema generation works correctly
 
+7. **Version Control Best Practices**
+   - Keep commits small and focused on single changes
+   - Write descriptive commit messages following the convention (e.g., "feat:", "fix:")
+   - Never commit sensitive information or credentials
+   - Use the comprehensive `.gitignore` configuration to avoid committing unwanted files
+   - Maintain separation between code and environment-specific configuration
+   - Regularly check `git status` before committing to avoid unintended files
+   - Use `git diff --staged` to review changes before committing
+   - When adding new file types or dependencies, update the `.gitignore` file
+   - Follow the guidelines in `docs/GITIGNORE_GUIDE.md` for managing ignored files
+   - Use git hooks (via pre-commit) to prevent accidental commits of sensitive data
+   - Keep binary assets (images, videos) out of the repository when possible
+   - If large files must be tracked, consider Git LFS (Large File Storage)
+
 ## Release Management
 
 1. **Release Planning**

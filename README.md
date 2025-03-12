@@ -291,6 +291,32 @@ The project includes a Makefile that provides simple commands for common develop
 
 View all available commands with `make help`. For detailed usage instructions, see [docs/MAKEFILE_GUIDE.md](docs/MAKEFILE_GUIDE.md).
 
+### Version Control and .gitignore
+
+The project uses a comprehensive gitignore configuration to keep the repository clean and secure:
+
+1. **Technology-Specific Patterns**:
+   - Python backend (compiled files, caches, build artifacts)
+   - JavaScript/TypeScript frontend (node_modules, Next.js directories)
+   - Docker (volumes and container data)
+   
+2. **Security Features**:
+   - Automatic exclusion of all environment files (`.env`, `.env.local`)
+   - Prevention of accidental commitment of API keys and secrets
+   - Protection for SSL certificates and credentials
+
+3. **Development Experience**:
+   - IDE-specific exclusions (VS Code, JetBrains, Vim)
+   - Testing artifacts (coverage reports, Playwright results)
+   - Build caches and temporary files
+
+4. **Best Practices**:
+   - Selective inclusion of important shared configuration
+   - Clear section organization with comments
+   - Specific patterns to avoid accidental exclusions
+
+For detailed information about our gitignore structure and best practices, see [docs/GITIGNORE_GUIDE.md](docs/GITIGNORE_GUIDE.md).
+
 ## Deployment
 
 - Frontend: Deployed on Vercel
