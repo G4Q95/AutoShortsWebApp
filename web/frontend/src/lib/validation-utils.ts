@@ -1,8 +1,30 @@
 /**
- * Validation utility functions for URLs and forms
+ * @fileoverview Validation utilities for form inputs and URLs
+ * 
+ * This module provides a set of validation functions for URLs and form inputs,
+ * specifically focused on content extraction from supported platforms. It handles:
+ * - URL format validation
+ * - Domain validation
+ * - Reddit post URL validation
+ * - Form field validation
+ * 
+ * Key features:
+ * - Type-safe validation functions
+ * - Detailed error messages
+ * - Support for multiple content platforms
+ * - Reddit-specific URL validation
+ * - Form field validation with customizable rules
+ * 
+ * @module validation-utils
  */
 
-// List of supported domains for content extraction
+/**
+ * List of domains supported for content extraction
+ * These domains have been tested and verified to work with our content extraction system
+ * 
+ * @constant
+ * @type {string[]}
+ */
 const SUPPORTED_DOMAINS = [
   'reddit.com',
   'www.reddit.com',
@@ -14,7 +36,20 @@ const SUPPORTED_DOMAINS = [
 ];
 
 /**
- * Check if a URL belongs to a supported domain
+ * Checks if a URL belongs to a supported domain for content extraction
+ * Handles both exact matches and subdomains
+ * 
+ * @param {string} url - The URL to check
+ * @returns {boolean} True if the domain is supported
+ * 
+ * @example
+ * // Returns true
+ * isSupportedDomain('https://www.reddit.com/r/programming');
+ * isSupportedDomain('https://blog.github.com/news');
+ * 
+ * // Returns false
+ * isSupportedDomain('https://example.com');
+ * isSupportedDomain('not-a-url');
  */
 export function isSupportedDomain(url: string): boolean {
   try {
@@ -28,8 +63,24 @@ export function isSupportedDomain(url: string): boolean {
 }
 
 /**
- * Validate URL
- * Ensures URL is properly formatted and uses supported protocols
+ * Validates a URL string for proper formatting and supported protocols
+ * Checks for:
+ * - Valid URL format
+ * - HTTP/HTTPS protocol
+ * - Valid domain structure
+ * 
+ * @param {string} url - The URL to validate
+ * @returns {boolean} True if the URL is valid
+ * 
+ * @example
+ * // Returns true
+ * isValidUrl('https://www.example.com');
+ * isValidUrl('http://subdomain.example.com/path');
+ * 
+ * // Returns false
+ * isValidUrl('not-a-url');
+ * isValidUrl('ftp://example.com');
+ * isValidUrl('https://localhost');
  */
 export function isValidUrl(url: string): boolean {
   try {
@@ -50,8 +101,20 @@ export function isValidUrl(url: string): boolean {
 }
 
 /**
- * Validate Reddit URL specifically
- * Ensures the URL follows Reddit's pattern for post URLs
+ * Validates a Reddit post URL for proper format
+ * Ensures the URL follows Reddit's standard post URL pattern:
+ * /r/{subreddit}/comments/{post_id}/{post_title}
+ * 
+ * @param {string} url - The Reddit URL to validate
+ * @returns {boolean} True if the URL is a valid Reddit post URL
+ * 
+ * @example
+ * // Returns true
+ * isValidRedditPostUrl('https://www.reddit.com/r/programming/comments/abc123/title');
+ * 
+ * // Returns false
+ * isValidRedditPostUrl('https://www.reddit.com/r/programming');
+ * isValidRedditPostUrl('https://www.reddit.com/user/username');
  */
 export function isValidRedditPostUrl(url: string): boolean {
   try {
@@ -86,16 +149,36 @@ export function isValidRedditPostUrl(url: string): boolean {
 }
 
 /**
- * Form validation error interface
+ * Interface for form validation errors
+ * Each field can have an optional error message
+ * 
+ * @interface FormValidationErrors
  */
 export interface FormValidationErrors {
+  /** Error message for the title field */
   title?: string;
+  /** Error message for the URL field */
   url?: string;
 }
 
 /**
- * Validate video creation form fields
- * Returns validation errors for each field
+ * Validates video creation form fields
+ * Performs the following validations:
+ * - Title: Required, length between 3-100 characters
+ * - URL: Required, valid format, supported domain
+ * - Reddit URLs: Must be valid post URLs
+ * 
+ * @param {string} title - The video title
+ * @param {string} url - The content source URL
+ * @returns {FormValidationErrors} Object containing validation errors
+ * 
+ * @example
+ * const errors = validateVideoForm('My Video', 'https://www.reddit.com/r/videos/comments/abc123/title');
+ * if (Object.keys(errors).length > 0) {
+ *   console.log('Form has errors:', errors);
+ * } else {
+ *   console.log('Form is valid');
+ * }
  */
 export function validateVideoForm(title: string, url: string): FormValidationErrors {
   const errors: FormValidationErrors = {};

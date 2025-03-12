@@ -1,27 +1,99 @@
 /**
- * Type definitions for API responses and error handling
+ * @fileoverview Type definitions for API responses and requests
+ * 
+ * This module defines the types and interfaces used for API communication
+ * within the Auto Shorts Web App. It includes:
+ * - API response formats
+ * - Request payload structures
+ * - Error handling types
+ * 
+ * Key features:
+ * - Type-safe API interactions
+ * - Clear definitions for request and response structures
+ * 
+ * @module api-types
  */
 
 /**
- * Standard API error format
- * Matches FastAPI's error response format exactly
+ * Standardized API response format
+ * 
+ * @template T - The type of the data returned in the response
+ * @interface ApiResponse
+ * @property {T} data - The data returned from the API
+ * @property {ApiError} [error] - Optional error object if the request failed
+ * @property {Object} timing - Timing information for the request
+ * @property {Object} connectionInfo - Information about the connection status
+ */
+export interface ApiResponse<T> {
+  data: T;
+  error?: ApiError;
+  timing: {
+    start: number;
+    end: number;
+    duration: number;
+  };
+  connectionInfo: {
+    success: boolean;
+    server: string;
+    status: number;
+    statusText: string;
+  };
+}
+
+/**
+ * Standardized error format for API responses
+ * 
+ * @interface ApiError
+ * @property {number} status_code - HTTP status code for the error
+ * @property {string} message - Error message describing the issue
+ * @property {string} [error_code] - Optional error code for specific error types
+ * @property {string} [details] - Optional additional details about the error
  */
 export interface ApiError {
-  /** HTTP status code */
   status_code: number;
-  /** Main error message */
   message: string;
-  /** Optional error code for client-side handling */
   error_code?: string;
-  /** Detailed validation errors */
-  details?: Array<{
-    /** Location of the error (e.g., ["body", "username"]) */
-    loc?: string[];
-    /** Error message */
-    msg: string;
-    /** Error type */
-    type: string;
-  }>;
+  details?: string;
+}
+
+/**
+ * Response format for video creation requests
+ * 
+ * @interface VideoCreationResponse
+ * @property {string} videoId - Unique identifier for the created video
+ * @property {string} status - Current status of the video creation process
+ */
+export interface VideoCreationResponse {
+  videoId: string;
+  status: string;
+}
+
+/**
+ * Response format for video status requests
+ * 
+ * @interface VideoStatusResponse
+ * @property {string} videoId - Unique identifier for the video
+ * @property {string} status - Current status of the video (e.g., 'processing', 'completed')
+ * @property {number} progress - Progress percentage of the video creation
+ */
+export interface VideoStatusResponse {
+  videoId: string;
+  status: string;
+  progress: number;
+}
+
+/**
+ * Response format for user profile requests
+ * 
+ * @interface UserResponse
+ * @property {string} id - Unique identifier for the user
+ * @property {string} username - Username of the user
+ * @property {string} email - Email address of the user
+ */
+export interface UserResponse {
+  id: string;
+  username: string;
+  email: string;
 }
 
 /**
@@ -51,21 +123,6 @@ export interface ConnectionInfo {
 }
 
 /**
- * Standard API response wrapper
- * @template T - The type of the response data
- */
-export interface ApiResponse<T> {
-  /** Response data (if successful) */
-  data?: T;
-  /** Error information (if failed) */
-  error?: ApiError;
-  /** Request timing information */
-  timing?: ApiTiming;
-  /** Connection status information */
-  connectionInfo?: ConnectionInfo;
-}
-
-/**
  * API health status information
  */
 export interface ApiHealth {
@@ -77,57 +134,4 @@ export interface ApiHealth {
   responseTime: number;
   /** Whether a health check is currently in progress */
   checkInProgress: boolean;
-}
-
-/**
- * Video creation response format
- */
-export interface VideoCreationResponse {
-  /** Generated video ID */
-  videoId: string;
-  /** Status message */
-  message: string;
-  /** Whether the request was successful */
-  success: boolean;
-}
-
-/**
- * Video status response format
- */
-export interface VideoStatusResponse {
-  /** Video processing status */
-  status: 'queued' | 'processing' | 'completed' | 'failed';
-  /** Progress percentage (0-100) */
-  progress: number;
-  /** Status message */
-  message: string;
-  /** Video URL (when completed) */
-  url?: string;
-  /** Error message (when failed) */
-  error?: string;
-}
-
-/**
- * User profile response format
- */
-export interface UserResponse {
-  /** User ID */
-  id: string;
-  /** User's email address */
-  email: string;
-  /** User's display name */
-  name: string;
-  /** Account creation date */
-  createdAt: string;
-  /** Account type */
-  accountType: 'free' | 'premium';
-  /** Usage statistics */
-  usage: {
-    /** Number of videos created */
-    videosCreated: number;
-    /** Storage used in bytes */
-    storageUsed: number;
-    /** API calls made */
-    apiCalls: number;
-  };
 } 

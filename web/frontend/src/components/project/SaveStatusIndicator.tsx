@@ -1,11 +1,45 @@
 import React from 'react';
 import { CheckIcon, LoaderIcon } from 'lucide-react';
 
+/**
+ * Props for the SaveStatusIndicator component
+ */
 interface SaveStatusIndicatorProps {
+  /** Whether a save operation is currently in progress */
   isSaving: boolean;
+  /** Timestamp of the last successful save, or null if never saved */
   lastSaved: number | null;
 }
 
+/**
+ * A component that displays the current save status of a project.
+ * Shows a loading spinner when saving, and the time of the last save when complete.
+ * 
+ * Features:
+ * - Loading spinner animation during save operations
+ * - Relative time display for last save (e.g., "2m ago")
+ * - Green checkmark icon for successful saves
+ * - Accessible with data-testid attributes for testing
+ * - Compact design suitable for headers/toolbars
+ * 
+ * Time Display Format:
+ * - "just now" for < 1 second
+ * - "Xs ago" for < 1 minute
+ * - "Xm ago" for < 1 hour
+ * - "Xh ago" for >= 1 hour
+ * 
+ * @example
+ * ```tsx
+ * // Show saving in progress
+ * <SaveStatusIndicator isSaving={true} lastSaved={null} />
+ * 
+ * // Show last save time
+ * <SaveStatusIndicator 
+ *   isSaving={false} 
+ *   lastSaved={Date.now() - 5000} // "5s ago"
+ * />
+ * ```
+ */
 export default function SaveStatusIndicator({ isSaving, lastSaved }: SaveStatusIndicatorProps) {
   const formatSavedTime = () => {
     if (!lastSaved) return '';

@@ -2,17 +2,71 @@ import React from 'react';
 import { AlertTriangle, Info, AlertCircle, X as CloseIcon, RefreshCw } from 'lucide-react';
 import { ErrorType } from '@/lib/error-utils';
 
+/**
+ * Props for the ErrorDisplay component
+ */
 interface ErrorDisplayProps {
+  /** The error to display - can be a string message, Error object, or null/undefined */
   error: string | Error | null | undefined;
+  /** The type of error, which determines the color scheme and icon */
   type?: 'validation' | 'api' | 'network' | 'extraction' | 'general';
+  /** Specific error type from ErrorType enum for additional context */
   errorType?: ErrorType;
+  /** Whether to show a retry button */
   showRetry?: boolean;
+  /** Callback function when retry button is clicked */
   onRetry?: () => void;
+  /** Callback function when dismiss button is clicked */
   onDismiss?: () => void;
+  /** Additional CSS classes to apply to the component */
   className?: string;
+  /** HTTP status code associated with the error */
   statusCode?: number;
 }
 
+/**
+ * A versatile error display component that shows error messages with appropriate styling and icons.
+ * 
+ * Features:
+ * - Multiple error types with distinct color schemes
+ * - Support for different error formats (string, Error object)
+ * - Optional retry and dismiss actions
+ * - Contextual icons based on error type
+ * - Accessibility support with ARIA attributes
+ * - HTTP status code display
+ * - Additional context for network and timeout errors
+ * 
+ * @example
+ * ```tsx
+ * // Basic usage
+ * <ErrorDisplay error="Something went wrong" />
+ * 
+ * // Network error with retry option
+ * <ErrorDisplay 
+ *   error="Failed to fetch data"
+ *   type="network"
+ *   errorType={ErrorType.NETWORK}
+ *   showRetry
+ *   onRetry={() => refetchData()}
+ * />
+ * 
+ * // Validation error with dismiss option
+ * <ErrorDisplay 
+ *   error="Invalid input"
+ *   type="validation"
+ *   errorType={ErrorType.VALIDATION}
+ *   onDismiss={() => setError(null)}
+ * />
+ * 
+ * // API error with status code
+ * <ErrorDisplay 
+ *   error="Not found"
+ *   type="api"
+ *   statusCode={404}
+ *   errorType={ErrorType.NOT_FOUND}
+ * />
+ * ```
+ */
 export default function ErrorDisplay({
   error,
   type = 'general',

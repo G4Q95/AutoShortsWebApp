@@ -2,8 +2,33 @@ import Link from 'next/link';
 import { VideoIcon, Layers as LayersIcon, PlusCircle as PlusCircleIcon } from 'lucide-react';
 
 /**
- * Main application header with navigation links.
- * Note: "Create Video" buttons point to the COMPLEX flow
+ * Main application header component that provides navigation and branding.
+ * 
+ * Features:
+ * - Responsive design with mobile-friendly navigation
+ * - App logo and branding
+ * - Navigation links to key app features
+ * - Disabled login button (placeholder for future auth)
+ * - Create Video button for main app functionality
+ * 
+ * Layout:
+ * - Left side: App logo and name
+ * - Right side: Navigation buttons
+ *   - Login (disabled)
+ *   - My Projects (hidden on mobile)
+ *   - Create Video (primary action)
+ * 
+ * Accessibility:
+ * - Uses semantic header tag
+ * - Proper button/link roles
+ * - Clear visual hierarchy
+ * - Descriptive button titles
+ * 
+ * @example
+ * ```tsx
+ * // Basic usage in app layout
+ * <Header />
+ * ```
  */
 export default function Header() {
   return (

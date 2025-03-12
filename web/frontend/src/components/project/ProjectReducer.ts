@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Project state management reducer implementation.
+ * This file contains the core reducer function that handles all project-related state updates
+ * in a predictable and type-safe manner.
+ */
+
 import { 
   ProjectState, 
   ProjectAction, 
@@ -8,11 +14,52 @@ import {
 import { getProject } from '../../lib/storage-utils';
 
 /**
- * Project state reducer
- * Handles all project state updates in a predictable way
+ * Project state reducer that handles all project-related state updates.
+ * Implements a Redux-style reducer pattern for managing project state.
+ * 
+ * Features:
+ * - Type-safe action handling with TypeScript
+ * - Immutable state updates
+ * - Comprehensive error handling
+ * - Logging for debugging
+ * - Automatic timestamps for state changes
+ * 
+ * State Updates:
+ * - Project creation and management
+ * - Scene addition, updating, and removal
+ * - Scene reordering
+ * - Error handling
+ * - Loading states
+ * - Save status tracking
+ * 
+ * @param state - Current project state
+ * @param action - Action to process with type and optional payload
+ * @returns Updated project state
+ * 
+ * @example
+ * ```ts
+ * // Create a new project
+ * const newState = projectReducer(currentState, {
+ *   type: 'CREATE_PROJECT',
+ *   payload: { title: 'My New Project' }
+ * });
+ * 
+ * // Add a scene to current project
+ * const updatedState = projectReducer(currentState, {
+ *   type: 'ADD_SCENE',
+ *   payload: { url: 'https://reddit.com/...' }
+ * });
+ * ```
  */
 export function projectReducer(state: ProjectState, action: ProjectAction): ProjectState {
   switch (action.type) {
+    /**
+     * Creates a new project with the given title.
+     * Generates a unique ID and initializes the project with default values.
+     * 
+     * @action CREATE_PROJECT
+     * @payload { title: string }
+     */
     case 'CREATE_PROJECT': {
       const newProject: Project = {
         id: generateId(),
@@ -31,6 +78,13 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    /**
+     * Sets the current active project by ID.
+     * Attempts to find the project in state, falls back to localStorage if not found.
+     * 
+     * @action SET_CURRENT_PROJECT
+     * @payload { projectId: string }
+     */
     case 'SET_CURRENT_PROJECT': {
       const project = state.projects.find((p) => p && p.id === action.payload.projectId) || null;
       
@@ -53,6 +107,13 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    /**
+     * Marks a scene as loading while content is being fetched.
+     * Creates a new scene with loading state and adds it to the current project.
+     * 
+     * @action ADD_SCENE_LOADING
+     * @payload { sceneId: string; url: string }
+     */
     case 'ADD_SCENE_LOADING': {
       if (!state.currentProject) {
         return {
@@ -91,6 +152,13 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    /**
+     * Updates a scene with successfully loaded content.
+     * If the scene exists, updates it; if not, creates a new scene.
+     * 
+     * @action ADD_SCENE_SUCCESS
+     * @payload { sceneId: string; sceneData: Partial<Scene> }
+     */
     case 'ADD_SCENE_SUCCESS': {
       if (!state.currentProject) {
         return {
@@ -154,6 +222,13 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    /**
+     * Marks a scene as failed due to an error.
+     * Updates the scene with error information while preserving other data.
+     * 
+     * @action ADD_SCENE_ERROR
+     * @payload { sceneId: string; error: string }
+     */
     case 'ADD_SCENE_ERROR': {
       if (!state.currentProject) {
         return {
@@ -186,6 +261,13 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    /**
+     * Removes a scene from the current project.
+     * Logs debug information and handles edge cases.
+     * 
+     * @action REMOVE_SCENE
+     * @payload { sceneId: string }
+     */
     case 'REMOVE_SCENE': {
       if (!state.currentProject) {
         console.error('REMOVE_SCENE action failed: No active project in state');
@@ -233,6 +315,13 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    /**
+     * Reorders scenes in the current project.
+     * Creates a new scene array based on the provided scene IDs order.
+     * 
+     * @action REORDER_SCENES
+     * @payload { sceneIds: string[] }
+     */
     case 'REORDER_SCENES': {
       if (!state.currentProject) {
         return {
@@ -269,6 +358,13 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    /**
+     * Updates the text content of a scene.
+     * Preserves other scene data while updating the text.
+     * 
+     * @action UPDATE_SCENE_TEXT
+     * @payload { sceneId: string; text: string }
+     */
     case 'UPDATE_SCENE_TEXT': {
       if (!state.currentProject) {
         return {
@@ -301,6 +397,12 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    /**
+     * Updates the title of the current project.
+     * 
+     * @action SET_PROJECT_TITLE
+     * @payload { title: string }
+     */
     case 'SET_PROJECT_TITLE': {
       if (!state.currentProject) {
         return {
@@ -327,24 +429,47 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    /**
+     * Sets an error message in the state.
+     * 
+     * @action SET_ERROR
+     * @payload { error: string }
+     */
     case 'SET_ERROR':
       return {
         ...state,
         error: action.payload.error,
       };
 
+    /**
+     * Clears the current error message.
+     * 
+     * @action CLEAR_ERROR
+     */
     case 'CLEAR_ERROR':
       return {
         ...state,
         error: null,
       };
 
+    /**
+     * Sets the loading state.
+     * 
+     * @action SET_LOADING
+     * @payload { isLoading: boolean }
+     */
     case 'SET_LOADING':
       return {
         ...state,
         isLoading: action.payload.isLoading,
       };
 
+    /**
+     * Loads all projects into state.
+     * 
+     * @action LOAD_PROJECTS
+     * @payload { projects: Project[] }
+     */
     case 'LOAD_PROJECTS':
       return {
         ...state,
@@ -352,18 +477,37 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         error: null,
       };
 
+    /**
+     * Sets the saving state.
+     * 
+     * @action SET_SAVING
+     * @payload { isSaving: boolean }
+     */
     case 'SET_SAVING':
       return {
         ...state,
         isSaving: action.payload.isSaving,
       };
 
+    /**
+     * Updates the last saved timestamp.
+     * 
+     * @action SET_LAST_SAVED
+     * @payload { timestamp: number }
+     */
     case 'SET_LAST_SAVED':
       return {
         ...state,
         lastSaved: action.payload.timestamp,
       };
 
+    /**
+     * Updates state after successfully loading a project.
+     * Adds or updates the project in the projects array.
+     * 
+     * @action LOAD_PROJECT_SUCCESS
+     * @payload { project: Project }
+     */
     case 'LOAD_PROJECT_SUCCESS':
       return {
         ...state,
@@ -375,6 +519,13 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         error: null,
       };
 
+    /**
+     * Updates state after successfully duplicating a project.
+     * Adds the duplicated project to the projects array.
+     * 
+     * @action DUPLICATE_PROJECT_SUCCESS
+     * @payload { project: Project }
+     */
     case 'DUPLICATE_PROJECT_SUCCESS':
       return {
         ...state,
@@ -383,6 +534,12 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         error: null,
       };
 
+    /**
+     * Updates state after successfully deleting all projects.
+     * Clears the projects array and current project.
+     * 
+     * @action DELETE_ALL_PROJECTS_SUCCESS
+     */
     case 'DELETE_ALL_PROJECTS_SUCCESS':
       return {
         ...state,

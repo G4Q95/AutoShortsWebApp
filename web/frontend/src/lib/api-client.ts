@@ -1,5 +1,26 @@
 /**
- * API client for interacting with the Auto Shorts backend
+ * @fileoverview API client for interacting with the Auto Shorts backend
+ * 
+ * This module provides a robust API client for communicating with the Auto Shorts backend.
+ * It handles:
+ * - API request/response lifecycle
+ * - Error handling and parsing
+ * - Request timeouts
+ * - API health monitoring
+ * - Development logging
+ * - Response timing
+ * 
+ * Key features:
+ * - Type-safe API responses
+ * - Automatic error handling
+ * - Request timeout management
+ * - Development mode logging
+ * - API health tracking
+ * - Standardized error formats
+ * - CORS error handling
+ * - Network error detection
+ * 
+ * @module api-client
  */
 
 import { 
@@ -11,13 +32,31 @@ import {
   UserResponse 
 } from './api-types';
 
+/**
+ * Base URL for the API
+ * Uses environment variable if available, falls back to localhost
+ * @constant
+ */
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+/**
+ * API version prefix for all endpoints
+ * @constant
+ */
 const API_VERSION = '/api/v1';
 
-// Default timeout for API requests in milliseconds
+/**
+ * Default timeout for API requests in milliseconds (10 seconds)
+ * @constant
+ */
 const DEFAULT_TIMEOUT_MS = 10000;
 
-// Track API health
+/**
+ * Global API health state
+ * Tracks the availability and performance of the API
+ * 
+ * @type {ApiHealth}
+ */
 export const apiHealth: ApiHealth = {
   lastChecked: 0,
   isAvailable: false,
@@ -26,12 +65,34 @@ export const apiHealth: ApiHealth = {
 };
 
 /**
- * Fetch wrapper with enhanced error handling and diagnostics
+ * Enhanced fetch wrapper with error handling and diagnostics
+ * Provides a standardized way to make API requests with:
+ * - Automatic timeout handling
+ * - Error parsing and formatting
+ * - Response timing
+ * - Development mode logging
+ * - Type-safe responses
+ * 
  * @template T - The expected response data type
- * @param endpoint - The API endpoint to call (without base URL and version)
- * @param options - Fetch options (method, headers, body, etc.)
- * @param timeoutMs - Request timeout in milliseconds
- * @returns Promise with standardized API response
+ * @param {string} endpoint - The API endpoint to call (without base URL and version)
+ * @param {RequestInit} [options={}] - Fetch options (method, headers, body, etc.)
+ * @param {number} [timeoutMs=DEFAULT_TIMEOUT_MS] - Request timeout in milliseconds
+ * @returns {Promise<ApiResponse<T>>} Promise with standardized API response
+ * 
+ * @example
+ * // Simple GET request
+ * const response = await fetchAPI('/users/me');
+ * 
+ * // POST request with body
+ * const response = await fetchAPI('/videos', {
+ *   method: 'POST',
+ *   body: JSON.stringify({ url: 'https://example.com' })
+ * });
+ * 
+ * // Custom timeout
+ * const response = await fetchAPI('/long-operation', {}, 30000);
+ * 
+ * @throws Will not throw, but returns error in ApiResponse
  */
 export async function fetchAPI<T = any>(
   endpoint: string,
@@ -99,8 +160,7 @@ export async function fetchAPI<T = any>(
       apiHealth.responseTime = timing.duration;
     }
 
-    // If the status code is not in the range 200-299,
-    // we still try to parse and throw it.
+    // Handle non-2xx responses
     if (!response.ok) {
       const error: ApiError = {
         status_code: response.status,
@@ -139,7 +199,7 @@ export async function fetchAPI<T = any>(
       return { error, timing, connectionInfo };
     }
 
-    // For 204 No Content responses, return null data
+    // Handle 204 No Content responses
     if (response.status === 204) {
       return { data: null as any, timing, connectionInfo };
     }
@@ -169,7 +229,7 @@ export async function fetchAPI<T = any>(
       console.error('API Error:', error);
     }
 
-    // Check if it's an AbortError (timeout)
+    // Handle timeout errors
     if (error instanceof DOMException && error.name === 'AbortError') {
       return {
         error: {
@@ -187,17 +247,17 @@ export async function fetchAPI<T = any>(
       };
     }
 
-    // Update API health status if this was a connection error
+    // Update API health status for connection errors
     apiHealth.isAvailable = false;
     apiHealth.lastChecked = Date.now();
 
-    // Handle "Failed to fetch" errors with more user-friendly messages
+    // Create user-friendly error messages
     let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     let errorStatusCode = 500;
     let errorStatusText = 'Server Error';
     let errorCode: string | undefined;
     
-    // More descriptive error messages based on common error patterns
+    // Map common error patterns to user-friendly messages
     if (errorMessage === 'Failed to fetch') {
       errorMessage = 'Could not connect to the backend server. Please ensure the server is running.';
       errorStatusCode = 503; // Service Unavailable
@@ -233,8 +293,18 @@ export async function fetchAPI<T = any>(
 }
 
 /**
- * Check if the API is available and return connection status
- * @returns Promise with API health status
+ * Checks if the API is available and returns connection status
+ * Prevents multiple simultaneous health checks and caches results
+ * 
+ * @returns {Promise<ApiResponse<{ status: string }>>} Promise with API health status
+ * 
+ * @example
+ * const health = await checkApiHealth();
+ * if (health.error) {
+ *   console.error('API is not available:', health.error.message);
+ * } else {
+ *   console.log('API Status:', health.data.status);
+ * }
  */
 export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>> {
   // Prevent multiple simultaneous health checks
@@ -315,7 +385,21 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
 }
 
 /**
- * Extract content from a URL
+ * Extracts content from a provided URL using the backend content extraction service
+ * Handles URL encoding and error cases for failed extractions
+ * 
+ * @param {string} url - The URL to extract content from (must be from a supported domain)
+ * @returns {Promise<ApiResponse<any>>} Promise with extracted content or error details
+ * 
+ * @example
+ * const result = await extractContent('https://reddit.com/r/stories/123');
+ * if (result.error) {
+ *   console.error('Failed to extract:', result.error.message);
+ * } else {
+ *   console.log('Extracted content:', result.data);
+ * }
+ * 
+ * @throws Will not throw, returns error in ApiResponse instead
  */
 export async function extractContent(url: string): Promise<ApiResponse<any>> {
   try {
@@ -334,7 +418,27 @@ export async function extractContent(url: string): Promise<ApiResponse<any>> {
   }
 }
 
-// AI API
+/**
+ * Rewrites text using AI to match a specified style and length
+ * Uses the backend AI service to transform the text while preserving meaning
+ * 
+ * @param {string} text - The original text to rewrite
+ * @param {string} [style='engaging'] - The desired writing style (e.g., 'engaging', 'professional', 'casual')
+ * @param {number} [maxLength] - Optional maximum length for the rewritten text
+ * @returns {Promise<ApiResponse<any>>} Promise with rewritten text or error details
+ * 
+ * @example
+ * const result = await rewriteText(
+ *   'Original text here',
+ *   'engaging',
+ *   150
+ * );
+ * if (result.error) {
+ *   console.error('Rewrite failed:', result.error.message);
+ * } else {
+ *   console.log('Rewritten text:', result.data.text);
+ * }
+ */
 export async function rewriteText(
   text: string,
   style: string = 'engaging',
@@ -351,7 +455,13 @@ export async function rewriteText(
 }
 
 /**
- * Request parameters for video creation
+ * Parameters required for video creation requests
+ * 
+ * @interface VideoCreationRequest
+ * @property {string} source_url - URL to extract content from
+ * @property {string} title - Title for the generated video
+ * @property {string} [voice_id] - Optional voice ID for narration
+ * @property {string} [text_style] - Optional style for text rewriting
  */
 export interface VideoCreationRequest {
   source_url: string;
@@ -361,12 +471,27 @@ export interface VideoCreationRequest {
 }
 
 /**
- * Create a new video from a source URL
- * @param sourceUrl - URL to extract content from
- * @param title - Title for the video
- * @param voiceId - Optional voice ID for narration
- * @param textStyle - Optional style for text rewriting
- * @returns Promise with video creation response
+ * Creates a new video from a source URL with specified parameters
+ * Handles the initial video creation request and returns a task ID for status tracking
+ * 
+ * @param {string} sourceUrl - URL to extract content from (must be from supported domain)
+ * @param {string} title - Title for the generated video
+ * @param {string} [voiceId='default'] - Voice ID for narration (defaults to system default)
+ * @param {string} [textStyle='engaging'] - Style for text rewriting (defaults to 'engaging')
+ * @returns {Promise<ApiResponse<VideoCreationResponse>>} Promise with video creation task details
+ * 
+ * @example
+ * const result = await createVideo(
+ *   'https://reddit.com/r/stories/123',
+ *   'My Awesome Video',
+ *   'en-US-1',
+ *   'engaging'
+ * );
+ * if (result.error) {
+ *   console.error('Video creation failed:', result.error.message);
+ * } else {
+ *   console.log('Video creation started:', result.data.task_id);
+ * }
  */
 export async function createVideo(
   sourceUrl: string,
@@ -386,17 +511,38 @@ export async function createVideo(
 }
 
 /**
- * Get the status of a video creation task
- * @param taskId - ID of the video creation task
- * @returns Promise with video status response
+ * Retrieves the current status of a video creation task
+ * Used to poll for updates on video generation progress
+ * 
+ * @param {string} taskId - ID of the video creation task to check
+ * @returns {Promise<ApiResponse<VideoStatusResponse>>} Promise with current task status
+ * 
+ * @example
+ * const status = await getVideoStatus('task-123');
+ * if (status.error) {
+ *   console.error('Failed to get status:', status.error.message);
+ * } else {
+ *   console.log('Current status:', status.data.status);
+ *   console.log('Progress:', status.data.progress);
+ * }
  */
 export async function getVideoStatus(taskId: string): Promise<ApiResponse<VideoStatusResponse>> {
   return fetchAPI(`/video-creation/status/${taskId}`);
 }
 
 /**
- * Get the current user's profile
- * @returns Promise with user profile response
+ * Retrieves the current user's profile information
+ * Used for authentication status and user details
+ * 
+ * @returns {Promise<ApiResponse<UserResponse>>} Promise with user profile data
+ * 
+ * @example
+ * const user = await getCurrentUser();
+ * if (user.error) {
+ *   console.error('Failed to get user:', user.error.message);
+ * } else {
+ *   console.log('Current user:', user.data.username);
+ * }
  */
 export async function getCurrentUser(): Promise<ApiResponse<UserResponse>> {
   return fetchAPI('/users/me');

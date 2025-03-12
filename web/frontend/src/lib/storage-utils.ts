@@ -1,25 +1,89 @@
+/**
+ * @fileoverview Storage utilities for managing project data in localStorage
+ * 
+ * This module provides a comprehensive set of utilities for managing project data
+ * in the browser's localStorage. It handles:
+ * - Project CRUD operations (Create, Read, Update, Delete)
+ * - Storage space management and quota monitoring
+ * - Project metadata management
+ * - Error handling for storage operations
+ * - Data validation and type safety
+ * 
+ * Key features:
+ * - Automatic storage quota management
+ * - Project metadata caching for quick listing
+ * - Error handling with specific error types
+ * - Logging for debugging and monitoring
+ * - Data validation on read/write operations
+ * 
+ * @module storage-utils
+ */
+
 import { Project } from '../components/project/ProjectProvider';
 
 // Constants
+/**
+ * Prefix for all project-related localStorage keys
+ * Used to identify and filter project data in storage
+ */
 const STORAGE_KEY_PREFIX = 'auto-shorts-project-';
+
+/**
+ * Key for storing the list of all projects' metadata
+ * This list is maintained separately for quick access to project summaries
+ */
 const PROJECTS_LIST_KEY = 'auto-shorts-projects-list';
-const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB limit (typical localStorage limit is 5-10MB)
+
+/**
+ * Maximum allowed storage size in bytes (5MB)
+ * Most browsers limit localStorage to 5-10MB, so we use a conservative limit
+ */
+const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB limit
 
 // Types
+/**
+ * Custom error type for storage-related errors
+ * @interface StorageError
+ * @extends Error
+ * 
+ * @property {string} code - Specific error code indicating the type of storage error
+ *   - STORAGE_FULL: No more space available in localStorage
+ *   - QUOTA_EXCEEDED: Browser storage quota exceeded
+ *   - INVALID_DATA: Data validation failed
+ *   - NOT_FOUND: Requested item not found in storage
+ *   - UNKNOWN: Unspecified error
+ */
 export interface StorageError extends Error {
   code: 'STORAGE_FULL' | 'QUOTA_EXCEEDED' | 'INVALID_DATA' | 'NOT_FOUND' | 'UNKNOWN';
 }
 
+/**
+ * Metadata for quick project listing without loading full project data
+ * @interface ProjectMetadata
+ * 
+ * @property {string} id - Unique identifier for the project
+ * @property {string} title - Project title
+ * @property {number} createdAt - Timestamp of project creation
+ * @property {number} updatedAt - Timestamp of last project update
+ * @property {string} [thumbnailUrl] - Optional URL for project thumbnail
+ */
 export interface ProjectMetadata {
   id: string;
   title: string;
   createdAt: number;
   updatedAt: number;
-  thumbnailUrl?: string; // Optional thumbnail for project preview
+  thumbnailUrl?: string;
 }
 
 /**
- * Creates a custom storage error
+ * Creates a custom storage error with a specific error code
+ * 
+ * @param {string} message - Human-readable error message
+ * @param {StorageError['code']} code - Specific error code
+ * @returns {StorageError} Custom error object with code
+ * 
+ * @example
+ * throw createStorageError('Storage quota exceeded', 'QUOTA_EXCEEDED');
  */
 function createStorageError(message: string, code: StorageError['code']): StorageError {
   const error = new Error(message) as StorageError;
@@ -28,7 +92,16 @@ function createStorageError(message: string, code: StorageError['code']): Storag
 }
 
 /**
- * Checks if localStorage is available
+ * Checks if localStorage is available and functioning
+ * Tests by attempting to write and read a test value
+ * 
+ * @returns {boolean} True if localStorage is available and working
+ * 
+ * @example
+ * if (!isStorageAvailable()) {
+ *   console.error('localStorage is not available');
+ *   return;
+ * }
  */
 function isStorageAvailable(): boolean {
   try {
@@ -42,15 +115,31 @@ function isStorageAvailable(): boolean {
 }
 
 /**
- * Estimates the size of a string in bytes
+ * Estimates the size of a string in bytes using UTF-16 encoding
+ * This is a conservative estimate as each character is assumed to be 2 bytes
+ * 
+ * @param {string} str - String to measure
+ * @returns {number} Estimated size in bytes
+ * 
+ * @example
+ * const size = getStringSize(JSON.stringify(project));
+ * if (size > MAX_STORAGE_SIZE) {
+ *   throw createStorageError('Project too large', 'STORAGE_FULL');
+ * }
  */
 function getStringSize(str: string): number {
-  // A rough estimate - each character is approximately 2 bytes in UTF-16
   return str.length * 2;
 }
 
 /**
  * Gets the current storage usage in bytes
+ * Calculates total size by summing the size of all keys and values in localStorage
+ * 
+ * @returns {number} Total storage usage in bytes
+ * 
+ * @example
+ * const usage = getStorageUsage();
+ * console.log(`Storage usage: ${usage / 1024 / 1024}MB`);
  */
 export function getStorageUsage(): number {
   if (!isStorageAvailable()) return 0;
@@ -68,14 +157,29 @@ export function getStorageUsage(): number {
 }
 
 /**
- * Gets the percentage of storage used
+ * Gets the percentage of storage used relative to MAX_STORAGE_SIZE
+ * 
+ * @returns {number} Percentage of storage used (0-100)
+ * 
+ * @example
+ * const usagePercent = getStorageUsagePercentage();
+ * if (usagePercent > 90) {
+ *   console.warn('Storage usage is high: ${usagePercent}%');
+ * }
  */
 export function getStorageUsagePercentage(): number {
   return (getStorageUsage() / MAX_STORAGE_SIZE) * 100;
 }
 
 /**
- * Constructs a storage key for a project
+ * Constructs a storage key for a project using the STORAGE_KEY_PREFIX
+ * 
+ * @param {string} projectId - Unique identifier of the project
+ * @returns {string} Storage key for the project
+ * 
+ * @example
+ * const key = getProjectKey('123');
+ * // Returns: 'auto-shorts-project-123'
  */
 export function getProjectKey(projectId: string): string {
   console.log(`[storage-utils] Creating project key for ID: "${projectId}"`);
@@ -85,7 +189,15 @@ export function getProjectKey(projectId: string): string {
 }
 
 /**
- * Gets a list of all projects from local storage
+ * Retrieves all projects from localStorage
+ * Filters for project keys, parses the data, and sorts by creation date
+ * 
+ * @returns {Promise<Project[]>} Array of projects sorted by creation date (newest first)
+ * @throws {Error} If there's an error parsing project data
+ * 
+ * @example
+ * const projects = await getProjects();
+ * console.log(`Found ${projects.length} projects`);
  */
 export async function getProjects(): Promise<Project[]> {
   try {
@@ -134,7 +246,24 @@ export async function getProjects(): Promise<Project[]> {
 }
 
 /**
- * Saves a project to local storage
+ * Saves a project to localStorage and updates the projects list
+ * Performs the following operations:
+ * 1. Saves the full project data
+ * 2. Updates the last created project ID
+ * 3. Updates the projects list metadata
+ * 4. Verifies the save was successful
+ * 
+ * @param {Project} project - Project to save
+ * @returns {Promise<void>}
+ * @throws {Error} If save fails or verification fails
+ * 
+ * @example
+ * try {
+ *   await saveProject(project);
+ *   console.log('Project saved successfully');
+ * } catch (error) {
+ *   console.error('Failed to save project:', error);
+ * }
  */
 export async function saveProject(project: Project): Promise<void> {
   try {
@@ -174,7 +303,15 @@ export async function saveProject(project: Project): Promise<void> {
 }
 
 /**
- * Updates the projects list with metadata from a project
+ * Updates the projects list metadata in localStorage
+ * Maintains a separate list of project metadata for quick access
+ * 
+ * @param {Project} project - Project to update metadata for
+ * @returns {void}
+ * 
+ * @example
+ * // This is typically called by saveProject, but can be used independently
+ * updateProjectsList(project);
  */
 function updateProjectsList(project: Project): void {
   try {
@@ -209,7 +346,19 @@ function updateProjectsList(project: Project): void {
 }
 
 /**
- * Gets a project from local storage
+ * Retrieves a specific project from localStorage
+ * Includes validation of the project data structure
+ * 
+ * @param {string} projectId - ID of the project to retrieve
+ * @returns {Promise<Project | null>} Project if found and valid, null otherwise
+ * 
+ * @example
+ * const project = await getProject('123');
+ * if (project) {
+ *   console.log('Found project:', project.title);
+ * } else {
+ *   console.log('Project not found');
+ * }
  */
 export async function getProject(projectId: string): Promise<Project | null> {
   try {
@@ -255,7 +404,15 @@ export async function getProject(projectId: string): Promise<Project | null> {
 }
 
 /**
- * Gets all project metadata from localStorage
+ * Retrieves the list of all project metadata
+ * This is a lightweight operation as it only loads the metadata list
+ * 
+ * @returns {Promise<ProjectMetadata[]>} Array of project metadata
+ * 
+ * @example
+ * const projectsList = await getProjectsList();
+ * console.log(`Found ${projectsList.length} projects`);
+ * projectsList.forEach(p => console.log(`${p.title} (${p.id})`));
  */
 export function getProjectsList(): Promise<ProjectMetadata[]> {
   return new Promise((resolve, reject) => {
@@ -284,7 +441,19 @@ export function getProjectsList(): Promise<ProjectMetadata[]> {
 }
 
 /**
- * Deletes a project from local storage
+ * Deletes a project and its metadata from localStorage
+ * 
+ * @param {string} projectId - ID of the project to delete
+ * @returns {Promise<void>}
+ * @throws {Error} If project deletion fails
+ * 
+ * @example
+ * try {
+ *   await deleteProject('123');
+ *   console.log('Project deleted successfully');
+ * } catch (error) {
+ *   console.error('Failed to delete project:', error);
+ * }
  */
 export async function deleteProject(projectId: string): Promise<void> {
   try {
@@ -311,7 +480,19 @@ export async function deleteProject(projectId: string): Promise<void> {
 }
 
 /**
- * Clears all projects from localStorage
+ * Removes all projects and related data from localStorage
+ * This is a destructive operation that cannot be undone
+ * 
+ * @returns {Promise<void>}
+ * @throws {Error} If clearing projects fails
+ * 
+ * @example
+ * try {
+ *   await clearAllProjects();
+ *   console.log('All projects cleared successfully');
+ * } catch (error) {
+ *   console.error('Failed to clear projects:', error);
+ * }
  */
 export function clearAllProjects(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -347,7 +528,17 @@ export function clearAllProjects(): Promise<void> {
 }
 
 /**
- * Checks if a project exists in local storage
+ * Checks if a project exists in localStorage
+ * 
+ * @param {string} projectId - ID of the project to check
+ * @returns {boolean} True if the project exists
+ * 
+ * @example
+ * if (projectExists('123')) {
+ *   console.log('Project exists');
+ * } else {
+ *   console.log('Project not found');
+ * }
  */
 export function projectExists(projectId: string): boolean {
   try {
@@ -364,6 +555,20 @@ export function projectExists(projectId: string): boolean {
 
 /**
  * Exports a project as a JSON string
+ * Useful for project backup or sharing
+ * 
+ * @param {string} projectId - ID of the project to export
+ * @returns {Promise<string>} JSON string representation of the project
+ * @throws {Error} If project not found or export fails
+ * 
+ * @example
+ * try {
+ *   const json = await exportProject('123');
+ *   console.log('Project exported successfully');
+ *   // Save json to file or share with user
+ * } catch (error) {
+ *   console.error('Failed to export project:', error);
+ * }
  */
 export function exportProject(projectId: string): Promise<string> {
   return getProject(projectId).then((project) => JSON.stringify(project));
@@ -371,6 +576,19 @@ export function exportProject(projectId: string): Promise<string> {
 
 /**
  * Imports a project from a JSON string
+ * Validates the project data before importing
+ * 
+ * @param {string} projectJson - JSON string representation of the project
+ * @returns {Promise<Project>} The imported project
+ * @throws {Error} If import fails or validation fails
+ * 
+ * @example
+ * try {
+ *   const project = await importProject(jsonString);
+ *   console.log('Project imported successfully:', project.title);
+ * } catch (error) {
+ *   console.error('Failed to import project:', error);
+ * }
  */
 export function importProject(projectJson: string): Promise<Project> {
   return new Promise((resolve, reject) => {

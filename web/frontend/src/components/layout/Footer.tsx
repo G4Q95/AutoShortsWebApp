@@ -1,5 +1,29 @@
 import Link from 'next/link';
 
+/**
+ * Application footer component that displays branding and copyright information.
+ * 
+ * Features:
+ * - Centered layout with app description
+ * - Dynamic copyright year
+ * - Responsive design
+ * 
+ * Layout:
+ * - App name and description
+ * - Copyright notice with current year
+ * 
+ * Styling:
+ * - Light gray background
+ * - Subtle border top
+ * - Consistent text styling
+ * - Responsive padding and spacing
+ * 
+ * @example
+ * ```tsx
+ * // Basic usage in app layout
+ * <Footer />
+ * ```
+ */
 export default function Footer() {
   return (
     <footer className="bg-gray-50 border-t border-gray-200 py-8">
