@@ -305,3 +305,39 @@ The file structure in the Git panel might look different because:
 3. Cursor IDE might have a different view than the actual file system
 
 You can always use `git ls-files` to see what files Git is tracking:
+
+```
+
+## Playwright Testing Guidelines
+
+When the user requests to "run the test" or "run tests", this refers to the Playwright end-to-end tests unless otherwise specified. To run these tests:
+
+1. **Test Command**: 
+```bash
+cd web/frontend && npm test
+```
+
+2. **Test Location**: Tests are located in `web/frontend/tests/e2e/`
+
+3. **Test Requirements**:
+- Frontend server must be running (`npm run dev`)
+- Backend server must be running (`python -m app.main`)
+- Browser Tools server must be running (`npx browser-tools-server`)
+
+4. **Test Execution Steps**:
+- Verify all required servers are running
+- Run the test command
+- Monitor test output for failures
+- Check test artifacts (screenshots, videos) if tests fail
+
+5. **Common Test Issues**:
+- Port conflicts (check with `lsof -i :PORT`)
+- Server not running
+- Network connectivity issues
+- Browser compatibility problems
+
+6. **Test Debugging**:
+- Use `PWDEBUG=1` for debugging mode (run with `npm run test:debug`)
+- Check test artifacts in `web/frontend/test-results/`
+- Review test logs for error messages
+- Verify server responses in network logs
