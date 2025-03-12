@@ -12,6 +12,45 @@ from app.services.mock_storage import storage
 logger = logging.getLogger(__name__)
 
 
+async def process_project_video(
+    project_id: str,
+    task_id: str,
+    task_storage: Dict[str, Dict[str, Any]],
+    mode: str = "custom"
+) -> None:
+    """
+    Process a project into a video in the background.
+    
+    Args:
+        project_id: The ID of the project to process
+        task_id: The ID of the processing task
+        task_storage: Dictionary to store task status information
+        mode: Processing mode ('custom' or 'fast')
+    """
+    try:
+        # Update task status to processing
+        task_storage[task_id]["status"] = "processing"
+        task_storage[task_id]["progress"] = 0
+        
+        # TODO: Implement actual video processing logic here
+        # For now, just simulate processing with a delay
+        await asyncio.sleep(5)
+        
+        # Update task status to completed
+        task_storage[task_id]["status"] = "completed"
+        task_storage[task_id]["progress"] = 100
+        task_storage[task_id]["result"] = {
+            "video_url": f"https://example.com/videos/{project_id}.mp4",
+            "thumbnail_url": f"https://example.com/thumbnails/{project_id}.jpg"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing project {project_id}: {str(e)}")
+        task_storage[task_id]["status"] = "failed"
+        task_storage[task_id]["error"] = str(e)
+        raise
+
+
 class VideoProcessor:
     """
     Handles video processing and assembly.
@@ -84,7 +123,6 @@ class VideoProcessor:
         except Exception as e:
             logger.error(f"Error creating video: {str(e)}")
             return False, {"error": str(e)}
-
 
 # Create singleton instance
 video_processor = VideoProcessor()

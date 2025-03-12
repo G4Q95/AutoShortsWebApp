@@ -9,6 +9,8 @@ from app.services.ai_text import rewrite_text
 from app.services.content_retrieval import extract_url_content
 from app.services.video_processing import video_processor
 from app.services.voice_generation import generate_voice
+from app.models.api import ApiResponse
+from app.core.errors import create_error_response, ErrorCodes
 
 router = APIRouter(
     prefix="/video-creation",
@@ -75,23 +77,49 @@ async def create_video(request: CreateVideoRequest, background_tasks: Background
     )
 
 
-@router.get("/status/{task_id}", response_model=VideoStatusResponse)
+@router.get("/status/{task_id}", response_model=ApiResponse[Dict[str, Any]])
 async def get_video_status(task_id: str):
     """
     Check the status of a video creation task.
+    Returns a standardized response with the task status.
     """
-    if task_id not in video_tasks:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    try:
+        if task_id not in video_tasks:
+            error_response = create_error_response(
+                status_code=status.HTTP_404_NOT_FOUND,
+                message="Task not found",
+                error_code=ErrorCodes.RESOURCE_NOT_FOUND
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_response
+            )
 
-    task_info = video_tasks[task_id]
+        task_info = video_tasks[task_id]
 
-    return VideoStatusResponse(
-        task_id=task_id,
-        status=task_info["status"],
-        video_id=task_info.get("video_id"),
-        storage_url=task_info.get("storage_url"),
-        error=task_info.get("error"),
-    )
+        return ApiResponse(
+            success=True,
+            message="Task status retrieved successfully",
+            data={
+                "task_id": task_id,
+                "status": task_info["status"],
+                "video_id": task_info.get("video_id"),
+                "storage_url": task_info.get("storage_url"),
+                "error": task_info.get("error")
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_response = create_error_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to retrieve task status: {str(e)}",
+            error_code=ErrorCodes.INTERNAL_SERVER_ERROR
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response
+        )
 
 
 async def process_video_creation(
