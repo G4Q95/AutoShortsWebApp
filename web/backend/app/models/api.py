@@ -25,6 +25,7 @@ class ContentExtractionResponse(BaseModel):
     media_type: Optional[str] = None
     author: Optional[str] = None
     platform: Optional[str] = None
+    subreddit: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class UrlPreviewResponse(BaseModel):

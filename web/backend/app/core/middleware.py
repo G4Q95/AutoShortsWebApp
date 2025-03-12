@@ -35,11 +35,11 @@ class ApiResponseMiddleware(BaseHTTPMiddleware):
             exclude_paths: List of paths to exclude from standardization
         """
         super().__init__(app)
+        # Default paths to exclude from API standardization
         self.exclude_paths = exclude_paths or [
             "/docs",
             "/redoc",
             "/openapi.json",
-            "/api/v1/content/proxy/",  # Exclude proxy endpoints that return binary data
         ]
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -53,16 +53,33 @@ class ApiResponseMiddleware(BaseHTTPMiddleware):
         Returns:
             The processed response
         """
-        # Skip standardization for excluded paths
-        if any(request.url.path.startswith(path) for path in self.exclude_paths):
+        # Get the current path
+        current_path = request.url.path
+        
+        # Skip standardization for:
+        # 1. Proxy endpoints that return binary/streaming data
+        if "/proxy/" in current_path:
+            return await call_next(request)
+        
+        # 2. Documentation and excluded paths
+        if any(current_path.startswith(path) for path in self.exclude_paths):
+            return await call_next(request)
+        
+        # 3. Content extraction requests if they're not GET requests
+        # This allows GET requests to be standardized but passes other methods through
+        if "/content/extract" in current_path and request.method != "GET":
             return await call_next(request)
         
         # Process the request
         try:
             response = await call_next(request)
             
+            # Don't modify streaming responses
+            if isinstance(response, StreamingResponse):
+                return response
+                
             # Don't modify non-JSON responses
-            if not isinstance(response, JSONResponse) or isinstance(response, StreamingResponse):
+            if not isinstance(response, JSONResponse):
                 return response
             
             # If this is already a standard API response, don't modify it

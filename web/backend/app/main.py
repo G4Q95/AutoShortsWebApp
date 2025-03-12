@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     
     if not db.is_mock:
         logger.debug(f"Using MongoDB URI: {settings.MONGODB_URI}")
-        logger.debug(f"Using database: {settings.MONGODB_DB}")
+        logger.debug(f"Using database: {db.db_name}")
     else:
         logger.debug("Using mock database")
     

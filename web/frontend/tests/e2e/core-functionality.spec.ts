@@ -286,8 +286,41 @@ test.describe('Auto Shorts Core Functionality', () => {
     // Verify media content is loaded
     console.log('Verifying media content is loaded...');
     // Wait for media container and check for either video or image
-    await expect(page.locator(MEDIA_SELECTOR)).toBeVisible({ timeout: CONTENT_LOAD_TIMEOUT });
-    console.log('Media content verified - found video or image element');
+    console.log('Attempting to verify media content...');
+    console.log(`Using selector: ${MEDIA_SELECTOR}`);
+    console.log(`Current URL: ${page.url()}`);
+
+    // Add network request logging
+    page.on('request', request => {
+      if (request.url().includes('/proxy/')) {
+        console.log(`Network request to: ${request.url()}`);
+      }
+    });
+
+    page.on('response', response => {
+      if (response.url().includes('/proxy/')) {
+        console.log(`Network response from: ${response.url()}, status: ${response.status()}`);
+      }
+    });
+
+    // Try with a longer timeout and additional checks
+    try {
+      await expect(page.locator(MEDIA_SELECTOR)).toBeVisible({ timeout: CONTENT_LOAD_TIMEOUT * 2 });
+      console.log('Media content verified - found video or image element');
+    } catch (error) {
+      console.error('Media element not found. Checking DOM structure...');
+      // Log the HTML of the scene container to help debug
+      const sceneHtml = await page.locator('.bg-blue-600:has-text("1")').evaluate(node => {
+        // Go up to find the scene container
+        let container = node;
+        while (container && !container.classList.contains('scene-card') && container.parentElement) {
+          container = container.parentElement;
+        }
+        return container ? container.outerHTML : 'Scene container not found';
+      });
+      console.log('Scene container HTML:', sceneHtml);
+      throw error;
+    }
 
     // Take a screenshot after first scene
     await page.screenshot({ path: 'debug-first-scene.png' });

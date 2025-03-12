@@ -130,6 +130,20 @@ class Database:
 
 db = Database()
 
+async def init_db():
+    """
+    Initialize the database connection.
+    This function is called during app startup.
+    """
+    await db.connect()
+
+async def close_db():
+    """
+    Close the database connection.
+    This function is called during app shutdown.
+    """
+    await db.close()
+
 class MongoJSONResponse(JSONResponse):
     """
     Custom JSON response that handles MongoDB ObjectId serialization.

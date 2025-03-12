@@ -58,7 +58,7 @@ start_backend() {
   
   cd web/backend
   echo -e "${GREEN}Starting backend server on port $BACKEND_PORT...${NC}"
-  python -m app.main &
+  uvicorn app.main:app --reload --host 127.0.0.1 --port $BACKEND_PORT &
   BACKEND_PID=$!
   echo -e "${GREEN}Backend server started with PID: $BACKEND_PID${NC}"
   cd ../..
@@ -104,12 +104,10 @@ start_browser_tools() {
     fi
   fi
   
-  cd web/frontend
   echo -e "${GREEN}Starting browser tools server on port $BROWSER_TOOLS_PORT...${NC}"
   npx browser-tools-server &
   BROWSER_TOOLS_PID=$!
   echo -e "${GREEN}Browser tools server started with PID: $BROWSER_TOOLS_PID${NC}"
-  cd ../..
 }
 
 # Function to stop all servers
