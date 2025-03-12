@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Scene } from './ProjectProvider';
 import ErrorDisplay from '../ErrorDisplay';
+import { transformRedditVideoUrl } from '@/lib/media-utils';
 
 /**
  * Utility function to clean post text by removing "Post by u/Username:" prefix
@@ -226,12 +227,14 @@ export default function MediaContentItem({
           >
             <video
               ref={videoRef}
-              src={scene.media.url}
+              src={transformRedditVideoUrl(scene.media.url)}
               className="w-full h-full object-contain rounded-t-lg"
               poster={scene.media.thumbnailUrl}
               onPlay={() => setVideoIsPlaying(true)}
               onPause={() => setVideoIsPlaying(false)}
               onEnded={() => setVideoIsPlaying(false)}
+              controls
+              crossOrigin="anonymous"
             />
 
             {/* Play button overlay */}

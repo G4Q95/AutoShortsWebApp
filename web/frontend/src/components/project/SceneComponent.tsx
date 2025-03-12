@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
+import { transformRedditVideoUrl } from '@/lib/media-utils';
 
 /**
  * Utility function to clean post text by removing "Post by u/Username:" prefix
@@ -294,9 +295,11 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         return (
           <div className="relative w-full h-40 bg-black rounded-t-lg overflow-hidden">
             <video
-              src={scene.media.url}
+              src={transformRedditVideoUrl(scene.media.url)}
               controls
               className="w-full h-full object-contain rounded-t-lg"
+              crossOrigin="anonymous"
+              poster={scene.media.thumbnailUrl}
             />
           </div>
         );

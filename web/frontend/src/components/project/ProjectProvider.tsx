@@ -265,13 +265,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           type: 'ADD_SCENE_ERROR',
           payload: {
             sceneId,
-            error: response.error.details || 'Failed to extract content',
+            error: response.error.message || 'Failed to extract content',
           },
         });
         return;
       }
 
-      const sceneData = response.data;
+      const sceneData = response.data.data;
       if (!sceneData) {
         dispatch({
           type: 'ADD_SCENE_ERROR',
@@ -288,7 +288,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       let mediaUrl: string | null = null;
 
       // Process media from the response - handle direct media properties
-      if (sceneData.has_media && sceneData.media_url) {
+      if (sceneData.metadata?.has_media && sceneData.media_url) {
         mediaType = sceneData.media_type || 'image'; // Default to image if not specified
         mediaUrl = sceneData.media_url;
       }

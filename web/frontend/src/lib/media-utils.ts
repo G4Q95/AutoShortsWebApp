@@ -5,26 +5,32 @@
 /**
  * Determine the type of media from API response data
  */
-export const determineMediaType = (data: any): 'image' | 'video' | 'gallery' => {
-  // If media_type is directly provided (from backend API response)
-  if (data.media_type) {
-    if (data.media_type === 'video') return 'video';
-    if (data.media_type === 'image') return 'image';
-    if (data.media_type === 'gallery') return 'gallery';
+export const determineMediaType = (url: string): 'image' | 'video' | 'gallery' | null => {
+  if (!url) return null;
+
+  // Handle Reddit video URLs
+  if (url.includes('v.redd.it')) {
+    return 'video';
   }
 
-  // Check URL patterns as fallback
-  const mediaUrl = data.media_url || '';
-  if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) return 'video';
-  if (mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return 'image';
+  // Handle other URLs
+  const extension = url.split('.').pop()?.toLowerCase();
+  if (!extension) return null;
+
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) {
+    return 'image';
+  }
+
+  if (['mp4', 'webm', 'mov'].includes(extension)) {
+    return 'video';
+  }
 
   // Handle gallery type
-  if (data.preview_images && data.preview_images.length > 1) {
+  if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i) && url.match(/\.(mp4|webm|mov)$/i)) {
     return 'gallery';
   }
 
-  // Default to image for safety
-  return 'image';
+  return null;
 };
 
 /**
@@ -67,4 +73,24 @@ export const extractMediaDimensions = (metadata: any) => {
     height: metadata?.height || metadata?.source?.height || undefined,
     duration: metadata?.duration || undefined
   };
+};
+
+/**
+ * Transforms a Reddit video URL to be playable in the browser.
+ * Handles CORS and audio track issues with v.redd.it URLs.
+ * 
+ * @param url - The original video URL from Reddit
+ * @returns The transformed URL that can be played in the browser
+ */
+export const transformRedditVideoUrl = (url: string): string => {
+  if (!url) return '';
+
+  // Check if it's a Reddit video URL
+  if (url.includes('v.redd.it')) {
+    // Use our proxy endpoint to handle CORS
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    return `${apiUrl}/api/v1/content/proxy/reddit-video?url=${encodeURIComponent(url)}`;
+  }
+
+  return url;
 }; 
