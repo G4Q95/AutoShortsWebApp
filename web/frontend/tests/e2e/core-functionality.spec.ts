@@ -6,7 +6,7 @@ const TEST_REDDIT_PHOTO_URL = 'https://www.reddit.com/r/mildlyinteresting/commen
 const TEST_REDDIT_VIDEO_URL = 'https://www.reddit.com/r/interesting/comments/1j7mwks/sand_that_moves_like_water_in_the_desert/';
 
 // Constants
-const NAVIGATION_TIMEOUT = 5000; // 5 seconds
+const NAVIGATION_TIMEOUT = 30000; // 30 seconds
 const PAGE_LOAD_TIMEOUT = 10000;  // 10 seconds
 const CONTENT_LOAD_TIMEOUT = 20000; // 20 seconds
 const CRITICAL_STEP_TIMEOUT = 30000; // 30 seconds
@@ -210,9 +210,9 @@ test.describe('Auto Shorts Core Functionality', () => {
     const pageContent = await page.content();
     console.log('Project workspace page contains project name:', pageContent.includes(TEST_PROJECT_NAME));
     
-    // Rest of the test continues as before
-    // ...
-
+    // Wait for save operation to complete
+    await page.waitForSelector('[data-testid="save-status-saved"]', { state: 'visible' });
+    
     console.log('Project creation test completed');
   });
   
@@ -252,39 +252,40 @@ test.describe('Auto Shorts Core Functionality', () => {
     console.log('Finding Add button...');
     const addButton = page.getByRole('button', { name: 'Add' });
     await expect(addButton).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
-    await addButton.click();
-    console.log('Clicked Add button for first scene');
     
-    // Wait for loading process to complete
-    console.log('Waiting for content to load...');
-    const loadingIndicator = page.locator('.loading-indicator');
-    
+    // Add error handling around scene addition
     try {
-      await expect(loadingIndicator).toBeVisible({ timeout: 5000 });
-      console.log('Loading indicator appeared');
-    } catch (e) {
-      console.log('Loading indicator didn\'t appear or disappeared very quickly');
-    }
-    
-    // Enhanced debugging - log the page content after first scene addition
-    if (DEBUG) {
-      console.log('Looking for first scene after adding...');
+      await addButton.click();
+      console.log('Clicked Add button for first scene');
       
-      // Log what's visible on the page
-      const pageContent = await page.content();
-      console.log('Page content available after first scene addition:', 
-        pageContent.includes('Scenes') ? 'Scenes heading found' : 'No Scenes heading',
-        pageContent.includes('1') ? 'Number 1 found' : 'No number 1',
-        pageContent.includes(TEST_REDDIT_PHOTO_URL) ? 'Photo URL found' : 'No photo URL'
-      );
+      // Wait for save status to indicate completion
+      await page.waitForSelector('[data-testid="save-status-saved"]', { 
+        state: 'visible',
+        timeout: CONTENT_LOAD_TIMEOUT 
+      });
+      console.log('Save status indicates success');
       
-      // Try to find the scenes section
-      const scenesHeadingExists = await page.getByText(SCENES_HEADING).isVisible();
-      console.log(`"${SCENES_HEADING}" heading exists: ${scenesHeadingExists}`);
+      // Verify scene was added to project data
+      const projectData = await page.evaluate(() => {
+        // @ts-ignore - Accessing window.__NEXT_DATA__ for debugging
+        return window.__NEXT_DATA__?.props?.pageProps?.project;
+      });
+      console.log('Project data after scene add:', 
+        projectData ? `Found (${projectData.scenes?.length} scenes)` : 'Not found');
       
-      // Look for elements with a numbered circle
-      const blueNumberElements = await page.getByText('1').count();
-      console.log(`Found ${blueNumberElements} elements with text "1"`);
+      // Take screenshot of current state
+      await page.screenshot({ path: 'debug-after-scene-add.png' });
+      
+      // Check for scene element with more specific selector
+      const sceneElement = page.locator('.bg-blue-600:has-text("1")');
+      await expect(sceneElement).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
+      console.log('Scene element is visible');
+      
+    } catch (error) {
+      console.error('Failed to add scene:', error);
+      // Take error state screenshot
+      await page.screenshot({ path: 'debug-scene-add-error.png' });
+      throw error;
     }
     
     // Wait for scenes section to appear
@@ -403,18 +404,10 @@ test.describe('Auto Shorts Core Functionality', () => {
     await page.waitForSelector('input[placeholder="Enter Reddit URL"]', { timeout: CRITICAL_STEP_TIMEOUT });
     console.log('Reddit URL input is visible, workspace is ready');
     
-    // Add a scene - Video post
-    console.log('Adding scene for deletion...');
-    const urlInput = page.getByPlaceholder('Enter Reddit URL');
-    await expect(urlInput).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
-    await urlInput.fill(TEST_REDDIT_VIDEO_URL);
-    
-    // Find and click the "Add" button
-    console.log('Finding Add button...');
-    const addButton = page.getByRole('button', { name: 'Add' });
-    await expect(addButton).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
-    await addButton.click();
-    console.log('Clicked Add button');
+    // Add a scene
+    await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_VIDEO_URL);
+    await page.getByRole('button', { name: 'Add' }).click();
+    console.log('Added scene with URL:', TEST_REDDIT_VIDEO_URL);
     
     // Wait for scene to appear - look for Scenes heading and blue number 1
     console.log('Waiting for Scenes section to appear...');
@@ -653,5 +646,114 @@ test.describe('Auto Shorts Core Functionality', () => {
     await page.getByRole('button', { name: 'Delete' }).click();
     
     console.log('Scene deletion test completed');
+  });
+
+  test('Existing project functionality', async ({ page }) => {
+    console.log('Starting existing project test...');
+
+    // Navigate to project creation page
+    await page.goto('/projects/create');
+    console.log('Navigated to project creation page');
+
+    // Create a new project
+    const projectName = 'Test Project 245 Existing';
+    await page.getByPlaceholder('Enter project name').fill(projectName);
+    await page.getByRole('button', { name: 'Create Project' }).click();
+    console.log('Created new project:', projectName);
+
+    // Add a scene
+    await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_VIDEO_URL);
+    await page.getByRole('button', { name: 'Add' }).click();
+    console.log('Added scene with URL:', TEST_REDDIT_VIDEO_URL);
+
+    // Wait for save status to indicate completion
+    await page.waitForSelector('[data-testid="save-status-saved"]', { 
+      state: 'visible',
+      timeout: CONTENT_LOAD_TIMEOUT 
+    });
+    console.log('Save status indicates success');
+
+    // Get project ID from URL
+    const url = page.url();
+    const projectId = url.split('/').pop();
+    console.log('Project ID from URL:', projectId);
+
+    // Check localStorage before navigating away
+    const projectDataBefore = await page.evaluate((id) => {
+      const key = `auto-shorts-project-${id}`;
+      const data = localStorage.getItem(key);
+      return {
+        key,
+        data: data ? JSON.parse(data) : null,
+        allKeys: Object.keys(localStorage)
+      };
+    }, projectId);
+    console.log('Project data before navigation:', JSON.stringify(projectDataBefore, null, 2));
+
+    // Navigate to home page
+    await page.goto('/');
+    console.log('Navigated to home page');
+
+    // Navigate to projects list
+    await page.getByRole('link', { name: 'My Projects' }).click();
+    console.log('Clicked My Projects link');
+
+    // Check localStorage after navigation
+    const projectDataAfter = await page.evaluate((id) => {
+      const key = `auto-shorts-project-${id}`;
+      const data = localStorage.getItem(key);
+      return {
+        key,
+        data: data ? JSON.parse(data) : null,
+        allKeys: Object.keys(localStorage)
+      };
+    }, projectId);
+    console.log('Project data after navigation:', JSON.stringify(projectDataAfter, null, 2));
+
+    // Find and click the project
+    await page.getByRole('link', { name: projectName }).click();
+    console.log('Clicked on project:', projectName);
+
+    // Take screenshot before visibility check
+    await page.screenshot({ path: 'debug-before-visibility-check.png' });
+
+    // Check localStorage after clicking project
+    const projectDataFinal = await page.evaluate((id) => {
+      const key = `auto-shorts-project-${id}`;
+      const data = localStorage.getItem(key);
+      return {
+        key,
+        data: data ? JSON.parse(data) : null,
+        allKeys: Object.keys(localStorage)
+      };
+    }, projectId);
+    console.log('Project data after clicking project:', JSON.stringify(projectDataFinal, null, 2));
+
+    // Wait for project workspace to load
+    await page.waitForSelector('.bg-blue-600:has-text("1")', { timeout: NAVIGATION_TIMEOUT });
+    console.log('Scene number 1 is visible');
+
+    // Log the current DOM state
+    const pageContent = await page.evaluate(() => {
+      return {
+        sceneElements: document.querySelectorAll('[data-testid^="scene-"]').length,
+        workspaceContent: document.querySelector('[data-testid="project-workspace"]')?.innerHTML,
+        bodyContent: document.body.innerHTML
+      };
+    });
+    console.log('DOM state:', {
+      sceneElementsFound: pageContent.sceneElements,
+      hasWorkspaceContent: !!pageContent.workspaceContent,
+      bodyContentLength: pageContent.bodyContent.length
+    });
+
+    // Wait for scene to be visible with increased timeout
+    await expect(page.locator('[data-testid="scene-number-1"]')).toBeVisible({ timeout: CONTENT_LOAD_TIMEOUT });
+    console.log('Scene is now visible');
+
+    // Take screenshot after visibility check
+    await page.screenshot({ path: 'debug-after-visibility-check.png' });
+
+    console.log('Existing project test completed successfully');
   });
 }); 

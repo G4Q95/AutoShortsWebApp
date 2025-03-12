@@ -278,7 +278,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       }}
     >
       {/* Scene number indicator */}
-      <div className="absolute top-2 left-2 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium z-10">
+      <div 
+        data-testid={`scene-number-${index + 1}`}
+        className="absolute top-2 left-2 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium z-10"
+      >
         {index + 1}
       </div>
 

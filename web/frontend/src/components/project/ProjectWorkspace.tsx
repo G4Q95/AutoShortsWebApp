@@ -28,6 +28,7 @@ import ErrorDisplay from '../ErrorDisplay';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { processVideoWithCustomization, processVideoFast } from '@/lib/project-utils';
 import { getProject } from '@/lib/storage-utils';
+import SaveStatusIndicator from './SaveStatusIndicator';
 
 interface ProjectWorkspaceProps {
   projectId?: string;
@@ -490,21 +491,7 @@ export default function ProjectWorkspace({
               <SaveIcon className="h-4 w-4 mr-1" />
               Save
             </button>
-            {lastSaved && (
-              <div className="text-xs text-gray-500 mt-1 flex items-center">
-                {isSaving ? (
-                  <>
-                    <LoaderIcon className="inline-block h-3 w-3 mr-1 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <CheckIcon className="inline-block h-3 w-3 mr-1 text-green-500" />
-                    Last saved: {formatSavedTime()}
-                  </>
-                )}
-              </div>
-            )}
+            <SaveStatusIndicator isSaving={isSaving} lastSaved={lastSaved} />
           </div>
         </div>
 
