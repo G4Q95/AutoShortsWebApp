@@ -153,7 +153,17 @@ async def proxy_reddit_video(url: str):
                 }
             )
     except Exception as e:
+        error_response = create_error_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to proxy video: {str(e)}",
+            error_code=ErrorCodes.EXTERNAL_SERVICE_ERROR,
+            details=[{
+                "loc": ["query", "url"],
+                "msg": str(e),
+                "type": "proxy_error"
+            }]
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to proxy video: {str(e)}"
+            detail=error_response
         )

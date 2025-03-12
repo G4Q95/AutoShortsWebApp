@@ -1,22 +1,21 @@
+"""
+Database module for MongoDB connection.
+"""
+
 import json
 import logging
+import os
+from contextlib import asynccontextmanager
+from datetime import datetime
 
 from bson import ObjectId
+from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.core.config import settings
+from app.core.json_encoder import MongoJSONEncoder
 
 logger = logging.getLogger(__name__)
-
-
-# Custom JSON encoder to handle MongoDB ObjectId and dates
-class MongoJSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, ObjectId):
-            return str(o)
-        if hasattr(o, "isoformat"):  # This handles date and datetime
-            return o.isoformat()
-        return super().default(o)
 
 
 class Database:
@@ -130,3 +129,17 @@ class Database:
 
 
 db = Database()
+
+class MongoJSONResponse(JSONResponse):
+    """
+    Custom JSON response that handles MongoDB ObjectId serialization.
+    """
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            cls=MongoJSONEncoder,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
