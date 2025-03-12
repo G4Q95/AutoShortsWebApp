@@ -11,26 +11,76 @@ import {
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
 
-// Utility function to clean post text by removing "Post by u/Username:" prefix
+/**
+ * Utility function to clean post text by removing "Post by u/Username:" prefix
+ * @param text - The text to clean
+ * @returns The cleaned text without the username prefix
+ */
 const cleanPostText = (text: string): string => {
   return text.replace(/^Post by u\/[^:]+:\s*/i, '');
 };
 
+/**
+ * Props for the SceneComponent
+ * @interface SceneComponentProps
+ */
 interface SceneComponentProps {
+  /** Scene data containing content and media information */
   scene: Scene;
+  /** Preview URL for the scene's media content */
   preview: string | null;
+  /** Index of the scene in the project */
   index: number;
+  /** Callback to remove a scene */
   onSceneRemove: (id: string) => void;
+  /** Callback when a scene is being moved (during drag) */
   onSceneMove: (id: string, newIndex: number) => void;
+  /** Callback when a scene's position is finalized */
   onSceneReorder: (id: string, newIndex: number) => void;
+  /** Whether the scene is in reorder mode */
   reorderMode?: boolean;
+  /** Whether the scene is read-only */
   readOnly?: boolean;
+  /** Reference to the text editor element */
   editorRef?: React.RefObject<HTMLTextAreaElement>;
+  /** Whether the scene is currently being dragged */
   isDragging?: boolean;
+  /** Whether to display the scene at full width */
   isFullWidth?: boolean;
   customStyles?: React.CSSProperties;
 }
 
+/**
+ * A component that displays and manages a single scene in a project.
+ * Handles media display, text content, drag-and-drop reordering, and scene actions.
+ * 
+ * Features:
+ * - Media preview with support for images, videos, and galleries
+ * - Text content display and editing
+ * - Drag and drop reordering
+ * - Scene removal
+ * - Error handling for media loading
+ * - Responsive design
+ * - Accessibility support
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * <SceneComponent
+ *   scene={{
+ *     id: "scene1",
+ *     url: "https://example.com",
+ *     media: { type: "image", url: "https://example.com/image.jpg" },
+ *     text: "Example scene content"
+ *   }}
+ *   preview="https://example.com/preview.jpg"
+ *   index={0}
+ *   onSceneRemove={(id) => handleRemove(id)}
+ *   onSceneMove={(id, index) => handleMove(id, index)}
+ *   onSceneReorder={(id, index) => handleReorder(id, index)}
+ * />
+ * ```
+ */
 export const SceneComponent: React.FC<SceneComponentProps> = memo(function SceneComponent({
   scene,
   preview,

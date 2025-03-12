@@ -1,19 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { LinkIcon, CheckCircleIcon, XCircleIcon, LoaderIcon } from 'lucide-react';
 
+/**
+ * Interface for URL metadata returned from the preview API
+ * @interface UrlMetadata
+ */
 interface UrlMetadata {
+  /** Title of the content at the URL */
   title: string;
+  /** Optional description of the content */
   description?: string;
+  /** Optional preview image URL */
   image?: string;
+  /** Domain name of the URL */
   domain: string;
+  /** Whether the URL is supported for content extraction */
   supportedType: boolean;
 }
 
+/**
+ * Props for the UrlPreview component
+ * @interface UrlPreviewProps
+ */
 interface UrlPreviewProps {
+  /** URL to generate preview for */
   url: string;
+  /** Optional CSS classes to apply to the component */
   className?: string;
 }
 
+/**
+ * Component that displays a preview card for a URL with metadata
+ * 
+ * Features:
+ * - Fetches and displays URL metadata (title, description, image)
+ * - Shows loading state while fetching
+ * - Handles and displays errors
+ * - Validates URL format
+ * - Indicates if URL is supported for content extraction
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * <UrlPreview 
+ *   url="https://reddit.com/r/example/post"
+ *   className="my-4"
+ * />
+ * ```
+ */
 export default function UrlPreview({ url, className = '' }: UrlPreviewProps) {
   const [loading, setLoading] = useState(false);
   const [metadata, setMetadata] = useState<UrlMetadata | null>(null);

@@ -29,6 +29,7 @@ interface LoadingIndicatorProps {
  * - Transparent background option
  * - Inline display mode
  * 
+ * @component
  * @example
  * ```tsx
  * // Basic usage
@@ -94,9 +95,9 @@ export default function LoadingIndicator({
 }
 
 /**
- * A specialized loading indicator for buttons.
- * Displays a small spinning icon suitable for use within buttons.
+ * A simplified loading indicator for use within buttons
  * 
+ * @component
  * @example
  * ```tsx
  * <button disabled={isLoading}>
@@ -109,13 +110,12 @@ export function ButtonLoader({ className = '' }: { className?: string }) {
 }
 
 /**
- * A specialized loading indicator for inline use.
- * Displays a small spinner with an optional message inline with other content.
+ * A loading indicator that displays inline with text
  * 
+ * @component
  * @example
  * ```tsx
  * <div>
- *   <p>Loading status:</p>
  *   <InlineLoader message="Fetching data..." />
  * </div>
  * ```
@@ -130,16 +130,16 @@ export function InlineLoader({ message, className = '' }: { message?: string; cl
 }
 
 /**
- * A specialized loading indicator for content areas.
- * Displays a loading spinner within a bordered container, suitable for content placeholders.
+ * A loading indicator for content areas with a skeleton loading effect
  * 
+ * @component
  * @example
  * ```tsx
- * <div className="my-4">
+ * <div className="card">
  *   {isLoading ? (
- *     <ContentLoader height="h-64" />
+ *     <ContentLoader height="h-48" />
  *   ) : (
- *     <div>{content}</div>
+ *     <Content />
  *   )}
  * </div>
  * ```
@@ -153,12 +153,12 @@ export function ContentLoader({ height = 'h-32' }: { height?: string }) {
 }
 
 /**
- * A specialized loading indicator for full page loading states.
- * Centers the loading spinner vertically and horizontally on the page.
+ * A full-page loading indicator with centered message
  * 
+ * @component
  * @example
  * ```tsx
- * {isPageLoading && <PageLoader message="Loading dashboard..." />}
+ * {isLoading && <PageLoader message="Loading application..." />}
  * ```
  */
 export function PageLoader({ message = 'Loading...' }: { message?: string }) {

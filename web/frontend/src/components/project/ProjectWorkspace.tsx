@@ -30,12 +30,58 @@ import { processVideoWithCustomization, processVideoFast } from '@/lib/project-u
 import { getProject } from '@/lib/storage-utils';
 import SaveStatusIndicator from './SaveStatusIndicator';
 
+/**
+ * Props for the ProjectWorkspace component
+ * @interface ProjectWorkspaceProps
+ */
 interface ProjectWorkspaceProps {
+  /** Optional project ID when editing an existing project */
   projectId?: string;
+  /** Optional preloaded project data */
   preloadedProject?: Project;
+  /** Optional initial project name for new projects */
   initialProjectName?: string;
 }
 
+/**
+ * The main workspace component for creating and editing video projects.
+ * Provides a full-featured interface for managing scenes, content, and project settings.
+ * 
+ * Features:
+ * - Project creation and editing
+ * - Scene management (add, remove, reorder)
+ * - URL content extraction
+ * - Drag and drop scene reordering
+ * - Auto-saving
+ * - Manual save option
+ * - Video processing with customization
+ * - Fast video processing mode
+ * - Error handling and recovery
+ * - Loading states
+ * - Project status indicators
+ * 
+ * States:
+ * - Loading: Initial project load
+ * - Saving: Auto or manual save in progress
+ * - Processing: Video generation
+ * - Error: Various error states with recovery options
+ * - Ready: Normal editing state
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * // Create new project
+ * <ProjectWorkspace 
+ *   initialProjectName="My Video Project"
+ * />
+ * 
+ * // Edit existing project
+ * <ProjectWorkspace
+ *   projectId="existing-project-id"
+ *   preloadedProject={existingProject}
+ * />
+ * ```
+ */
 export default function ProjectWorkspace({
   projectId,
   preloadedProject,
@@ -201,6 +247,14 @@ export default function ProjectWorkspace({
     }
   }, [currentProject]);
 
+  /**
+   * Formats the last saved time into a human-readable string
+   * @returns {string} A formatted string representing when the project was last saved
+   * - 'just now' for less than 60 seconds
+   * - 'X min ago' for less than an hour
+   * - 'X hours ago' for less than a day
+   * - Date string for older saves
+   */
   const formatSavedTime = () => {
     if (!lastSaved) return '';
 
@@ -215,12 +269,31 @@ export default function ProjectWorkspace({
     return savedTime.toLocaleDateString();
   };
 
-  // Original ProjectWorkspace code for URL handling
+  /**
+   * Handles changes to the URL input field
+   * Clears any previous error messages when the URL is updated
+   * @param {string} newUrl - The new URL value from the input field
+   */
   const handleUrlChange = (newUrl: string) => {
     setUrl(newUrl);
     setAddSceneError(null);
   };
 
+  /**
+   * Handles the submission of a new URL to create a scene
+   * This function performs several steps:
+   * 1. Validates the URL and project state
+   * 2. Ensures the correct project is set as current
+   * 3. Adds the scene to the project
+   * 4. Updates local and context state with the new scene
+   * 5. Handles any errors that occur during the process
+   * 
+   * @throws Will set error state if:
+   * - URL is empty
+   * - No active project exists
+   * - Scene addition fails
+   * - Project state synchronization fails
+   */
   const handleUrlSubmit = async () => {
     if (!url.trim() || !addScene) return;
 
@@ -298,12 +371,23 @@ export default function ProjectWorkspace({
     }
   };
 
+  /**
+   * Fills the URL input field with an example Reddit post URL
+   * Used for demonstration purposes and to help users understand the expected format
+   */
   const fillExampleUrl = () => {
     setUrl(
       'https://www.reddit.com/r/oddlyterrifying/comments/1j7csx4/some_sorta_squid_in_australian_street/'
     );
   };
 
+  /**
+   * Retries loading a scene by removing and re-adding it with the same URL
+   * Useful when a scene fails to load initially due to temporary issues
+   * 
+   * @param {string} sceneId - The ID of the scene to retry
+   * @param {string} url - The original URL of the scene
+   */
   const handleRetryLoad = async (sceneId: string, url: string) => {
     if (!removeScene || !addScene) return;
 
@@ -318,6 +402,12 @@ export default function ProjectWorkspace({
     }
   };
 
+  /**
+   * Handles the completion of a drag-and-drop operation for scene reordering
+   * Updates the scene order in the project state based on the drag result
+   * 
+   * @param {DropResult} result - The result object from react-beautiful-dnd containing source and destination indices
+   */
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination || !reorderScenes) {
       console.log('Invalid drag result or reorderScenes not available:', result);
@@ -346,6 +436,12 @@ export default function ProjectWorkspace({
     }
   };
 
+  /**
+   * Creates a new project with the current title
+   * Prevents default form submission and validates the title
+   * 
+   * @param {React.FormEvent} e - The form submission event
+   */
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -354,6 +450,15 @@ export default function ProjectWorkspace({
     // Implementation would go here
   };
 
+  /**
+   * Manually saves the current project state
+   * Handles various edge cases:
+   * - Project not in context
+   * - Project needs to be loaded first
+   * - Project state synchronization
+   * 
+   * Includes delays to ensure state updates are processed
+   */
   const handleManualSave = () => {
     if (!saveCurrentProject) {
       console.error('Save function not available');
@@ -398,6 +503,12 @@ export default function ProjectWorkspace({
     saveCurrentProject();
   };
 
+  /**
+   * Processes the video with customization options
+   * Initiates the full video processing pipeline with all customization features
+   * 
+   * @throws Will set error state if video processing fails
+   */
   const handleProcessVideo = async () => {
     if (!effectiveProject) return;
 
@@ -409,6 +520,12 @@ export default function ProjectWorkspace({
     }
   };
 
+  /**
+   * Processes the video in fast mode
+   * Uses a simplified processing pipeline for quicker results
+   * 
+   * @throws Will set error state if fast processing fails
+   */
   const handleFastVideo = async () => {
     if (!effectiveProject) return;
 
@@ -420,7 +537,13 @@ export default function ProjectWorkspace({
     }
   };
 
-  // Wrapper for scene removal with better debugging
+  /**
+   * Removes a scene from the project with proper state synchronization
+   * Includes error handling and project state validation
+   * Uses a callback to prevent unnecessary re-renders
+   * 
+   * @param {string} sceneId - The ID of the scene to remove
+   */
   const handleRemoveScene = useCallback((sceneId: string) => {
     if (!removeScene) {
       console.error('Cannot remove scene: removeScene function is not available');

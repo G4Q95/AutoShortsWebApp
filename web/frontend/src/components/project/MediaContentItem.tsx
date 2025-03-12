@@ -13,20 +13,72 @@ import {
 import { Scene } from './ProjectProvider';
 import ErrorDisplay from '../ErrorDisplay';
 
-// Utility function to clean post text by removing "Post by u/Username:" prefix
+/**
+ * Utility function to clean post text by removing "Post by u/Username:" prefix
+ * @param text - The text to clean
+ * @returns The cleaned text without the username prefix
+ */
 const cleanPostText = (text: string): string => {
   return text.replace(/^Post by u\/[^:]+:\s*/i, '');
 };
 
+/**
+ * Props for the MediaContentItem component
+ * @interface MediaContentItemProps
+ */
 interface MediaContentItemProps {
+  /** Scene data containing content and media information */
   scene: Scene;
+  /** Index of the scene in the project */
   index: number;
+  /** Callback to remove a scene */
   onRemove: (id: string) => void;
+  /** Callback when text content is changed */
   onTextChange: (id: string, text: string) => void;
+  /** Optional callback to retry loading media content */
   onRetryLoad?: (url: string) => Promise<void>;
+  /** Whether the item is currently being dragged */
   isDragging?: boolean;
 }
 
+/**
+ * A component that displays and manages media content (images, videos, galleries) with associated text.
+ * Handles media loading, error states, text editing, and content actions.
+ * 
+ * Features:
+ * - Image, video, and gallery display
+ * - Loading states with progress indicators
+ * - Error handling with retry options
+ * - Text content editing
+ * - Media controls (play/pause for videos)
+ * - Expanded view mode
+ * - Drag and drop support
+ * - Responsive design
+ * 
+ * States:
+ * - Loading: Shows loading indicator
+ * - Error: Shows error message with retry option
+ * - Playing: For video content
+ * - Expanded: For fullscreen view
+ * - Editing: For text content
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * <MediaContentItem
+ *   scene={{
+ *     id: "scene1",
+ *     url: "https://example.com",
+ *     media: { type: "image", url: "https://example.com/image.jpg" },
+ *     text: "Example content"
+ *   }}
+ *   index={0}
+ *   onRemove={(id) => handleRemove(id)}
+ *   onTextChange={(id, text) => handleTextChange(id, text)}
+ *   onRetryLoad={async (url) => await retryLoadingMedia(url)}
+ * />
+ * ```
+ */
 export default function MediaContentItem({
   scene,
   index,
