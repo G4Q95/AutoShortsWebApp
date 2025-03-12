@@ -1,15 +1,52 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 
+/**
+ * Props for the LoadingIndicator component
+ */
 interface LoadingIndicatorProps {
+  /** Size of the loading indicator - 'small', 'medium', or 'large' */
   size?: 'small' | 'medium' | 'large';
+  /** Optional message to display below the loading spinner */
   message?: string;
+  /** Whether to display the loading indicator in fullscreen mode */
   fullscreen?: boolean;
+  /** Whether to use a transparent background */
   transparent?: boolean;
+  /** Additional CSS classes to apply to the component */
   className?: string;
+  /** Whether to display the loading indicator inline with other content */
   inline?: boolean;
 }
 
+/**
+ * A versatile loading indicator component that displays a spinning animation with optional message.
+ * 
+ * Features:
+ * - Multiple size options (small, medium, large)
+ * - Optional loading message
+ * - Fullscreen mode for loading overlays
+ * - Transparent background option
+ * - Inline display mode
+ * 
+ * @example
+ * ```tsx
+ * // Basic usage
+ * <LoadingIndicator />
+ * 
+ * // With message and custom size
+ * <LoadingIndicator 
+ *   size="large"
+ *   message="Loading your content..."
+ * />
+ * 
+ * // Fullscreen overlay
+ * <LoadingIndicator 
+ *   fullscreen
+ *   message="Processing video..."
+ * />
+ * ```
+ */
 export default function LoadingIndicator({
   size = 'medium',
   message,
@@ -56,11 +93,33 @@ export default function LoadingIndicator({
   return spinner;
 }
 
-// For convenience, also export specialized loading components
+/**
+ * A specialized loading indicator for buttons.
+ * Displays a small spinning icon suitable for use within buttons.
+ * 
+ * @example
+ * ```tsx
+ * <button disabled={isLoading}>
+ *   {isLoading ? <ButtonLoader /> : 'Submit'}
+ * </button>
+ * ```
+ */
 export function ButtonLoader({ className = '' }: { className?: string }) {
   return <Loader2 className={`animate-spin h-4 w-4 ${className}`} />;
 }
 
+/**
+ * A specialized loading indicator for inline use.
+ * Displays a small spinner with an optional message inline with other content.
+ * 
+ * @example
+ * ```tsx
+ * <div>
+ *   <p>Loading status:</p>
+ *   <InlineLoader message="Fetching data..." />
+ * </div>
+ * ```
+ */
 export function InlineLoader({ message, className = '' }: { message?: string; className?: string }) {
   return (
     <div className={`inline-flex items-center text-gray-500 ${className}`}>
@@ -70,6 +129,21 @@ export function InlineLoader({ message, className = '' }: { message?: string; cl
   );
 }
 
+/**
+ * A specialized loading indicator for content areas.
+ * Displays a loading spinner within a bordered container, suitable for content placeholders.
+ * 
+ * @example
+ * ```tsx
+ * <div className="my-4">
+ *   {isLoading ? (
+ *     <ContentLoader height="h-64" />
+ *   ) : (
+ *     <div>{content}</div>
+ *   )}
+ * </div>
+ * ```
+ */
 export function ContentLoader({ height = 'h-32' }: { height?: string }) {
   return (
     <div className={`w-full ${height} flex items-center justify-center border border-gray-200 rounded-md bg-gray-50`}>
@@ -78,6 +152,15 @@ export function ContentLoader({ height = 'h-32' }: { height?: string }) {
   );
 }
 
+/**
+ * A specialized loading indicator for full page loading states.
+ * Centers the loading spinner vertically and horizontally on the page.
+ * 
+ * @example
+ * ```tsx
+ * {isPageLoading && <PageLoader message="Loading dashboard..." />}
+ * ```
+ */
 export function PageLoader({ message = 'Loading...' }: { message?: string }) {
   return (
     <div className="w-full h-[calc(100vh-4rem)] flex items-center justify-center">

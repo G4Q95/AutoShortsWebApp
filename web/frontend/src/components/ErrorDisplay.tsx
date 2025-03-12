@@ -1,16 +1,58 @@
 import React from 'react';
 import { AlertCircleIcon, RefreshCwIcon, ExternalLinkIcon, WifiOffIcon } from 'lucide-react';
 
+/**
+ * Error types supported by the ErrorDisplay component
+ */
 export type ErrorType = 'network' | 'validation' | 'extraction' | 'processing' | 'general';
 
+/**
+ * Props for the ErrorDisplay component
+ */
 interface ErrorDisplayProps {
-  error: string;
+  /** The error message or object to display */
+  error: string | Error;
+  /** The type of error that occurred */
   type?: ErrorType;
+  /** Optional callback function to retry the failed operation */
   onRetry?: () => void;
+  /** Whether to show the retry button */
   showRetry?: boolean;
+  /** Additional CSS classes to apply to the component */
   className?: string;
 }
 
+/**
+ * A reusable error display component that shows error messages with appropriate styling and actions.
+ * 
+ * Features:
+ * - Different styles based on error type (network, validation, extraction, processing, general)
+ * - Optional retry functionality
+ * - Automatic detection of Reddit-related errors
+ * - Rate limit error detection
+ * - Responsive design with appropriate icons
+ * 
+ * @example
+ * ```tsx
+ * // Basic usage
+ * <ErrorDisplay error="Failed to load content" />
+ * 
+ * // With retry functionality
+ * <ErrorDisplay 
+ *   error="Network error occurred"
+ *   type="network"
+ *   showRetry={true}
+ *   onRetry={() => handleRetry()}
+ * />
+ * 
+ * // With custom styling
+ * <ErrorDisplay 
+ *   error="Validation failed"
+ *   type="validation"
+ *   className="my-4"
+ * />
+ * ```
+ */
 export default function ErrorDisplay({
   error,
   type = 'general',
@@ -18,12 +60,15 @@ export default function ErrorDisplay({
   showRetry = false,
   className = '',
 }: ErrorDisplayProps) {
+  // Convert error to string if it's an Error object
+  const errorMessage = error instanceof Error ? error.message : error;
+
   // Determine if error is likely due to Reddit URL issues
   const isRedditError =
-    error.toLowerCase().includes('reddit') || error.toLowerCase().includes('redirect');
+    errorMessage.toLowerCase().includes('reddit') || errorMessage.toLowerCase().includes('redirect');
 
-  const isRateLimitError = error.toLowerCase().includes('rate limit') || 
-    error.toLowerCase().includes('too many requests');
+  const isRateLimitError = errorMessage.toLowerCase().includes('rate limit') || 
+    errorMessage.toLowerCase().includes('too many requests');
 
   // Custom styling based on error type
   const getContainerStyles = () => {
@@ -103,7 +148,7 @@ export default function ErrorDisplay({
     <div className={`p-4 border rounded-md mb-4 ${getContainerStyles()} ${className}`}>
       <div className="flex items-start">
         {getIcon()}
-        <span>{error}</span>
+        <span>{errorMessage}</span>
       </div>
 
       {getSuggestion()}

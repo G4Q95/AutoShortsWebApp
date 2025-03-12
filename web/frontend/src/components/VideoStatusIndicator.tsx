@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Loader2Icon,
   CheckCircleIcon,
@@ -15,25 +15,95 @@ import {
 // API request function to get status
 import { getVideoStatus } from '@/lib/api-client';
 
+/**
+ * Represents the different states of video processing
+ */
 export type ProcessingStatus =
-  | 'queued'
-  | 'extracting_content'
-  | 'rewriting_text'
-  | 'generating_voice'
-  | 'creating_video'
-  | 'uploading'
-  | 'completed'
-  | 'failed'
-  | 'unknown';
+  | 'queued'           // Video is queued for processing
+  | 'extracting_content' // Extracting content from source URL
+  | 'rewriting_text'    // AI is rewriting the text content
+  | 'generating_voice'  // Generating voiceover audio
+  | 'creating_video'    // Assembling the final video
+  | 'uploading'        // Uploading to storage
+  | 'completed'        // Processing completed successfully
+  | 'failed'           // Processing failed
+  | 'unknown';         // Status cannot be determined
 
+/**
+ * Props for the VideoStatusIndicator component
+ */
 interface VideoStatusIndicatorProps {
+  /** Task ID to check status for */
   taskId: string;
-  onComplete?: (videoUrl: string) => void;
+  /** Callback function called when processing completes successfully with the video URL */
+  onComplete?: (url: string) => void;
+  /** Additional CSS classes to apply to the component */
   className?: string;
+  /** Whether to automatically refresh the status */
   autoRefresh?: boolean;
-  refreshInterval?: number; // in milliseconds
+  /** Interval in milliseconds between status checks when auto-refreshing */
+  refreshInterval?: number;
 }
 
+// Helper function to map API status to our ProcessingStatus type
+const mapApiStatus = (apiStatus: string): ProcessingStatus => {
+  switch (apiStatus) {
+    case 'processing':
+      return 'extracting_content'; // Default to first processing step
+    case 'completed':
+      return 'completed';
+    case 'failed':
+      return 'failed';
+    case 'queued':
+      return 'queued';
+    default:
+      return 'unknown';
+  }
+};
+
+/**
+ * A component that displays the current status of video processing with a step-by-step indicator.
+ * 
+ * Features:
+ * - Real-time status updates
+ * - Visual progress through processing steps
+ * - Automatic status polling
+ * - Error state handling
+ * - Completion callback
+ * 
+ * The component shows the following steps:
+ * 1. Queued
+ * 2. Extracting Content
+ * 3. Rewriting Text
+ * 4. Generating Voice
+ * 5. Creating Video
+ * 6. Uploading
+ * 
+ * Each step can be in one of these states:
+ * - Not started (empty circle)
+ * - In progress (spinning blue circle)
+ * - Completed (green checkmark)
+ * - Failed (red X)
+ * 
+ * @example
+ * ```tsx
+ * // Basic usage
+ * <VideoStatusIndicator taskId="task_123" />
+ * 
+ * // With completion callback
+ * <VideoStatusIndicator 
+ *   taskId="task_123"
+ *   onComplete={() => handleVideoComplete()}
+ * />
+ * 
+ * // With custom refresh interval
+ * <VideoStatusIndicator 
+ *   taskId="task_123"
+ *   autoRefresh={true}
+ *   refreshInterval={10000}
+ * />
+ * ```
+ */
 export default function VideoStatusIndicator({
   taskId,
   onComplete,
@@ -44,119 +114,98 @@ export default function VideoStatusIndicator({
   const [status, setStatus] = useState<ProcessingStatus>('unknown');
   const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  // TODO: Known linter warning - useRef without initial value is intentional here as we want undefined for cleanup
+  const statusCheckRef = useRef<NodeJS.Timeout>();
 
-  // Function to fetch the current status
-  const fetchStatus = async () => {
-    if (!taskId) return;
-
-    setIsLoading(true);
-    try {
-      const response = await getVideoStatus(taskId);
-
-      if (response.error) {
-        setError(response.error.detail || 'Failed to fetch status');
-        return;
-      }
-
-      if (response.data) {
-        const statusData = response.data;
-        setStatus(statusData.status as ProcessingStatus);
-
-        if (statusData.storage_url) {
-          setVideoUrl(statusData.storage_url);
-          if (onComplete && statusData.status === 'completed') {
-            onComplete(statusData.storage_url);
-          }
-        }
-
-        if (statusData.error) {
-          setError(statusData.error);
-        } else {
-          setError(null);
-        }
-
-        setLastUpdated(new Date());
-      }
-    } catch (err) {
-      setError('Failed to connect to the server');
-      console.error('Error fetching status:', err);
-    } finally {
-      setIsLoading(false);
+  // Memoize onComplete to avoid unnecessary re-renders
+  const handleComplete = useCallback(() => {
+    if (onComplete && videoUrl) {
+      onComplete(videoUrl);
     }
-  };
+  }, [onComplete, videoUrl]);
 
-  // Initially fetch status
   useEffect(() => {
-    let isMounted = true;
-    let intervalId: NodeJS.Timeout | null = null;
-
-    const fetchStatusSafely = async () => {
-      if (!taskId || !isMounted) return;
-
-      setIsLoading(true);
+    // Function to check status
+    const checkStatus = async () => {
       try {
         const response = await getVideoStatus(taskId);
-
-        if (!isMounted) return;
-
+        
         if (response.error) {
-          setError(response.error.detail || 'Failed to fetch status');
+          setError(response.error.message || 'Failed to get video status');
           return;
         }
 
         if (response.data) {
           const statusData = response.data;
-          setStatus(statusData.status as ProcessingStatus);
-
-          if (statusData.storage_url) {
-            setVideoUrl(statusData.storage_url);
-            if (onComplete && statusData.status === 'completed') {
-              onComplete(statusData.storage_url);
-            }
-          }
-
+          setStatus(mapApiStatus(statusData.status));
+          
           if (statusData.error) {
             setError(statusData.error);
           } else {
             setError(null);
           }
 
-          setLastUpdated(new Date());
+          if (statusData.url) {
+            setVideoUrl(statusData.url);
+            if (statusData.status === 'completed') {
+              handleComplete();
+            }
+          }
         }
-      } catch (err) {
-        if (!isMounted) return;
-        setError('Failed to connect to the server');
-        console.error('Error fetching status:', err);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+      } catch (error) {
+        console.error('Error checking video status:', error);
+        setError('Failed to check video status');
       }
     };
 
-    // Initial fetch
-    fetchStatusSafely();
+    // Initial check
+    checkStatus();
 
-    // Set up auto-refresh if enabled
-    if (autoRefresh) {
-      intervalId = setInterval(() => {
-        // Don't auto-refresh if already completed or failed
-        if (status !== 'completed' && status !== 'failed') {
-          fetchStatusSafely();
-        }
-      }, refreshInterval);
+    // Set up polling if autoRefresh is enabled
+    if (autoRefresh && status !== 'completed' && status !== 'failed') {
+      statusCheckRef.current = setInterval(checkStatus, refreshInterval);
     }
 
-    // Cleanup function
+    // Cleanup
     return () => {
-      isMounted = false;
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (statusCheckRef.current) {
+        clearInterval(statusCheckRef.current);
       }
     };
-  }, [taskId, autoRefresh, refreshInterval, status, onComplete]);
+  }, [taskId, handleComplete, autoRefresh, refreshInterval, status]);
+
+  // Manual refresh handler
+  const handleRefresh = async () => {
+    try {
+      const response = await getVideoStatus(taskId);
+      
+      if (response.error) {
+        setError(response.error.message || 'Failed to get video status');
+        return;
+      }
+
+      if (response.data) {
+        const statusData = response.data;
+        setStatus(mapApiStatus(statusData.status));
+        
+        if (statusData.error) {
+          setError(statusData.error);
+        } else {
+          setError(null);
+        }
+
+        if (statusData.url) {
+          setVideoUrl(statusData.url);
+          if (statusData.status === 'completed') {
+            handleComplete();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking video status:', error);
+      setError('Failed to check video status');
+    }
+  };
 
   // Get the appropriate icon for each status
   const getStatusIcon = (statusType: ProcessingStatus) => {
@@ -271,19 +320,18 @@ export default function VideoStatusIndicator({
         <h3 className="text-lg font-medium">Video Processing Status</h3>
 
         <div className="flex items-center gap-2">
-          {lastUpdated && (
-            <span className="text-xs text-gray-500">
-              Updated {lastUpdated.toLocaleTimeString()}
-            </span>
-          )}
+          {/* Placeholder for updated time */}
+          <span className="text-xs text-gray-500">
+            Updated {new Date().toLocaleTimeString()}
+          </span>
 
           <button
-            onClick={fetchStatus}
-            disabled={isLoading}
+            onClick={handleRefresh}
+            disabled={status === 'completed' || status === 'failed'}
             className="p-1 hover:bg-gray-100 rounded-full"
             title="Refresh status"
           >
-            <RefreshCwIcon className={`h-4 w-4 text-gray-500 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCwIcon className={`h-4 w-4 text-gray-500 ${status === 'completed' || status === 'failed' ? 'opacity-50' : ''}`} />
           </button>
         </div>
       </div>
@@ -437,3 +485,4 @@ export default function VideoStatusIndicator({
     </div>
   );
 }
+
