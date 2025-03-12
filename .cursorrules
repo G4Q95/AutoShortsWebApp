@@ -375,3 +375,90 @@ When working with the Docker development environment:
    - Keep Docker images lightweight by using multi-stage builds
    - Use volumes for development to reflect changes without rebuilds
    - Tag images appropriately when building for different environments
+
+## Pre-Commit Checklist
+
+Before committing code, ensure you've checked the following:
+
+### Code Quality
+- Code follows the established coding standards
+- No unnecessary comments or console logs
+- No hardcoded values that should be configuration
+- No duplicate code
+- No unused variables or imports
+
+### Testing
+- All existing tests pass
+- New tests added for new functionality
+- Edge cases and error conditions tested
+
+### Documentation
+- Code is well-documented
+- README updated if necessary
+- progress.md updated if significant changes
+
+### Security & Performance
+- No sensitive information in code
+- No performance bottlenecks introduced
+- No memory leaks
+
+## Enhanced Component Structure Guidelines
+
+Follow this structure for React components:
+
+```tsx
+// Imports (grouped and ordered)
+import React, { useState, useEffect } from 'react';
+import { useProject } from '@/contexts/ProjectContext';
+// External libraries
+import { motion } from 'framer-motion';
+// Internal components
+import { Button } from '@/components/ui/Button';
+// Utilities
+import { validateUrl } from '@/utils/validation-utils';
+
+// Types
+interface ComponentProps {
+  // Props definition
+}
+
+/**
+ * ComponentName - Brief description of what this component does
+ * 
+ * @param props - Component props
+ * @returns JSX element
+ */
+export function ComponentName({ prop1, prop2 }: ComponentProps) {
+  // State management
+  const [state, setState] = useState();
+  
+  // Hooks
+  useEffect(() => {
+    // Effect code
+  }, [dependencies]);
+  
+  // Event handlers
+  const handleEvent = () => {
+    // Event handling code
+  };
+  
+  // Render
+  return (
+    <div>
+      {/* JSX structure */}
+    </div>
+  );
+}
+```
+
+## Enhanced Error Handling Guidelines
+
+- Use try/catch blocks for all async operations
+- Provide meaningful error messages that help with debugging
+- Use the ErrorDisplay component for consistent error presentation
+- Match error handling approaches between frontend and backend
+- Log errors appropriately (console in dev, logging service in prod)
+- Categorize errors by type (network, validation, server, etc.)
+- Use appropriate HTTP status codes in API responses
+- Handle offline scenarios gracefully
+- Implement retry mechanisms for transient failures

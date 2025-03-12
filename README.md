@@ -200,6 +200,7 @@ This project has several documentation files for different purposes:
 | **PROJECT_OVERVIEW.md** | `/docs/` | Comprehensive project concept, architecture, and business model |
 | **PROJECT_INSTRUCTIONS.md** | `/docs/` | Detailed implementation steps and technical requirements |
 | **progress.md** | `/docs/` | Current development status, completed tasks, and upcoming work |
+| **DEVELOPMENT_WORKFLOW.md** | `/` | Development process, code quality practices, and workflow guidelines |
 | **API_STANDARDS.md** | `/docs/` | API standards, response formats, and error handling documentation |
 | **API_ENDPOINTS.md** | `/docs/` | Comprehensive API endpoint documentation with examples |
 | **lightweight-refactoring-prompt.md** | `/docs/` | Current refactoring plan and progress |
@@ -208,3 +209,53 @@ This project has several documentation files for different purposes:
 | **backend/README.md** | `/web/backend/` | Backend-specific setup and development information |
 
 When starting a new chat in Cursor with Claude, consider adding relevant context files (especially `.cursorrules` and appropriate documentation) to ensure consistent development patterns. 
+
+## Standards & Best Practices
+
+This project follows strict coding standards and best practices to maintain code quality and consistency. These standards were established and refined during our lightweight refactoring process.
+
+### Key Standards Documents
+
+| Document | Description |
+|----------|-------------|
+| **[.cursorrules](.cursorrules)** | Primary source for coding standards, naming conventions, component structure, and commit conventions |
+| **[DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md)** | Detailed workflow for feature development, bug fixing, and code maintenance |
+
+### Core Principles
+
+1. **Code Organization**
+   - Dedicated utility files for different concerns
+   - Consistent file and directory naming
+   - Clear separation of frontend and backend code
+
+2. **Quality Standards**
+   - Pre-commit checklist for code review
+   - Enhanced testing requirements
+   - Documentation standards for code and APIs
+
+3. **Error Handling**
+   - Consistent error display components
+   - Standardized API error responses
+   - Comprehensive error logging
+
+4. **State Management**
+   - Centralized context for global state
+   - Local state for component-specific concerns
+   - Optimized to prevent unnecessary re-renders
+
+5. **API Standards**
+   - RESTful principles for endpoint design
+   - Consistent response formats
+   - Comprehensive error codes and messages
+
+### Maintaining Quality
+
+To maintain code quality as the project grows:
+
+1. **Follow the development workflow** in DEVELOPMENT_WORKFLOW.md
+2. **Use the pre-commit checklist** in .cursorrules
+3. **Run tests regularly** to catch issues early
+4. **Document code** with JSDoc comments
+5. **Update documentation** when making significant changes
+
+These standards ensure we maintain high code quality while delivering features efficiently. 
