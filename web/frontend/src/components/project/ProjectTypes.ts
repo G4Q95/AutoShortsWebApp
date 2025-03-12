@@ -1,6 +1,7 @@
 // Types for the project management system
 
 import { generateId } from '../../lib/id-utils';
+import { determineMediaType } from '../../lib/media-utils';
 
 // Define the structure of a scene
 export interface Scene {
@@ -77,28 +78,8 @@ export const initialState: ProjectState = {
   isSaving: false,
 };
 
-// Helper function to determine media type from API response
-export const determineMediaType = (data: any): 'image' | 'video' | 'gallery' => {
-  // If media_type is directly provided (from backend API response)
-  if (data.media_type) {
-    if (data.media_type === 'video') return 'video';
-    if (data.media_type === 'image') return 'image';
-    if (data.media_type === 'gallery') return 'gallery';
-  }
+// Re-export for backward compatibility
+export { generateId };
 
-  // Check URL patterns as fallback
-  const mediaUrl = data.media_url || '';
-  if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) return 'video';
-  if (mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return 'image';
-
-  // Handle gallery type
-  if (data.preview_images && data.preview_images.length > 1) {
-    return 'gallery';
-  }
-
-  // Default to image for safety
-  return 'image';
-};
-
-// Re-export generateId for backward compatibility
-export { generateId }; 
+// Re-export media utilities
+export { determineMediaType }; 
