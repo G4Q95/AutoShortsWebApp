@@ -144,6 +144,18 @@ This document outlines the development workflow for the Auto Shorts Web App proj
    - Never commit code that doesn't pass linting checks
    - Address formatting issues before code reviews
 
+6. **API Documentation Maintenance**
+   - Document all API changes in Swagger UI using FastAPI decorators
+   - Include detailed descriptions for all endpoints, parameters, and responses
+   - Add request and response examples for every endpoint
+   - Organize endpoints with appropriate tags
+   - Test documentation by using the Swagger UI interactive interface
+   - Update documentation before submitting code for review
+   - Follow standards in `docs/API_DOCUMENTATION_GUIDE.md`
+   - Ensure all error responses are documented
+   - Use proper status codes and consistent response formats
+   - Validate that OpenAPI schema generation works correctly
+
 ## Release Management
 
 1. **Release Planning**
@@ -183,6 +195,16 @@ This document outlines the development workflow for the Auto Shorts Web App proj
    - Run tests automatically on push
    - Check code quality with linters
    - Verify build passes before merge
+
+4. **Makefile Commands**
+   - Use `make` commands for consistent workflow across the team
+   - Common commands:
+     - `make up` / `make down` - Start/stop Docker containers
+     - `make test` - Run all tests
+     - `make format` / `make lint` - Code quality checks
+     - `make dev-setup` - Set up development environment
+   - Always check `make help` for the full list of commands
+   - See [docs/MAKEFILE_GUIDE.md](docs/MAKEFILE_GUIDE.md) for detailed usage
 
 ## GitHub Actions CI/CD Pipeline
 

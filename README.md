@@ -169,6 +169,30 @@ API documentation will be available at:
 - Swagger UI: `http://localhost:8001/docs`
 - ReDoc: `http://localhost:8001/redoc`
 
+### API Documentation
+
+The Auto Shorts Web App provides comprehensive API documentation through FastAPI's Swagger UI integration:
+
+- **Interactive Documentation**: Full API reference available at:
+  - Swagger UI: `http://localhost:8000/docs` (development) or `https://api.autoshortsapp.com/docs` (production)
+  - ReDoc: `http://localhost:8000/redoc` (alternative documentation viewer)
+
+- **Documentation Features**:
+  - Interactive endpoint testing directly in the browser
+  - Detailed request and response schemas with examples
+  - Authentication integration for testing secured endpoints
+  - Comprehensive error responses and status codes
+  - Logically organized API categories
+
+- **API Standards**:
+  - RESTful design principles
+  - Consistent response formats
+  - Standardized error handling
+  - Proper HTTP status code usage
+  - Detailed validation rules
+
+For API development guidelines and documentation standards, see [docs/API_DOCUMENTATION_GUIDE.md](docs/API_DOCUMENTATION_GUIDE.md).
+
 ### Environment Variable Validation
 
 The application includes automatic environment variable validation to prevent runtime errors:
@@ -231,6 +255,41 @@ The project enforces code quality and consistency through automated formatting a
    - Check backend only: `cd web/backend && black . --check && isort . --check && flake8 .`
 
 For detailed guidelines and configuration information, see [docs/CODE_QUALITY.md](docs/CODE_QUALITY.md).
+
+### Makefile for Common Tasks
+
+The project includes a Makefile that provides simple commands for common development tasks:
+
+1. **Docker Management**:
+   ```bash
+   make up           # Start all Docker containers
+   make down         # Stop all Docker containers
+   make logs         # View logs from all containers
+   ```
+
+2. **Development**:
+   ```bash
+   make install      # Install all dependencies
+   make frontend     # Start frontend server
+   make backend      # Start backend server
+   make browser-tools # Start browser tools server
+   ```
+
+3. **Testing and Quality**:
+   ```bash
+   make test         # Run all tests
+   make format       # Format all code
+   make lint         # Check code quality
+   ```
+
+4. **Setup and Utilities**:
+   ```bash
+   make dev-setup    # Initial development setup
+   make clean        # Clean temporary files
+   make check-env    # Validate environment
+   ```
+
+View all available commands with `make help`. For detailed usage instructions, see [docs/MAKEFILE_GUIDE.md](docs/MAKEFILE_GUIDE.md).
 
 ## Deployment
 
