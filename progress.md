@@ -22,6 +22,9 @@ The current focus is on improving code stability, API connectivity, and refactor
 - ✅ Created standardized error handling utilities for frontend and backend
 - ✅ Implemented consistent UI components for loading states and error displays
 - ✅ Enhanced API client with improved error formatting and logging
+- ✅ Fixed E2E tests to properly target the DOM elements using resilient selectors
+- ✅ Implemented robust test handling with progressive fallback approaches for element selection
+- ✅ Added detailed logging and screenshots in tests for better debugging
 
 ### In Progress
 - 🔄 Lightweight code refactoring to improve maintainability:
@@ -53,6 +56,7 @@ The current focus is on improving code stability, API connectivity, and refactor
 - API connectivity and error handling - COMPLETED
 - Error display components with standardized formatting - COMPLETED
 - Loading indicators with consistent styling - COMPLETED
+- E2E test suite for core functionality - COMPLETED
 - Scene text editing functionality - NOT STARTED
 - Media trimming/cropping controls - NOT STARTED
 - Video generation interface - IN PROGRESS (30% complete)
@@ -95,6 +99,16 @@ This checkpoint marks the completion of the core project workspace functionality
    - ✅ API endpoints for all project operations
    - ✅ Reddit content extraction with redirect handling
 
+4. **Testing**:
+   - ✅ Core functionality E2E tests cover:
+     - Home page navigation
+     - Project creation
+     - Scene addition
+     - Scene reordering
+     - Scene deletion
+   - ✅ Tests implemented with resilient selectors and fallback approaches
+   - ✅ Detailed logging and screenshots for better debugging
+
 ## Timeline Status
 
 We are in Phase 2 of the project, focused on connecting the frontend workspace to backend processing. We have completed approximately 70% of this phase:
@@ -102,6 +116,7 @@ We are in Phase 2 of the project, focused on connecting the frontend workspace t
 - ✅ Content extraction from Reddit is fully functional
 - ✅ Project workspace UI is complete with scene organization
 - ✅ MongoDB integration for project persistence is working
+- ✅ Comprehensive E2E tests for core functionality are implemented
 - 🔄 Video processing pipeline is partially implemented (40%)
 - 🔄 Advanced UI features for content editing are in early stages
 
@@ -131,6 +146,12 @@ We are in Phase 2 of the project, focused on connecting the frontend workspace t
    - Add user-specific project storage
    - Create user profile and preferences
    - Implement role-based feature access (free vs. premium)
+
+5. **Expand Test Coverage**:
+   - Add tests for video processing
+   - Add tests for user authentication
+   - Add API integration tests
+   - Implement test helpers for common operations
 
 ## Known Issues & Technical Debt
 

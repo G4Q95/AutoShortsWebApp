@@ -22,6 +22,9 @@ You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python
 - Write thorough tests for all major functionality
 - Avoid making major changes to the patterns and architecture of how a feature works, after it has shown to work well, unless explicitly instructed
 - Always think about what other methods and areas of code might be affected by code changes
+- Run tests after making significant changes to ensure they still pass with the new implementation
+- If tests fail after changes, address test failures before continuing with new features
+- When changing UI components or selectors, check that existing E2E tests still work with the new structure
 
 ## Browser MCP Tool Usage Guidelines
 
