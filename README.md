@@ -169,6 +169,20 @@ API documentation will be available at:
 - Swagger UI: `http://localhost:8001/docs`
 - ReDoc: `http://localhost:8001/redoc`
 
+### Environment Variable Validation
+
+The application includes automatic environment variable validation to prevent runtime errors:
+
+1. **On Startup**: The application checks for required environment variables
+2. **Clear Error Messages**: If variables are missing, detailed error messages are displayed
+3. **Format Validation**: Validates the format of important variables like MongoDB URI
+
+If validation fails:
+- Backend: Displays an error message and exits
+- Frontend: Shows a red banner with error details (console has additional information)
+
+This helps identify configuration issues early and provides clear guidance on what needs to be fixed.
+
 ## Deployment
 
 - Frontend: Deployed on Vercel

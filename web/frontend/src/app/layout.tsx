@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import EnvironmentValidator from '@/components/EnvironmentValidator';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -22,6 +23,7 @@ export default function RootLayout({
         <Header />
         <main className="flex-grow container mx-auto px-4 py-8">{children}</main>
         <Footer />
+        <EnvironmentValidator />
       </body>
     </html>
   );
