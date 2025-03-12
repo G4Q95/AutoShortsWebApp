@@ -206,6 +206,32 @@ This automation helps:
 
 Test results are available as artifacts in GitHub Actions, making it easy to diagnose any failures.
 
+### Automated Code Formatting and Linting
+
+The project enforces code quality and consistency through automated formatting and linting tools:
+
+1. **Frontend (Next.js/React)**:
+   - ESLint: Catches JavaScript/TypeScript errors and enforces best practices
+   - Prettier: Ensures consistent code formatting and style
+
+2. **Backend (FastAPI/Python)**:
+   - Black: Formats Python code in a consistent, opinionated style
+   - isort: Organizes import statements systematically
+   - Flake8: Catches Python errors and style issues
+   - mypy: Provides optional static type checking
+
+3. **Automation**:
+   - GitHub Actions workflow automatically checks formatting and linting
+   - Pre-commit hooks prevent committing code that doesn't meet standards
+   - VS Code integration for real-time feedback while coding
+
+4. **Tools**:
+   - Format entire codebase with: `./format_codebase.sh`
+   - Check frontend only: `cd web/frontend && npm run lint`
+   - Check backend only: `cd web/backend && black . --check && isort . --check && flake8 .`
+
+For detailed guidelines and configuration information, see [docs/CODE_QUALITY.md](docs/CODE_QUALITY.md).
+
 ## Deployment
 
 - Frontend: Deployed on Vercel

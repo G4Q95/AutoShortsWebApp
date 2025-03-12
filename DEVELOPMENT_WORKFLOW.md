@@ -134,6 +134,16 @@ This document outlines the development workflow for the Auto Shorts Web App proj
    - Maintain clear API documentation
    - Update setup instructions when dependencies change
 
+5. **Code Formatting and Linting**
+   - All code must follow the project's formatting and linting rules
+   - Use the provided tools to auto-format code before committing
+   - Run `./format_codebase.sh` to format the entire codebase
+   - Consider setting up pre-commit hooks with `pre-commit install`
+   - Refer to `docs/CODE_QUALITY.md` for detailed guidelines
+   - VS Code users should install recommended extensions and settings
+   - Never commit code that doesn't pass linting checks
+   - Address formatting issues before code reviews
+
 ## Release Management
 
 1. **Release Planning**
