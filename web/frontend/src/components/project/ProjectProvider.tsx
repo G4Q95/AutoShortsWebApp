@@ -1,3 +1,8 @@
+/**
+ * @fileoverview ProjectProvider implements the core state management for the Auto Shorts application.
+ * It provides a React Context that manages project state, scene manipulation, and persistence.
+ */
+
 'use client';
 
 import React, {
@@ -32,24 +37,81 @@ import { projectReducer } from './ProjectReducer';
 export type { Project, Scene, ProjectState };
 export { generateId };
 
-// Create the context with a merged type that includes state and actions
+/**
+ * ProjectContext provides the application state and actions for managing video projects.
+ * It combines both the state interface from ProjectState and action methods for state manipulation.
+ * 
+ * @example
+ * ```tsx
+ * // Using the context in a component
+ * function MyComponent() {
+ *   const project = useProject();
+ *   
+ *   const handleAddScene = async (url: string) => {
+ *     await project.addScene(url);
+ *   };
+ *   
+ *   return (
+ *     <button onClick={() => handleAddScene('https://reddit.com/...')}>
+ *       Add Scene
+ *     </button>
+ *   );
+ * }
+ * ```
+ */
 const ProjectContext = createContext<(ProjectState & {
+  /** Creates a new project with the given title */
   createProject: (title: string) => void;
+  /** Sets the current active project by ID */
   setCurrentProject: (projectId: string) => void;
+  /** Adds a new scene from a Reddit URL */
   addScene: (url: string) => Promise<void>;
+  /** Removes a scene by ID */
   removeScene: (sceneId: string) => void;
+  /** Updates the order of scenes */
   reorderScenes: (sceneIds: string[]) => void;
+  /** Updates the text content of a scene */
   updateSceneText: (sceneId: string, text: string) => void;
+  /** Updates the project title */
   setProjectTitle: (title: string) => void;
+  /** Manually triggers a save of the current project */
   saveCurrentProject: () => Promise<void>;
+  /** Deletes the current project */
   deleteCurrentProject: () => Promise<void>;
+  /** Loads a project by ID */
   loadProject: (projectId: string) => Promise<Project | undefined>;
+  /** Creates a copy of an existing project */
   duplicateProject: (projectId: string) => Promise<string | null>;
+  /** Deletes all projects */
   deleteAllProjects: () => Promise<void>;
+  /** Refreshes the projects list */
   refreshProjects: () => Promise<void>;
 }) | undefined>(undefined);
 
-// Provider component
+/**
+ * ProjectProvider component provides project state management and persistence for the application.
+ * It handles:
+ * - Project CRUD operations
+ * - Scene management
+ * - Auto-saving
+ * - State persistence
+ * - Error handling
+ * 
+ * @component
+ * @param {Object} props - Component props
+ * @param {ReactNode} props.children - Child components that will have access to the project context
+ * 
+ * @example
+ * ```tsx
+ * function App() {
+ *   return (
+ *     <ProjectProvider>
+ *       <ProjectWorkspace />
+ *     </ProjectProvider>
+ *   );
+ * }
+ * ```
+ */
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(projectReducer, initialState);
 
@@ -203,7 +265,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           type: 'ADD_SCENE_ERROR',
           payload: {
             sceneId,
-            error: response.error.detail || 'Failed to extract content',
+            error: response.error.details || 'Failed to extract content',
           },
         });
         return;

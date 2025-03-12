@@ -126,7 +126,16 @@ export default function ProjectWorkspace({
   const newProjectCreatedRef = useRef(false);
   const projectLoadingRef = useRef(false); // New ref to track if project is currently loading
 
-  // Single unified effect for project initialization
+  /**
+   * Effect: Project Initialization
+   * Handles the initial setup of the project workspace based on provided props.
+   * - Loads existing project if projectId is provided
+   * - Uses preloaded project if available
+   * - Creates new project if neither exists
+   * 
+   * Dependencies: [projectId, preloadedProject, currentProject, setCurrentProject, createProject, 
+   *               loadProject, initialProjectName, setLocalProject, setLocalLoading, setError, setDebugInfo]
+   */
   useEffect(() => {
     mountCountRef.current += 1;
     console.log(
@@ -215,7 +224,15 @@ export default function ProjectWorkspace({
   // Use either preloaded project, local state, or context project
   const effectiveProject = localProject || currentProject;
 
-  // Add an effect to ensure effectiveProject is always synchronized with currentProject
+  /**
+   * Effect: Project Synchronization
+   * Ensures the effective project (local or preloaded) is synchronized with the current project in context.
+   * - Syncs project state between local and context
+   * - Handles project loading when needed
+   * - Manages project ID consistency
+   * 
+   * Dependencies: [effectiveProject, currentProject, setCurrentProject, projectId, loadProject]
+   */
   useEffect(() => {
     if (effectiveProject && setCurrentProject && 
         (!currentProject || currentProject.id !== effectiveProject.id)) {
@@ -239,7 +256,13 @@ export default function ProjectWorkspace({
     }
   }, [effectiveProject, currentProject, setCurrentProject, projectId, loadProject]);
 
-  // Add an effect to update localProject whenever currentProject changes
+  /**
+   * Effect: Local Project State Update
+   * Updates the local project state whenever the current project in context changes.
+   * Ensures local state reflects the latest project data.
+   * 
+   * Dependencies: [currentProject]
+   */
   useEffect(() => {
     if (currentProject) {
       console.log(`Current project updated in context, syncing to local state: ${currentProject.id} (${currentProject.scenes.length} scenes)`);
@@ -504,10 +527,10 @@ export default function ProjectWorkspace({
   };
 
   /**
-   * Processes the video with customization options
-   * Initiates the full video processing pipeline with all customization features
+   * Handles video processing with customization options.
+   * Initiates the video generation process with user-defined settings.
    * 
-   * @throws Will set error state if video processing fails
+   * @returns {Promise<void>}
    */
   const handleProcessVideo = async () => {
     if (!effectiveProject) return;
@@ -521,10 +544,10 @@ export default function ProjectWorkspace({
   };
 
   /**
-   * Processes the video in fast mode
-   * Uses a simplified processing pipeline for quicker results
+   * Handles quick video processing without customization.
+   * Initiates a faster video generation process with default settings.
    * 
-   * @throws Will set error state if fast processing fails
+   * @returns {Promise<void>}
    */
   const handleFastVideo = async () => {
     if (!effectiveProject) return;
