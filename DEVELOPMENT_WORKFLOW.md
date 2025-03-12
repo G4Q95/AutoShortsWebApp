@@ -174,6 +174,63 @@ This document outlines the development workflow for the Auto Shorts Web App proj
    - Check code quality with linters
    - Verify build passes before merge
 
+## GitHub Actions CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration and deployment, automating testing, building, and validation processes.
+
+### Pipeline Components
+
+1. **Test Workflow**
+   - Runs Playwright E2E tests
+   - Sets up MongoDB service container
+   - Starts backend and browser tools servers
+   - Executes all frontend tests
+   - Uploads test artifacts for debugging
+
+2. **Build Verification**
+   - Ensures frontend builds successfully
+   - Verifies backend imports work correctly
+   - Catches build-time errors early
+
+3. **Environment Validation**
+   - Checks that required environment variables are defined
+   - Validates environment variable configuration
+   - Ensures .env.example contains necessary variables
+
+4. **Docker Validation**
+   - Verifies Docker Compose configuration
+   - Checks Dockerfile existence
+   - Tests container builds
+
+5. **Linting and Formatting** (separate workflow)
+   - Runs ESLint and Prettier on frontend code
+   - Runs isort, black, and flake8 on backend code
+   - Ensures code style consistency
+
+### Working with the CI/CD Pipeline
+
+1. **Viewing Results**
+   - Check the Actions tab in GitHub after pushing changes
+   - Review failed steps to identify issues
+   - Download artifacts for detailed test reports
+
+2. **Troubleshooting Failures**
+   - Test failures: Check test artifacts for screenshots and logs
+   - Build failures: Review build logs for errors
+   - Environment validation failures: Verify environment variable configuration
+   - Docker failures: Check Docker configuration files
+
+3. **Local Verification**
+   - Run tests locally before pushing: `cd web/frontend && npm test`
+   - Check linting: `cd web/frontend && npm run lint`
+   - Verify build: `cd web/frontend && npm run build`
+
+4. **Best Practices**
+   - Always check CI results after pushing
+   - Fix CI failures promptly
+   - Don't merge code with failing CI checks
+   - Add tests for new features and bug fixes
+
 ## Troubleshooting Common Issues
 
 1. **Docker Issues**

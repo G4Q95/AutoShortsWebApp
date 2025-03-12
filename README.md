@@ -183,6 +183,29 @@ If validation fails:
 
 This helps identify configuration issues early and provides clear guidance on what needs to be fixed.
 
+### CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration and deployment:
+
+1. **Automated Testing**: All tests run automatically on code changes
+2. **Build Verification**: Ensures the application builds correctly
+3. **Environment Validation**: Checks that all required environment variables are defined
+4. **Docker Validation**: Verifies Docker configuration files and builds containers
+5. **Quality Checks**: Runs linting and formatting checks (separate workflow)
+
+The CI/CD pipeline runs on:
+- Pushes to the main branch
+- Pushes to feature and fix branches
+- Pull requests to the main branch
+
+This automation helps:
+- Catch issues early before they reach production
+- Ensure consistent code quality
+- Provide immediate feedback on changes
+- Document the build and test process
+
+Test results are available as artifacts in GitHub Actions, making it easy to diagnose any failures.
+
 ## Deployment
 
 - Frontend: Deployed on Vercel
