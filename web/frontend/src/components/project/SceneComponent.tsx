@@ -120,7 +120,6 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       onSceneRemove(scene.id);
       
       // Set a backup timeout to forcibly remove component from UI
-      // if the backend removal takes too long
       removingTimeoutRef.current = setTimeout(() => {
         console.log(`Scene ${scene.id} removal timeout reached, forcing UI update`);
         setManuallyRemoving(true);
@@ -136,8 +135,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         }
         
         // Check if component is still mounted after 3 seconds
-        // and reset state if it is (meaning removal failed)
-        setTimeout(() => {
+        const checkMountTimeout = setTimeout(() => {
           const stillExists = document.getElementById(`scene-${scene.id}`);
           if (stillExists) {
             console.warn(`Scene ${scene.id} still in DOM after forced removal, resetting state`);
@@ -156,6 +154,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             }
           }
         }, 3000);
+
+        // Clean up the check mount timeout
+        return () => clearTimeout(checkMountTimeout);
       }, 2000);
     } catch (error) {
       console.error(`Error initiating scene removal for ${scene.id}:`, error);
@@ -163,6 +164,16 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       setFadeOut(false);
     }
   }, [scene.id, isRemoving, onSceneRemove]);
+
+  // Clean up timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (removingTimeoutRef.current) {
+        clearTimeout(removingTimeoutRef.current);
+        removingTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Function to render loading state
   const renderLoadingState = () => {

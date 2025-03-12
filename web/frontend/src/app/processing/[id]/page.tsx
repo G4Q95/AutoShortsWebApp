@@ -24,10 +24,17 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
   ];
 
   useEffect(() => {
+    let isMounted = true;
+    let redirectTimeout: NodeJS.Timeout | null = null;
+
     // Set up polling to check processing status
     const interval = setInterval(async () => {
+      if (!isMounted) return;
+
       try {
         const data = await getProcessingStatus(projectId);
+
+        if (!isMounted) return;
 
         setStatus(data.status);
         setProgress(data.progress || 0);
@@ -35,8 +42,10 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
         if (data.status === 'completed') {
           clearInterval(interval);
           // After a delay, redirect to the video page
-          setTimeout(() => {
-            router.push(`/video/${projectId}`);
+          redirectTimeout = setTimeout(() => {
+            if (isMounted) {
+              router.push(`/video/${projectId}`);
+            }
           }, 3000);
         }
 
@@ -45,12 +54,19 @@ export default function ProcessingPage({ params }: { params: { id: string } }) {
           setError(data.errorMessage || 'An error occurred during processing');
         }
       } catch (err) {
+        if (!isMounted) return;
         console.error('Error checking status:', err);
         setError('Failed to connect to server. Please try again.');
       }
     }, 3000);
 
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      if (redirectTimeout) {
+        clearTimeout(redirectTimeout);
+      }
+    };
   }, [projectId, router]);
 
   const handleCancelProcessing = async () => {

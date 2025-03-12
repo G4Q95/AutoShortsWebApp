@@ -131,21 +131,31 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Set up auto-save whenever currentProject changes
   useEffect(() => {
+    let isMounted = true;
+    
     // If we have a current project, set up auto-save
     if (state.currentProject) {
       // Clear existing timer if any
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
       }
 
       // Set up new timer for auto-save
-      autoSaveTimerRef.current = setTimeout(() => {
-        saveCurrentProject();
+      autoSaveTimerRef.current = setTimeout(async () => {
+        if (!isMounted) return;
+        
+        try {
+          await saveCurrentProject();
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        }
       }, 3000); // Auto-save 3 seconds after last change
     }
 
-    // Cleanup function to clear the timer
+    // Cleanup function to clear the timer and prevent further saves
     return () => {
+      isMounted = false;
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = null;

@@ -89,20 +89,74 @@ export default function VideoStatusIndicator({
 
   // Initially fetch status
   useEffect(() => {
-    fetchStatus();
+    let isMounted = true;
+    let intervalId: NodeJS.Timeout | null = null;
+
+    const fetchStatusSafely = async () => {
+      if (!taskId || !isMounted) return;
+
+      setIsLoading(true);
+      try {
+        const response = await getVideoStatus(taskId);
+
+        if (!isMounted) return;
+
+        if (response.error) {
+          setError(response.error.detail || 'Failed to fetch status');
+          return;
+        }
+
+        if (response.data) {
+          const statusData = response.data;
+          setStatus(statusData.status as ProcessingStatus);
+
+          if (statusData.storage_url) {
+            setVideoUrl(statusData.storage_url);
+            if (onComplete && statusData.status === 'completed') {
+              onComplete(statusData.storage_url);
+            }
+          }
+
+          if (statusData.error) {
+            setError(statusData.error);
+          } else {
+            setError(null);
+          }
+
+          setLastUpdated(new Date());
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setError('Failed to connect to the server');
+        console.error('Error fetching status:', err);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    // Initial fetch
+    fetchStatusSafely();
 
     // Set up auto-refresh if enabled
     if (autoRefresh) {
-      const intervalId = setInterval(() => {
+      intervalId = setInterval(() => {
         // Don't auto-refresh if already completed or failed
         if (status !== 'completed' && status !== 'failed') {
-          fetchStatus();
+          fetchStatusSafely();
         }
       }, refreshInterval);
-
-      return () => clearInterval(intervalId);
     }
-  }, [taskId, autoRefresh, refreshInterval, status]);
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [taskId, autoRefresh, refreshInterval, status, onComplete]);
 
   // Get the appropriate icon for each status
   const getStatusIcon = (statusType: ProcessingStatus) => {
