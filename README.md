@@ -199,9 +199,10 @@ This project has several documentation files for different purposes:
 | **README.md** | `/` | Project overview and quick start guide |
 | **PROJECT_OVERVIEW.md** | `/docs/` | Comprehensive project concept, architecture, and business model |
 | **PROJECT_INSTRUCTIONS.md** | `/docs/` | Detailed implementation steps and technical requirements |
-| **progress.md** | `/` | Current development status, completed tasks, and upcoming work |
-| **instructions.md** | `/` | Development environment setup and workflow instructions |
-| **.cursorrules** | `/` | Coding patterns, conventions, and AI assistant guidelines |
+| **progress.md** | `/docs/` | Current development status, completed tasks, and upcoming work |
+| **API_STANDARDS.md** | `/docs/` | API standards, response formats, and error handling documentation |
+| **API_ENDPOINTS.md** | `/docs/` | Comprehensive API endpoint documentation with examples |
+| **lightweight-refactoring-prompt.md** | `/docs/` | Current refactoring plan and progress |
 | **CONVERSATION_SUMMARY.md** | `/docs/` | Summary of key development conversations and decisions |
 | **frontend/README.md** | `/web/frontend/` | Frontend-specific setup and development information |
 | **backend/README.md** | `/web/backend/` | Backend-specific setup and development information |

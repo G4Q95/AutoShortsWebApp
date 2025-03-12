@@ -54,9 +54,55 @@ API documentation will be available at:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
+## API Documentation
+
+Comprehensive API documentation is available in the following files:
+
+- [API Standards](../docs/API_STANDARDS.md) - Detailed documentation of API response formats, error handling patterns, and standardized conventions
+- [API Endpoints](../docs/API_ENDPOINTS.md) - Comprehensive documentation of all available API endpoints with request/response examples
+
+The API follows standardized response formats for both success and error cases, with consistent error codes and status codes.
+
 ## Environment Variables
 
 Copy the `.env.example` file to `.env` in both the frontend and backend directories and fill in the required values.
+
+## Docker Development Environment
+
+The project uses Docker to create a consistent development environment:
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Stop all services
+docker-compose down
+
+# View logs
+docker-compose logs -f
+```
+
+The Docker environment includes:
+- Frontend container (Next.js)
+- Backend container (FastAPI)
+- Browser-tools container (for E2E testing)
+
+## Testing
+
+End-to-end tests are implemented using Playwright:
+
+```bash
+# Run tests
+cd frontend && npm test
+
+# Run tests with debugging
+cd frontend && npm run test:debug
+```
+
+All tests require the following services to be running:
+- Frontend server
+- Backend server
+- Browser-tools server
 
 ## Deployment
 
