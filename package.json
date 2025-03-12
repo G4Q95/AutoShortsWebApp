@@ -1,6 +1,20 @@
 {
+  "name": "auto-shorts-web-app",
+  "version": "1.0.0",
+  "description": "A web application for creating short videos from social media content",
+  "scripts": {
+    "frontend": "cd web/frontend && npm run dev",
+    "backend": "cd web/backend && python -m app.main",
+    "browser-tools": "npx browser-tools-server",
+    "stop": "echo 'To stop all processes, press Ctrl+C'",
+    "killports": "npx kill-port 3000 8000 8555 3025 3026"
+  },
   "dependencies": {
     "@agentdeskai/browser-tools-server": "^1.2.0",
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "kill-port": "^2.0.1",
+    "wait-on": "^7.2.0"
   }
 }

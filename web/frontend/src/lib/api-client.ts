@@ -37,7 +37,12 @@ import {
  * Uses environment variable if available, falls back to localhost
  * @constant
  */
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const isBrowser = typeof window !== 'undefined'; 
+// Use NEXT_PUBLIC_BROWSER_API_URL for browser requests, otherwise use NEXT_PUBLIC_API_URL for server requests
+const API_BASE_URL = isBrowser 
+  ? (process.env.NEXT_PUBLIC_BROWSER_API_URL || 'http://localhost:8000') 
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000'); 
+console.log('Using API URL:', API_BASE_URL, 'isBrowser:', isBrowser);
 
 /**
  * API version prefix for all endpoints
@@ -196,7 +201,12 @@ export async function fetchAPI<T = any>(
         }
       }
 
-      return { error, timing, connectionInfo };
+      return { 
+        error, 
+        timing, 
+        connectionInfo,
+        data: null as any // Add missing data property for TypeScript
+      };
     }
 
     // Handle 204 No Content responses
@@ -244,6 +254,7 @@ export async function fetchAPI<T = any>(
           status: 408,
           statusText: 'Request Timeout',
         },
+        data: null as any // Add missing data property for TypeScript
       };
     }
 
@@ -288,6 +299,7 @@ export async function fetchAPI<T = any>(
         status: errorStatusCode,
         statusText: errorStatusText,
       },
+      data: null as any // Add missing data property for TypeScript
     };
   }
 }
@@ -317,6 +329,11 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
         status: apiHealth.isAvailable ? 200 : 503,
         statusText: apiHealth.isAvailable ? 'OK' : 'Service Unavailable',
       },
+      timing: {
+        start: 0,
+        end: 0,
+        duration: 0
+      }
     };
   }
 
@@ -380,6 +397,12 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
         status: 0,
         statusText: 'Not Connected',
       },
+      timing: {
+        start: 0,
+        end: 0,
+        duration: 0
+      },
+      data: null as any
     };
   }
 }
@@ -414,6 +437,18 @@ export async function extractContent(url: string): Promise<ApiResponse<any>> {
         message: error instanceof Error ? error.message : 'Failed to extract content from URL',
         error_code: 'content_extraction_error'
       },
+      data: null as any,
+      timing: {
+        start: 0,
+        end: 0,
+        duration: 0
+      },
+      connectionInfo: {
+        success: false,
+        server: API_BASE_URL,
+        status: 500,
+        statusText: 'Internal Error'
+      }
     };
   }
 }

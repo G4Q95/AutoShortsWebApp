@@ -76,7 +76,7 @@ export const extractMediaDimensions = (metadata: any) => {
 };
 
 /**
- * Transforms a Reddit video URL to be playable in the browser.
+ * Transforms a Reddit video URL to work with our proxy to solve CORS issues.
  * Handles CORS and audio track issues with v.redd.it URLs.
  * 
  * @param url - The original video URL from Reddit
@@ -87,8 +87,13 @@ export const transformRedditVideoUrl = (url: string): string => {
 
   // Check if it's a Reddit video URL
   if (url.includes('v.redd.it')) {
-    // Use our proxy endpoint to handle CORS
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    // Use browser API URL for client-side rendering
+    const isBrowser = typeof window !== 'undefined';
+    const apiUrl = isBrowser
+      ? (process.env.NEXT_PUBLIC_BROWSER_API_URL || 'http://localhost:8000')
+      : (process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000');
+    
+    console.log('Using proxy API URL:', apiUrl);
     return `${apiUrl}/api/v1/content/proxy/reddit-video?url=${encodeURIComponent(url)}`;
   }
 

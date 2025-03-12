@@ -36,9 +36,64 @@ Auto Shorts Web App/           # Main repository
 │   │
 │   └── README.md              # Documentation for web app
 │
+├── docker-compose.yml         # Docker Compose configuration
+├── .env                       # Environment variables for Docker
+├── .env.example               # Example environment file
 ├── README.md                  # Main project documentation
 └── .gitignore                 # Git ignore file
 ```
+
+## Docker Setup
+
+### Docker Development Environment
+
+The project now uses Docker to create a consistent development environment. This approach offers several benefits:
+
+1. **Consistency**: All developers work with the same environment configuration
+2. **Simplicity**: No need to manually start/stop individual servers
+3. **Isolation**: Services run in isolated containers but can communicate
+4. **Portability**: The setup works the same across different operating systems
+
+#### Docker Components
+
+1. **Frontend Container**: Runs the Next.js application
+2. **Backend Container**: Runs the FastAPI server
+3. **Browser-Tools Container**: Runs the browser-tools-server for E2E testing
+
+#### Getting Started with Docker
+
+1. **Prerequisites**:
+   - Docker Desktop installed
+   - Docker Compose installed (comes with Docker Desktop)
+
+2. **Setup**:
+   - Copy `.env.example` to `.env` and update with your environment variables
+   - Run `docker-compose up --build` to start all services
+   - Access the application at http://localhost:3000
+
+3. **Common Commands**:
+   - Start services: `docker-compose up`
+   - Start services in background: `docker-compose up -d`
+   - Stop services: `docker-compose down`
+   - Rebuild containers: `docker-compose up --build`
+   - View logs: `docker-compose logs -f`
+   - View logs for a specific service: `docker-compose logs -f [service-name]`
+
+4. **Running Tests**:
+   - With Docker running, execute: `cd web/frontend && npm test`
+   - All tests should pass if the environment is correctly configured
+
+5. **Troubleshooting**:
+   - If services fail to start, check Docker Desktop status
+   - Ensure no conflicts on ports 3000, 8000, and 3025
+   - Verify environment variables in .env file
+   - Check container logs for error messages
+
+#### Docker Configuration Files
+
+1. **docker-compose.yml**: Defines all services and their relationships
+2. **web/frontend/Dockerfile**: Defines how to build the frontend container
+3. **web/backend/Dockerfile**: Defines how to build the backend container
 
 ## Detailed Development Steps
 

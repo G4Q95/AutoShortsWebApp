@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./web/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web/frontend:/app
+      # Exclude node_modules from volume mounting
+      - /app/node_modules
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_BROWSER_API_URL=http://localhost:8000
+    networks:
+      - app-network
+    depends_on:
+      - backend
+
+  backend:
+    build: 
+      context: ./web/backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./web/backend:/app
+    environment:
+      - MONGODB_URI=mongodb+srv://goodgodgeorge:cXNSvmHkIOsHjUt4@autoshortsdb.f7asv.mongodb.net/?retryWrites=true&w=majority&appName=autoshortsdb
+      - CLOUDFLARE_R2_ENDPOINT=${CLOUDFLARE_R2_ENDPOINT}
+      - CLOUDFLARE_R2_ACCESS_KEY_ID=${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      - CLOUDFLARE_R2_SECRET_ACCESS_KEY=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+    networks:
+      - app-network
+
+  browser-tools:
+    image: node:20-slim
+    command: sh -c "npm install -g @agentdeskai/browser-tools-server && npx browser-tools-server --command-port 3025"
+    ports:
+      - "3025:3025"
+    volumes:
+      - ./screenshots:/screenshots
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge 

@@ -341,3 +341,37 @@ cd web/frontend && npm test
 - Check test artifacts in `web/frontend/test-results/`
 - Review test logs for error messages
 - Verify server responses in network logs
+
+## Docker Development Guidelines
+
+When working with the Docker development environment:
+
+1. **General Docker Usage**:
+   - Always use `docker-compose` for managing the multi-container setup
+   - Rebuild containers when making significant changes with `docker-compose up --build`
+   - Use `docker-compose logs -f [service]` to monitor service logs
+
+2. **Container Considerations**:
+   - Avoid hardcoding hostnames or ports in application code
+   - Use environment variables for connection strings and configuration
+   - Remember that containers are ephemeral - don't store persistent data in them
+
+3. **Docker and Testing**:
+   - Run all tests with Docker containers running
+   - Make sure browser-tools-server is running before running E2E tests
+   - Check container connectivity if tests fail unexpectedly
+
+4. **Common Docker Issues**:
+   - If containers fail to start, check if ports are already in use
+   - For volume mount issues, confirm Docker has permission to access your project directory
+   - Check logs for container-specific errors using `docker-compose logs`
+
+5. **Docker Environment Variables**:
+   - Always keep sensitive information in `.env` (not tracked by git)
+   - Use `.env.example` as a template (tracked by git)
+   - Never hardcode sensitive values in Dockerfiles or docker-compose.yml
+
+6. **Best Practices**:
+   - Keep Docker images lightweight by using multi-stage builds
+   - Use volumes for development to reflect changes without rebuilds
+   - Tag images appropriately when building for different environments

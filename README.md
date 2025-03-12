@@ -29,6 +29,7 @@ The application features an intuitive workflow:
 - **Storage**: Cloudflare R2
 - **Media Processing**: Google Cloud Run
 - **Hosting**: Vercel
+- **Development Environment**: Docker
 
 ## Business Model
 
@@ -47,40 +48,100 @@ Auto Shorts Web App/
 │   ├── frontend/            # Next.js application
 │   │   ├── public/          # Static assets
 │   │   ├── src/             # React components, pages, etc.
+│   │   ├── Dockerfile       # Frontend container configuration
 │   │   └── package.json     # Frontend dependencies
 │   │
 │   ├── backend/             # FastAPI application
 │   │   ├── app/             # API code
-│   │   │   ├── core/        # Core functionality
 │   │   │   ├── api/         # API routes
-│   │   │   ├── services/    # Business logic
-│   │   │   └── models/      # Data models
+│   │   │   ├── core/        # Core functionality
+│   │   │   ├── models/      # Data models
+│   │   │   └── services/    # Business logic
 │   │   │
-│   │   ├── requirements.txt # Backend dependencies
-│   │   └── Dockerfile       # For containerization
+│   │   ├── Dockerfile       # Backend container configuration
+│   │   └── requirements.txt # Backend dependencies
 │
-├── docs/                    # Project documentation
-│   ├── PROJECT_OVERVIEW.md
-│   └── PROJECT_INSTRUCTIONS.md
-│
-└── README.md               # This file
+├── docker-compose.yml       # Docker composition for all services
+├── .env                     # Environment variables
+└── .env.example             # Example environment configuration
 ```
+
+## Getting Started
+
+### Prerequisites
+
+- Docker Desktop
+- Docker Compose (included with Docker Desktop)
+- Git
+
+### Quick Start with Docker
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/autoshortswebapp.git
+   cd autoshortswebapp
+   ```
+
+2. **Configure environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration details
+   ```
+
+3. **Start the application**
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Access the application**
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8000
+   - API Documentation: http://localhost:8000/docs
+
+### Running Tests
+
+With Docker services running, execute:
+```bash
+cd web/frontend && npm test
+```
+
+### Alternative: Manual Setup (Without Docker)
+
+If you prefer not to use Docker:
+
+1. **Set up the backend**
+   ```bash
+   cd web/backend
+   pip install -r requirements.txt
+   python -m app.main
+   ```
+
+2. **Set up the frontend**
+   ```bash
+   cd web/frontend
+   npm install
+   npm run dev
+   ```
+
+3. **Set up browser tools for testing**
+   ```bash
+   npm install -g @agentdeskai/browser-tools-server
+   npx browser-tools-server
+   ```
 
 ## Current Development Status
 
-- Basic infrastructure setup completed
-- Connected frontend and backend services
-- Implemented URL submission form with validation
-- Enhanced error handling functionality
-- Fixed Not-Found page errors
-- Improved Reddit content extraction for better media handling
-- Implemented MongoDB Atlas for project storage and persistence
-- Created project workspace with drag-and-drop scene management
-- Implemented scene reordering and content organization
-- Working on:
-  - Completing the video processing pipeline
-  - Enhancing content extraction capabilities
-  - Implementing video preview and download functionality
+The application is in active development with several key features implemented:
+
+- ✅ Project creation and management
+- ✅ Content extraction from Reddit
+- ✅ Media display (images and videos)
+- ✅ Scene management with drag-and-drop
+- ✅ Docker containerization for development
+- ✅ End-to-end testing with Playwright
+- 🔄 Video processing pipeline
+- 🔄 User authentication
+- 🔄 Cloud storage integration
 
 ## Development Setup
 
