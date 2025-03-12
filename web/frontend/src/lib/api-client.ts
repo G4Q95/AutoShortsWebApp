@@ -103,27 +103,27 @@ export async function fetchAPI<T = any>(
     // we still try to parse and throw it.
     if (!response.ok) {
       const error: ApiError = {
-        detail: `${response.status}: ${response.statusText}`,
-        status: response.status,
+        status_code: response.status,
+        message: `${response.status}: ${response.statusText}`,
       };
 
       // Try to parse error message from the response
       try {
         const data = await response.json();
         
-        // Handle different error formats
-        if (data.detail) {
-          // Standard FastAPI error
-          error.detail = data.detail;
-        } else if (data.message) {
-          // Our custom error format
-          error.detail = data.message;
-          error.code = data.error_code;
+        // Handle FastAPI error response format
+        if (data.status_code && data.message) {
+          error.status_code = data.status_code;
+          error.message = data.message;
+          error.error_code = data.error_code;
           error.details = data.details;
+        } else if (data.detail) {
+          // Legacy FastAPI error format
+          error.message = data.detail;
         } else if (typeof data === 'string') {
-          error.detail = data;
+          error.message = data;
         } else if (data.error) {
-          error.detail = data.error;
+          error.message = data.error;
         }
         
         if (process.env.NODE_ENV === 'development') {
@@ -173,8 +173,9 @@ export async function fetchAPI<T = any>(
     if (error instanceof DOMException && error.name === 'AbortError') {
       return {
         error: {
-          detail: `Request timed out after ${timeoutMs}ms`,
-          status: 408, // Request Timeout
+          status_code: 408, // Request Timeout
+          message: `Request timed out after ${timeoutMs}ms`,
+          error_code: 'timeout_error'
         },
         timing,
         connectionInfo: {
@@ -191,36 +192,40 @@ export async function fetchAPI<T = any>(
     apiHealth.lastChecked = Date.now();
 
     // Handle "Failed to fetch" errors with more user-friendly messages
-    let errorDetail = error instanceof Error ? error.message : 'An unknown error occurred';
-    let errorStatus = 500;
+    let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    let errorStatusCode = 500;
     let errorStatusText = 'Server Error';
+    let errorCode: string | undefined;
     
     // More descriptive error messages based on common error patterns
-    if (errorDetail === 'Failed to fetch') {
-      errorDetail = 'Could not connect to the backend server. Please ensure the server is running.';
-      errorStatus = 503; // Service Unavailable
+    if (errorMessage === 'Failed to fetch') {
+      errorMessage = 'Could not connect to the backend server. Please ensure the server is running.';
+      errorStatusCode = 503; // Service Unavailable
       errorStatusText = 'Backend Unavailable';
-    } else if (errorDetail.includes('NetworkError')) {
-      errorDetail = 'Network error: Check your internet connection or backend server status.';
-      errorStatus = 503;
+      errorCode = 'service_unavailable';
+    } else if (errorMessage.includes('NetworkError')) {
+      errorMessage = 'Network error: Check your internet connection or backend server status.';
+      errorStatusCode = 503;
       errorStatusText = 'Network Error';
-    } else if (errorDetail.includes('CORS')) {
-      errorDetail = 'CORS policy error: The backend server is not properly configured for cross-origin requests.';
-      errorStatus = 520; // Custom status for CORS
+      errorCode = 'network_error';
+    } else if (errorMessage.includes('CORS')) {
+      errorMessage = 'CORS policy error: The backend server is not properly configured for cross-origin requests.';
+      errorStatusCode = 520; // Custom status for CORS
       errorStatusText = 'CORS Policy Error';
+      errorCode = 'cors_error';
     }
 
     return {
       error: {
-        detail: errorDetail,
-        status: errorStatus,
-        code: error instanceof Error ? error.name : 'UnknownError',
+        status_code: errorStatusCode,
+        message: errorMessage,
+        error_code: errorCode,
       },
       timing,
       connectionInfo: {
         success: false,
         server: API_BASE_URL,
-        status: errorStatus,
+        status: errorStatusCode,
         statusText: errorStatusText,
       },
     };
@@ -295,8 +300,9 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
     apiHealth.checkInProgress = false;
     return {
       error: {
-        detail: err instanceof Error ? err.message : 'Unknown error checking API health',
-        status: 0,
+        status_code: 0,
+        message: err instanceof Error ? err.message : 'Unknown error checking API health',
+        error_code: 'health_check_error'
       },
       connectionInfo: {
         success: false,
@@ -320,8 +326,9 @@ export async function extractContent(url: string): Promise<ApiResponse<any>> {
     console.error('Error extracting content:', error);
     return {
       error: {
-        detail: error instanceof Error ? error.message : 'Failed to extract content from URL',
-        status: 500,
+        status_code: 500,
+        message: error instanceof Error ? error.message : 'Failed to extract content from URL',
+        error_code: 'content_extraction_error'
       },
     };
   }

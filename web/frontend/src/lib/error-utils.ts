@@ -1,7 +1,7 @@
 /**
  * Error handling utilities for the frontend
  */
-import { ApiResponse } from './api-client';
+import { ApiResponse } from './api-types';
 
 export enum ErrorType {
   API = 'api_error',
@@ -38,40 +38,69 @@ export function formatApiError<T>(response: ApiResponse<T>): FormattedError {
     return formattedError;
   }
   
-  formattedError.statusCode = error.status;
+  formattedError.statusCode = error.status_code;
   
-  // Determine error type based on status code
-  if (error.status >= 400 && error.status < 500) {
-    if (error.status === 401) {
-      formattedError.type = ErrorType.UNAUTHORIZED;
-      formattedError.message = 'You must be logged in to perform this action';
-    } else if (error.status === 403) {
-      formattedError.type = ErrorType.UNAUTHORIZED;
-      formattedError.message = 'You don\'t have permission to perform this action';
-    } else if (error.status === 404) {
-      formattedError.type = ErrorType.NOT_FOUND;
-      formattedError.message = 'The requested resource was not found';
-    } else if (error.status === 422) {
-      formattedError.type = ErrorType.VALIDATION;
-      formattedError.message = 'The provided data is invalid';
-    } else {
-      formattedError.type = ErrorType.API;
-      formattedError.message = error.detail || 'Request failed';
+  // Use the error message directly from the API response
+  formattedError.message = error.message;
+  
+  // Map error codes to error types
+  if (error.error_code) {
+    switch (error.error_code) {
+      case 'authentication_required':
+      case 'authentication_failed':
+      case 'authentication_expired':
+      case 'invalid_authentication':
+        formattedError.type = ErrorType.UNAUTHORIZED;
+        break;
+      case 'permission_denied':
+      case 'access_forbidden':
+        formattedError.type = ErrorType.UNAUTHORIZED;
+        break;
+      case 'resource_not_found':
+      case 'content_not_found':
+        formattedError.type = ErrorType.NOT_FOUND;
+        break;
+      case 'validation_error':
+      case 'invalid_parameters':
+      case 'missing_parameters':
+        formattedError.type = ErrorType.VALIDATION;
+        break;
+      case 'network_error':
+      case 'service_unavailable':
+        formattedError.type = ErrorType.NETWORK;
+        break;
+      case 'timeout_error':
+        formattedError.type = ErrorType.TIMEOUT;
+        break;
+      default:
+        formattedError.type = ErrorType.API;
     }
-  } else if (error.status >= 500) {
-    formattedError.type = ErrorType.API;
-    formattedError.message = 'Server error, please try again later';
-  } else if (error.status === 0) {
-    formattedError.type = ErrorType.NETWORK;
-    formattedError.message = 'Network error, please check your connection';
-  } else if (error.status === 408) {
-    formattedError.type = ErrorType.TIMEOUT;
-    formattedError.message = 'Request timed out, please try again';
+  } else {
+    // Fallback to status code based type determination
+    if (error.status_code >= 400 && error.status_code < 500) {
+      if (error.status_code === 401) {
+        formattedError.type = ErrorType.UNAUTHORIZED;
+      } else if (error.status_code === 403) {
+        formattedError.type = ErrorType.UNAUTHORIZED;
+      } else if (error.status_code === 404) {
+        formattedError.type = ErrorType.NOT_FOUND;
+      } else if (error.status_code === 422) {
+        formattedError.type = ErrorType.VALIDATION;
+      } else {
+        formattedError.type = ErrorType.API;
+      }
+    } else if (error.status_code >= 500) {
+      formattedError.type = ErrorType.API;
+    } else if (error.status_code === 0) {
+      formattedError.type = ErrorType.NETWORK;
+    } else if (error.status_code === 408) {
+      formattedError.type = ErrorType.TIMEOUT;
+    }
   }
   
-  // Override with specific error detail if available
-  if (error.detail) {
-    formattedError.message = error.detail;
+  // Add any additional details
+  if (error.details) {
+    formattedError.details = error.details.map((d: { msg: string }) => d.msg);
   }
   
   return formattedError;

@@ -4,22 +4,22 @@
 
 /**
  * Standard API error format
- * Combines FastAPI's error format with our custom extensions
+ * Matches FastAPI's error response format exactly
  */
 export interface ApiError {
-  /** Main error message */
-  detail: string;
   /** HTTP status code */
-  status: number;
+  status_code: number;
+  /** Main error message */
+  message: string;
   /** Optional error code for client-side handling */
-  code?: string;
+  error_code?: string;
   /** Detailed validation errors */
   details?: Array<{
     /** Location of the error (e.g., ["body", "username"]) */
     loc?: string[];
     /** Error message */
     msg: string;
-    /** Error type identifier */
+    /** Error type */
     type: string;
   }>;
 }
