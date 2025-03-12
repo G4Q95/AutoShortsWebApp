@@ -2,41 +2,23 @@
  * API client for interacting with the Auto Shorts backend
  */
 
+import { 
+  ApiError, 
+  ApiResponse, 
+  ApiHealth, 
+  VideoCreationResponse, 
+  VideoStatusResponse,
+  UserResponse 
+} from './api-types';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_VERSION = '/api/v1';
 
 // Default timeout for API requests in milliseconds
 const DEFAULT_TIMEOUT_MS = 10000;
 
-export interface ApiError {
-  detail: string;
-  status: number;
-  code?: string;
-  details?: Array<{
-    loc?: string[];
-    msg: string;
-    type: string;
-  }>;
-}
-
-export interface ApiResponse<T> {
-  data?: T;
-  error?: ApiError;
-  timing?: {
-    start: number;
-    end: number;
-    duration: number;
-  };
-  connectionInfo?: {
-    success: boolean;
-    server: string;
-    status: number;
-    statusText: string;
-  };
-}
-
 // Track API health
-export const apiHealth = {
+export const apiHealth: ApiHealth = {
   lastChecked: 0,
   isAvailable: false,
   responseTime: 0,
@@ -45,6 +27,11 @@ export const apiHealth = {
 
 /**
  * Fetch wrapper with enhanced error handling and diagnostics
+ * @template T - The expected response data type
+ * @param endpoint - The API endpoint to call (without base URL and version)
+ * @param options - Fetch options (method, headers, body, etc.)
+ * @param timeoutMs - Request timeout in milliseconds
+ * @returns Promise with standardized API response
  */
 export async function fetchAPI<T = any>(
   endpoint: string,
@@ -242,6 +229,7 @@ export async function fetchAPI<T = any>(
 
 /**
  * Check if the API is available and return connection status
+ * @returns Promise with API health status
  */
 export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>> {
   // Prevent multiple simultaneous health checks
@@ -251,8 +239,8 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
       connectionInfo: {
         success: apiHealth.isAvailable,
         server: API_BASE_URL,
-        status: apiHealth.isAvailable ? 200 : 0,
-        statusText: apiHealth.isAvailable ? 'OK' : 'Unknown',
+        status: apiHealth.isAvailable ? 200 : 503,
+        statusText: apiHealth.isAvailable ? 'OK' : 'Service Unavailable',
       },
     };
   }
@@ -355,7 +343,9 @@ export async function rewriteText(
   });
 }
 
-// Types for video creation
+/**
+ * Request parameters for video creation
+ */
 export interface VideoCreationRequest {
   source_url: string;
   title: string;
@@ -363,12 +353,14 @@ export interface VideoCreationRequest {
   text_style?: string;
 }
 
-export interface VideoCreationResponse {
-  task_id: string;
-  message: string;
-}
-
-// Video Creation API
+/**
+ * Create a new video from a source URL
+ * @param sourceUrl - URL to extract content from
+ * @param title - Title for the video
+ * @param voiceId - Optional voice ID for narration
+ * @param textStyle - Optional style for text rewriting
+ * @returns Promise with video creation response
+ */
 export async function createVideo(
   sourceUrl: string,
   title: string,
@@ -386,11 +378,19 @@ export async function createVideo(
   });
 }
 
-export async function getVideoStatus(taskId: string): Promise<ApiResponse<any>> {
+/**
+ * Get the status of a video creation task
+ * @param taskId - ID of the video creation task
+ * @returns Promise with video status response
+ */
+export async function getVideoStatus(taskId: string): Promise<ApiResponse<VideoStatusResponse>> {
   return fetchAPI(`/video-creation/status/${taskId}`);
 }
 
-// User API
-export async function getCurrentUser(): Promise<ApiResponse<any>> {
+/**
+ * Get the current user's profile
+ * @returns Promise with user profile response
+ */
+export async function getCurrentUser(): Promise<ApiResponse<UserResponse>> {
   return fetchAPI('/users/me');
 }

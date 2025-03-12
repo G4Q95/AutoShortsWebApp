@@ -1,7 +1,6 @@
 // Types for the project management system
 
 import { generateId } from '../../lib/id-utils';
-import { determineMediaType } from '../../lib/media-utils';
 
 // Define the structure of a scene
 export interface Scene {
@@ -78,8 +77,5 @@ export const initialState: ProjectState = {
   isSaving: false,
 };
 
-// Re-export for backward compatibility
-export { generateId };
-
-// Re-export media utilities
-export { determineMediaType }; 
+// Re-export utility functions
+export { generateId }; 

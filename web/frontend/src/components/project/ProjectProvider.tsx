@@ -17,6 +17,7 @@ import {
   getProjectsList,
   projectExists,
 } from '../../lib/storage-utils';
+import { determineMediaType } from '../../lib/media-utils';
 
 import { 
   Project, 
@@ -24,13 +25,12 @@ import {
   initialState, 
   Scene, 
   generateId,
-  determineMediaType 
 } from './ProjectTypes';
 import { projectReducer } from './ProjectReducer';
 
 // Re-export types for convenience
 export type { Project, Scene, ProjectState };
-export { generateId, determineMediaType };
+export { generateId };
 
 // Create the context with a merged type that includes state and actions
 const ProjectContext = createContext<(ProjectState & {
