@@ -31,6 +31,7 @@ import { getProject } from '../../lib/storage-utils';
  * - Error handling
  * - Loading states
  * - Save status tracking
+ * - UI mode management
  * 
  * @param state - Current project state
  * @param action - Action to process with type and optional payload
@@ -547,6 +548,20 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         currentProject: null,
         error: null,
       };
+
+    /**
+     * Sets the UI mode for the project workspace
+     * Controls which features are visible and active in the UI
+     * 
+     * @action SET_MODE
+     * @payload { mode: 'organization' | 'voice-enabled' | 'preview' }
+     */
+    case 'SET_MODE': {
+      return {
+        ...state,
+        mode: action.payload.mode,
+      };
+    }
 
     default:
       // Just return the state for unhandled action types

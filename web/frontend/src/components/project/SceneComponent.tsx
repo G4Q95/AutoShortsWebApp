@@ -7,10 +7,14 @@ import {
   Edit as EditIcon,
   GripVertical as GripVerticalIcon,
   RefreshCw as RefreshIcon,
+  Volume2 as Volume2Icon,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
+import { useProject } from './ProjectProvider';
+import { getAvailableVoices, generateVoice } from '../../lib/api-client';
 
 /**
  * Utility function to clean post text by removing "Post by u/Username:" prefix
@@ -96,6 +100,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   isFullWidth = false,
   customStyles = {}
 }: SceneComponentProps) {
+  const { mode } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(cleanPostText(scene.text));
   const [isRetrying, setIsRetrying] = useState(false);
@@ -105,6 +110,14 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const removingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const localPreview = useRef<string | null>(null);
   const isRemovedRef = useRef<boolean>(false);
+  
+  // Voice generation states
+  const [voiceId, setVoiceId] = useState<string>("");
+  const [voices, setVoices] = useState<any[]>([]);
+  const [loadingVoices, setLoadingVoices] = useState(false);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
   
   // Store local preview reference for potential fallbacks
   useEffect(() => {
@@ -122,13 +135,106 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     };
   }, []);
 
+  // Update text state when scene.text changes
+  useEffect(() => {
+    setText(cleanPostText(scene.text));
+  }, [scene.text]);
+
+  // Fetch voices when component mounts
+  useEffect(() => {
+    if (voices.length === 0 && !loadingVoices) {
+      fetchVoices();
+      
+      // Ensure text is updated
+      setText(cleanPostText(scene.text));
+    }
+  }, [scene.text]);
+
+  const fetchVoices = async () => {
+    setLoadingVoices(true);
+    setAudioError(null);
+    try {
+      const response = await getAvailableVoices();
+      
+      if (response.error) {
+        setAudioError(`Error fetching voices: ${response.error.message}`);
+        setVoices([]);
+      } else {
+        setVoices(response.data.voices);
+        if (response.data.voices.length > 0) {
+          setVoiceId(response.data.voices[0].voice_id);
+        }
+      }
+    } catch (err) {
+      setAudioError(`Error fetching voices: ${err instanceof Error ? err.message : String(err)}`);
+      setVoices([]);
+    } finally {
+      setLoadingVoices(false);
+    }
+  };
+
+  const handleGenerateVoice = async () => {
+    if (!voiceId) {
+      setAudioError('Please select a voice first');
+      return;
+    }
+    
+    // More robust text checking - trim the text to check for whitespace-only
+    if (!text || text.trim() === '') {
+      setAudioError('No text content to convert to speech. Please add some text content to the scene.');
+      console.log('Empty text detected. Scene text:', scene.text, 'Local text state:', text);
+      return;
+    }
+
+    setAudioError(null);
+    setGeneratingAudio(true);
+    try {
+      const response = await generateVoice({
+        text,
+        voice_id: voiceId,
+        stability: 0.5,
+        similarity_boost: 0.75,
+        output_format: "mp3_44100_128"
+      });
+      
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+      
+      // Create audio URL from base64 data
+      const blob = new Blob(
+        [Uint8Array.from(atob(response.data.audio_base64), c => c.charCodeAt(0))],
+        { type: response.data.content_type }
+      );
+      const audioUrl = URL.createObjectURL(blob);
+      setAudioSrc(audioUrl);
+    } catch (err: any) {
+      setAudioError(`Error generating voice: ${err.message}`);
+      setAudioSrc(null);
+    } finally {
+      setGeneratingAudio(false);
+    }
+  };
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
   };
 
-  const handleSave = () => {
-    onSceneReorder(scene.id, index);
+  const handleTextBlur = () => {
+    // Auto-save on blur (clicking away)
+    saveText();
+  };
+
+  const saveText = () => {
+    // Only save if text has changed
+    if (text !== cleanPostText(scene.text)) {
+      onSceneReorder(scene.id, index);
+    }
     setIsEditing(false);
+  };
+
+  const handleSave = () => {
+    saveText();
   };
 
   const handleCancel = () => {
@@ -330,6 +436,56 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     }
   };
 
+  // Function to render voice generation UI
+  const renderVoiceControls = () => {
+    return (
+      <div className="mt-2 pt-2 border-t border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-medium text-gray-700">Voice Narration</div>
+          <button
+            onClick={() => alert("Voice settings not yet implemented")}
+            className="text-xs text-blue-600 hover:text-blue-700 p-1 rounded flex items-center"
+            aria-label="Voice settings"
+          >
+            <SettingsIcon className="h-3 w-3 mr-1" />
+            <span>Settings</span>
+          </button>
+        </div>
+        
+        {audioError && (
+          <div className="mb-2 text-xs text-red-600 bg-red-50 p-1 rounded">
+            {audioError}
+          </div>
+        )}
+        
+        <div className="flex flex-wrap gap-2 items-center mt-1">
+          <select
+            value={voiceId}
+            onChange={(e) => setVoiceId(e.target.value)}
+            className="text-xs p-1 border border-gray-300 rounded flex-grow"
+            disabled={generatingAudio || voices.length === 0}
+          >
+            {voices.length === 0 ? (
+              <option>Loading voices...</option>
+            ) : (
+              voices.map((voice) => (
+                <option key={voice.voice_id} value={voice.voice_id}>
+                  {voice.name}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+        
+        {audioSrc && (
+          <div className="mt-2">
+            <audio controls src={audioSrc} className="w-full h-8" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return manuallyRemoving ? null : (
     <div
       id={`scene-${scene.id}`}
@@ -377,8 +533,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 <textarea
                   value={text}
                   onChange={handleTextChange}
+                  onBlur={handleTextBlur}
                   className="w-full h-20 p-2 border border-gray-300 rounded mb-2 text-sm"
                   placeholder="Enter scene text..."
+                  autoFocus
                 />
                 <div className="flex justify-end space-x-2">
                   <button
@@ -387,51 +545,62 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                   >
                     Cancel
                   </button>
-                  <button
-                    onClick={handleSave}
-                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Save
-                  </button>
                 </div>
               </div>
             ) : (
-              <div className="min-h-[3rem] max-h-24 overflow-y-auto text-sm">
+              <div 
+                className="min-h-[3rem] max-h-24 overflow-y-auto text-sm cursor-pointer hover:bg-gray-50 p-1 rounded"
+                onClick={() => !readOnly && setIsEditing(true)}
+              >
                 <p className="text-gray-800">{cleanPostText(scene.text) || '<No text provided>'}</p>
               </div>
             )}
+            
+            {/* Voice generation controls */}
+            {renderVoiceControls()}
           </div>
 
           {/* Controls */}
-          <div className="border-t border-gray-200 p-2 flex justify-end space-x-1">
-            {scene.error && scene.url && (
+          <div className="border-t border-gray-200 flex justify-between items-stretch">
+            {/* Left side controls */}
+            <div className="flex items-center">
+              {scene.error && scene.url && (
+                <button
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                  className="p-1 text-blue-600 hover:bg-blue-50 rounded-sm flex items-center text-xs"
+                  aria-label="Retry loading content"
+                >
+                  <RefreshIcon className={`h-3 w-3 ${isRetrying ? 'animate-spin' : ''}`} />
+                  <span className="ml-1">Retry</span>
+                </button>
+              )}
+            </div>
+            
+            {/* Right side controls */}
+            <div className="flex flex-grow">
+              {!scene.isLoading && !scene.error && (
+                <div className="relative flex-grow flex">
+                  <button
+                    onClick={handleGenerateVoice}
+                    disabled={generatingAudio || !voiceId}
+                    className="flex-grow px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm"
+                    aria-label="Generate voice"
+                  >
+                    <Volume2Icon className="h-5 w-5 mr-2" />
+                    <span className="font-medium">{generatingAudio ? "Generating..." : "Generate Voiceover"}</span>
+                  </button>
+                </div>
+              )}
               <button
-                onClick={handleRetry}
-                disabled={isRetrying}
-                className="p-1 text-blue-600 hover:bg-blue-50 rounded-sm flex items-center text-xs"
-                aria-label="Retry loading content"
+                onClick={handleRemoveScene}
+                disabled={isRemoving}
+                className={`w-12 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
+                aria-label="Remove scene"
               >
-                <RefreshIcon className={`h-3 w-3 ${isRetrying ? 'animate-spin' : ''}`} />
-                <span className="ml-1">Retry</span>
+                <TrashIcon className={`h-5 w-5 ${isRemoving ? 'animate-spin' : ''}`} />
               </button>
-            )}
-            {!scene.isLoading && !scene.error && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="p-1 text-blue-600 hover:bg-blue-50 rounded-sm text-xs"
-                aria-label="Edit scene"
-              >
-                <EditIcon className="h-3 w-3" />
-              </button>
-            )}
-            <button
-              onClick={handleRemoveScene}
-              disabled={isRemoving}
-              className={`p-1 text-red-600 hover:bg-red-50 rounded-sm text-xs ${isRemoving ? 'opacity-50' : ''}`}
-              aria-label="Remove scene"
-            >
-              <TrashIcon className={`h-3 w-3 ${isRemoving ? 'animate-spin' : ''}`} />
-            </button>
+            </div>
           </div>
         </>
       )}

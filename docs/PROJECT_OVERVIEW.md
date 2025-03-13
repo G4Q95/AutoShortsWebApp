@@ -98,7 +98,7 @@ The application will feature an intuitive video project creation workflow:
 
 The project is in active development with several key components in place:
 
-### Frontend (95% Complete)
+### Frontend (80% Complete)
 - ✅ Next.js application structure
 - ✅ Project management interface
 - ✅ Scene addition and management
@@ -118,13 +118,18 @@ The project is in active development with several key components in place:
   - Content extraction
   - Project saving
   - Scene reordering
-- ✅ Voice Generation System
+- ✅ Voice Generation API Integration
   - ElevenLabs API integration
   - Voice selection interface
   - Audio preview functionality
   - Base64 audio handling
   - Proper error handling
   - Multiple output format support
+- 🔄 Voice Generation UI Integration
+  - UI mode management system
+  - "Start Voiceovers" button
+  - Scene-level voice controls
+  - Audio playback in scenes
 - ✅ Comprehensive end-to-end testing
   - All tests passing successfully
   - Resilient test selectors
@@ -132,7 +137,7 @@ The project is in active development with several key components in place:
 - 🔄 Video processing interface
 - ⏳ Authentication system
 
-### Backend (90% Complete)
+### Backend (75% Complete)
 - ✅ FastAPI server setup
 - ✅ Basic API endpoints
 - ✅ Content extraction service
@@ -160,6 +165,10 @@ The project is in active development with several key components in place:
   - Proper error handling
   - Audio data processing
   - Type-safe interfaces
+- 🔄 Voice-Video Integration
+  - ⏳ Combining audio with video segments
+  - ⏳ Timing synchronization
+  - ⏳ Audio placement controls
 - 🔄 Video processing pipeline
 - ⏳ Cloud storage integration
 - ⏳ Authentication system
@@ -225,7 +234,8 @@ Next steps include:
 1. **MVP (Week 10)**:
    - URL-based content submission ✅
    - Project workspace with draggable scenes ✅
-   - Voice generation with ElevenLabs ✅
+   - Voice generation API integration ✅
+   - Voice generation UI integration 🔄
    - Basic video generation 🔄
    - Google authentication ⏳
    - Free tier limitations ⏳

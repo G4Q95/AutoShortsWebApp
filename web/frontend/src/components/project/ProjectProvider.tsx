@@ -86,6 +86,12 @@ const ProjectContext = createContext<(ProjectState & {
   deleteAllProjects: () => Promise<void>;
   /** Refreshes the projects list */
   refreshProjects: () => Promise<void>;
+  /** Sets the UI mode for progressive enhancement */
+  setMode: (mode: 'organization' | 'voice-enabled' | 'preview') => void;
+  /** Progress to the next UI mode */
+  nextMode: () => void;
+  /** Return to the previous UI mode */
+  previousMode: () => void;
 }) | undefined>(undefined);
 
 /**
@@ -599,6 +605,39 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     await loadProjects();
   }, [loadProjects]);
 
+  // Set the UI mode
+  const setMode = useCallback((mode: 'organization' | 'voice-enabled' | 'preview') => {
+    dispatch({ type: 'SET_MODE', payload: { mode } });
+  }, []);
+
+  // Progress to the next UI mode
+  const nextMode = useCallback(() => {
+    dispatch({ 
+      type: 'SET_MODE', 
+      payload: { 
+        mode: state.mode === 'organization' 
+          ? 'voice-enabled' 
+          : state.mode === 'voice-enabled' 
+            ? 'preview' 
+            : 'organization' 
+      } 
+    });
+  }, [state.mode]);
+
+  // Return to the previous UI mode
+  const previousMode = useCallback(() => {
+    dispatch({ 
+      type: 'SET_MODE', 
+      payload: { 
+        mode: state.mode === 'preview' 
+          ? 'voice-enabled' 
+          : state.mode === 'voice-enabled' 
+            ? 'organization' 
+            : 'preview' 
+      } 
+    });
+  }, [state.mode]);
+
   // Memoize the context value to prevent unnecessary re-renders
   // Split context values into separate memoized objects
   const stateValues = useMemo(() => ({
@@ -608,13 +647,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     error: state.error,
     lastSaved: state.lastSaved,
     isSaving: state.isSaving,
+    mode: state.mode,
   }), [
     state.projects,
     state.currentProject,
     state.isLoading,
     state.error,
     state.lastSaved,
-    state.isSaving
+    state.isSaving,
+    state.mode
   ]);
 
   const actions = useMemo(() => ({
@@ -631,6 +672,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     duplicateProject,
     deleteAllProjects,
     refreshProjects,
+    setMode,
+    nextMode,
+    previousMode,
   }), [
     createProject,
     setCurrentProject,
@@ -645,6 +689,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     duplicateProject,
     deleteAllProjects,
     refreshProjects,
+    setMode,
+    nextMode,
+    previousMode,
   ]);
 
   // Combine state and actions only when either changes

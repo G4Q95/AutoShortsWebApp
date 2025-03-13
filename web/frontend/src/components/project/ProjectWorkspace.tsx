@@ -103,6 +103,9 @@ export default function ProjectWorkspace({
     lastSaved,
     createProject,
     loadProject,
+    mode,
+    setMode,
+    nextMode,
   } = useProject();
 
   const [url, setUrl] = useState('');
@@ -147,6 +150,11 @@ export default function ProjectWorkspace({
         currentProject: currentProject ? currentProject.id : null,
       }
     );
+
+    // Set voice-enabled as the default mode
+    if (mode === 'organization') {
+      setMode('voice-enabled');
+    }
 
     // If we're already loading a project, don't do anything
     if (projectLoadingRef.current) {
@@ -218,7 +226,9 @@ export default function ProjectWorkspace({
     setLocalProject,
     setLocalLoading,
     setError,
-    setDebugInfo
+    setDebugInfo,
+    mode,
+    setMode
   ]);
 
   // Use either preloaded project, local state, or context project
@@ -596,6 +606,16 @@ export default function ProjectWorkspace({
     removeScene(sceneId);
   }, [removeScene, effectiveProject, currentProject, setCurrentProject, setError]);
 
+  /**
+   * Handles transitioning to voice generation mode
+   * Changes the UI mode to enable voiceover features
+   * 
+   * @returns {void}
+   */
+  const handleStartVoiceovers = () => {
+    setMode('voice-enabled');
+  };
+
   if (isContextLoading) {
     return (
       <div className="flex justify-center items-center py-12 bg-white">
@@ -739,33 +759,31 @@ export default function ProjectWorkspace({
           </div>
         )}
 
-        {/* Process buttons */}
-        {effectiveProject.scenes.length > 0 && (
-          <div className="mb-8 flex flex-col space-y-4">
-            <button
-              onClick={handleProcessVideo}
-              className="px-4 py-3 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
-              disabled={isAddingScene || isSaving}
-            >
-              Process Video
-            </button>
+        {/* Action Buttons Section */}
+        <div className="grid grid-cols-1 mt-4 gap-4">
+          {/* Process Video / Fast Video Buttons */}
+          <button
+            onClick={handleProcessVideo}
+            className="px-4 py-3 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
+            disabled={isAddingScene || isSaving}
+          >
+            Process Video
+          </button>
 
-            <button
-              onClick={handleFastVideo}
-              className="px-4 py-3 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
-              disabled={isAddingScene || isSaving}
-            >
-              <ZapIcon className="h-5 w-5 mr-2" />
-              Fast Video
-            </button>
+          {/* Fast Video button always visible */}
+          <button
+            onClick={handleFastVideo}
+            className="px-4 py-3 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
+            disabled={isAddingScene || isSaving}
+          >
+            <ZapIcon className="h-5 w-5 mr-2" />
+            Fast Video
+          </button>
 
-            <p className="text-sm text-gray-600 mt-1">
-              <strong>Process Video:</strong> Customize each scene before processing
-              <br />
-              <strong>Fast Video:</strong> Automatically process with default settings
-            </p>
-          </div>
-        )}
+          <p className="text-sm text-gray-600 mt-1">
+            <strong>Process Video:</strong> Customize each scene before processing
+          </p>
+        </div>
 
         {/* Debug information */}
         {process.env.NODE_ENV === 'development' && (

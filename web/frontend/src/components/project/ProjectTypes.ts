@@ -86,6 +86,8 @@ export interface ProjectState {
   lastSaved: number | null;
   /** Whether a save operation is in progress */
   isSaving: boolean;
+  /** Current UI mode for progressive enhancement */
+  mode: 'organization' | 'voice-enabled' | 'preview';
 }
 
 /**
@@ -131,7 +133,9 @@ export type ProjectAction =
   /** Update state after successfully duplicating a project */
   | { type: 'DUPLICATE_PROJECT_SUCCESS'; payload: { project: Project } }
   /** Update state after successfully deleting all projects */
-  | { type: 'DELETE_ALL_PROJECTS_SUCCESS' };
+  | { type: 'DELETE_ALL_PROJECTS_SUCCESS' }
+  /** Set the UI mode */
+  | { type: 'SET_MODE'; payload: { mode: 'organization' | 'voice-enabled' | 'preview' } };
 
 /**
  * Initial state for the project management system.
@@ -144,6 +148,7 @@ export const initialState: ProjectState = {
   error: null,
   lastSaved: null,
   isSaving: false,
+  mode: 'organization',
 };
 
 // Re-export utility functions
