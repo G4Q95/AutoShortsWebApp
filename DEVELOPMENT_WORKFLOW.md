@@ -170,6 +170,20 @@ This document outlines the development workflow for the Auto Shorts Web App proj
    - Keep binary assets (images, videos) out of the repository when possible
    - If large files must be tracked, consider Git LFS (Large File Storage)
 
+8. **Environment Variable Management**
+   - Always use `.env.example` as a template for required variables
+   - Keep actual `.env` files out of version control
+   - Document all environment variables with clear descriptions
+   - Categorize variables as required or optional
+   - Use the validation system to check for required variables
+   - Test your changes with different environment configurations
+   - When adding new services, update the environment validation
+   - Follow the naming conventions for environment variables
+   - Use `NEXT_PUBLIC_` prefix for variables exposed to the browser
+   - Keep secrets and credentials secure
+   - Follow the guidelines in `docs/ENV_VALIDATION_GUIDE.md`
+   - Run `make check-env` to validate your environment setup
+
 ## Release Management
 
 1. **Release Planning**

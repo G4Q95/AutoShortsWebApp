@@ -207,6 +207,8 @@ If validation fails:
 
 This helps identify configuration issues early and provides clear guidance on what needs to be fixed.
 
+For detailed information about environment validation, including required variables, implementation details, and troubleshooting, see [docs/ENV_VALIDATION_GUIDE.md](docs/ENV_VALIDATION_GUIDE.md).
+
 ### CI/CD Pipeline
 
 The project uses GitHub Actions for continuous integration and deployment:
