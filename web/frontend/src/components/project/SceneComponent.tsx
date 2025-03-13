@@ -12,7 +12,11 @@ import {
   X as XIcon,
   ChevronDown as ChevronDownIcon,
   ChevronUp as ChevronUpIcon,
-  Type as TypeIcon
+  Type as TypeIcon,
+  Play as PlayIcon,
+  Pause as PauseIcon,
+  RotateCw as RegenerateIcon,
+  MoreVertical as MoreVerticalIcon
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
@@ -123,6 +127,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   
   // Voice settings states
   const [showSettings, setShowSettings] = useState(false);
@@ -230,13 +235,14 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       setAudioSrc(audioUrl);
       
       // Add a small delay to ensure the audio element is updated with the new source
+      // and to allow the flip animation to complete before playing
       setTimeout(() => {
         if (audioRef.current) {
           audioRef.current.play().catch(err => {
             console.error('Error auto-playing audio:', err);
           });
         }
-      }, 100);
+      }, 800); // Slightly longer delay to allow for animation
     } catch (err: any) {
       setAudioError(`Error generating voice: ${err.message}`);
       setAudioSrc(null);
@@ -541,6 +547,145 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     );
   };
 
+  // Format time for audio display
+  const formatTime = (timeInSeconds: number): string => {
+    if (isNaN(timeInSeconds)) return "0:00";
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = Math.floor(timeInSeconds % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Add an event listener to update time display during playback
+  useEffect(() => {
+    const updateTimeDisplay = () => {
+      if (audioRef.current) {
+        const currentTime = audioRef.current.currentTime;
+        const duration = audioRef.current.duration;
+        
+        const timeDisplay = document.getElementById(`time-display-${scene.id}`);
+        const durationDisplay = document.getElementById(`duration-display-${scene.id}`);
+        
+        if (timeDisplay) {
+          timeDisplay.textContent = formatTime(currentTime);
+        }
+        
+        if (durationDisplay && !isNaN(duration)) {
+          durationDisplay.textContent = formatTime(duration);
+        }
+      }
+    };
+    
+    if (audioRef.current && audioSrc) {
+      audioRef.current.addEventListener('timeupdate', updateTimeDisplay);
+      audioRef.current.addEventListener('loadedmetadata', updateTimeDisplay);
+    }
+    
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.removeEventListener('timeupdate', updateTimeDisplay);
+        audioRef.current.removeEventListener('loadedmetadata', updateTimeDisplay);
+      }
+    };
+  }, [audioRef, audioSrc, scene.id]);
+
+  // Simplified CSS classes for flip animation
+  useEffect(() => {
+    // Add styles for flip animation if they don't exist
+    if (!document.getElementById('flip-animation-styles')) {
+      const styleSheet = document.createElement('style');
+      styleSheet.id = 'flip-animation-styles';
+      styleSheet.textContent = `
+        .flip-container {
+          perspective: 1000px;
+        }
+        
+        .flip-container.flipped .flipper {
+          transform: rotateX(180deg);
+        }
+        
+        .flipper {
+          transition: 0.6s;
+          transform-style: preserve-3d;
+          position: relative;
+          transform-origin: center center;
+        }
+        
+        .front, .back {
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+        }
+        
+        .front {
+          z-index: 2;
+          transform: rotateX(0deg);
+        }
+        
+        .back {
+          transform: rotateX(180deg);
+          background-color: #16a34a; /* Ensuring the green color is consistent */
+        }
+        
+        .flip-container.flipped .front {
+          z-index: 0;
+        }
+        
+        .flip-container.flipped .back {
+          z-index: 2;
+        }
+      `;
+      document.head.appendChild(styleSheet);
+    }
+    
+    return () => {
+      // Cleanup styles when component unmounts
+      const styleElement = document.getElementById('flip-animation-styles');
+      if (styleElement) {
+        styleElement.remove();
+      }
+    };
+  }, []);
+
+  // Add event listeners for audio playback state
+  useEffect(() => {
+    const audioElement = audioRef.current;
+    
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => setIsPlaying(false);
+    
+    if (audioElement) {
+      audioElement.addEventListener('play', handlePlay);
+      audioElement.addEventListener('pause', handlePause);
+      audioElement.addEventListener('ended', handleEnded);
+    }
+    
+    return () => {
+      if (audioElement) {
+        audioElement.removeEventListener('play', handlePlay);
+        audioElement.removeEventListener('pause', handlePause);
+        audioElement.removeEventListener('ended', handleEnded);
+      }
+    };
+  }, [audioRef.current]);
+
+  // Updated audio play/pause handler
+  const togglePlayPause = () => {
+    if (audioRef.current) {
+      if (audioRef.current.paused) {
+        audioRef.current.play().catch(e => console.error("Error playing audio:", e));
+        setIsPlaying(true);
+      } else {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    }
+  };
+
   return manuallyRemoving ? null : (
     <div
       id={`scene-${scene.id}`}
@@ -630,8 +775,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 )}
               </select>
               
-              {/* Audio player - fixed size regardless of content */}
-              <div className={`mt-0.5 ${audioSrc ? 'block' : 'hidden'} h-7`}>
+              {/* We're hiding the separate audio player div */}
+              <div className="hidden">
                 <audio ref={audioRef} controls src={audioSrc || ''} className="w-full h-7" />
               </div>
             </div>
@@ -657,23 +802,134 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             {/* Right side controls */}
             <div className="flex flex-grow">
               {!scene.isLoading && !scene.error && (
-                <div className="relative flex-grow flex">
-                  <button
-                    onClick={handleGenerateVoice}
-                    disabled={generatingAudio || !voiceId}
-                    className="flex-grow px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm"
-                    aria-label="Generate voice"
+                <div className="relative flex-grow flex pr-0">
+                  {/* This is the flipping container that will rotate */}
+                  <div 
+                    className={`flip-container flex-grow relative ${audioSrc ? 'flipped' : ''}`}
+                    style={{
+                      perspective: '1000px',
+                      height: '100%',
+                      marginRight: '0', // Ensure no margin pushes it to the right
+                      width: '100%' // Ensure full width
+                    }}
                   >
-                    <Volume2Icon className="h-4 w-4 mr-1" />
-                    <span className="font-medium">{generatingAudio ? "Generating..." : "Generate Voiceover"}</span>
-                  </button>
+                    <div className="flipper" style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: '100%',
+                      transition: 'transform 0.6s',
+                      transformStyle: 'preserve-3d',
+                      transform: audioSrc ? 'rotateX(180deg)' : 'rotateX(0deg)'
+                    }}>
+                      {/* Front face - Generate button */}
+                      <button
+                        onClick={handleGenerateVoice}
+                        disabled={generatingAudio || !voiceId}
+                        className="front absolute inset-0 flex-grow px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm"
+                        aria-label="Generate voice"
+                        style={{
+                          backfaceVisibility: 'hidden',
+                          WebkitBackfaceVisibility: 'hidden',
+                          zIndex: audioSrc ? '0' : '2'
+                        }}
+                      >
+                        <Volume2Icon className="h-4 w-4 mr-1" />
+                        <span className="font-medium">{generatingAudio ? "Generating..." : "Generate Voiceover"}</span>
+                      </button>
+                      
+                      {/* Back face - Audio controls */}
+                      <div
+                        className="back absolute inset-0 flex-grow px-2 py-2 bg-green-600 text-white text-sm rounded-bl-md flex items-center justify-between"
+                        style={{
+                          backfaceVisibility: 'hidden',
+                          WebkitBackfaceVisibility: 'hidden',
+                          transform: 'rotateX(180deg)',
+                          zIndex: audioSrc ? '2' : '0',
+                          right: '0', // Ensure right edge alignment
+                          width: 'calc(100% - 2px)', // Slightly smaller to prevent overlap
+                          paddingRight: '0.75rem' // Add extra right padding to create space from trash button
+                        }}
+                      >
+                        {/* Audio Control Section - all controls in a single row with flex */}
+                        <div className="flex items-center w-full justify-between">
+                          {/* Left side - play button and time */}
+                          <div className="flex items-center">
+                            <button 
+                              onClick={togglePlayPause}
+                              className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
+                              style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                            >
+                              {isPlaying ? 
+                                <PauseIcon className="h-3.5 w-3.5" /> : 
+                                <PlayIcon className="h-3.5 w-3.5" />
+                              }
+                            </button>
+                            
+                            <div className="text-xs whitespace-nowrap font-semibold">
+                              <span id={`time-display-${scene.id}`}>
+                                {audioRef.current ? 
+                                  formatTime(audioRef.current.currentTime || 0) : 
+                                  "0:00"}
+                              </span>
+                              <span className="mx-0.5">/</span>
+                              <span id={`duration-display-${scene.id}`}>
+                                {audioRef.current ? 
+                                  formatTime(audioRef.current.duration || 0) : 
+                                  "0:00"}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Middle - volume slider (will grow to fill available space) */}
+                          <div className="flex-grow mx-2 max-w-[50px]">
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.1"
+                              defaultValue="1"
+                              className="w-full h-1 accent-white"
+                              onChange={(e) => {
+                                if (audioRef.current) {
+                                  audioRef.current.volume = parseFloat(e.target.value);
+                                }
+                              }}
+                            />
+                          </div>
+                          
+                          {/* Right - action buttons */}
+                          <div className="flex items-center">
+                            <button 
+                              onClick={handleGenerateVoice}
+                              disabled={generatingAudio}
+                              className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center mr-1.5"
+                              title="Regenerate voice"
+                              style={{ width: '18px', height: '18px' }}
+                            >
+                              <RegenerateIcon className="h-3 w-3" />
+                            </button>
+                            
+                            <button 
+                              className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center"
+                              title="More options"
+                              onClick={() => setShowSettings(true)}
+                              style={{ width: '18px', height: '18px' }}
+                            >
+                              <MoreVerticalIcon className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
               <button
                 onClick={handleRemoveScene}
                 disabled={isRemoving}
-                className={`w-12 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
+                className={`flex-shrink-0 w-10 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
                 aria-label="Remove scene"
+                style={{ marginLeft: '-1px' }} /* Add negative margin to close the gap */
               >
                 <TrashIcon className={`h-4 w-4 ${isRemoving ? 'animate-spin' : ''}`} />
               </button>
