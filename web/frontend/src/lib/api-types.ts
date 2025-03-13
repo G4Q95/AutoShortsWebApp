@@ -134,4 +134,88 @@ export interface ApiHealth {
   responseTime: number;
   /** Whether a health check is currently in progress */
   checkInProgress: boolean;
+}
+
+/**
+ * Voice information
+ * 
+ * @interface Voice
+ * @property {string} voice_id - Unique identifier for the voice
+ * @property {string} name - Display name of the voice
+ * @property {string} [category] - Category the voice belongs to (e.g., "premium", "standard")
+ * @property {string} [description] - Description of the voice
+ * @property {string} [preview_url] - URL to a preview audio sample
+ * @property {Record<string, string>} [labels] - Additional labels/attributes for the voice
+ */
+export interface Voice {
+  voice_id: string;
+  name: string;
+  category?: string;
+  description?: string;
+  preview_url?: string;
+  labels?: Record<string, string>;
+}
+
+/**
+ * Response for voice listing requests
+ * 
+ * @interface VoiceListResponse
+ * @property {Voice[]} voices - Array of available voices
+ * @property {number} count - Total number of voices
+ */
+export interface VoiceListResponse {
+  voices: Voice[];
+  count: number;
+}
+
+/**
+ * Voice generation settings
+ * 
+ * @interface VoiceSettings
+ * @property {number} stability - Voice stability (0.0-1.0) - higher values make voice more consistent but less expressive
+ * @property {number} similarity_boost - Voice similarity boost (0.0-1.0) - higher values make voice more similar to sample
+ * @property {number} [style] - Optional style value (0.0-1.0)
+ * @property {boolean} [use_speaker_boost] - Whether to use speaker boost
+ */
+export interface VoiceSettings {
+  stability: number;
+  similarity_boost: number;
+  style?: number;
+  use_speaker_boost?: boolean;
+}
+
+/**
+ * Request payload for voice generation
+ * 
+ * @interface GenerateVoiceRequest
+ * @property {string} text - Text to convert to speech
+ * @property {string} voice_id - ID of the voice to use
+ * @property {number} [stability] - Voice stability (0.0-1.0)
+ * @property {number} [similarity_boost] - Voice similarity boost (0.0-1.0)
+ * @property {number} [style] - Optional style value (0.0-1.0)
+ * @property {string} [output_format] - Output format (mp3, pcm, wav, ogg, flac)
+ */
+export interface GenerateVoiceRequest {
+  text: string;
+  voice_id: string;
+  stability?: number;
+  similarity_boost?: number;
+  style?: number;
+  output_format?: "mp3_22050_32" | "mp3_44100_32" | "mp3_44100_64" | "mp3_44100_96" | "mp3_44100_128" | "mp3_44100_192" | "pcm_8000" | "pcm_16000" | "pcm_22050" | "pcm_24000" | "pcm_44100" | "ulaw_8000";
+}
+
+/**
+ * Response for voice generation
+ * 
+ * @interface GenerateVoiceResponse
+ * @property {string} audio_base64 - Base64 encoded audio data
+ * @property {string} content_type - Content type of the audio (e.g., "audio/mpeg")
+ * @property {number} character_count - Number of characters in the text
+ * @property {number} processing_time - Time taken to process the request in seconds
+ */
+export interface GenerateVoiceResponse {
+  audio_base64: string;
+  content_type: string;
+  character_count: number;
+  processing_time: number;
 } 

@@ -29,7 +29,12 @@ import {
   ApiHealth, 
   VideoCreationResponse, 
   VideoStatusResponse,
-  UserResponse 
+  UserResponse,
+  Voice,
+  VoiceListResponse,
+  GenerateVoiceRequest,
+  GenerateVoiceResponse,
+  VoiceSettings
 } from './api-types';
 
 /**
@@ -581,4 +586,228 @@ export async function getVideoStatus(taskId: string): Promise<ApiResponse<VideoS
  */
 export async function getCurrentUser(): Promise<ApiResponse<UserResponse>> {
   return fetchAPI('/users/me');
+}
+
+/**
+ * Get available voices from ElevenLabs
+ * 
+ * @returns {Promise<ApiResponse<VoiceListResponse>>} Promise with list of available voices
+ * 
+ * @example
+ * const response = await getAvailableVoices();
+ * if (!response.error) {
+ *   const voices = response.data.voices;
+ *   // Use the voice list
+ * }
+ */
+export async function getAvailableVoices(): Promise<ApiResponse<VoiceListResponse>> {
+  return fetchAPI<VoiceListResponse>(
+    `/voice/voices`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    },
+    15000 // Longer timeout for voice API
+  );
+}
+
+/**
+ * Get details of a specific voice
+ * 
+ * @param {string} voiceId - ID of the voice to retrieve
+ * @returns {Promise<ApiResponse<Voice>>} Promise with voice details
+ * 
+ * @example
+ * const response = await getVoiceById('voice123');
+ * if (!response.error) {
+ *   const voice = response.data;
+ *   // Use the voice details
+ * }
+ */
+export async function getVoiceById(voiceId: string): Promise<ApiResponse<Voice>> {
+  return fetchAPI<Voice>(
+    `/voice/voices/${voiceId}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+}
+
+/**
+ * Generate audio from text using ElevenLabs
+ * 
+ * @param {GenerateVoiceRequest} requestData - Request data including text and voice settings
+ * @returns {Promise<ApiResponse<GenerateVoiceResponse>>} Promise with generated audio
+ * 
+ * @example
+ * const response = await generateVoice({
+ *   text: "Hello world",
+ *   voice_id: "voice123",
+ *   settings: { stability: 0.5, similarity_boost: 0.5 }
+ * });
+ * if (!response.error) {
+ *   const audioBase64 = response.data.audio_base64;
+ *   // Use the generated audio
+ * }
+ */
+export async function generateVoice(
+  requestData: GenerateVoiceRequest
+): Promise<ApiResponse<GenerateVoiceResponse>> {
+  return fetchAPI<GenerateVoiceResponse>(
+    `/voice/generate`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    },
+    30000 // Longer timeout for voice generation
+  );
+}
+
+/**
+ * Generate audio from text and create an Audio element for playback
+ * 
+ * @param {GenerateVoiceRequest} request - Voice generation request data
+ * @returns {Promise<{audio: HTMLAudioElement | null, error: ApiError | null, characterCount: number}>} Audio element with the generated audio, or error
+ * 
+ * @example
+ * const { audio, error } = await generateVoiceAudio({
+ *   text: 'Hello world',
+ *   voice_id: 'voice123'
+ * });
+ * if (audio) {
+ *   audio.play();
+ * }
+ */
+export async function generateVoiceAudio(
+  request: GenerateVoiceRequest
+): Promise<{
+  audio: HTMLAudioElement | null;
+  error: ApiError | null;
+  characterCount: number;
+  processingTime: number;
+}> {
+  const response = await generateVoice(request);
+
+  if (response.error) {
+    return {
+      audio: null,
+      error: response.error,
+      characterCount: 0,
+      processingTime: 0
+    };
+  }
+
+  try {
+    // Create an audio element from the base64 data
+    const audio = new Audio(
+      `data:${response.data.content_type};base64,${response.data.audio_base64}`
+    );
+
+    return {
+      audio,
+      error: null,
+      characterCount: response.data.character_count,
+      processingTime: response.data.processing_time
+    };
+  } catch (err) {
+    console.error('Error creating audio element:', err);
+    return {
+      audio: null,
+      error: {
+        status_code: 500,
+        message: 'Failed to create audio from generated voice',
+        error_code: 'audio_creation_error'
+      },
+      characterCount: response.data.character_count,
+      processingTime: response.data.processing_time
+    };
+  }
+}
+
+/**
+ * Download generated audio as a file
+ * 
+ * @param {string} text - Text to convert to speech
+ * @param {string} voiceId - ID of the voice to use
+ * @param {string} [filename='voice-audio.mp3'] - Filename for the downloaded file
+ * @param {Partial<VoiceSettings>} [settings] - Voice settings (stability, similarity_boost)
+ * @returns {Promise<{success: boolean, error: ApiError | null}>} Status of the download
+ * 
+ * @example
+ * const { success, error } = await downloadVoiceAudio(
+ *   'Hello world',
+ *   'voice123',
+ *   'my-voice.mp3',
+ *   { stability: 0.7, similarity_boost: 0.5 }
+ * );
+ */
+export async function downloadVoiceAudio(
+  text: string,
+  voiceId: string,
+  filename: string = 'voice-audio.mp3',
+  settings?: Partial<VoiceSettings>
+): Promise<{ success: boolean; error: ApiError | null }> {
+  // Prepare the request
+  const request: GenerateVoiceRequest = {
+    text,
+    voice_id: voiceId,
+    output_format: filename.split('.').pop() || 'mp3',
+    ...settings
+  };
+
+  // Generate the audio
+  const response = await generateVoice(request);
+
+  if (response.error) {
+    return { success: false, error: response.error };
+  }
+
+  try {
+    // Convert base64 to a Blob
+    const byteCharacters = atob(response.data.audio_base64);
+    const byteArrays = [];
+    
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteArrays.push(byteCharacters.charCodeAt(i));
+    }
+    
+    const byteArray = new Uint8Array(byteArrays);
+    const blob = new Blob([byteArray], { type: response.data.content_type });
+    
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+    
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error downloading audio:', err);
+    return {
+      success: false,
+      error: {
+        status_code: 500,
+        message: 'Failed to download audio file',
+        error_code: 'audio_download_error'
+      }
+    };
+  }
 }

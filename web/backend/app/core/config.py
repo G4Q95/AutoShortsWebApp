@@ -29,6 +29,14 @@ class Settings(BaseModel):
 
     # ElevenLabs
     ELEVENLABS_API_KEY: str = Field(default_factory=lambda: os.getenv("ELEVENLABS_API_KEY", ""))
+    ELEVENLABS_MODEL_ID: str = Field(default_factory=lambda: os.getenv("ELEVENLABS_MODEL_ID", "eleven_monolingual_v1"))
+    ELEVENLABS_API_URL: str = Field(default_factory=lambda: os.getenv("ELEVENLABS_API_URL", "https://api.elevenlabs.io/v1"))
+    # Voice generation limits for free tier (characters per scene)
+    VOICE_GEN_MAX_CHARS_PER_SCENE: int = 1000
+    VOICE_GEN_MAX_CHARS_PER_REQUEST: int = 5000
+    # Default voice settings
+    VOICE_GEN_DEFAULT_STABILITY: float = 0.5
+    VOICE_GEN_DEFAULT_SIMILARITY: float = 0.75
 
     # Cloudflare R2
     R2_ACCOUNT_ID: str = Field(default_factory=lambda: os.getenv("R2_ACCOUNT_ID", ""))

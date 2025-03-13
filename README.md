@@ -409,3 +409,51 @@ To maintain code quality as the project grows:
 5. **Update documentation** when making significant changes
 
 These standards ensure we maintain high code quality while delivering features efficiently. 
+
+## Features
+
+### Voice Generation
+- ✅ ElevenLabs API integration for high-quality voice synthesis
+- ✅ Multiple voice options with preview functionality
+- ✅ Support for various audio formats (MP3, PCM)
+- ✅ Real-time audio generation and playback
+- ✅ Comprehensive error handling and validation
+- ✅ Voice testing interface at `/voice-test`
+
+### Video Processing
+// ... existing code ...
+
+## Development Status
+
+The project is currently in active development with the following components:
+
+- ✅ Frontend Core (Next.js, React, Tailwind CSS)
+- ✅ Backend API (FastAPI, Python)
+- ✅ Database Integration (MongoDB Atlas)
+- ✅ Voice Generation System (ElevenLabs)
+- 🔄 Video Processing Pipeline (FFMPEG)
+- ⏳ Authentication System
+- ⏳ Cloud Storage Integration
+
+## Quick Start
+
+1. Clone the repository
+2. Install Docker and Docker Compose
+3. Copy `.env.example` to `.env` and configure your environment variables:
+   ```
+   ELEVENLABS_API_KEY=your_api_key_here
+   MONGODB_URI=your_mongodb_uri
+   ```
+4. Start the development environment:
+   ```bash
+   docker-compose up -d
+   ```
+5. Access the application:
+   - Main application: http://localhost:3000
+   - Voice testing interface: http://localhost:3000/voice-test
+   - Backend API: http://localhost:8000
+   - API documentation: http://localhost:8000/docs
+
+## Testing
+
+// ... existing code ... 

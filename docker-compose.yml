@@ -34,6 +34,10 @@ services:
       - CLOUDFLARE_R2_SECRET_ACCESS_KEY=179247cd061bed35d62efeb4d729ae5be3b281b18f8cb33ebcf804c0c6177ie
       - R2_BUCKET_NAME=autoshorts-media
       - USE_MOCK_STORAGE=False
+      # ElevenLabs Configuration
+      - ELEVENLABS_API_KEY=sk_2661fc8844c2ffc280fb47b44b061d425c156ce09a47a9dc
+      - ELEVENLABS_MODEL_ID=eleven_monolingual_v1
+      - ELEVENLABS_API_URL=https://api.elevenlabs.io/v1
     networks:
       - app-network
 

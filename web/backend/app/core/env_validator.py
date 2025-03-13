@@ -21,6 +21,8 @@ REQUIRED_VARS = {
 RECOMMENDED_VARS = {
     "OPENAI_API_KEY": "OpenAI API key for text rewriting",
     "ELEVENLABS_API_KEY": "ElevenLabs API key for voice generation",
+    "ELEVENLABS_MODEL_ID": "ElevenLabs model ID (default: eleven_monolingual_v1)",
+    "ELEVENLABS_API_URL": "ElevenLabs API URL (default: https://api.elevenlabs.io/v1)",
     "CLOUDFLARE_R2_ENDPOINT": "Cloudflare R2 endpoint for storage",
     "CLOUDFLARE_R2_ACCESS_KEY_ID": "Cloudflare R2 access key ID",
     "CLOUDFLARE_R2_SECRET_ACCESS_KEY": "Cloudflare R2 secret access key",
@@ -51,6 +53,11 @@ def validate_environment_variables(exit_on_failure: bool = True) -> Tuple[bool, 
     for var_name, description in RECOMMENDED_VARS.items():
         if not os.getenv(var_name):
             logger.warning(f"Missing recommended environment variable: {var_name} - {description}")
+    
+    # Special validation for the ElevenLabs API key
+    elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
+    if elevenlabs_key and len(elevenlabs_key) < 32:
+        logger.warning("ElevenLabs API key appears to be invalid (too short)")
     
     # If any required variables are missing, either exit or return failure
     if missing_vars and exit_on_failure:

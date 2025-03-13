@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 
-from app.api import ai, content, projects, users, video_creation, videos
+from app.api import ai, content, projects, users, video_creation, videos, voice
 from app.core.config import settings
 from app.core.database import init_db, close_db, db, MongoJSONResponse
 from app.core.errors import create_error_response, ErrorCodes
@@ -217,3 +217,4 @@ app.include_router(content.router, prefix=settings.API_V1_STR)
 app.include_router(ai.router, prefix=settings.API_V1_STR)
 app.include_router(video_creation.router, prefix=settings.API_V1_STR)
 app.include_router(projects.router, prefix=settings.API_V1_STR)
+app.include_router(voice.router, prefix=settings.API_V1_STR)
