@@ -359,12 +359,20 @@ Set up basic files for backend structure:
 2. Implement voice selection interface
 3. Create audio preview component
 4. Implement character limits and tracking
+5. Add speed parameter (0.7x-1.2x) for controlling speech pace
+6. Implement percentage-based controls for intuitive parameter adjustments
 
 #### 9.2 Voice Customization
 1. Add voice selection interface
-2. Create controls for voice parameters
+2. Create controls for voice parameters:
+   - Stability (0-100%)
+   - Similarity (0-100%)
+   - Style (0-100%)
+   - Speed (0.7x-1.2x)
 3. Implement audio playback
 4. Add favorite voices functionality
+5. Set voice-enabled mode as default for improved workflow
+6. Implement direct access to voice controls on scene components
 
 ### 10. Create Video Assembly Pipeline
 

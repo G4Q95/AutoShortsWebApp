@@ -9,6 +9,7 @@ import {
   RefreshCw as RefreshIcon,
   Volume2 as Volume2Icon,
   Settings as SettingsIcon,
+  X as XIcon,
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
@@ -119,6 +120,15 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   
+  // Voice settings states
+  const [showSettings, setShowSettings] = useState(false);
+  const [stability, setStability] = useState(0.5);
+  const [similarityBoost, setSimilarityBoost] = useState(0.75);
+  const [style, setStyle] = useState(0);
+  const [speakerBoost, setSpeakerBoost] = useState(false);
+  const [speed, setSpeed] = useState(1.0);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  
   // Store local preview reference for potential fallbacks
   useEffect(() => {
     if (preview && !localPreview.current) {
@@ -192,9 +202,12 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       const response = await generateVoice({
         text,
         voice_id: voiceId,
-        stability: 0.5,
-        similarity_boost: 0.75,
-        output_format: "mp3_44100_128"
+        stability,
+        similarity_boost: similarityBoost,
+        style,
+        output_format: "mp3_44100_128",
+        use_speaker_boost: speakerBoost,
+        speed
       });
       
       if (response.error) {
@@ -436,6 +449,13 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     }
   };
 
+  // Modified onSceneMove to prevent dragging when settings are open
+  const handleSceneMove = useCallback((id: string, newIndex: number) => {
+    if (!showSettings) {
+      onSceneMove(id, newIndex);
+    }
+  }, [onSceneMove, showSettings]);
+
   // Function to render voice generation UI
   const renderVoiceControls = () => {
     return (
@@ -443,7 +463,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         <div className="flex items-center justify-between">
           <div className="text-xs font-medium text-gray-700">Voice Narration</div>
           <button
-            onClick={() => alert("Voice settings not yet implemented")}
+            ref={settingsButtonRef}
+            onClick={() => setShowSettings(!showSettings)}
             className="text-xs text-blue-600 hover:text-blue-700 p-1 rounded flex items-center"
             aria-label="Voice settings"
           >
@@ -482,6 +503,182 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             <audio controls src={audioSrc} className="w-full h-8" />
           </div>
         )}
+        
+        {/* Settings Panel Overlay */}
+        {showSettings && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (e.target === e.currentTarget) {
+                setShowSettings(false);
+              }
+            }}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl border border-gray-300 w-80 max-w-[90vw] absolute"
+              style={{
+                top: settingsButtonRef.current 
+                  ? settingsButtonRef.current.getBoundingClientRect().top - 320 
+                  : '10vh',
+                left: settingsButtonRef.current 
+                  ? settingsButtonRef.current.getBoundingClientRect().left - 244
+                  : '10vw',
+                boxShadow: '0 0 0 1px rgba(0,0,0,0.05), 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center p-3 border-b border-gray-200">
+                <h3 className="text-sm font-medium text-gray-800">Voice Settings</h3>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSettings(false);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="p-4">
+                {/* Speed slider - MOVED TO TOP */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs text-gray-600">Speed: {speed.toFixed(2)}x</label>
+                    <span className="text-xs text-gray-500">
+                      {speed < 0.85 ? 'Slower' : speed > 1.1 ? 'Faster' : 'Normal'}
+                    </span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0.7" 
+                    max="1.2" 
+                    step="0.01" 
+                    value={speed} 
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setSpeed(parseFloat(e.target.value));
+                    }}
+                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>Slower (0.7x)</span>
+                    <span>Faster (1.2x)</span>
+                  </div>
+                </div>
+                
+                {/* Stability slider - CHANGED TO PERCENTAGE */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs text-gray-600">Stability: {Math.round(stability * 100)}%</label>
+                    <span className="text-xs text-gray-500">{stability < 0.3 ? 'Variable' : stability > 0.7 ? 'Stable' : 'Balanced'}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01" 
+                    value={stability} 
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setStability(parseFloat(e.target.value));
+                    }}
+                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                
+                {/* Similarity Boost slider - CHANGED TO PERCENTAGE */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs text-gray-600">Similarity: {Math.round(similarityBoost * 100)}%</label>
+                    <span className="text-xs text-gray-500">{similarityBoost < 0.3 ? 'Less Similar' : similarityBoost > 0.7 ? 'More Similar' : 'Balanced'}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01" 
+                    value={similarityBoost} 
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setSimilarityBoost(parseFloat(e.target.value));
+                    }}
+                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                
+                {/* Style slider - CHANGED TO PERCENTAGE */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs text-gray-600">Style: {Math.round(style * 100)}%</label>
+                    <span className="text-xs text-gray-500">{style < 0.3 ? 'Natural' : style > 0.7 ? 'Expressive' : 'Balanced'}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01" 
+                    value={style} 
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setStyle(parseFloat(e.target.value));
+                    }}
+                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                
+                {/* Speaker Boost toggle */}
+                <div className="flex items-center justify-between mb-4">
+                  <label className="text-xs text-gray-600">Speaker Boost</label>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSpeakerBoost(!speakerBoost);
+                    }}
+                    className={`relative inline-flex h-5 w-10 items-center rounded-full ${speakerBoost ? 'bg-blue-600' : 'bg-gray-200'}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${speakerBoost ? 'translate-x-5' : 'translate-x-1'}`}
+                    />
+                  </button>
+                </div>
+                
+                <div className="text-[10px] text-gray-500 mb-3">
+                  These settings apply only to this scene.
+                </div>
+                
+                <div className="flex justify-end">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSettings(false);
+                    }}
+                    className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded font-medium"
+                  >
+                    Apply Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -496,6 +693,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         opacity: fadeOut ? 0.6 : 1,
         transition: 'opacity 0.5s ease-out'
       }}
+      {...(reorderMode && !showSettings ? {
+        'data-handler-id': scene.id,
+        'draggable': 'true'
+      } : {})}
     >
       {/* Scene number indicator */}
       <div 

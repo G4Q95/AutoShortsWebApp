@@ -257,4 +257,19 @@ Next steps include:
 - MongoDB Atlas can be upgraded to dedicated clusters as demand grows
 - Google Cloud Run configurations can be adjusted for higher performance
 - Additional API optimizations can be implemented at scale
-- Consider transitioning some components to reserved instances once usage patterns are established 
+- Consider transitioning some components to reserved instances once usage patterns are established
+
+### Real-Time Voiceover Integration (Pictori-style)
+- Live preview of ElevenLabs voiceover as text is edited
+- Immediate regeneration when text or voice settings change
+- Automatic timing adjustment based on voiceover length
+- Seamless text-to-speech workflow
+- Progressive UI Enhancement Approach:
+  - Voice-enabled mode active by default with direct audio controls on each scene
+  - Full range of voice customization options including speed, stability, similarity, and style
+  - Percentage-based controls (0-100%) for intuitive parameter adjustments
+  - Variable speech speed control (0.7x-1.2x) for perfect pacing
+  - Contextual editing allowing text changes and immediate audio generation
+  - Save audio functionality to create checkpoints for approved audio
+  - Individual scene voice settings with studio-quality controls
+  - Character count indicators to prevent exceeding API limits 

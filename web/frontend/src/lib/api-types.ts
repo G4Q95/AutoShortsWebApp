@@ -176,12 +176,14 @@ export interface VoiceListResponse {
  * @property {number} similarity_boost - Voice similarity boost (0.0-1.0) - higher values make voice more similar to sample
  * @property {number} [style] - Optional style value (0.0-1.0)
  * @property {boolean} [use_speaker_boost] - Whether to use speaker boost
+ * @property {number} [speed] - Voice speed (0.7-1.2) - controls the pace of speech
  */
 export interface VoiceSettings {
   stability: number;
   similarity_boost: number;
   style?: number;
   use_speaker_boost?: boolean;
+  speed?: number;
 }
 
 /**
@@ -193,7 +195,9 @@ export interface VoiceSettings {
  * @property {number} [stability] - Voice stability (0.0-1.0)
  * @property {number} [similarity_boost] - Voice similarity boost (0.0-1.0)
  * @property {number} [style] - Optional style value (0.0-1.0)
+ * @property {boolean} [use_speaker_boost] - Whether to use speaker boost
  * @property {string} [output_format] - Output format (mp3, pcm, wav, ogg, flac)
+ * @property {number} [speed] - Voice speed (0.7-1.2) - controls the pace of speech
  */
 export interface GenerateVoiceRequest {
   text: string;
@@ -201,7 +205,9 @@ export interface GenerateVoiceRequest {
   stability?: number;
   similarity_boost?: number;
   style?: number;
+  use_speaker_boost?: boolean;
   output_format?: "mp3_22050_32" | "mp3_44100_32" | "mp3_44100_64" | "mp3_44100_96" | "mp3_44100_128" | "mp3_44100_192" | "pcm_8000" | "pcm_16000" | "pcm_22050" | "pcm_24000" | "pcm_44100" | "ulaw_8000";
+  speed?: number;
 }
 
 /**

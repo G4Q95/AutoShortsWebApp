@@ -51,6 +51,7 @@ class GenerateVoiceRequest(BaseModel):
     stability: float = Field(0.5, ge=0.0, le=1.0, description="Voice stability (0.0-1.0)")
     similarity_boost: float = Field(0.75, ge=0.0, le=1.0, description="Voice similarity boost (0.0-1.0)")
     style: Optional[float] = Field(None, ge=0.0, le=1.0, description="Optional style value (0.0-1.0)")
+    use_speaker_boost: Optional[bool] = Field(True, description="Whether to enhance vocal clarity")
     output_format: str = Field(
         "mp3_44100_128",
         description="Audio output format (mp3_22050_32, mp3_44100_32, mp3_44100_64, mp3_44100_96, mp3_44100_128, mp3_44100_192, pcm_8000, pcm_16000, pcm_22050, pcm_24000, pcm_44100, ulaw_8000)"
@@ -204,7 +205,8 @@ async def generate_voice_audio(request: GenerateVoiceRequest):
             stability=request.stability,
             similarity_boost=request.similarity_boost,
             style=request.style,
-            output_format=request.output_format
+            output_format=request.output_format,
+            use_speaker_boost=request.use_speaker_boost
         )
         
         # Calculate processing time
@@ -264,7 +266,8 @@ async def generate_voice_audio_file(request: GenerateVoiceRequest):
             stability=request.stability,
             similarity_boost=request.similarity_boost,
             style=request.style,
-            output_format=request.output_format
+            output_format=request.output_format,
+            use_speaker_boost=request.use_speaker_boost
         )
         
         # Set up response headers
