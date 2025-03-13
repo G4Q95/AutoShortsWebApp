@@ -285,4 +285,28 @@ We are in Phase 2 of the project, focused on connecting the frontend workspace t
 - All Playwright tests are now passing successfully
 - Enhanced logging for better troubleshooting
 - Improved media proxy functionality for Reddit videos
-- Updated server-manager.sh script for better reliability 
+- Updated server-manager.sh script for better reliability
+
+## Future Considerations
+
+These are alternative implementation ideas that could be explored in the future:
+
+### BBC VideoContext for Video Editing
+
+**Overview**: Instead of a fully custom video editing implementation, investigate using BBC's VideoContext library (open-source) for timeline-based editing and real-time preview capabilities.
+
+**Potential Benefits**:
+- Professional-grade compositing with WebGL acceleration
+- Reduced development time compared to custom solution
+- Real-time preview of effects and transitions
+- Open-source with no licensing costs
+
+**Key Requirements for Implementation**:
+- React wrapper components for VideoContext
+- Custom timeline UI that maps to VideoContext nodes
+- Backend integration to convert timeline data to FFmpeg commands
+- Text overlay system using Canvas
+
+**Research Links**:
+- [BBC VideoContext GitHub](https://github.com/bbc/VideoContext)
+- [API Documentation](https://github.com/bbc/VideoContext/blob/master/docs/API.md) 
