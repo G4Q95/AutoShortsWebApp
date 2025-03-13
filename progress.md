@@ -140,10 +140,10 @@ The current focus is on improving code stability, API connectivity, and refactor
 
 ### In Progress
 - 🔄 ElevenLabs Voice Generation Integration (10% complete)
-- Setting up API client for ElevenLabs
-- Implementing voice selection interface
-- Creating audio preview functionality
-- Adding voice customization options
+  - Setting up API client for ElevenLabs
+  - Implementing voice selection interface
+  - Creating audio preview functionality
+  - Adding voice customization options
 
 🔄 Video Processing Pipeline (40% complete)
 - FFMPEG integration in progress
@@ -152,20 +152,29 @@ The current focus is on improving code stability, API connectivity, and refactor
 - Progress tracking system design
 
 ### Next Steps
-1. Complete ElevenLabs Integration
-   - Implement secure API key management
-   - Create voice selection UI
-   - Add audio preview component
-   - Implement character counting
-   - Add favorite voices functionality
+1. Complete ElevenLabs Integration with Integrated UI Approach
+   - Implement Progressive UI Enhancement approach:
+     - Phase 1: Initial Scene Organization Mode (existing)
+     - Phase 2: Voice-Enabled Mode (with audio controls revealed on same page)
+     - Phase 3: Preview Mode Toggle (simplified view for reviewing)
+   - Implement "Save Audio" functionality to create checkpoints
+   - Add global voice selection with individual overrides
+   - Create inline audio generation and playback
+   - Preserve edit flexibility throughout workflow
 
-2. Enhance Video Processing
+2. Future AI Text Rewriting Integration
+   - Plan for text rewriting to integrate with Scene Organization Mode
+   - Design UI to support both manual text editing and AI assistance
+   - Ensure rewriting feature will complement voice generation workflow
+   - Prepare API architecture to support both text processing and audio generation
+
+3. Enhance Video Processing
    - Complete FFMPEG integration
    - Implement scene transitions
    - Add progress tracking
    - Create video preview component
 
-3. User Experience Improvements
+4. User Experience Improvements
    - Add loading states for voice generation
    - Implement error handling for API limits
    - Create voice customization interface
@@ -215,6 +224,11 @@ With the refactoring complete, we're now pivoting to feature development:
 - Scene text editing functionality - NOT STARTED
 - Media trimming/cropping controls - NOT STARTED
 - Video generation interface - IN PROGRESS (30% complete)
+- Voice generation with progressive UI - PLANNED (0% complete)
+  - Initial UI state management - PLANNED
+  - Voice selection component - PLANNED
+  - Audio preview integration - PLANNED
+  - Text-audio synchronization - PLANNED
 
 ### Backend Services
 - Reddit content extraction API - COMPLETED
@@ -230,6 +244,11 @@ With the refactoring complete, we're now pivoting to feature development:
   - Scene-to-video conversion - IN PROGRESS
   - Video assembly - NOT STARTED
 - Cloud storage integration - IN PROGRESS (20% complete)
+- ElevenLabs integration - PLANNED (10% complete)
+  - API client implementation - PLANNED
+  - Voice fetching service - PLANNED
+  - Audio generation service - PLANNED
+  - Audio caching system - PLANNED
 
 ## Checkpoint: "core-functionality-tested-and-stable"
 
