@@ -10,6 +10,9 @@ import {
   Volume2 as Volume2Icon,
   Settings as SettingsIcon,
   X as XIcon,
+  ChevronDown as ChevronDownIcon,
+  ChevronUp as ChevronUpIcon,
+  Type as TypeIcon
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
@@ -119,6 +122,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   
   // Voice settings states
   const [showSettings, setShowSettings] = useState(false);
@@ -128,6 +132,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const [speakerBoost, setSpeakerBoost] = useState(false);
   const [speed, setSpeed] = useState(1.0);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  
+  // Add new state for text expansion
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
   
   // Store local preview reference for potential fallbacks
   useEffect(() => {
@@ -221,6 +228,15 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       );
       const audioUrl = URL.createObjectURL(blob);
       setAudioSrc(audioUrl);
+      
+      // Add a small delay to ensure the audio element is updated with the new source
+      setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.play().catch(err => {
+            console.error('Error auto-playing audio:', err);
+          });
+        }
+      }, 100);
     } catch (err: any) {
       setAudioError(`Error generating voice: ${err.message}`);
       setAudioSrc(null);
@@ -456,226 +472,68 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     }
   }, [onSceneMove, showSettings]);
 
-  // Function to render voice generation UI
-  const renderVoiceControls = () => {
+  // Function to render text content with overlay expansion
+  const renderTextContent = () => {
+    const displayText = cleanPostText(scene.text) || '<No text provided>';
+    const isLongText = displayText.length > 100;
+    
     return (
-      <div className="mt-2 pt-2 border-t border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-medium text-gray-700">Voice Narration</div>
-          <button
-            ref={settingsButtonRef}
-            onClick={() => setShowSettings(!showSettings)}
-            className="text-xs text-blue-600 hover:text-blue-700 p-1 rounded flex items-center"
-            aria-label="Voice settings"
-          >
-            <SettingsIcon className="h-3 w-3 mr-1" />
-            <span>Settings</span>
-          </button>
+      <div className="relative">
+        {/* Base text container - always visible */}
+        <div 
+          className="h-14 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 rounded"
+          onClick={() => !readOnly && (isEditing ? null : setIsEditing(true))}
+        >
+          <p className="text-gray-800 line-clamp-3">{displayText}</p>
+          
+          {/* Simple arrow indicator for longer text */}
+          {isLongText && !isTextExpanded && !isEditing && (
+            <div className="absolute bottom-0 right-0 p-1">
+              <ChevronDownIcon className="h-3 w-3 text-blue-600" />
+            </div>
+          )}
         </div>
         
-        {audioError && (
-          <div className="mb-2 text-xs text-red-600 bg-red-50 p-1 rounded">
-            {audioError}
-          </div>
-        )}
-        
-        <div className="flex flex-wrap gap-2 items-center mt-1">
-          <select
-            value={voiceId}
-            onChange={(e) => setVoiceId(e.target.value)}
-            className="text-xs p-1 border border-gray-300 rounded flex-grow"
-            disabled={generatingAudio || voices.length === 0}
-          >
-            {voices.length === 0 ? (
-              <option>Loading voices...</option>
-            ) : (
-              voices.map((voice) => (
-                <option key={voice.voice_id} value={voice.voice_id}>
-                  {voice.name}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-        
-        {audioSrc && (
-          <div className="mt-2">
-            <audio controls src={audioSrc} className="w-full h-8" />
-          </div>
-        )}
-        
-        {/* Settings Panel Overlay */}
-        {showSettings && (
+        {/* Expanded overlay - shown when user expands without editing */}
+        {isTextExpanded && !isEditing && (
           <div 
-            className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (e.target === e.currentTarget) {
-                setShowSettings(false);
-              }
-            }}
+            className="absolute top-0 left-0 right-0 bg-white border border-gray-200 shadow-lg rounded-md z-20 p-2 max-h-64 overflow-y-auto"
+            style={{ minHeight: '6rem' }}
+            onClick={() => setIsTextExpanded(false)}
           >
-            <div
-              className="bg-white rounded-lg shadow-xl border border-gray-300 w-80 max-w-[90vw] absolute"
-              style={{
-                top: settingsButtonRef.current 
-                  ? settingsButtonRef.current.getBoundingClientRect().top - 320 
-                  : '10vh',
-                left: settingsButtonRef.current 
-                  ? settingsButtonRef.current.getBoundingClientRect().left - 244
-                  : '10vw',
-                boxShadow: '0 0 0 1px rgba(0,0,0,0.05), 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)'
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center p-3 border-b border-gray-200">
-                <h3 className="text-sm font-medium text-gray-800">Voice Settings</h3>
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowSettings(false);
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <XIcon className="h-4 w-4" />
-                </button>
-              </div>
-              
-              <div className="p-4">
-                {/* Speed slider - MOVED TO TOP */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs text-gray-600">Speed: {speed.toFixed(2)}x</label>
-                    <span className="text-xs text-gray-500">
-                      {speed < 0.85 ? 'Slower' : speed > 1.1 ? 'Faster' : 'Normal'}
-                    </span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0.7" 
-                    max="1.2" 
-                    step="0.01" 
-                    value={speed} 
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      setSpeed(parseFloat(e.target.value));
-                    }}
-                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    onMouseDown={(e) => e.stopPropagation()}
-                  />
-                  <div className="flex justify-between text-[10px] text-gray-400">
-                    <span>Slower (0.7x)</span>
-                    <span>Faster (1.2x)</span>
-                  </div>
-                </div>
-                
-                {/* Stability slider - CHANGED TO PERCENTAGE */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs text-gray-600">Stability: {Math.round(stability * 100)}%</label>
-                    <span className="text-xs text-gray-500">{stability < 0.3 ? 'Variable' : stability > 0.7 ? 'Stable' : 'Balanced'}</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.01" 
-                    value={stability} 
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      setStability(parseFloat(e.target.value));
-                    }}
-                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    onMouseDown={(e) => e.stopPropagation()}
-                  />
-                  <div className="flex justify-between text-[10px] text-gray-400">
-                    <span>0%</span>
-                    <span>100%</span>
-                  </div>
-                </div>
-                
-                {/* Similarity Boost slider - CHANGED TO PERCENTAGE */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs text-gray-600">Similarity: {Math.round(similarityBoost * 100)}%</label>
-                    <span className="text-xs text-gray-500">{similarityBoost < 0.3 ? 'Less Similar' : similarityBoost > 0.7 ? 'More Similar' : 'Balanced'}</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.01" 
-                    value={similarityBoost} 
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      setSimilarityBoost(parseFloat(e.target.value));
-                    }}
-                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    onMouseDown={(e) => e.stopPropagation()}
-                  />
-                  <div className="flex justify-between text-[10px] text-gray-400">
-                    <span>0%</span>
-                    <span>100%</span>
-                  </div>
-                </div>
-                
-                {/* Style slider - CHANGED TO PERCENTAGE */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs text-gray-600">Style: {Math.round(style * 100)}%</label>
-                    <span className="text-xs text-gray-500">{style < 0.3 ? 'Natural' : style > 0.7 ? 'Expressive' : 'Balanced'}</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.01" 
-                    value={style} 
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      setStyle(parseFloat(e.target.value));
-                    }}
-                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    onMouseDown={(e) => e.stopPropagation()}
-                  />
-                  <div className="flex justify-between text-[10px] text-gray-400">
-                    <span>0%</span>
-                    <span>100%</span>
-                  </div>
-                </div>
-                
-                {/* Speaker Boost toggle */}
-                <div className="flex items-center justify-between mb-4">
-                  <label className="text-xs text-gray-600">Speaker Boost</label>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSpeakerBoost(!speakerBoost);
-                    }}
-                    className={`relative inline-flex h-5 w-10 items-center rounded-full ${speakerBoost ? 'bg-blue-600' : 'bg-gray-200'}`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${speakerBoost ? 'translate-x-5' : 'translate-x-1'}`}
-                    />
-                  </button>
-                </div>
-                
-                <div className="text-[10px] text-gray-500 mb-3">
-                  These settings apply only to this scene.
-                </div>
-                
-                <div className="flex justify-end">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowSettings(false);
-                    }}
-                    className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded font-medium"
-                  >
-                    Apply Settings
-                  </button>
-                </div>
-              </div>
+            <p className="text-gray-800 mb-4">{displayText}</p>
+            
+            {/* Close indicator */}
+            <div className="absolute bottom-1 right-1 p-1">
+              <ChevronUpIcon className="h-3 w-3 text-blue-600" />
+            </div>
+          </div>
+        )}
+        
+        {/* Editing interface */}
+        {isEditing && (
+          <div className="absolute top-0 left-0 right-0 z-20 bg-white border border-gray-200 shadow-lg rounded-md p-2">
+            <textarea
+              value={text}
+              onChange={handleTextChange}
+              onBlur={handleTextBlur}
+              className="w-full h-32 p-2 border border-gray-300 rounded mb-2 text-sm"
+              placeholder="Enter scene text..."
+              autoFocus
+            />
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={handleCancel}
+                className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Save
+              </button>
             </div>
           </div>
         )}
@@ -691,7 +549,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       ${isRemoving ? 'opacity-50' : 'opacity-100'} transition-opacity duration-300`}
       style={{
         opacity: fadeOut ? 0.6 : 1,
-        transition: 'opacity 0.5s ease-out'
+        transition: 'opacity 0.5s ease-out',
+        height: '340px' // Adjusted height to fit everything tightly
       }}
       {...(reorderMode && !showSettings ? {
         'data-handler-id': scene.id,
@@ -712,14 +571,16 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       ) : scene.error ? (
         renderErrorState()
       ) : (
-        <>
-          {/* Media section */}
-          {renderMedia()}
+        <div className="flex flex-col h-full">
+          {/* Media section - fixed height */}
+          <div className="h-40">
+            {renderMedia()}
+          </div>
 
-          {/* Content section */}
-          <div className="p-3">
+          {/* Content section - with minimal spacing */}
+          <div className="p-1 flex-1 flex flex-col">
             {/* Source info */}
-            <div className="flex flex-wrap items-center text-xs text-gray-500 mb-1">
+            <div className="flex flex-wrap items-center text-xs text-gray-500 mb-0.5">
               {scene.source.author && (
                 <span className="mr-1 truncate">By: {scene.source.author}</span>
               )}
@@ -728,40 +589,55 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
               )}
             </div>
 
-            {/* Text content */}
-            {isEditing ? (
-              <div>
-                <textarea
-                  value={text}
-                  onChange={handleTextChange}
-                  onBlur={handleTextBlur}
-                  className="w-full h-20 p-2 border border-gray-300 rounded mb-2 text-sm"
-                  placeholder="Enter scene text..."
-                  autoFocus
-                />
-                <div className="flex justify-end space-x-2">
-                  <button
-                    onClick={handleCancel}
-                    className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div 
-                className="min-h-[3rem] max-h-24 overflow-y-auto text-sm cursor-pointer hover:bg-gray-50 p-1 rounded"
-                onClick={() => !readOnly && setIsEditing(true)}
-              >
-                <p className="text-gray-800">{cleanPostText(scene.text) || '<No text provided>'}</p>
-              </div>
-            )}
+            {/* Text content with overlay expansion */}
+            {renderTextContent()}
             
-            {/* Voice generation controls */}
-            {renderVoiceControls()}
+            {/* Voice generation controls - packed tightly */}
+            <div className="mt-auto pt-0.5 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-gray-700">Voice Narration</div>
+                <button
+                  ref={settingsButtonRef}
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center"
+                  aria-label="Voice settings"
+                >
+                  <SettingsIcon className="h-3 w-3 mr-0.5" />
+                  <span>Settings</span>
+                </button>
+              </div>
+              
+              {audioError && (
+                <div className="mb-0.5 text-xs text-red-600 bg-red-50 p-0.5 rounded">
+                  {audioError}
+                </div>
+              )}
+              
+              <select
+                value={voiceId}
+                onChange={(e) => setVoiceId(e.target.value)}
+                className="text-xs py-0.5 px-1 border border-gray-300 rounded w-full mt-0.5 mb-0.5"
+                disabled={generatingAudio || voices.length === 0}
+              >
+                {voices.length === 0 ? (
+                  <option>Loading voices...</option>
+                ) : (
+                  voices.map((voice) => (
+                    <option key={voice.voice_id} value={voice.voice_id}>
+                      {voice.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              
+              {/* Audio player - fixed size regardless of content */}
+              <div className={`mt-0.5 ${audioSrc ? 'block' : 'hidden'} h-7`}>
+                <audio ref={audioRef} controls src={audioSrc || ''} className="w-full h-7" />
+              </div>
+            </div>
           </div>
 
-          {/* Controls */}
+          {/* Controls - positioned at bottom without gap */}
           <div className="border-t border-gray-200 flex justify-between items-stretch">
             {/* Left side controls */}
             <div className="flex items-center">
@@ -788,7 +664,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                     className="flex-grow px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm"
                     aria-label="Generate voice"
                   >
-                    <Volume2Icon className="h-5 w-5 mr-2" />
+                    <Volume2Icon className="h-4 w-4 mr-1" />
                     <span className="font-medium">{generatingAudio ? "Generating..." : "Generate Voiceover"}</span>
                   </button>
                 </div>
@@ -799,11 +675,187 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 className={`w-12 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
                 aria-label="Remove scene"
               >
-                <TrashIcon className={`h-5 w-5 ${isRemoving ? 'animate-spin' : ''}`} />
+                <TrashIcon className={`h-4 w-4 ${isRemoving ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
-        </>
+          
+          {/* Settings Panel Overlay */}
+          {showSettings && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (e.target === e.currentTarget) {
+                  setShowSettings(false);
+                }
+              }}
+            >
+              <div
+                className="bg-white rounded-lg shadow-xl border border-gray-300 w-80 max-w-[90vw] absolute"
+                style={{
+                  top: settingsButtonRef.current 
+                    ? settingsButtonRef.current.getBoundingClientRect().top - 320 
+                    : '10vh',
+                  left: settingsButtonRef.current 
+                    ? settingsButtonRef.current.getBoundingClientRect().left - 244
+                    : '10vw',
+                  boxShadow: '0 0 0 1px rgba(0,0,0,0.05), 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex justify-between items-center p-3 border-b border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-800">Voice Settings</h3>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSettings(false);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </button>
+                </div>
+                
+                <div className="p-4">
+                  {/* Speed slider - MOVED TO TOP */}
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs text-gray-600">Speed: {speed.toFixed(2)}x</label>
+                      <span className="text-xs text-gray-500">
+                        {speed < 0.85 ? 'Slower' : speed > 1.1 ? 'Faster' : 'Normal'}
+                      </span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0.7" 
+                      max="1.2" 
+                      step="0.01" 
+                      value={speed} 
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setSpeed(parseFloat(e.target.value));
+                      }}
+                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400">
+                      <span>Slower (0.7x)</span>
+                      <span>Faster (1.2x)</span>
+                    </div>
+                  </div>
+                  
+                  {/* Stability slider - CHANGED TO PERCENTAGE */}
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs text-gray-600">Stability: {Math.round(stability * 100)}%</label>
+                      <span className="text-xs text-gray-500">{stability < 0.3 ? 'Variable' : stability > 0.7 ? 'Stable' : 'Balanced'}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="1" 
+                      step="0.01" 
+                      value={stability} 
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setStability(parseFloat(e.target.value));
+                      }}
+                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400">
+                      <span>0%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+                  
+                  {/* Similarity Boost slider - CHANGED TO PERCENTAGE */}
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs text-gray-600">Similarity: {Math.round(similarityBoost * 100)}%</label>
+                      <span className="text-xs text-gray-500">{similarityBoost < 0.3 ? 'Less Similar' : similarityBoost > 0.7 ? 'More Similar' : 'Balanced'}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="1" 
+                      step="0.01" 
+                      value={similarityBoost} 
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setSimilarityBoost(parseFloat(e.target.value));
+                      }}
+                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400">
+                      <span>0%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+                  
+                  {/* Style slider - CHANGED TO PERCENTAGE */}
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs text-gray-600">Style: {Math.round(style * 100)}%</label>
+                      <span className="text-xs text-gray-500">{style < 0.3 ? 'Natural' : style > 0.7 ? 'Expressive' : 'Balanced'}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="1" 
+                      step="0.01" 
+                      value={style} 
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setStyle(parseFloat(e.target.value));
+                      }}
+                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400">
+                      <span>0%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+                  
+                  {/* Speaker Boost toggle */}
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="text-xs text-gray-600">Speaker Boost</label>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSpeakerBoost(!speakerBoost);
+                      }}
+                      className={`relative inline-flex h-5 w-10 items-center rounded-full ${speakerBoost ? 'bg-blue-600' : 'bg-gray-200'}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${speakerBoost ? 'translate-x-5' : 'translate-x-1'}`}
+                      />
+                    </button>
+                  </div>
+                  
+                  <div className="text-[10px] text-gray-500 mb-3">
+                    These settings apply only to this scene.
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowSettings(false);
+                      }}
+                      className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded font-medium"
+                    >
+                      Apply Settings
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
