@@ -36,6 +36,9 @@ class Settings(BaseModel):
     R2_SECRET_ACCESS_KEY: str = Field(default_factory=lambda: os.getenv("CLOUDFLARE_R2_SECRET_ACCESS_KEY", ""))
     R2_BUCKET_NAME: str = Field(default_factory=lambda: os.getenv("R2_BUCKET_NAME", "auto-shorts"))
 
+    # Storage Configuration
+    USE_MOCK_STORAGE: bool = Field(default_factory=lambda: os.getenv("USE_MOCK_STORAGE", "True").lower() == "true")
+
     # Google OAuth
     GOOGLE_CLIENT_ID: str = Field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_ID", ""))
     GOOGLE_CLIENT_SECRET: str = Field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_SECRET", ""))

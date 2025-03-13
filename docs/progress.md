@@ -185,18 +185,72 @@ We are in Phase 2 of the project, focused on connecting the frontend workspace t
    - Clean up empty or stub test files
    - Remove deprecated scripts
 
-2. **Complete Video Processing Pipeline**:
+2. **Implement Cloudflare R2 Storage Infrastructure**:
+   - Set up Cloudflare R2 account and buckets
+   - Create storage service abstraction layer
+   - Implement upload/download functionality for media assets
+   - Add signed URL generation for secure access
+   - Create organized storage structure:
+     - `/projects/{projectId}/` - Project-specific assets
+     - `/audio/{projectId}/{sceneId}/` - Generated audio files
+     - `/videos/{projectId}/` - Processed video segments and final videos
+     - `/images/{projectId}/` - Processed images and thumbnails
+   - Implement proper error handling and retry mechanisms
+   - Add storage metrics and monitoring
+   - Create cleanup routines for abandoned/temporary files
+
+3. **Complete Video Processing Pipeline**:
    - Implement FFMPEG integration for video generation
    - Create scene-to-video segment conversion logic
    - Build video assembly with transitions
    - Add voiceover generation via ElevenLabs
    - Implement progress tracking with websocket updates
+   - Store all generated media in Cloudflare R2
 
-3. **Enhance Content Editing**:
+4. **Enhance Content Editing**:
    - Add text editing capabilities for scenes
    - Implement media trimming and cropping controls
    - Create bulk import functionality for multiple URLs
    - Add retry mechanisms for failed content extraction
+
+5. **Implementation Sequence for Text and Audio Features**:
+   - Phase 1: Basic ElevenLabs integration for text-to-speech conversion
+     - Simple voice selection UI
+     - Backend API integration with ElevenLabs
+     - Audio preview components
+     - Credit usage tracking
+     - **Implementation Strategy**:
+       - Initial connection to developer personal account (using existing credits)
+       - Focus on core functionality without per-user tracking initially
+       - Implement basic usage metrics to understand consumption patterns
+       - Add server-side proxy for ElevenLabs API calls with proper key security
+       - Test voice quality and performance across different content types
+       - Store generated audio files in Cloudflare R2
+   
+   - Phase 2: Advanced text rewriting system
+     - Multi-model integration (OpenAI, DeepSeek, etc.)
+     - Style presets and templates
+     - Length control for targeting audio duration
+     - Cost optimization features
+   
+   - Phase 3: Integration with video assembly
+     - Syncing audio with scene timing
+     - Transitions based on audio boundaries
+     - Export options with different quality settings
+     
+   - Phase 4: Production-Ready Credit Management
+     - User-specific credit allocation system
+     - Free tier with daily/monthly limits
+     - Usage dashboards for admin and users
+     - Credit purchase options and subscription tiers
+     - Potential migration to ElevenLabs business account
+     - Fallback voices for users who exhaust credits
+
+6. **User Authentication & Personalization**:
+   - Implement Google OAuth integration
+   - Add user-specific project storage
+   - Create user profile and preferences
+   - Implement role-based feature access (free vs. premium)
 
 ## Known Issues & Technical Debt
 
@@ -291,7 +345,7 @@ We are in Phase 2 of the project, focused on connecting the frontend workspace t
 
 These are alternative implementation ideas that could be explored in the future:
 
-### BBC VideoContext for Video Editing
+### BBC VideoContext for Video Editor
 
 **Overview**: Instead of a fully custom video editing implementation, investigate using BBC's VideoContext library (open-source) for timeline-based editing and real-time preview capabilities.
 
@@ -309,4 +363,26 @@ These are alternative implementation ideas that could be explored in the future:
 
 **Research Links**:
 - [BBC VideoContext GitHub](https://github.com/bbc/VideoContext)
-- [API Documentation](https://github.com/bbc/VideoContext/blob/master/docs/API.md) 
+- [API Documentation](https://github.com/bbc/VideoContext/blob/master/docs/API.md)
+
+### Scene Export for External Editors
+
+**Overview**: Provide functionality to export individual scenes with paired voiceover audio for use in professional video editing software like CapCut, DaVinci Resolve, or Adobe Premiere.
+
+**Potential Benefits**:
+- Reduced development complexity (no need for full editing UI)
+- Flexibility for power users who prefer dedicated editing tools
+- Faster path to high-quality video production
+- Complementary to built-in video generation
+
+**Key Requirements for Implementation**:
+- Export format options (individual clips, pre-rendered scenes)
+- Project file exports for specific editors (XML, EDL formats)
+- Proper audio-visual synchronization in exports
+- Batch export capabilities with progress tracking
+
+**Possible Export Formats**:
+- Individual scene video clips with embedded audio
+- XML project files for DaVinci Resolve/Final Cut
+- EDL (Edit Decision List) for broader compatibility
+- Scene metadata in JSON format 

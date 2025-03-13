@@ -29,9 +29,11 @@ services:
       - ./web/backend:/app
     environment:
       - MONGODB_URI=mongodb+srv://goodgodgeorge:cXNSvmHkIOsHjUt4@autoshortsdb.f7asv.mongodb.net/?retryWrites=true&w=majority&appName=autoshortsdb
-      - CLOUDFLARE_R2_ENDPOINT=${CLOUDFLARE_R2_ENDPOINT}
-      - CLOUDFLARE_R2_ACCESS_KEY_ID=${CLOUDFLARE_R2_ACCESS_KEY_ID}
-      - CLOUDFLARE_R2_SECRET_ACCESS_KEY=${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      - R2_ACCOUNT_ID=68b1765fe971ce074e1a3bad853b4031
+      - CLOUDFLARE_R2_ACCESS_KEY_ID=ad35174d76588bef33f723cd19b25e01
+      - CLOUDFLARE_R2_SECRET_ACCESS_KEY=179247cd061bed35d62efeb4d729ae5be3b281b18f8cb33ebcf804c0c6177ie
+      - R2_BUCKET_NAME=autoshorts-media
+      - USE_MOCK_STORAGE=False
     networks:
       - app-network
 

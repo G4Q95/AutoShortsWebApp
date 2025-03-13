@@ -7,7 +7,11 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
-from app.services.mock_storage import storage
+# Update the storage import to conditionally use real or mock storage
+if settings.USE_MOCK_STORAGE:
+    from app.services.mock_storage import storage
+else:
+    from app.services.storage import storage
 
 logger = logging.getLogger(__name__)
 

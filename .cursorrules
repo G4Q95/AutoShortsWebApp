@@ -1,5 +1,15 @@
 # Auto Shorts Web App - Cursor Rules
 
+# CRITICAL: DOCKER-FIRST DEVELOPMENT
+# All development MUST use Docker containers. No direct local service running allowed.
+# Current Docker Integration Status:
+# ✅ Frontend (Next.js) - Port 3000
+# ✅ Backend (FastAPI) - Port 8000
+# ✅ Browser-tools-server - Port 3025
+# ✅ MongoDB Atlas - External service
+# ✅ Cloudflare R2 - Integrated via backend container
+# ✅ Playwright - Integrated with browser-tools
+
 You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python), MongoDB Atlas, Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies.
 
 ## Coding Pattern Preferences
