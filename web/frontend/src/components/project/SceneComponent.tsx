@@ -800,9 +800,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             </div>
             
             {/* Right side controls */}
-            <div className="flex flex-grow">
+            <div className="flex flex-grow" style={{ gap: '0' }}>
               {!scene.isLoading && !scene.error && (
-                <div className="relative flex-grow flex pr-0">
+                <div className="relative flex-grow flex pr-0" style={{ marginRight: '0', padding: '0' }}>
                   {/* This is the flipping container that will rotate */}
                   <div 
                     className={`flip-container flex-grow relative ${audioSrc ? 'flipped' : ''}`}
@@ -846,8 +846,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                           transform: 'rotateX(180deg)',
                           zIndex: audioSrc ? '2' : '0',
                           right: '0', // Ensure right edge alignment
-                          width: 'calc(100% - 2px)', // Slightly smaller to prevent overlap
-                          paddingRight: '0.75rem' // Add extra right padding to create space from trash button
+                          width: 'calc(100% - 1px)', // Adjusted to reduce gap
+                          paddingRight: '0.75rem', // Add extra right padding to create space from trash button
+                          borderRight: 'none' // Ensure no border on right side
                         }}
                       >
                         {/* Audio Control Section - all controls in a single row with flex */}
@@ -929,7 +930,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 disabled={isRemoving}
                 className={`flex-shrink-0 w-10 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
                 aria-label="Remove scene"
-                style={{ marginLeft: '-1px' }} /* Add negative margin to close the gap */
+                style={{ marginLeft: '-2px' }} /* Increased negative margin to close the gap */
               >
                 <TrashIcon className={`h-4 w-4 ${isRemoving ? 'animate-spin' : ''}`} />
               </button>
