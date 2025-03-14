@@ -16,7 +16,8 @@ import {
   Play as PlayIcon,
   Pause as PauseIcon,
   RotateCw as RegenerateIcon,
-  MoreVertical as MoreVerticalIcon
+  MoreVertical as MoreVerticalIcon,
+  Download as DownloadIcon
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
@@ -108,7 +109,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   isFullWidth = false,
   customStyles = {}
 }: SceneComponentProps) {
-  const { mode } = useProject();
+  const { mode, updateSceneText } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(cleanPostText(scene.text));
   const [isRetrying, setIsRetrying] = useState(false);
@@ -138,8 +139,18 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const [speed, setSpeed] = useState(1.0);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   
+  // Add new state for audio playback settings
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const audioSettingsButtonRef = useRef<HTMLButtonElement>(null);
+  
   // Add new state for text expansion
   const [isTextExpanded, setIsTextExpanded] = useState(false);
+  
+  // Add state for volume controls
+  const [volume, setVolume] = useState(1); // 0-1 range
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const volumeButtonRef = useRef<HTMLButtonElement>(null);
   
   // Store local preview reference for potential fallbacks
   useEffect(() => {
@@ -263,17 +274,12 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const saveText = () => {
     // Only save if text has changed
     if (text !== cleanPostText(scene.text)) {
+      // Update the scene text in the project provider
+      updateSceneText(scene.id, text);
+      
+      // Trigger a reorder (save) of the project
       onSceneReorder(scene.id, index);
     }
-    setIsEditing(false);
-  };
-
-  const handleSave = () => {
-    saveText();
-  };
-
-  const handleCancel = () => {
-    setText(cleanPostText(scene.text));
     setIsEditing(false);
   };
 
@@ -480,7 +486,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
 
   // Function to render text content with overlay expansion
   const renderTextContent = () => {
-    const displayText = cleanPostText(scene.text) || '<No text provided>';
+    const displayText = text || '<No text provided>';
     const isLongText = displayText.length > 100;
     
     return (
@@ -516,31 +522,17 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
           </div>
         )}
         
-        {/* Editing interface */}
+        {/* Editing interface - now fills the entire card and saves on blur */}
         {isEditing && (
-          <div className="absolute top-0 left-0 right-0 z-20 bg-white border border-gray-200 shadow-lg rounded-md p-2">
+          <div className="absolute top-0 left-0 right-0 z-20 bg-white border border-gray-200 shadow-lg rounded-md p-2" style={{ height: '100%', minHeight: '150px' }}>
             <textarea
               value={text}
               onChange={handleTextChange}
               onBlur={handleTextBlur}
-              className="w-full h-32 p-2 border border-gray-300 rounded mb-2 text-sm"
+              className="w-full h-full p-2 border border-gray-300 rounded text-sm resize-none"
               placeholder="Enter scene text..."
               autoFocus
             />
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={handleCancel}
-                className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Save
-              </button>
-            </div>
           </div>
         )}
       </div>
@@ -686,6 +678,126 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     }
   };
 
+  // Handle volume change
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume;
+    }
+  };
+
+  // Remove the custom volume slider styles
+  useEffect(() => {
+    if (!document.getElementById('volume-slider-styles')) {
+      const styleSheet = document.createElement('style');
+      styleSheet.id = 'volume-slider-styles';
+      styleSheet.textContent = `
+        /* Simple horizontal volume slider styling */
+        .volume-slider {
+          height: 6px;
+          appearance: none;
+          width: 100%;
+          background: rgba(255, 255, 255, 0.7);
+          border-radius: 3px;
+          outline: none;
+        }
+        
+        .volume-slider::-webkit-slider-thumb {
+          appearance: none;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: white;
+          cursor: pointer;
+          border: none;
+          box-shadow: 0 0 2px rgba(0,0,0,0.4);
+        }
+        
+        .volume-slider::-moz-range-thumb {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: white;
+          cursor: pointer;
+          border: none;
+          box-shadow: 0 0 2px rgba(0,0,0,0.4);
+        }
+      `;
+      document.head.appendChild(styleSheet);
+    }
+    
+    return () => {
+      // Cleanup styles when component unmounts
+      const styleElement = document.getElementById('volume-slider-styles');
+      if (styleElement) {
+        styleElement.remove();
+      }
+    };
+  }, []);
+
+  // Remove the complex event handlers
+  // Close volume slider when clicking outside, but only if not interacting with slider
+  useEffect(() => {
+    let isDraggingSlider = false;
+    
+    const handleMouseDown = (e: MouseEvent) => {
+      // Check if the click was on the volume slider
+      if (e.target instanceof Element && e.target.classList.contains('volume-slider')) {
+        isDraggingSlider = true;
+      }
+    };
+    
+    const handleMouseUp = () => {
+      isDraggingSlider = false;
+    };
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      // Don't close if we're interacting with the slider
+      if (isDraggingSlider) return;
+      
+      if (
+        volumeButtonRef.current && 
+        !volumeButtonRef.current.contains(event.target as Node) &&
+        showVolumeSlider &&
+        event.target instanceof Element && 
+        !event.target.classList.contains('volume-slider') &&
+        !event.target.closest('.volume-popup')
+      ) {
+        setShowVolumeSlider(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('click', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showVolumeSlider]);
+
+  // Handle playback speed change
+  const handlePlaybackSpeedChange = (newSpeed: number) => {
+    setPlaybackSpeed(newSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = newSpeed;
+    }
+  };
+  
+  // Download audio
+  const handleDownloadAudio = () => {
+    if (audioSrc) {
+      const a = document.createElement('a');
+      a.href = audioSrc;
+      a.download = `audio_${scene.id}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
   return manuallyRemoving ? null : (
     <div
       id={`scene-${scene.id}`}
@@ -719,7 +831,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         <div className="flex flex-col h-full">
           {/* Media section - fixed height */}
           <div className="h-40">
-            {renderMedia()}
+          {renderMedia()}
           </div>
 
           {/* Content section - with minimal spacing */}
@@ -741,7 +853,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             <div className="mt-auto pt-0.5 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-medium text-gray-700">Voice Narration</div>
-                <button
+                  <button
                   ref={settingsButtonRef}
                   onClick={() => setShowSettings(!showSettings)}
                   className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center"
@@ -749,7 +861,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 >
                   <SettingsIcon className="h-3 w-3 mr-0.5" />
                   <span>Settings</span>
-                </button>
+                  </button>
               </div>
               
               {audioError && (
@@ -779,29 +891,29 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
               <div className="hidden">
                 <audio ref={audioRef} controls src={audioSrc || ''} className="w-full h-7" />
               </div>
-            </div>
+              </div>
           </div>
 
           {/* Controls - positioned at bottom without gap */}
           <div className="border-t border-gray-200 flex justify-between items-stretch">
             {/* Left side controls */}
             <div className="flex items-center">
-              {scene.error && scene.url && (
-                <button
-                  onClick={handleRetry}
-                  disabled={isRetrying}
-                  className="p-1 text-blue-600 hover:bg-blue-50 rounded-sm flex items-center text-xs"
-                  aria-label="Retry loading content"
-                >
-                  <RefreshIcon className={`h-3 w-3 ${isRetrying ? 'animate-spin' : ''}`} />
-                  <span className="ml-1">Retry</span>
-                </button>
-              )}
+            {scene.error && scene.url && (
+              <button
+                onClick={handleRetry}
+                disabled={isRetrying}
+                className="p-1 text-blue-600 hover:bg-blue-50 rounded-sm flex items-center text-xs"
+                aria-label="Retry loading content"
+              >
+                <RefreshIcon className={`h-3 w-3 ${isRetrying ? 'animate-spin' : ''}`} />
+                <span className="ml-1">Retry</span>
+              </button>
+            )}
             </div>
             
             {/* Right side controls */}
             <div className="flex flex-grow" style={{ gap: '0' }}>
-              {!scene.isLoading && !scene.error && (
+            {!scene.isLoading && !scene.error && (
                 <div className="relative flex-grow flex pr-0" style={{ marginRight: '0', padding: '0' }}>
                   {/* This is the flipping container that will rotate */}
                   <div 
@@ -881,20 +993,16 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                             </div>
                           </div>
                           
-                          {/* Middle - volume slider (will grow to fill available space) */}
-                          <div className="flex-grow mx-2 max-w-[50px]">
+                          {/* Middle - volume button with popup */}
+                          <div className="relative mx-2 flex-grow max-w-[250px]">
                             <input
                               type="range"
                               min="0"
                               max="1"
-                              step="0.1"
-                              defaultValue="1"
-                              className="w-full h-1 accent-white"
-                              onChange={(e) => {
-                                if (audioRef.current) {
-                                  audioRef.current.volume = parseFloat(e.target.value);
-                                }
-                              }}
+                              step="0.01"
+                              value={volume}
+                              className="volume-slider w-full h-2"
+                              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
                             />
                           </div>
                           
@@ -912,8 +1020,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                             
                             <button 
                               className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center"
-                              title="More options"
-                              onClick={() => setShowSettings(true)}
+                              title="Audio options"
+                              onClick={() => setShowAudioSettings(true)}
+                              ref={audioSettingsButtonRef}
                               style={{ width: '18px', height: '18px' }}
                             >
                               <MoreVerticalIcon className="h-3 w-3" />
@@ -924,12 +1033,12 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                     </div>
                   </div>
                 </div>
-              )}
-              <button
-                onClick={handleRemoveScene}
-                disabled={isRemoving}
+            )}
+            <button
+              onClick={handleRemoveScene}
+              disabled={isRemoving}
                 className={`flex-shrink-0 w-10 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
-                aria-label="Remove scene"
+              aria-label="Remove scene"
                 style={{ marginLeft: '-2px' }} /* Increased negative margin to close the gap */
               >
                 <TrashIcon className={`h-4 w-4 ${isRemoving ? 'animate-spin' : ''}`} />
@@ -937,7 +1046,74 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             </div>
           </div>
           
-          {/* Settings Panel Overlay */}
+          {/* Audio Playback Settings Panel Overlay */}
+          {showAudioSettings && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (e.target === e.currentTarget) {
+                  setShowAudioSettings(false);
+                }
+              }}
+            >
+              <div 
+                className="bg-white rounded-lg shadow-xl w-72 p-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">Audio Options</h3>
+                  <button
+                    onClick={() => setShowAudioSettings(false)}
+                    className="text-gray-400 hover:text-gray-500"
+                  >
+                    <XIcon className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-sm text-gray-600">Playback Speed: {playbackSpeed.toFixed(2)}x</label>
+                    <span className="text-xs text-gray-500">
+                      {playbackSpeed < 0.85 ? 'Slower' : playbackSpeed > 1.1 ? 'Faster' : 'Normal'}
+                    </span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0.5" 
+                    max="2.0" 
+                    step="0.05" 
+                    value={playbackSpeed} 
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      handlePlaybackSpeedChange(parseFloat(e.target.value));
+                    }}
+                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>0.5x</span>
+                    <span>2.0x</span>
+                  </div>
+                </div>
+                
+                <div className="pt-2 border-t border-gray-200">
+                  <button
+                    onClick={handleDownloadAudio}
+                    disabled={!audioSrc}
+                    className={`w-full py-2 rounded-md flex items-center justify-center space-x-2 ${
+                      audioSrc ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <DownloadIcon className="h-4 w-4" />
+                    <span>Download Audio</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Voice Settings Panel Overlay (original) */}
           {showSettings && (
             <div 
               className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center"
