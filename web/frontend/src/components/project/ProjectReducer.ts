@@ -399,6 +399,49 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
 
     /**
+     * Updates the audio data and voice settings of a scene.
+     * Preserves other scene data while updating the audio-related properties.
+     * 
+     * @action UPDATE_SCENE_AUDIO
+     * @payload { sceneId: string; audioData: Scene['audio']; voiceSettings: Scene['voice_settings'] }
+     */
+    case 'UPDATE_SCENE_AUDIO': {
+      if (!state.currentProject) {
+        return {
+          ...state,
+          error: 'No active project to update scene audio in',
+        };
+      }
+
+      const updatedScenes = state.currentProject.scenes.map((scene) =>
+        scene.id === action.payload.sceneId
+          ? { 
+              ...scene, 
+              audio: action.payload.audioData,
+              voice_settings: action.payload.voiceSettings
+            }
+          : scene
+      );
+
+      const updatedProject: Project = {
+        ...state.currentProject,
+        scenes: updatedScenes,
+        updatedAt: Date.now(),
+      };
+
+      // Safely update projects array
+      const updatedProjects = state.projects.map((p) => 
+        p && p.id === updatedProject.id ? updatedProject : p
+      );
+
+      return {
+        ...state,
+        currentProject: updatedProject,
+        projects: updatedProjects,
+      };
+    }
+
+    /**
      * Updates the title of the current project.
      * 
      * @action SET_PROJECT_TITLE
@@ -521,37 +564,36 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
 
     /**
-     * Updates state after successfully duplicating a project.
-     * Adds the duplicated project to the projects array.
+     * Update state after successfully duplicating a project.
      * 
      * @action DUPLICATE_PROJECT_SUCCESS
-     * @payload { project: Project }
+     * @payload { projectId: string }
      */
-    case 'DUPLICATE_PROJECT_SUCCESS':
+    case 'DUPLICATE_PROJECT_SUCCESS': {
       return {
         ...state,
-        currentProject: action.payload.project,
-        projects: [...state.projects, action.payload.project],
+        isLoading: false,
         error: null,
       };
+    }
 
     /**
-     * Updates state after successfully deleting all projects.
-     * Clears the projects array and current project.
+     * Update state after successfully deleting all projects.
      * 
-     * @action DELETE_ALL_PROJECTS_SUCCESS
+     * @action CLEAR_ALL_PROJECTS
      */
-    case 'DELETE_ALL_PROJECTS_SUCCESS':
+    case 'CLEAR_ALL_PROJECTS': {
       return {
         ...state,
         projects: [],
         currentProject: null,
+        isLoading: false,
         error: null,
       };
+    }
 
     /**
-     * Sets the UI mode for the project workspace
-     * Controls which features are visible and active in the UI
+     * Set the UI mode for progressive enhancement.
      * 
      * @action SET_MODE
      * @payload { mode: 'organization' | 'voice-enabled' | 'preview' }
@@ -563,8 +605,8 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       };
     }
 
+    // Default case: unrecognized action type
     default:
-      // Just return the state for unhandled action types
       return state;
   }
 } 

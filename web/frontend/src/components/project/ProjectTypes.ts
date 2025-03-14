@@ -48,6 +48,34 @@ export interface Scene {
   isLoading?: boolean;
   /** Error message if content loading failed */
   error?: string;
+  /** Audio data for voice narration */
+  audio?: {
+    /** Base64 encoded audio data */
+    audio_base64?: string;
+    /** Content type of the audio (e.g., audio/mpeg) */
+    content_type?: string;
+    /** URL created from the audio data (for playback) */
+    audio_url?: string;
+    /** Timestamp when the audio was generated */
+    generated_at?: number;
+    /** Number of characters in the text used for audio */
+    character_count?: number;
+  };
+  /** Voice settings for narration */
+  voice_settings?: {
+    /** ID of the selected voice */
+    voice_id: string;
+    /** Voice stability setting (0-1) */
+    stability: number;
+    /** Voice similarity boost setting (0-1) */
+    similarity_boost: number;
+    /** Voice style setting (0-1) */
+    style: number;
+    /** Whether speaker boost is enabled */
+    speaker_boost: boolean;
+    /** Speech speed setting (0.7-1.2) */
+    speed: number;
+  };
 }
 
 /**
@@ -70,25 +98,56 @@ export interface Project {
 }
 
 /**
- * Represents the state of the project management system.
- * This is used by the ProjectProvider context to manage all project-related state.
+ * Represents lightweight project metadata.
+ * Used for project listings and summaries.
+ */
+export interface ProjectMetadata {
+  /** Unique identifier for the project */
+  id: string;
+  /** User-defined title of the project */
+  title: string;
+  /** Timestamp when the project was created */
+  createdAt: number;
+  /** Timestamp of the last update to the project */
+  updatedAt: number;
+  /** Optional URL to a thumbnail for the project */
+  thumbnailUrl?: string;
+}
+
+/**
+ * Represents the state of the project system.
+ * Contains all projects, the currently active project, and UI state.
  */
 export interface ProjectState {
-  /** List of all projects */
+  /** All projects available to the user */
   projects: Project[];
-  /** Currently active project */
+  /** Currently active project being edited */
   currentProject: Project | null;
-  /** Whether the system is loading data */
-  isLoading: boolean;
-  /** Current error message, if any */
+  /** Error message if an operation fails */
   error: string | null;
+  /** Global loading state for async operations */
+  isLoading: boolean;
+  /** Whether the current project is being saved */
+  isSaving: boolean;
   /** Timestamp of the last successful save */
   lastSaved: number | null;
-  /** Whether a save operation is in progress */
-  isSaving: boolean;
   /** Current UI mode for progressive enhancement */
   mode: 'organization' | 'voice-enabled' | 'preview';
 }
+
+/**
+ * Initial state for the project system.
+ * Used when initializing the reducer.
+ */
+export const initialState: ProjectState = {
+  projects: [],
+  currentProject: null,
+  error: null,
+  isLoading: false,
+  isSaving: false,
+  lastSaved: null,
+  mode: 'organization',
+};
 
 /**
  * Union type of all possible actions that can be dispatched to modify project state.
@@ -114,6 +173,8 @@ export type ProjectAction =
   | { type: 'REORDER_SCENES'; payload: { sceneIds: string[] } }
   /** Update the text content of a scene */
   | { type: 'UPDATE_SCENE_TEXT'; payload: { sceneId: string; text: string } }
+  /** Update the audio data of a scene */
+  | { type: 'UPDATE_SCENE_AUDIO'; payload: { sceneId: string; audioData: Scene['audio']; voiceSettings: Scene['voice_settings'] } }
   /** Update the project title */
   | { type: 'SET_PROJECT_TITLE'; payload: { title: string } }
   /** Set an error message */
@@ -131,25 +192,16 @@ export type ProjectAction =
   /** Update state after successfully loading a project */
   | { type: 'LOAD_PROJECT_SUCCESS'; payload: { project: Project } }
   /** Update state after successfully duplicating a project */
-  | { type: 'DUPLICATE_PROJECT_SUCCESS'; payload: { project: Project } }
-  /** Update state after successfully deleting all projects */
-  | { type: 'DELETE_ALL_PROJECTS_SUCCESS' }
+  | { type: 'DUPLICATE_PROJECT_SUCCESS'; payload: { projectId: string } }
+  /** Clear all projects from state */
+  | { type: 'CLEAR_ALL_PROJECTS' }
   /** Set the UI mode */
   | { type: 'SET_MODE'; payload: { mode: 'organization' | 'voice-enabled' | 'preview' } };
 
 /**
- * Initial state for the project management system.
- * Used when initializing the ProjectProvider context.
+ * Utility function to generate a unique identifier.
+ * Used for creating new projects and scenes.
+ * 
+ * @returns {string} A unique identifier string
  */
-export const initialState: ProjectState = {
-  projects: [],
-  currentProject: null,
-  isLoading: false,
-  error: null,
-  lastSaved: null,
-  isSaving: false,
-  mode: 'organization',
-};
-
-// Re-export utility functions
 export { generateId }; 

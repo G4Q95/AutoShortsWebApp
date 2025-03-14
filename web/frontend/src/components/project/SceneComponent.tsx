@@ -109,7 +109,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   isFullWidth = false,
   customStyles = {}
 }: SceneComponentProps) {
-  const { mode, updateSceneText } = useProject();
+  const { mode, updateSceneText, updateSceneAudio } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(cleanPostText(scene.text));
   const [isRetrying, setIsRetrying] = useState(false);
@@ -121,10 +121,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const isRemovedRef = useRef<boolean>(false);
   
   // Voice generation states
-  const [voiceId, setVoiceId] = useState<string>("");
+  const [voiceId, setVoiceId] = useState<string>(scene.voice_settings?.voice_id || "");
   const [voices, setVoices] = useState<any[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
-  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [audioSrc, setAudioSrc] = useState<string | null>(scene.audio?.audio_url || null);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -132,26 +132,40 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   
   // Voice settings states
   const [showSettings, setShowSettings] = useState(false);
-  const [stability, setStability] = useState(0.5);
-  const [similarityBoost, setSimilarityBoost] = useState(0.75);
-  const [style, setStyle] = useState(0);
-  const [speakerBoost, setSpeakerBoost] = useState(false);
-  const [speed, setSpeed] = useState(1.0);
+  const [stability, setStability] = useState(scene.voice_settings?.stability || 0.5);
+  const [similarityBoost, setSimilarityBoost] = useState(scene.voice_settings?.similarity_boost || 0.75);
+  const [style, setStyle] = useState(scene.voice_settings?.style || 0);
+  const [speakerBoost, setSpeakerBoost] = useState(scene.voice_settings?.speaker_boost || false);
+  const [speed, setSpeed] = useState(scene.voice_settings?.speed || 1.0);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   
-  // Add new state for audio playback settings
+  // Audio playback settings
   const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const audioSettingsButtonRef = useRef<HTMLButtonElement>(null);
   
-  // Add new state for text expansion
+  // Text expansion state
   const [isTextExpanded, setIsTextExpanded] = useState(false);
   
-  // Add state for volume controls
+  // Volume controls
   const [volume, setVolume] = useState(1); // 0-1 range
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const volumeButtonRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Helper function to create a Blob URL from audio_base64 data
+  const createAudioBlobUrl = useCallback((audioBase64: string, contentType: string): string => {
+    try {
+      const blob = new Blob(
+        [Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))],
+        { type: contentType }
+      );
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.error('Error creating audio blob URL:', error);
+      return '';
+    }
+  }, []);
   
   // Store local preview reference for potential fallbacks
   useEffect(() => {
@@ -174,6 +188,43 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     setText(cleanPostText(scene.text));
   }, [scene.text]);
 
+  // Restore audio from scene data when available
+  useEffect(() => {
+    // If scene has audio data but no audio_url, create the URL
+    if (scene.audio?.audio_base64 && scene.audio.content_type && !scene.audio.audio_url) {
+      const url = createAudioBlobUrl(scene.audio.audio_base64, scene.audio.content_type);
+      if (url) {
+        setAudioSrc(url);
+        
+        // Update the scene with the new URL
+        const updatedAudioData = {
+          ...scene.audio,
+          audio_url: url
+        };
+        
+        // Only update if we have voice settings
+        if (scene.voice_settings) {
+          updateSceneAudio(scene.id, updatedAudioData, scene.voice_settings);
+        }
+      }
+    } else if (scene.audio?.audio_url) {
+      // If URL is already available, use it
+      setAudioSrc(scene.audio.audio_url);
+    }
+  }, [scene.id, scene.audio, scene.voice_settings, createAudioBlobUrl, updateSceneAudio]);
+
+  // Initialize voice settings from scene data
+  useEffect(() => {
+    if (scene.voice_settings) {
+      setVoiceId(scene.voice_settings.voice_id);
+      setStability(scene.voice_settings.stability);
+      setSimilarityBoost(scene.voice_settings.similarity_boost);
+      setStyle(scene.voice_settings.style);
+      setSpeakerBoost(scene.voice_settings.speaker_boost);
+      setSpeed(scene.voice_settings.speed);
+    }
+  }, [scene.voice_settings]);
+
   // Fetch voices when component mounts
   useEffect(() => {
     if (voices.length === 0 && !loadingVoices) {
@@ -182,7 +233,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       // Ensure text is updated
       setText(cleanPostText(scene.text));
     }
-  }, [scene.text]);
+  }, [scene.text, voices.length, loadingVoices]);
 
   const fetchVoices = async () => {
     setLoadingVoices(true);
@@ -195,7 +246,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         setVoices([]);
       } else {
         setVoices(response.data.voices);
-        if (response.data.voices.length > 0) {
+        // Only set voice ID if it's not already set from scene.voice_settings
+        if (response.data.voices.length > 0 && !voiceId) {
           setVoiceId(response.data.voices[0].voice_id);
         }
       }
@@ -246,6 +298,28 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       const audioUrl = URL.createObjectURL(blob);
       setAudioSrc(audioUrl);
       
+      // Prepare audio data for storage
+      const audioData = {
+        audio_base64: response.data.audio_base64,
+        content_type: response.data.content_type,
+        audio_url: audioUrl,
+        generated_at: Date.now(),
+        character_count: response.data.character_count
+      };
+      
+      // Prepare voice settings for storage
+      const voiceSettings = {
+        voice_id: voiceId,
+        stability,
+        similarity_boost: similarityBoost,
+        style,
+        speaker_boost: speakerBoost,
+        speed
+      };
+      
+      // Save audio data to the scene
+      updateSceneAudio(scene.id, audioData, voiceSettings);
+      
       // Add a small delay to ensure the audio element is updated with the new source
       // and to allow the flip animation to complete before playing
       setTimeout(() => {
@@ -262,6 +336,16 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       setGeneratingAudio(false);
     }
   };
+
+  // Clean up any created object URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      // Only revoke URLs that were created in this component
+      if (audioSrc && !scene.audio?.audio_url) {
+        URL.revokeObjectURL(audioSrc);
+      }
+    };
+  }, [audioSrc, scene.audio]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);

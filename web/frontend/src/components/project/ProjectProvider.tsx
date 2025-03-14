@@ -21,6 +21,7 @@ import {
   deleteProject,
   getProjectsList,
   projectExists,
+  clearAllProjects,
 } from '../../lib/storage-utils';
 import { determineMediaType } from '../../lib/media-utils';
 
@@ -72,6 +73,8 @@ const ProjectContext = createContext<(ProjectState & {
   reorderScenes: (sceneIds: string[]) => void;
   /** Updates the text content of a scene */
   updateSceneText: (sceneId: string, text: string) => void;
+  /** Updates the audio data and voice settings of a scene */
+  updateSceneAudio: (sceneId: string, audioData: Scene['audio'], voiceSettings: Scene['voice_settings']) => void;
   /** Updates the project title */
   setProjectTitle: (title: string) => void;
   /** Manually triggers a save of the current project */
@@ -124,41 +127,37 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Auto-save timer reference
   const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Function to load all projects from localStorage - with memoization
+  // Fetch all projects
   const loadProjects = useCallback(async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-
-      // Get projects list from localStorage
-      const projectsMetadata = await getProjectsList();
-
-      // For each project metadata, load the full project
-      const loadedProjects: Project[] = [];
-
-      for (const metadata of projectsMetadata) {
-        try {
-          const project = await getProject(metadata.id);
-          if (project) loadedProjects.push(project);
-        } catch (error) {
-          console.error(`Failed to load project ${metadata.id}:`, error);
-          // Continue with other projects even if one fails
-        }
-      }
-
-      dispatch({
-        type: 'LOAD_PROJECTS',
-        payload: { projects: loadedProjects },
+      
+      const projects = await getProjectsList().then(async (projectsMetadata) => {
+        const projectsPromises = projectsMetadata.map(async (metadata) => {
+          return getProject(metadata.id);
+        });
+        return Promise.all(projectsPromises);
       });
+      
+      // Filter out null projects (failed to load)
+      const validProjects = projects.filter((p): p is Project => p !== null);
+      
+      dispatch({ type: 'LOAD_PROJECTS', payload: { projects: validProjects } });
     } catch (error) {
       console.error('Failed to load projects:', error);
       dispatch({
         type: 'SET_ERROR',
-        payload: { error: 'Failed to load saved projects' },
+        payload: { error: 'Failed to load projects' },
       });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
   }, []);
+
+  // Refresh the projects list
+  const refreshProjects = useCallback(async (): Promise<void> => {
+    return loadProjects();
+  }, [loadProjects]);
 
   // Load projects from localStorage on initial mount
   useEffect(() => {
@@ -438,6 +437,27 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_SCENE_TEXT', payload: { sceneId, text } });
   }, []);
 
+  // Update scene audio data
+  const updateSceneAudio = useCallback((
+    sceneId: string, 
+    audioData: Scene['audio'], 
+    voiceSettings: Scene['voice_settings']
+  ) => {
+    dispatch({ 
+      type: 'UPDATE_SCENE_AUDIO', 
+      payload: { 
+        sceneId, 
+        audioData, 
+        voiceSettings 
+      } 
+    });
+    
+    // Save the project after updating audio to ensure persistence
+    saveCurrentProject().catch(error => {
+      console.error('Error saving project after updating scene audio:', error);
+    });
+  }, [saveCurrentProject]);
+
   // Set project title
   const setProjectTitle = useCallback((title: string) => {
     dispatch({ type: 'SET_PROJECT_TITLE', payload: { title } });
@@ -517,93 +537,74 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [dispatch]);
 
-  // Create a duplicate of a project
-  const duplicateProject = useCallback(async (projectId: string) => {
+  // Duplicate an existing project
+  const duplicateProject = useCallback(async (projectId: string): Promise<string | null> => {
     try {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-
-      // Get the original project
-      const originalProject = await getProject(projectId);
-      if (!originalProject) {
-        throw new Error(`Project with ID ${projectId} not found for duplication`);
+      
+      // Load the source project to duplicate
+      const sourceProject = await getProject(projectId);
+      
+      if (!sourceProject) {
+        dispatch({
+          type: 'SET_ERROR',
+          payload: { error: `Project with ID ${projectId} not found` },
+        });
+        return null;
       }
-
-      // Create a new project ID
-      const newProjectId = generateId();
-
-      // Create a duplicate project with a new ID and updated timestamps
-      const duplicatedProject: Project = {
-        ...originalProject,
-        id: newProjectId,
-        title: `${originalProject.title} (Copy)`,
+      
+      // Create a new project object with a new ID and updated timestamps
+      const newProject: Project = {
+        ...sourceProject,
+        id: generateId(),
+        title: `${sourceProject.title} (Copy)`,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-
-      // Save the duplicated project
-      await saveProject(duplicatedProject);
-
-      // Update the state with the new project
-      dispatch({
-        type: 'DUPLICATE_PROJECT_SUCCESS',
-        payload: { project: duplicatedProject },
+      
+      // Save the new project
+      await saveProject(newProject);
+      
+      dispatch({ 
+        type: 'DUPLICATE_PROJECT_SUCCESS', 
+        payload: { projectId: newProject.id } 
       });
-
-      return duplicatedProject.id;
+      
+      // Refresh the projects list
+      await refreshProjects();
+      
+      return newProject.id;
     } catch (error) {
-      console.error('Failed to duplicate project:', error);
       dispatch({
         type: 'SET_ERROR',
-        payload: {
-          error: `Failed to duplicate project: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`,
-        },
+        payload: { error: `Failed to duplicate project: ${error}` },
       });
       return null;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  }, []);
+  }, [dispatch, refreshProjects]);
 
   // Delete all projects
-  const deleteAllProjects = useCallback(async () => {
+  const deleteAllProjects = useCallback(async (): Promise<void> => {
     try {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-
-      // Get projects list
-      const projectsMetadata = await getProjectsList();
-
-      // Delete each project
-      for (const metadata of projectsMetadata) {
-        try {
-          await deleteProject(metadata.id);
-        } catch (error) {
-          console.error(`Failed to delete project ${metadata.id}:`, error);
-          // Continue with other projects even if one fails
-        }
-      }
-
-      dispatch({ type: 'DELETE_ALL_PROJECTS_SUCCESS' });
+      
+      // Clear all projects from localStorage
+      await clearAllProjects();
+      
+      // Update state
+      dispatch({ type: 'CLEAR_ALL_PROJECTS' });
+      
     } catch (error) {
-      console.error('Failed to delete all projects:', error);
       dispatch({
         type: 'SET_ERROR',
-        payload: {
-          error: `Failed to delete all projects: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`,
-        },
+        payload: { error: `Failed to delete all projects: ${error}` },
       });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  }, []);
-
-  // Refresh projects list
-  const refreshProjects = useCallback(async () => {
-    await loadProjects();
-  }, [loadProjects]);
+  }, [dispatch]);
 
   // Set the UI mode
   const setMode = useCallback((mode: 'organization' | 'voice-enabled' | 'preview') => {
@@ -665,6 +666,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     removeScene,
     reorderScenes,
     updateSceneText,
+    updateSceneAudio,
     setProjectTitle,
     saveCurrentProject,
     deleteCurrentProject,
@@ -682,6 +684,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     removeScene,
     reorderScenes,
     updateSceneText,
+    updateSceneAudio,
     setProjectTitle,
     saveCurrentProject,
     deleteCurrentProject,
