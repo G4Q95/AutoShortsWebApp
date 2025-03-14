@@ -474,14 +474,14 @@ async def generate_voice(
 ) -> Optional[str]:
     """
     Generate voice audio from text using ElevenLabs API.
-    
+
     Args:
         text: Text to convert to speech
         voice_id: ID of the voice to use
         output_format: Audio format (mp3_22050_32, mp3_44100_32, mp3_44100_64, mp3_44100_96, mp3_44100_128, mp3_44100_192, pcm_8000, pcm_16000, pcm_22050, pcm_24000, pcm_44100, ulaw_8000)
         stability: Voice stability (0.0-1.0)
         similarity_boost: Voice similarity boost (0.0-1.0)
-        
+
     Returns:
         Path to the temporary audio file or None if generation failed
     """
@@ -496,7 +496,7 @@ async def generate_voice(
         )
         temp_file.close()
         return temp_file.name
-    
+
     try:
         return await client.save_audio_to_file(
             text=text,

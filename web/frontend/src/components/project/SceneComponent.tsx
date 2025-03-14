@@ -151,6 +151,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const [volume, setVolume] = useState(1); // 0-1 range
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const volumeButtonRef = useRef<HTMLButtonElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Store local preview reference for potential fallbacks
   useEffect(() => {
@@ -493,7 +494,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       <div className="relative">
         {/* Base text container - always visible */}
         <div 
-          className="h-14 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 rounded"
+          className="h-16 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 pt-0.5 pb-0.5 rounded"
           onClick={() => !readOnly && (isEditing ? null : setIsEditing(true))}
         >
           <p className="text-gray-800 line-clamp-3">{displayText}</p>
@@ -524,12 +525,13 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         
         {/* Editing interface - now fills the entire card and saves on blur */}
         {isEditing && (
-          <div className="absolute top-0 left-0 right-0 z-20 bg-white border border-gray-200 shadow-lg rounded-md p-2" style={{ height: '100%', minHeight: '150px' }}>
+          <div className="absolute top-0 left-0 right-0 z-20 bg-white border border-gray-200 shadow-lg rounded-md p-2 textarea-container" style={{ height: '100%', minHeight: '145px' }}>
             <textarea
+              ref={textareaRef}
               value={text}
               onChange={handleTextChange}
               onBlur={handleTextBlur}
-              className="w-full h-full p-2 border border-gray-300 rounded text-sm resize-none"
+              className="w-full h-full p-2 border border-gray-300 rounded text-sm resize-none scrollable-textarea"
               placeholder="Enter scene text..."
               autoFocus
             />
@@ -798,6 +800,123 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     }
   };
 
+  // Add event listeners for text area scrolling
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    
+    if (textarea && isEditing) {
+      // Debug log when effect runs
+      console.log("Setting up textarea scroll handlers");
+      
+      // Improved wheel event handler with better prevention
+      const handleWheel = (e: WheelEvent) => {
+        console.log("Wheel event detected:", { 
+          deltaY: e.deltaY, 
+          scrollTop: textarea.scrollTop,
+          scrollHeight: textarea.scrollHeight,
+          clientHeight: textarea.clientHeight
+        });
+        
+        // Critical: Prevent default behavior first - this is key for Mac trackpads
+        e.preventDefault();
+        
+        // Then manually scroll the textarea
+        textarea.scrollTop += e.deltaY;
+        
+        // Also stop propagation to parent elements
+        e.stopPropagation();
+        
+        // Log the new scroll position after our manual adjustment
+        console.log("New scroll position:", textarea.scrollTop);
+        
+        return false;
+      };
+      
+      // Use the more forceful event capturing
+      textarea.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+      
+      // Additional handler for click events to ensure focus
+      const handleClick = (e: MouseEvent) => {
+        console.log("Textarea clicked");
+        e.stopPropagation();
+        textarea.focus();
+      };
+      
+      textarea.addEventListener('click', handleClick);
+      
+      // Additional logging to check when events actually occur
+      const debugEvent = (e: Event) => {
+        console.log(`Textarea ${e.type} event triggered`);
+      };
+      
+      textarea.addEventListener('focus', debugEvent);
+      textarea.addEventListener('blur', debugEvent);
+      
+      console.log("All textarea event handlers attached");
+      
+      return () => {
+        textarea.removeEventListener('wheel', handleWheel, { capture: true });
+        textarea.removeEventListener('click', handleClick);
+        textarea.removeEventListener('focus', debugEvent);
+        textarea.removeEventListener('blur', debugEvent);
+        console.log("Textarea event handlers removed");
+      };
+    }
+  }, [isEditing]);
+
+  // Add enhanced styles for enabling proper textarea scrolling
+  useEffect(() => {
+    if (!document.getElementById('textarea-scroll-styles')) {
+      const styleSheet = document.createElement('style');
+      styleSheet.id = 'textarea-scroll-styles';
+      styleSheet.textContent = `
+        .scrollable-textarea {
+          -webkit-overflow-scrolling: touch; /* Enables momentum scrolling on iOS/Mac */
+          scrollbar-width: thin; /* Firefox */
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          overscroll-behavior: contain !important; /* Prevent scroll chaining */
+          pointer-events: auto !important; /* Ensure events go to the textarea */
+          touch-action: pan-y !important; /* Allow vertical touch scrolling */
+          position: relative !important; /* Ensure correct stacking */
+          z-index: 30 !important; /* Higher z-index to catch events first */
+        }
+        
+        .scrollable-textarea::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .scrollable-textarea::-webkit-scrollbar-thumb {
+          background-color: rgba(0, 0, 0, 0.2);
+          border-radius: 3px;
+        }
+        
+        .scrollable-textarea:focus {
+          outline: none;
+        }
+        
+        /* Ensure parent container doesn't interfere */
+        .textarea-container {
+          position: relative;
+          z-index: 20;
+          overscroll-behavior: contain;
+          overflow: hidden;
+        }
+      `;
+      document.head.appendChild(styleSheet);
+      console.log("Added textarea scroll styles");
+    }
+    
+    return () => {
+      // Cleanup styles when component unmounts
+      const styleElement = document.getElementById('textarea-scroll-styles');
+      if (styleElement) {
+        styleElement.remove();
+        console.log("Removed textarea scroll styles");
+      }
+    };
+  }, []);
+
   return manuallyRemoving ? null : (
     <div
       id={`scene-${scene.id}`}
@@ -807,7 +926,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       style={{
         opacity: fadeOut ? 0.6 : 1,
         transition: 'opacity 0.5s ease-out',
-        height: '340px' // Adjusted height to fit everything tightly
+        height: '348px' // Increased from 345px to ensure the button is not cut off
       }}
       {...(reorderMode && !showSettings ? {
         'data-handler-id': scene.id,
@@ -836,8 +955,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
 
           {/* Content section - with minimal spacing */}
           <div className="p-1 flex-1 flex flex-col">
-            {/* Source info */}
-            <div className="flex flex-wrap items-center text-xs text-gray-500 mb-0.5">
+            {/* Source info with bottom border */}
+            <div className="flex flex-wrap items-center text-xs text-gray-500 mb-1 pb-1 border-b border-gray-200">
               {scene.source.author && (
                 <span className="mr-1 truncate">By: {scene.source.author}</span>
               )}
@@ -849,8 +968,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             {/* Text content with overlay expansion */}
             {renderTextContent()}
             
-            {/* Voice generation controls - packed tightly */}
-            <div className="mt-auto pt-0.5 border-t border-gray-200">
+            {/* Voice generation controls with top padding */}
+            <div className="mt-1 pt-1 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-medium text-gray-700">Voice Narration</div>
                   <button
