@@ -10,8 +10,9 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\"",
-    "test": "playwright test",
-    "test:debug": "playwright test --debug"
+    "test": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 playwright test",
+    "test:debug": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 PWDEBUG=1 playwright test",
+    "test:watch": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 playwright test --watch"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

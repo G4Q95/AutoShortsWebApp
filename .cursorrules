@@ -352,6 +352,13 @@ cd web/frontend && npm test
 - Review test logs for error messages
 - Verify server responses in network logs
 
+7. **MCP Browser Tools Limitation**:
+- MCP browser tools cannot access logs/errors from Playwright tests
+- Playwright runs tests in separate browser contexts that MCP can't inspect
+- Use terminal output to monitor test progress and results
+- Screenshots taken by tests can be found in `web/frontend/test-results/`
+- Never use MCP browser tool functions to get logs from Playwright tests
+
 ## Docker Development Guidelines
 
 When working with the Docker development environment:
@@ -472,3 +479,13 @@ export function ComponentName({ prop1, prop2 }: ComponentProps) {
 - Use appropriate HTTP status codes in API responses
 - Handle offline scenarios gracefully
 - Implement retry mechanisms for transient failures
+
+## Test Failure Explanation Guidelines
+
+When explaining Playwright test failures:
+1. **Translate Technical to Everyday Language**: Explain what user action was being simulated (e.g., "The test was trying to click the Save button")
+2. **Provide Context**: Describe what happened before the failure (e.g., "After filling out the form...")
+3. **Explain the Expected vs. Actual**: What was the test expecting to happen vs. what actually happened
+4. **Relate to User Experience**: Explain how this would appear to a real user (e.g., "A user would see...")
+5. **Suggest Inspection Points**: Highlight specific UI elements or states to manually check
+6. **Avoid Technical Jargon**: No references to selectors, DOM elements, or technical error codes unless requested
