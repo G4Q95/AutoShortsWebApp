@@ -491,30 +491,25 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     const isLongText = displayText.length > 100;
     
     return (
-      <div className="relative">
-        {/* Base text container - always visible */}
+      <div className="relative" style={{ height: '65px' }}> {/* Reduced height for more compact layout */}
+        {/* Base text container - always visible when not editing */}
         <div 
-          className="h-16 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 pt-0.5 pb-0.5 rounded"
-          onClick={() => !readOnly && (isEditing ? null : setIsEditing(true))}
+          className="h-16 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 pt-0.5 pb-1 rounded"
+          onClick={() => !readOnly && setIsEditing(true)}
         >
           <p className="text-gray-800 line-clamp-3">{displayText}</p>
           
-          {/* Simple arrow indicator for longer text */}
-          {isLongText && !isTextExpanded && !isEditing && (
-            <div className="absolute bottom-0 right-0 p-1">
-              <ChevronDownIcon className="h-3 w-3 text-blue-600" />
-            </div>
-          )}
+          {/* Removed the blue expand arrow */}
         </div>
         
         {/* Expanded overlay - shown when user expands without editing */}
         {isTextExpanded && !isEditing && (
           <div 
-            className="absolute top-0 left-0 right-0 bg-white border border-gray-200 shadow-lg rounded-md z-20 p-2 max-h-64 overflow-y-auto"
+            className="absolute top-0 left-0 right-0 bg-white border border-gray-200 shadow-lg rounded-md z-40 p-2 max-h-64 overflow-y-auto"
             style={{ minHeight: '6rem' }}
             onClick={() => setIsTextExpanded(false)}
           >
-            <p className="text-gray-800 mb-4">{displayText}</p>
+            <p className="text-gray-800 mb-2">{displayText}</p>
             
             {/* Close indicator */}
             <div className="absolute bottom-1 right-1 p-1">
@@ -523,18 +518,34 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
           </div>
         )}
         
-        {/* Editing interface - now fills the entire card and saves on blur */}
+        {/* Editing interface - absolute overlay that covers everything below */}
         {isEditing && (
-          <div className="absolute top-0 left-0 right-0 z-20 bg-white border border-gray-200 shadow-lg rounded-md p-2 textarea-container" style={{ height: '100%', minHeight: '145px' }}>
+          <div 
+            className="absolute left-0 right-0 z-50 bg-white border border-gray-300 shadow-md rounded"
+            style={{ 
+              top: '0',
+              bottom: '-110px', /* Adjusted to properly align with buttons */
+              height: 'auto'
+            }}
+          >
             <textarea
               ref={textareaRef}
               value={text}
               onChange={handleTextChange}
               onBlur={handleTextBlur}
-              className="w-full h-full p-2 border border-gray-300 rounded text-sm resize-none scrollable-textarea"
+              className="w-full h-full p-2 text-sm resize-none scrollable-textarea rounded-t"
+              style={{ 
+                height: 'calc(100% - 20px)', /* Reserve space for the footer */
+                minHeight: '180px',
+                borderBottom: '1px solid #e5e7eb'
+              }}
               placeholder="Enter scene text..."
               autoFocus
             />
+            {/* Footer with save hint */}
+            <div className="bg-gray-50 py-1 px-2 text-xs text-gray-500 flex justify-end rounded-b">
+              <span>Click outside to save</span>
+            </div>
           </div>
         )}
       </div>
@@ -926,7 +937,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       style={{
         opacity: fadeOut ? 0.6 : 1,
         transition: 'opacity 0.5s ease-out',
-        height: '348px' // Increased from 345px to ensure the button is not cut off
+        height: '348px' // Reduced height to make the layout more compact
       }}
       {...(reorderMode && !showSettings ? {
         'data-handler-id': scene.id,
