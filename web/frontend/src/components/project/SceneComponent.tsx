@@ -521,11 +521,12 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         {/* Editing interface - absolute overlay that covers everything below */}
         {isEditing && (
           <div 
-            className="absolute left-0 right-0 z-50 bg-white border border-gray-300 shadow-md rounded"
+            className="absolute left-0 right-0 z-50 bg-white border border-gray-300 shadow-md rounded-md overflow-hidden"
             style={{ 
               top: '0',
-              bottom: '-110px', /* Adjusted to properly align with buttons */
-              height: 'auto'
+              bottom: '-85px', /* Adjusted from -90px to -85px to eliminate the gap */
+              height: 'auto',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)' /* Enhanced shadow to emphasize edges */
             }}
           >
             <textarea
@@ -533,17 +534,19 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
               value={text}
               onChange={handleTextChange}
               onBlur={handleTextBlur}
-              className="w-full h-full p-2 text-sm resize-none scrollable-textarea rounded-t"
+              className="w-full h-full p-2 text-sm resize-none scrollable-textarea"
               style={{ 
-                height: 'calc(100% - 20px)', /* Reserve space for the footer */
-                minHeight: '180px',
-                borderBottom: '1px solid #e5e7eb'
+                height: 'calc(100% - 26px)', /* Reserve space for the footer */
+                minHeight: '160px', /* Slightly reduced to match the new position */
+                borderBottom: '2px solid #e5e7eb',
+                paddingBottom: '8px'
               }}
               placeholder="Enter scene text..."
               autoFocus
             />
-            {/* Footer with save hint */}
-            <div className="bg-gray-50 py-1 px-2 text-xs text-gray-500 flex justify-end rounded-b">
+            {/* Footer with save hint - with proper rounded corners to match top */}
+            <div className="bg-gray-100 py-1.5 px-2 text-xs text-gray-500 flex justify-end border-t border-gray-300"
+                 style={{borderBottomLeftRadius: '6px', borderBottomRightRadius: '6px'}}>
               <span>Click outside to save</span>
             </div>
           </div>
