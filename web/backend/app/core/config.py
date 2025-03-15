@@ -42,10 +42,13 @@ class Settings(BaseModel):
     R2_ACCOUNT_ID: str = Field(default_factory=lambda: os.getenv("R2_ACCOUNT_ID", ""))
     R2_ACCESS_KEY_ID: str = Field(default_factory=lambda: os.getenv("CLOUDFLARE_R2_ACCESS_KEY_ID", ""))
     R2_SECRET_ACCESS_KEY: str = Field(default_factory=lambda: os.getenv("CLOUDFLARE_R2_SECRET_ACCESS_KEY", ""))
+    R2_ENDPOINT: str = Field(default_factory=lambda: os.getenv("CLOUDFLARE_R2_ENDPOINT", ""))
     R2_BUCKET_NAME: str = Field(default_factory=lambda: os.getenv("R2_BUCKET_NAME", "auto-shorts"))
+    # URL expires in 7 days by default for public URLs
+    R2_URL_EXPIRATION: int = 3600 * 24 * 7
 
     # Storage Configuration
-    USE_MOCK_STORAGE: bool = Field(default_factory=lambda: os.getenv("USE_MOCK_STORAGE", "True").lower() == "true")
+    USE_MOCK_STORAGE: bool = Field(default_factory=lambda: os.getenv("USE_MOCK_STORAGE", "true").lower() in ["true", "1", "t", "yes", "y"])
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str = Field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_ID", ""))

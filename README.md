@@ -131,17 +131,17 @@ If you prefer not to use Docker:
 
 ## Current Development Status
 
-The application is in active development with several key features implemented:
+The project is currently in active development with the following components:
 
-- ✅ Project creation and management
-- ✅ Content extraction from Reddit
-- ✅ Media display (images and videos)
-- ✅ Scene management with drag-and-drop
-- ✅ Docker containerization for development
-- ✅ End-to-end testing with Playwright
-- 🔄 Video processing pipeline
-- 🔄 User authentication
-- 🔄 Cloud storage integration
+- ✅ Frontend Core (Next.js, React, Tailwind CSS)
+- ✅ Backend API (FastAPI, Python)
+- ✅ Database Integration (MongoDB Atlas)
+- ✅ Voice Generation System (ElevenLabs)
+- 🔄 Content Extraction (URLs, text, media metadata)
+- 🔄 Video Processing Pipeline (FFMPEG)
+- ⏳ External Media Download Implementation
+- ⏳ Authentication System
+- ⏳ Cloud Storage Integration
 
 ## Development Setup
 
@@ -422,18 +422,6 @@ These standards ensure we maintain high code quality while delivering features e
 
 ### Video Processing
 // ... existing code ...
-
-## Development Status
-
-The project is currently in active development with the following components:
-
-- ✅ Frontend Core (Next.js, React, Tailwind CSS)
-- ✅ Backend API (FastAPI, Python)
-- ✅ Database Integration (MongoDB Atlas)
-- ✅ Voice Generation System (ElevenLabs)
-- 🔄 Video Processing Pipeline (FFMPEG)
-- ⏳ Authentication System
-- ⏳ Cloud Storage Integration
 
 ## Quick Start
 

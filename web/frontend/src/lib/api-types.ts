@@ -224,4 +224,77 @@ export interface GenerateVoiceResponse {
   content_type: string;
   character_count: number;
   processing_time: number;
+}
+
+/**
+ * Voice generation types
+ */
+export interface VoiceResponse {
+  voice_id: string;
+  name: string;
+  samples: Array<{ sample_id: string, file_name: string, mime_type: string, size_bytes: number, hash: string }>;
+  category: string;
+  fine_tuning: {
+    model_id: string;
+    is_allowed_to_fine_tune: boolean;
+    fine_tuning_requested: boolean;
+    finetuning_state: string;
+    verification_attempts?: Array<any>;
+    verification_failures?: Array<any>;
+    verification_attempts_count?: number;
+    slice_ids?: Array<any>;
+  };
+  labels: Record<string, string>;
+  description: string;
+  preview_url: string;
+  available_for_tiers: Array<string>;
+  settings: VoiceSettings;
+  sharing: {
+    status: string;
+    history_item_sample_id: string;
+    cloned_item_id: string;
+    original_voice_id: string;
+  };
+}
+
+/**
+ * Request to save audio to persistent storage
+ */
+export interface SaveAudioRequest {
+  /** Base64 encoded audio data */
+  audio_base64: string;
+  /** MIME type of the audio (e.g., "audio/mp3") */
+  content_type: string;
+  /** Project ID this audio belongs to */
+  project_id: string;
+  /** Scene ID this audio belongs to */
+  scene_id: string;
+  /** Voice ID used to generate this audio */
+  voice_id: string;
+}
+
+/**
+ * Response from saving audio to persistent storage
+ */
+export interface SaveAudioResponse {
+  /** Whether the save operation succeeded */
+  success: boolean;
+  /** URL to access the stored audio */
+  url: string;
+  /** Storage key where the audio is saved */
+  storage_key: string;
+}
+
+/**
+ * Response from retrieving audio from storage
+ */
+export interface GetAudioResponse {
+  /** Whether the retrieval operation succeeded */
+  success: boolean;
+  /** URL to access the stored audio (if it exists) */
+  url?: string;
+  /** Storage key where the audio is saved (if it exists) */
+  storage_key?: string;
+  /** Whether audio exists for the requested project/scene */
+  exists: boolean;
 } 

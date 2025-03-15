@@ -25,7 +25,8 @@ export const isTestEnvironment = (): boolean => {
     try {
       const isPlaywright = window.navigator.userAgent.includes('Playwright');
       const isTestUrl = window.location.href.includes('/__testid=');
-      if (isPlaywright || isTestUrl) return true;
+      const isTestFrame = window.frameElement && window.frameElement.getAttribute('data-testid');
+      if (isPlaywright || isTestUrl || isTestFrame) return true;
     } catch (e) {
       // Ignore errors when accessing browser properties
     }
@@ -34,9 +35,17 @@ export const isTestEnvironment = (): boolean => {
   // For environments like Jest or Node.js tests
   try {
     // @ts-ignore - Ignore TypeScript errors for process.env access
-    if (typeof process !== 'undefined' && process.env && 
-        (process.env.NODE_ENV === 'test' || process.env.PLAYWRIGHT_TEST === 'true')) {
-      return true;
+    if (typeof process !== 'undefined' && process.env) {
+      const testIndicators = [
+        process.env.NODE_ENV === 'test',
+        process.env.PLAYWRIGHT_TEST === 'true',
+        process.env.JEST_WORKER_ID,
+        process.env.NEXT_PUBLIC_TESTING_MODE === 'true'
+      ];
+      
+      if (testIndicators.some(indicator => indicator)) {
+        return true;
+      }
     }
   } catch (e) {
     // Ignore errors when accessing process.env
@@ -54,6 +63,9 @@ export const isTestEnvironment = (): boolean => {
 export const getTestDefaultValue = (varName: string): string | null => {
   const testDefaults: Record<string, string> = {
     'NEXT_PUBLIC_API_URL': 'http://localhost:8000',
+    'NEXT_PUBLIC_BROWSER_API_URL': 'http://localhost:8000',
+    'NEXT_PUBLIC_MONGODB_URI': 'mongodb://localhost:27017/autoshorts_test',
+    'NEXT_PUBLIC_ELEVENLABS_API_KEY': 'test_key_not_real'
   };
   
   return testDefaults[varName] || null;

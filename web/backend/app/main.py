@@ -8,12 +8,13 @@ import traceback
 from contextlib import asynccontextmanager
 
 from bson import ObjectId
-from fastapi import FastAPI, Request, status, HTTPException
+from fastapi import FastAPI, Request, status, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
+from typing import Dict, Any, List, Union
 
-from app.api import ai, content, projects, users, video_creation, videos, voice
+from app.api import ai, content, projects, users, video_creation, videos, voice, media
 from app.core.config import settings
 from app.core.database import init_db, close_db, db, MongoJSONResponse
 from app.core.errors import create_error_response, ErrorCodes
@@ -59,12 +60,26 @@ app = FastAPI(
 )
 
 # Configure CORS
+origins = [
+    "http://localhost",
+    "http://localhost:3000",  # Frontend on same machine
+    "http://frontend:3000",   # Frontend from Docker
+    settings.FRONTEND_URL,    # Configured frontend URL (for production)
+    "https://*.r2.dev",       # Cloudflare R2 development URLs
+    "https://*.r2.cloudflarestorage.com",  # Cloudflare R2 storage URLs
+]
+
+# Add environment-specific origins if configured
+if settings.FRONTEND_URL and settings.FRONTEND_URL not in origins:
+    origins.append(settings.FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"]  # Needed for file downloads
 )
 
 # Add API standardization middleware
@@ -218,3 +233,25 @@ app.include_router(ai.router, prefix=settings.API_V1_STR)
 app.include_router(video_creation.router, prefix=settings.API_V1_STR)
 app.include_router(projects.router, prefix=settings.API_V1_STR)
 app.include_router(voice.router, prefix=settings.API_V1_STR)
+
+# Import API routers
+from app.api.content import router as content_router
+from app.api.projects import router as projects_router
+from app.api.voice import router as voice_router
+from app.api.test import router as test_router
+from app.api.media import router as media_router
+
+# Include routers
+app.include_router(content_router, prefix="/api/v1/content")
+app.include_router(projects_router, prefix="/api/v1/projects")
+app.include_router(voice_router, prefix="/api/v1/voice")
+app.include_router(test_router, prefix="/api/v1")
+app.include_router(media_router, prefix="/api")  # New media router
+
+# Register API routers
+app.include_router(test_router, prefix="/api/test")
+app.include_router(content_router, prefix="/api/content")
+app.include_router(projects_router, prefix="/api/projects")
+app.include_router(videos.router, prefix="/api/videos")
+app.include_router(voice_router, prefix="/api/voice")
+app.include_router(media_router, prefix="/api")  # New media router

@@ -1,0 +1,18 @@
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:3000", 
+      "http://frontend:3000",
+      "http://localhost:8000"
+    ],
+    "AllowedMethods": [
+      "GET", 
+      "PUT", 
+      "POST", 
+      "DELETE", 
+      "HEAD"
+    ],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 3600
+  }
+] 

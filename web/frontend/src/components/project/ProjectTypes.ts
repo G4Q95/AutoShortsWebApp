@@ -56,6 +56,10 @@ export interface Scene {
     content_type?: string;
     /** URL created from the audio data (for playback) */
     audio_url?: string;
+    /** Persistent URL to the audio file in R2 storage */
+    persistentUrl?: string;
+    /** Storage key for the audio file in R2 */
+    storageKey?: string;
     /** Timestamp when the audio was generated */
     generated_at?: number;
     /** Number of characters in the text used for audio */

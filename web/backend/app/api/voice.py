@@ -11,6 +11,7 @@ import tempfile
 from typing import List, Optional, Dict, Any
 import base64
 from datetime import datetime
+import traceback
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request
 from fastapi.responses import JSONResponse, FileResponse, Response
@@ -23,9 +24,11 @@ from app.services.voice_generation import (
     VoiceSettings,
     ElevenLabsError
 )
+from app.services.storage import get_storage
 
 logger = logging.getLogger(__name__)
 
+# Update router prefix to include API version
 router = APIRouter(prefix="/voice", tags=["voice"])
 
 
@@ -237,6 +240,223 @@ async def generate_voice_audio(request: GenerateVoiceRequest):
         )
 
 
+# New endpoint for persisting audio to R2 storage
+class SaveAudioRequest(BaseModel):
+    """Request model for saving audio to R2 storage."""
+    audio_base64: str
+    content_type: str = "audio/mp3"
+    project_id: str
+    scene_id: str
+    voice_id: str
+
+class SaveAudioResponse(BaseModel):
+    """Response model for audio saved to R2 storage."""
+    success: bool
+    url: str
+    storage_key: str
+
+class GetAudioResponse(BaseModel):
+    """Response model for retrieving audio from storage."""
+    success: bool
+    url: Optional[str] = None
+    storage_key: Optional[str] = None
+    exists: bool = False
+
+@router.get("/audio/{project_id}/{scene_id}", response_model=GetAudioResponse)
+async def get_voice_audio(project_id: str, scene_id: str):
+    """Retrieve voice audio from storage by project ID and scene ID."""
+    from app.services.storage import get_storage
+    
+    storage = get_storage()
+    
+    try:
+        logger.info(f"Retrieving audio for project {project_id}, scene {scene_id}")
+        
+        # For mock storage, we need to list files with the pattern
+        if hasattr(storage, 'storage_dir'):  # It's MockStorage
+            logger.info("Using MockStorage to retrieve audio")
+            
+            # Try different patterns based on naming conventions
+            patterns = [
+                f"audio/{project_id}/{scene_id}/",
+                f"audio/{project_id}_{scene_id}/",
+                f"audio/{project_id}/{scene_id}_"
+            ]
+            
+            for pattern in patterns:
+                logger.info(f"Checking pattern: {pattern}")
+                matching_files = await storage.check_files_exist(pattern)
+                
+                if matching_files and hasattr(matching_files, 'contents') and matching_files.contents:
+                    # Get most recent file
+                    latest_file = sorted(matching_files.contents, key=lambda x: x.last_modified, reverse=True)[0]
+                    file_key = latest_file.key
+                    logger.info(f"Found audio file: {file_key}")
+                    
+                    # Get URL
+                    url = await storage.get_file_url(file_key)
+                    if url:
+                        return {
+                            "success": True,
+                            "url": url,
+                            "storage_key": file_key,
+                            "exists": True
+                        }
+            
+            logger.info("No audio files found in mock storage")
+            return {
+                "success": True,
+                "exists": False
+            }
+        
+        # For R2 storage (not mock), we need a different approach
+        else:
+            logger.info("Using R2Storage to retrieve audio")
+            
+            # Check if any files exist with the base pattern
+            storage_prefix = f"audio/{project_id}/{scene_id}/"
+            logger.info(f"Checking for files with prefix: {storage_prefix}")
+            
+            has_files = await storage.check_files_exist(storage_prefix)
+            
+            # Debug logging for R2 response
+            logger.info(f"R2 response type: {type(has_files)}")
+            if has_files:
+                logger.info(f"R2 response keys: {list(has_files.keys()) if hasattr(has_files, 'keys') else 'No keys method'}")
+                
+                if 'Contents' in has_files and has_files['Contents']:
+                    logger.info(f"Found {len(has_files['Contents'])} files with prefix {storage_prefix}")
+                    
+                    # Sort by last modified date and get the most recent
+                    contents = sorted(has_files['Contents'], key=lambda x: x.get('LastModified', 0), reverse=True)
+                    storage_key = contents[0].get('Key')
+                    
+                    logger.info(f"Selected most recent file: {storage_key}")
+                    
+                    # Get URL for the file
+                    url = await storage.get_file_url(storage_key)
+                    
+                    if url:
+                        logger.info(f"Generated URL for file: {url[:50]}...")
+                        return {
+                            "success": True,
+                            "url": url,
+                            "storage_key": storage_key,
+                            "exists": True
+                        }
+                    else:
+                        logger.error("Failed to generate URL for file")
+                else:
+                    logger.info(f"No files found with prefix {storage_prefix}")
+            
+            logger.info("No audio files found in R2 storage")
+            return {
+                "success": True,
+                "exists": False
+            }
+    
+    except Exception as e:
+        logger.error(f"Error retrieving audio from storage: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return {
+            "success": False,
+            "exists": False
+        }
+
+@router.post("/persist", response_model=SaveAudioResponse)
+async def persist_voice_audio(request: SaveAudioRequest):
+    """Save generated voice audio to persistent R2 storage."""
+    import tempfile
+    import base64
+    import os
+    import aiofiles
+    
+    try:
+        # Decode base64 audio
+        try:
+            audio_data = base64.b64decode(request.audio_base64)
+            logger.info(f"Decoded audio data, size: {len(audio_data)} bytes")
+        except Exception as e:
+            logger.error(f"Error decoding base64 audio: {str(e)}")
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "Invalid base64 audio data", "code": "invalid_audio_data"}
+            )
+        
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+            temp_path = temp_file.name
+        
+        logger.info(f"Created temporary file at: {temp_path}")
+        
+        # Write audio data to temp file
+        try:
+            async with aiofiles.open(temp_path, "wb") as f:
+                await f.write(audio_data)
+                
+            # Verify the file was written correctly
+            file_size = os.path.getsize(temp_path)
+            logger.info(f"Written {file_size} bytes to temporary file")
+            
+            if file_size == 0:
+                raise ValueError("Written file is empty")
+                
+        except Exception as e:
+            logger.error(f"Error writing audio data to file: {str(e)}")
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+            raise HTTPException(
+                status_code=500,
+                detail={"message": f"Failed to write audio data to file: {str(e)}", "code": "file_write_error"}
+            )
+        
+        # Generate a unique storage key for the audio
+        filename_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        storage_key = f"audio/{request.project_id}/{request.scene_id}/{filename_timestamp}_{request.voice_id}.mp3"
+        logger.info(f"Generated storage key: {storage_key}")
+        
+        # Get storage service
+        from app.services.storage import get_storage
+        storage = get_storage()
+        
+        # Upload to R2
+        logger.info(f"Uploading audio to storage with key: {storage_key}")
+        success, url = await storage.upload_file(temp_path, storage_key)
+        
+        # Clean up temporary file
+        try:
+            os.unlink(temp_path)
+            logger.info(f"Removed temporary file: {temp_path}")
+        except Exception as e:
+            logger.warning(f"Error removing temporary file {temp_path}: {str(e)}")
+        
+        if not success:
+            logger.error(f"Failed to upload audio to storage: {url}")
+            raise HTTPException(
+                status_code=500,
+                detail={"message": f"Failed to upload audio to storage: {url}", "code": "storage_upload_failed"}
+            )
+        
+        logger.info(f"Successfully saved audio to storage with URL: {url[:50]}...")
+        return {
+            "success": True,
+            "url": url,
+            "storage_key": storage_key
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error persisting audio to storage: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500, 
+            detail={"message": f"Error saving audio: {str(e)}", "code": "audio_persistence_error"}
+        )
+
+
 @router.post("/generate-file")
 async def generate_voice_audio_file(request: GenerateVoiceRequest):
     """Generate voice audio from text and return as file."""
@@ -294,4 +514,80 @@ async def generate_voice_audio_file(request: GenerateVoiceRequest):
         raise HTTPException(
             status_code=500,
             detail={"message": f"Error generating voice file: {str(e)}", "code": "internal_server_error"}
-        ) 
+        )
+
+# Add a test endpoint for R2 connectivity
+@router.get("/test-r2-connection", response_model=dict)
+async def test_r2_connection():
+    """Test connection to R2 storage and return diagnostic information."""
+    from app.services.storage import get_storage
+    
+    try:
+        storage = get_storage()
+        
+        # Check if using mock storage
+        is_mock = hasattr(storage, 'storage_dir')
+        
+        # Create response dictionary
+        response = {
+            "success": True,
+            "using_mock_storage": is_mock,
+            "storage_type": "MockStorage" if is_mock else "R2Storage",
+        }
+        
+        # If using R2, add R2-specific info
+        if not is_mock:
+            response.update({
+                "endpoint_url": storage.endpoint_url,
+                "bucket_name": storage.bucket_name,
+            })
+            
+            # Test bucket connection
+            try:
+                # Try to list some objects
+                test_response = await storage.check_files_exist("test-")
+                response["bucket_accessible"] = test_response is not None
+                
+                if test_response and 'Contents' in test_response:
+                    response["objects_count"] = len(test_response['Contents'])
+                
+                # Try to create a test file and upload it
+                import tempfile
+                import os
+                
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as temp_file:
+                    temp_path = temp_file.name
+                    temp_file.write(b"Test file for R2 connection")
+                
+                test_key = "test-connection.txt"
+                success, url = await storage.upload_file(temp_path, test_key)
+                
+                # Clean up temp file
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+                
+                response["test_upload_success"] = success
+                if success:
+                    response["test_url"] = url
+                    
+                    # Try to generate another URL for the same file
+                    new_url = await storage.get_file_url(test_key)
+                    response["url_generation_works"] = new_url is not None
+                    
+                    if new_url:
+                        response["new_url"] = new_url
+            except Exception as e:
+                logger.error(f"Error during R2 connection test: {str(e)}")
+                response["error"] = str(e)
+                response["success"] = False
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error testing R2 connection: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        } 

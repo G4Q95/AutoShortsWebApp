@@ -23,7 +23,7 @@ import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
 import { useProject } from './ProjectProvider';
-import { getAvailableVoices, generateVoice } from '../../lib/api-client';
+import { getAvailableVoices, generateVoice, persistVoiceAudio, getStoredAudio } from '@/lib/api-client';
 
 /**
  * Utility function to clean post text by removing "Post by u/Username:" prefix
@@ -32,6 +32,40 @@ import { getAvailableVoices, generateVoice } from '../../lib/api-client';
  */
 const cleanPostText = (text: string): string => {
   return text.replace(/^Post by u\/[^:]+:\s*/i, '');
+};
+
+/**
+ * Helper function to convert base64 to Blob
+ * @param base64 - Base64 encoded string
+ * @param contentType - MIME type of the content
+ * @returns Blob representation of the base64 data
+ */
+const base64ToBlob = (base64: string, contentType: string = 'audio/mp3'): Blob => {
+  try {
+    const byteCharacters = atob(base64);
+    const byteArrays = [];
+    
+    for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+      const slice = byteCharacters.slice(offset, offset + 512);
+      
+      const byteNumbers = new Array(slice.length);
+      for (let i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+      }
+      
+      const byteArray = new Uint8Array(byteNumbers);
+      byteArrays.push(byteArray);
+    }
+    
+    return new Blob(byteArrays, { type: contentType });
+  } catch (err) {
+    console.error('Error converting base64 to blob:', err);
+    // Fallback method
+    return new Blob(
+      [Uint8Array.from(atob(base64), c => c.charCodeAt(0))],
+      { type: contentType }
+    );
+  }
 };
 
 /**
@@ -109,7 +143,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   isFullWidth = false,
   customStyles = {}
 }: SceneComponentProps) {
-  const { mode, updateSceneText, updateSceneAudio } = useProject();
+  const { mode, updateSceneText, updateSceneAudio, currentProject } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(cleanPostText(scene.text));
   const [isRetrying, setIsRetrying] = useState(false);
@@ -124,7 +158,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const [voiceId, setVoiceId] = useState<string>(scene.voice_settings?.voice_id || "");
   const [voices, setVoices] = useState<any[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
-  const [audioSrc, setAudioSrc] = useState<string | null>(scene.audio?.audio_url || null);
+  const [audioSrc, setAudioSrc] = useState<string | null>(
+    // Prioritize persistentUrl if available, fall back to local audio_url
+    scene.audio?.persistentUrl || scene.audio?.audio_url || null
+  );
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -188,30 +225,105 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     setText(cleanPostText(scene.text));
   }, [scene.text]);
 
-  // Restore audio from scene data when available
+  // useEffect to check for stored audio on component mount
   useEffect(() => {
-    // If scene has audio data but no audio_url, create the URL
-    if (scene.audio?.audio_base64 && scene.audio.content_type && !scene.audio.audio_url) {
-      const url = createAudioBlobUrl(scene.audio.audio_base64, scene.audio.content_type);
-      if (url) {
-        setAudioSrc(url);
-        
-        // Update the scene with the new URL
-        const updatedAudioData = {
-          ...scene.audio,
-          audio_url: url
-        };
-        
-        // Only update if we have voice settings
-        if (scene.voice_settings) {
-          updateSceneAudio(scene.id, updatedAudioData, scene.voice_settings);
+    const fetchStoredAudio = async () => {
+      // If there's already a valid audio source, don't fetch again
+      if (audioSrc) {
+        console.log(`SceneComponent ${scene.id}: Already have audio source, not fetching`);
+        return;
+      }
+      
+      console.log(`SceneComponent ${scene.id}: Checking for audio...`);
+      
+      // First try to restore from base64 data in the scene
+      if (scene.audio?.audio_base64) {
+        console.log(`SceneComponent ${scene.id}: Found base64 audio data in scene, restoring...`);
+        try {
+          const audioBlob = base64ToBlob(scene.audio.audio_base64, scene.audio.content_type || 'audio/mp3');
+          const blobUrl = URL.createObjectURL(audioBlob);
+          setAudioSrc(blobUrl);
+          console.log(`SceneComponent ${scene.id}: Restored audio from base64 data`);
+          return;
+        } catch (err) {
+          console.error(`SceneComponent ${scene.id}: Error creating blob from base64:`, err);
+          // Continue to next method if this fails
         }
       }
-    } else if (scene.audio?.audio_url) {
-      // If URL is already available, use it
-      setAudioSrc(scene.audio.audio_url);
-    }
-  }, [scene.id, scene.audio, scene.voice_settings, createAudioBlobUrl, updateSceneAudio]);
+      
+      // Next, try to use a persistent URL from the scene data
+      if (scene.audio?.persistentUrl) {
+        console.log(`SceneComponent ${scene.id}: Found persistent URL in scene, using: ${scene.audio.persistentUrl}`);
+        try {
+          // Test if the URL is accessible
+          const response = await fetch(scene.audio.persistentUrl, { method: 'HEAD' });
+          if (response.ok) {
+            setAudioSrc(scene.audio.persistentUrl);
+            console.log(`SceneComponent ${scene.id}: Persistent URL is valid, using it`);
+            return;
+          } else {
+            console.warn(`SceneComponent ${scene.id}: Persistent URL failed HEAD request with status ${response.status}, will try to fetch from storage`);
+          }
+        } catch (err) {
+          console.warn(`SceneComponent ${scene.id}: Error checking persistent URL, will try to fetch from storage:`, err);
+        }
+      }
+      
+      // If no base64 data or valid persistent URL in scene, try to fetch from storage
+      if (currentProject?.id) {
+        try {
+          console.log(`SceneComponent ${scene.id}: Checking for stored audio in storage for project ${currentProject.id}...`);
+          const response = await getStoredAudio(currentProject.id, scene.id);
+          
+          if (response.error) {
+            console.error(`SceneComponent ${scene.id}: Error fetching stored audio:`, response.error);
+          } else if (response.data && response.data.exists && response.data.url) {
+            console.log(`SceneComponent ${scene.id}: Found stored audio at URL: ${response.data.url}`);
+            
+            // Update the audio source
+            setAudioSrc(response.data.url);
+            
+            // Update the scene data with the audio URL and voice settings
+            const updatedAudioData = {
+              ...(scene.audio || {}),
+              persistentUrl: response.data.url,
+              storageKey: response.data.storage_key
+            };
+            
+            // Create default voice settings if none exist
+            const voiceSettings = scene.voice_settings || {
+              voice_id: voiceId || "21m00Tcm4TlvDq8ikWAM", // Default ElevenLabs voice
+              stability: 0.5,
+              similarity_boost: 0.75,
+              style: 0,
+              speaker_boost: false,
+              speed: 1.0
+            };
+            
+            // Update the scene in the project context
+            updateSceneAudio(scene.id, updatedAudioData, voiceSettings);
+            console.log(`SceneComponent ${scene.id}: Updated scene with audio data from storage`);
+          } else {
+            console.log(`SceneComponent ${scene.id}: No stored audio found for project ${currentProject.id}, scene ${scene.id}`);
+          }
+        } catch (err) {
+          console.error(`SceneComponent ${scene.id}: Error checking for stored audio:`, err);
+        }
+      } else {
+        console.warn(`SceneComponent ${scene.id}: Cannot retrieve stored audio - no project ID available`);
+      }
+    };
+    
+    fetchStoredAudio();
+    
+    // Clean up blob URL when component unmounts
+    return () => {
+      if (audioSrc && audioSrc.startsWith('blob:')) {
+        console.log(`SceneComponent ${scene.id}: Cleaning up blob URL`);
+        URL.revokeObjectURL(audioSrc);
+      }
+    };
+  }, [scene.id, scene.audio, audioSrc, currentProject, updateSceneAudio, voiceId, scene.voice_settings]);
 
   // Initialize voice settings from scene data
   useEffect(() => {
@@ -265,7 +377,6 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       return;
     }
     
-    // More robust text checking - trim the text to check for whitespace-only
     if (!text || text.trim() === '') {
       setAudioError('No text content to convert to speech. Please add some text content to the scene.');
       console.log('Empty text detected. Scene text:', scene.text, 'Local text state:', text);
@@ -275,36 +386,35 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     setAudioError(null);
     setGeneratingAudio(true);
     try {
-      const response = await generateVoice({
+      const result = await generateVoice({
         text,
         voice_id: voiceId,
         stability,
         similarity_boost: similarityBoost,
         style,
-        output_format: "mp3_44100_128",
         use_speaker_boost: speakerBoost,
+        output_format: "mp3_44100_128",
         speed
       });
       
-      if (response.error) {
-        throw new Error(response.error.message);
+      if (result.error) {
+        throw new Error(result.error.message);
       }
       
-      // Create audio URL from base64 data
-      const blob = new Blob(
-        [Uint8Array.from(atob(response.data.audio_base64), c => c.charCodeAt(0))],
-        { type: response.data.content_type }
-      );
-      const audioUrl = URL.createObjectURL(blob);
+      const { audio_base64 } = result.data!;
+      
+      // Create blob from base64
+      const audioBlob = base64ToBlob(audio_base64, 'audio/mp3');
+      const audioUrl = URL.createObjectURL(audioBlob);
       setAudioSrc(audioUrl);
       
       // Prepare audio data for storage
       const audioData = {
-        audio_base64: response.data.audio_base64,
-        content_type: response.data.content_type,
+        audio_base64, // Keep the base64 data for persistence across sessions
+        content_type: 'audio/mp3',
         audio_url: audioUrl,
         generated_at: Date.now(),
-        character_count: response.data.character_count
+        character_count: result.data.character_count
       };
       
       // Prepare voice settings for storage
@@ -317,21 +427,78 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         speed
       };
       
-      // Save audio data to the scene
+      // First update scene with local audio data to ensure it's saved to project
       updateSceneAudio(scene.id, audioData, voiceSettings);
       
-      // Add a small delay to ensure the audio element is updated with the new source
-      // and to allow the flip animation to complete before playing
+      // Then try to persist to R2 storage if available
+      if (currentProject?.id) {
+        try {
+          console.log('Persisting audio to storage with data:', {
+            projectId: currentProject.id,
+            sceneId: scene.id,
+            voiceId,
+            contentType: 'audio/mp3',
+            audioLength: audio_base64.length
+          });
+          
+          const persistResult = await persistVoiceAudio({
+            audio_base64,
+            content_type: 'audio/mp3',
+            project_id: currentProject.id,
+            scene_id: scene.id,
+            voice_id: voiceId
+          });
+          
+          if (persistResult.error) {
+            console.error('Error persisting audio to storage:', persistResult.error);
+            // Already updated with local audio, so still try to play, but log the error
+            setAudioError(`Warning: Audio generated but not saved to cloud. ${persistResult.error.message}`);
+          } else if (persistResult.data && persistResult.data.success) {
+            // If audio was successfully saved to R2, update with the returned URL
+            const audioDataWithUrl = {
+              ...audioData,
+              persistentUrl: persistResult.data.url,
+              storageKey: persistResult.data.storage_key
+            };
+            
+            console.log('Audio successfully saved to storage with URL:', persistResult.data.url);
+            updateSceneAudio(scene.id, audioDataWithUrl, voiceSettings);
+            
+            // Verify the storage URL works by doing a HEAD request
+            try {
+              const response = await fetch(persistResult.data.url, { method: 'HEAD' });
+              if (response.ok) {
+                console.log('Successfully verified storage URL is accessible');
+              } else {
+                console.warn(`Storage URL validation failed with status: ${response.status}`);
+                setAudioError('Warning: Cloud URL may not be accessible after session ends');
+              }
+            } catch (err) {
+              console.warn('Error validating storage URL:', err);
+            }
+          }
+        } catch (err) {
+          console.error('Exception when persisting audio to storage:', err);
+          setAudioError('Warning: Audio generated but not saved to cloud storage');
+          // Already updated with local audio, so still try to play
+        }
+      } else {
+        console.warn('No project ID available for storage. Audio saved locally only.');
+        setAudioError('Audio saved for this session only (no project ID for cloud storage)');
+      }
+      
+      // Make sure audio element is updated before playing
       setTimeout(() => {
         if (audioRef.current) {
           audioRef.current.play().catch(err => {
-            console.error('Error auto-playing audio:', err);
+            console.error('Error playing audio:', err);
+            setAudioError('Error playing audio. Please try again.');
           });
         }
-      }, 800); // Slightly longer delay to allow for animation
-    } catch (err: any) {
-      setAudioError(`Error generating voice: ${err.message}`);
-      setAudioSrc(null);
+      }, 100);
+    } catch (err) {
+      console.error('Error generating voice:', err);
+      setAudioError(`Error generating voice: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setGeneratingAudio(false);
     }

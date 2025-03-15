@@ -34,7 +34,10 @@ import {
   VoiceListResponse,
   GenerateVoiceRequest,
   GenerateVoiceResponse,
-  VoiceSettings
+  VoiceSettings,
+  SaveAudioRequest,
+  SaveAudioResponse,
+  GetAudioResponse
 } from './api-types';
 
 /**
@@ -755,50 +758,72 @@ export async function downloadVoiceAudio(
   filename: string = 'voice-audio.mp3',
   settings?: Partial<VoiceSettings>
 ): Promise<{ success: boolean; error: ApiError | null }> {
-  // Prepare the request
-  const request: GenerateVoiceRequest = {
-    text,
-    voice_id: voiceId,
-    output_format: filename.split('.').pop() || 'mp3',
-    ...settings
-  };
-
-  // Generate the audio
-  const response = await generateVoice(request);
-
-  if (response.error) {
-    return { success: false, error: response.error };
-  }
-
   try {
-    // Convert base64 to a Blob
-    const byteCharacters = atob(response.data.audio_base64);
-    const byteArrays = [];
+    // Get file extension and determine appropriate output format
+    const extension = filename.split('.').pop()?.toLowerCase() || 'mp3';
+    let outputFormat: GenerateVoiceRequest['output_format'] = 'mp3_44100_128';
     
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteArrays.push(byteCharacters.charCodeAt(i));
+    // Map file extension to appropriate output format
+    if (extension === 'mp3') {
+      outputFormat = 'mp3_44100_128';
+    } else if (extension === 'pcm') {
+      outputFormat = 'pcm_44100';
     }
     
-    const byteArray = new Uint8Array(byteArrays);
-    const blob = new Blob([byteArray], { type: response.data.content_type });
-    
-    // Create download link
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    
-    // Trigger download
-    document.body.appendChild(link);
-    link.click();
-    
-    // Clean up
-    setTimeout(() => {
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 100);
-    
-    return { success: true, error: null };
+    const requestData: GenerateVoiceRequest = {
+      text,
+      voice_id: voiceId,
+      output_format: outputFormat,
+      ...settings
+    };
+
+    // Generate the audio
+    const response = await generateVoice(requestData);
+
+    if (response.error) {
+      return { success: false, error: response.error };
+    }
+
+    try {
+      // Convert base64 to a Blob
+      const byteCharacters = atob(response.data.audio_base64);
+      const byteArrays = [];
+      
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArrays.push(byteCharacters.charCodeAt(i));
+      }
+      
+      const byteArray = new Uint8Array(byteArrays);
+      const blob = new Blob([byteArray], { type: response.data.content_type });
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+      
+      return { success: true, error: null };
+    } catch (err) {
+      console.error('Error downloading audio:', err);
+      return {
+        success: false,
+        error: {
+          status_code: 500,
+          message: 'Failed to download audio file',
+          error_code: 'audio_download_error'
+        }
+      };
+    }
   } catch (err) {
     console.error('Error downloading audio:', err);
     return {
@@ -810,4 +835,70 @@ export async function downloadVoiceAudio(
       }
     };
   }
+}
+
+/**
+ * Save voice audio to persistent storage (R2)
+ * 
+ * @param {SaveAudioRequest} requestData - Audio data to persist
+ * @returns {Promise<ApiResponse<SaveAudioResponse>>} Promise with storage result
+ * 
+ * @example
+ * const { data, error } = await persistVoiceAudio({
+ *   audio_base64: "base64encodedaudio...",
+ *   content_type: "audio/mp3",
+ *   project_id: "project123",
+ *   scene_id: "scene456",
+ *   voice_id: "voice789"
+ * });
+ * 
+ * if (data) {
+ *   console.log('Audio saved to R2 with URL:', data.url);
+ * }
+ */
+export async function persistVoiceAudio(
+  requestData: SaveAudioRequest
+): Promise<ApiResponse<SaveAudioResponse>> {
+  console.log('Persisting audio to R2 storage');
+  return fetchAPI<SaveAudioResponse>(
+    '/voice/persist',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    }
+  );
+}
+
+/**
+ * Retrieve stored audio from R2 or mock storage by project ID and scene ID
+ * 
+ * @param {string} projectId - Project ID
+ * @param {string} sceneId - Scene ID
+ * @returns Promise with API response containing audio URL if found
+ * 
+ * @example
+ * const { data, error } = await getStoredAudio('project123', 'scene456');
+ * if (data && data.exists) {
+ *   console.log(`Audio found at URL: ${data.url}`);
+ * } else {
+ *   console.log('No audio found');
+ * }
+ */
+export async function getStoredAudio(
+  projectId: string,
+  sceneId: string
+): Promise<ApiResponse<GetAudioResponse>> {
+  console.log(`Retrieving stored audio for project ${projectId}, scene ${sceneId}`);
+  return fetchAPI<GetAudioResponse>(
+    `/voice/audio/${projectId}/${sceneId}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
 }

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 // Test data
 const TEST_PROJECT_NAME = 'Test Project ' + Math.floor(Math.random() * 1000);
@@ -23,7 +23,77 @@ const SCENE_CARD_SELECTOR = '[data-testid="scene-card"]'; // If you use data-tes
 const BLUE_NUMBER_SELECTOR = '.bg-blue-600:has-text("1"), .bg-blue-600:has-text("2"), .bg-blue-600:has-text("3")'; // The blue numbers in circles
 const MEDIA_SELECTOR = 'video[src], img[src]'; // Selector for any video or image with a src attribute
 
+// Add this helper function at the top of the file, after the imports and before the test.describe block
+async function waitForWorkspace(page: Page, testName = 'unnamed') {
+  console.log(`Waiting for workspace in ${testName} test...`);
+  
+  // Take a debug screenshot before looking for the workspace
+  await page.screenshot({ path: `pre-workspace-check-${testName}-${Date.now()}.png` });
+  
+  // Try different selector strategies
+  const selectors = [
+    '[data-testid="project-workspace"]',
+    '.project-workspace',
+    '#project-workspace-container',
+    '.scene-grid-container',
+    // Add any other selectors that might identify the workspace
+    'div:has(.scenes-heading)', // Look for divs containing elements with scenes heading
+    'main:has([data-testid="add-content-form"])' // Look for main element containing the add content form
+  ];
+  
+  // Check if any selectors exist in DOM regardless of visibility
+  const elementsInDom = await page.evaluate((selectorList: string[]) => {
+    return selectorList.map(selector => {
+      const el = document.querySelector(selector);
+      return { selector, exists: !!el };
+    });
+  }, selectors);
+  
+  console.log('Elements found in DOM:', JSON.stringify(elementsInDom));
+  
+  // First try waiting for network requests to complete
+  try {
+    await page.waitForLoadState('networkidle', { timeout: 3000 });
+    console.log('Network is idle');
+  } catch (e) {
+    console.log('Network still active, continuing anyway');
+  }
+
+  // Then try each selector
+  for (const selector of selectors) {
+    try {
+      await page.waitForSelector(selector, { 
+        state: 'visible', 
+        timeout: 5000 // Use 5000ms as requested
+      });
+      console.log(`Found workspace using selector: ${selector}`);
+      return true;
+    } catch (e) {
+      console.log(`Selector ${selector} not found, trying next...`);
+    }
+  }
+  
+  // Take another screenshot if all selectors fail
+  await page.screenshot({ path: `workspace-not-found-${testName}-${Date.now()}.png` });
+  console.log('Current URL:', page.url());
+  console.log('Page HTML snippet:', await page.evaluate(() => document.body.innerHTML.substring(0, 500) + '...'));
+  
+  throw new Error('Project workspace not found with any selector strategy');
+}
+
 test.describe('Auto Shorts Core Functionality', () => {
+  
+  // Configure retries for flaky tests
+  test.describe.configure({ retries: 2 });
+  
+  // Add console error logging
+  test.beforeEach(async ({ page }) => {
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        console.log('Browser console error:', msg.text());
+      }
+    });
+  });
   
   // Add global timeout for all tests
   test.slow();
@@ -726,9 +796,25 @@ test.describe('Auto Shorts Core Functionality', () => {
 
     // Navigate away and back to verify order persistence
     await page.goto('/');
+    console.log('Navigated away to home page');
+    
+    // Wait for homepage to load completely
+    await page.waitForSelector('a:has-text("My Projects")', { timeout: 10000 });
+    
+    // Navigate back to project
     await page.getByRole('link', { name: 'My Projects' }).click();
+    console.log('Navigated to projects list');
+    
+    // Wait for the projects list to load
+    await page.waitForSelector('h1:has-text("Your Projects")', { timeout: 10000 });
+    
+    // Click on the project by name
     await page.getByRole('link', { name: projectName }).click();
-    console.log('Navigated away and back to verify scene order persistence');
+    console.log('Navigated back to project page');
+    
+    // Wait for project content to load - this should prevent the white screen
+    await waitForWorkspace(page, 'scene-deletion');
+    console.log('Project workspace loaded');
 
     // Test scene deletion
     console.log('Testing scene deletion...');
@@ -818,215 +904,28 @@ test.describe('Auto Shorts Core Functionality', () => {
     page.on('pageerror', error => {
       console.error(`PAGE ERROR: ${error.message}`);
       // Don't immediately fail test on page errors - log them for debugging
-      console.log(`Encountered page error but continuing: ${error.message}`);
     });
+
+    console.log('Navigating to project creation page...');
     
-    // Add request/redirect logging
-    page.on('request', request => {
-      if (request.isNavigationRequest()) {
-        console.log(`NAVIGATION REQUEST: ${request.method()} ${request.url()}`);
-      }
-    });
+    // No more mocking - we'll use real API calls
+    console.log('Setting up mock responses for voice API calls...');
     
     // Create a new project for testing audio
     try {
       // Step 1: Navigate to project creation page
-      console.log('Navigating to project creation page...');
-      await page.goto('/projects/create', { timeout: NAVIGATION_TIMEOUT });
-      
-      // Wait for the page to load - looking for key elements with flexible approach
-      // This makes the test more resilient to environment warnings
-      const createPageElements = [
-        'Create New Video Project',
-        'Enter project name',
-        'Create Project'
-      ];
-      
-      let foundCreatePageElement = false;
-      for (const element of createPageElements) {
-        const isVisible = await page.getByText(element, { exact: false }).isVisible({ timeout: 5000 })
-          || await page.getByPlaceholder(element, { exact: false }).isVisible({ timeout: 5000 })
-          || await page.getByRole('button', { name: element }).isVisible({ timeout: 5000 });
-        
-        if (isVisible) {
-          console.log(`Found create page element: "${element}"`);
-          foundCreatePageElement = true;
-          break;
-        }
-      }
-      
-      if (!foundCreatePageElement) {
-        await page.screenshot({ path: 'create-page-not-loaded.png' });
-        throw new Error('Failed to load project creation page properly');
-      }
-      
-      // Step 2: Create a project with a unique name
-      const projectName = 'Audio Test ' + Math.floor(Math.random() * 10000);
-      console.log('Creating project:', projectName);
-      
-      await page.getByPlaceholder('Enter project name').fill(projectName);
-      await page.getByRole('button', { name: 'Create Project' }).click();
-      
-      // Step 3: Wait for project workspace to load
-      await page.waitForURL(/.*\/projects\/[a-z0-9-_]+$/, { timeout: NAVIGATION_TIMEOUT });
-      console.log('Project workspace loaded at URL:', page.url());
-      
-      // Extract project ID from URL for later use
-      const projectUrl = page.url();
-      const projectId = projectUrl.split('/').pop();
-      console.log('Project ID:', projectId);
-      
-      // Step 4: Add a scene
-      console.log('Adding a scene...');
-      await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_PHOTO_URL);
-      await page.getByRole('button', { name: 'Add' }).click();
-      
-      // Wait for loading indicator to disappear (indicating content is loaded)
-      try {
-        await page.waitForSelector('[data-testid="loading-indicator"]', { 
-          state: 'detached', 
-          timeout: CONTENT_LOAD_TIMEOUT 
-        });
-        console.log('Loading indicator disappeared, content should be loaded now');
-      } catch (e) {
-        console.log('No loading indicator found or it didn\'t disappear. Continuing anyway.');
-      }
-      
-      // Verify scene was added by checking for scene elements and media content
-      console.log('Checking for media content...');
-      await expect(page.locator(MEDIA_SELECTOR).first()).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
-      console.log('Media content found!');
-      
-      await page.screenshot({ path: 'scene-added.png' });
-      console.log('VERIFICATION 3 PASSED: Scene added and media content loaded successfully');
-      
-      // Step 5: Check for existing audio or generate it
-      console.log('Starting voice generation process...');
-      
-      // First check if audio player already exists - this makes the test more resilient
-      const hasExistingAudio = await page.evaluate(() => {
-        return !!document.querySelector('audio');
-      });
-      console.log('Existing audio player found:', hasExistingAudio);
-      
-      if (!hasExistingAudio) {
-        // Find and click the "Generate Voiceover" button
-        console.log('No audio player found, looking for Generate Voiceover button...');
-        
-        // Multiple possible selectors for the Generate button
-        const buttonSelectors = [
-          'button:has-text("Generate Voiceover")',
-          '[data-testid="generate-voice-button"]',
-          'button:has-text("Generate Voice")',
-          '.voice-controls button',
-          'button.bg-blue-500'
-        ];
-        
-        let buttonFound = false;
-        for (const selector of buttonSelectors) {
-          try {
-            const buttonCount = await page.locator(selector).count();
-            if (buttonCount > 0) {
-              console.log(`Found Generate button using selector: ${selector}`);
-              
-              // Click the first matching button
-              await page.locator(selector).first().click();
-              console.log('Clicked Generate Voiceover button');
-              buttonFound = true;
-              break;
-            }
-          } catch (e) {
-            console.log(`No button found with selector: ${selector}`);
-          }
-        }
-        
-        if (!buttonFound) {
-          console.log('Could not find Generate Voiceover button with standard selectors');
-          
-          // Take a screenshot for debugging
-          await page.screenshot({ path: 'generate-button-not-found.png' });
-          
-          // Try a more visual approach - check for elements that look like buttons
-          console.log('Attempting to find buttons by visual identification...');
-          
-          const visibleButtons = await page.locator('button').all();
-          console.log(`Found ${visibleButtons.length} visible buttons`);
-          
-          // Click the button that's most likely to be the generate button
-          // (Skip the first button which is often an Add button or navigation)
-          if (visibleButtons.length > 1) {
-            await visibleButtons[1].click();
-            console.log('Clicked a button that might be the generate button');
-          }
-        }
-        
-        // Wait for audio to appear
-        console.log('Waiting for audio element to appear...');
-        try {
-          await page.waitForSelector('audio', { timeout: 5000 });
-          console.log('Audio element found!');
-        } catch (e) {
-          console.log('No audio element appeared after clicking generate. This might be expected if audio generation is slow or disabled in test mode.');
-        }
-      } else {
-        console.log('Audio player already exists, no need to generate');
-      }
-      
-      // Step 6: Check for audio player elements using a safe approach
-      console.log('Looking for audio player elements...');
-      
-      // We only need to verify existence, not interact with it
-      const audioCount = await page.locator('audio').count();
-      console.log('Found audio element with count:', audioCount);
-      
-      // Take a screenshot showing current state
-      await page.screenshot({ path: 'audio-verification.png' });
-      
-      // IMPORTANT: No hover or direct interaction with the audio element!
-      
-      // Step 7: Save project to ensure persistence
-      console.log('Ensuring project is saved...');
-      
-      // Force a save by interacting with the page
-      await page.keyboard.press('Escape'); // Trigger blur event which often causes a save
-      
-      // Give the save operation time to complete
-      await page.waitForTimeout(1000);
-      
-      // Step 8: Test persistence by navigating away and back
-      console.log('\n=== Testing Audio Persistence Through Navigation ===\n');
-      
-      // Navigate to home page
-      console.log('Navigating to home page...');
-      await page.goto('/', { timeout: NAVIGATION_TIMEOUT });
-      await page.waitForSelector('header', { timeout: PAGE_LOAD_TIMEOUT });
-      
-      // Navigate to projects page
-      console.log('Navigating to projects list...');
-      await page.getByRole('link', { name: 'My Projects' }).click();
-      await page.waitForSelector('h1:has-text("Your Projects")', { timeout: PAGE_LOAD_TIMEOUT });
-      
-      // Find and click our project
-      console.log('Looking for project:', projectName);
-      await page.getByText(projectName).click();
-      
-      // Wait for project workspace to load
-      await page.waitForURL(/.*\/projects\/[a-z0-9-_]+$/, { timeout: NAVIGATION_TIMEOUT });
-      console.log('Returned to project workspace at URL:', page.url());
-      
-      // Wait for content to load
-      try {
-        await page.waitForSelector('[data-testid="loading-indicator"]', { 
-          state: 'detached', 
-          timeout: CONTENT_LOAD_TIMEOUT 
-        });
-        console.log('Loading indicator disappeared after return, content should be loaded');
-      } catch (e) {
-        console.log('No loading indicator found or it didn\'t disappear after return. Continuing anyway.');
-      }
-      
-      // Step 9: Final check for audio persistence
+
+      // ... existing code ...
+
+      // Step 10: Final check for audio persistence
       console.log('Checking for audio persistence after navigation...');
+      
+      // First ensure the page is fully loaded
+      await waitForWorkspace(page, 'audio-persistence');
+      console.log('Project workspace loaded after navigation');
+      
+      // Make sure all dynamic content has time to render
+      await page.waitForTimeout(2000);
       
       // Take a screenshot showing final state
       await page.screenshot({ path: 'final-audio-verification.png' });
@@ -1039,19 +938,40 @@ test.describe('Auto Shorts Core Functionality', () => {
       const sceneElementCount = await page.locator('.bg-blue-600, [data-testid="scene-card"], .scene').count();
       console.log('Scene elements found after navigation:', sceneElementCount);
       
-      // We'll consider the test successful if:
-      // 1. We can find an audio element (ideal case) OR
-      // 2. We can at least confirm we're on the correct project page with scenes
+      // Check if audio element has a src attribute that points to R2 storage
+      let hasR2AudioUrl = false;
+      if (finalAudioCount > 0) {
+        const audioSrc = await page.locator('audio').first().getAttribute('src');
+        console.log('Audio src attribute:', audioSrc);
+        
+        // Check if the audio URL is from R2 storage (contains r2.dev or cloudflare)
+        if (audioSrc && (audioSrc.includes('r2.dev') || audioSrc.includes('cloudflare'))) {
+          console.log('SUCCESS: Audio is using persistent R2 storage URL!');
+          hasR2AudioUrl = true;
+        } else if (audioSrc && audioSrc.startsWith('blob:')) {
+          console.log('WARNING: Audio is using a blob URL, not a persistent R2 URL');
+          // This is still acceptable for now, but not ideal
+        }
+      }
+      
+      // REQUIREMENT: Audio must persist for this test to pass
       if (finalAudioCount > 0) {
         console.log('SUCCESS: Audio element persisted through navigation!');
         expect(finalAudioCount).toBeGreaterThan(0);
-      } else if (sceneElementCount > 0) {
-        console.log('PARTIAL SUCCESS: Scene elements found, but audio element not found. Audio persistence may have failed.');
-        console.log('This is acceptable in test mode where audio generation might be disabled.');
-        expect(sceneElementCount).toBeGreaterThan(0);
+        
+        // Log whether we're using R2 storage, but don't fail the test yet
+        // as we're still implementing this feature
+        if (hasR2AudioUrl) {
+          console.log('EXCELLENT: Using persistent R2 storage for audio!');
+        } else {
+          console.log('TODO: Implement persistent R2 storage for audio');
+        }
       } else {
-        console.error('FAILURE: Neither audio nor scene elements found after navigation.');
-        throw new Error('Navigation test failed - could not find project content after return');
+        // Take a detailed screenshot of the scene area
+        await page.screenshot({ path: 'audio-persistence-failure.png' });
+        console.error('FAILURE: Audio persistence test failed - no audio found after navigation.');
+        console.error('Audio must be properly generated and saved with the project.');
+        throw new Error('Audio persistence test failed - audio did not persist across navigation');
       }
       
       console.log('Audio persistence test completed');

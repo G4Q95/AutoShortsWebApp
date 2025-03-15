@@ -64,6 +64,46 @@ This document summarizes the key discussions and decisions made during our plann
    - When to consider moving from pure PAYG to reserved instances
    - Predictable cost scaling with user growth
 
+## Media Handling Investigation (May 23, 2024)
+
+### Key Findings
+
+1. **Content Extraction Implementation**:
+   - The application successfully extracts metadata from Reddit URLs (text, title, media URLs)
+   - The `extract_url_content` function in `content_retrieval.py` handles this extraction
+   - For Reddit, a dedicated `handle_reddit_url` function manages the complex Reddit JSON structure
+
+2. **Media Handling Gap**:
+   - The current implementation extracts media URLs and metadata but does not download the actual media files
+   - There are no utility functions for downloading external media from URLs
+   - The `VideoProcessor.create_video` method uses a mock implementation that doesn't incorporate external media
+
+3. **Storage Service**:
+   - The application implements a storage service using Cloudflare R2 with local fallback
+   - The storage service only handles files already on the local filesystem
+   - It doesn't have functionality to download media from external URLs
+
+### Actions Taken
+
+1. **Documentation Created**:
+   - Created a new `MEDIA_HANDLING.md` document detailing current implementation and planned improvements
+   - Updated progress.md to include an external media download task in the Next Steps section
+   - Updated README.md to reflect current status of media handling
+
+2. **Implementation Plans**:
+   - Documented the need for media download functionality
+   - Outlined security considerations for media downloading
+   - Planned integration with the video creation pipeline
+
+### Next Steps
+
+1. Implement utility functions to download media from external URLs
+2. Add caching and management for downloaded media
+3. Integrate downloaded media into the video creation process
+4. Add security validations for downloaded media
+
+The investigation clarified that a key component of the video creation pipeline—downloading and processing external media—is currently missing and needs to be implemented.
+
 ## Reference Documents
 
 The following documents were created to capture the detailed plans:
