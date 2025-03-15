@@ -444,4 +444,21 @@ These standards ensure we maintain high code quality while delivering features e
 
 ## Testing
 
+### Running Tests in Docker (Recommended)
+
+We've created a simplified workflow for running tests in Docker, which ensures consistent behavior across environments:
+
+```bash
+# Start all Docker containers
+docker-compose up -d
+
+# Run all tests
+docker-compose exec frontend bash -c "./run-tests.sh"
+
+# Run a specific test by pattern
+docker-compose exec frontend bash -c "./run-tests.sh 'Home page loads correctly'"
+```
+
+See [Docker Testing Guide](web/frontend/DOCKER_TESTING.md) for complete documentation.
+
 // ... existing code ... 
