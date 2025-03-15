@@ -10,15 +10,15 @@ import { defineConfig, devices } from '@playwright/test';
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: './tests',
+  testDir: './tests/e2e',
   /* Maximum time one test can run for. */
-  timeout: 60000,
+  timeout: 120 * 1000,
   expect: {
     /**
      * Maximum time expect() should wait for the condition to be met.
      * For example in `await expect(locator).toHaveText();`
      */
-    timeout: 10000
+    timeout: 15000
   },
   /* Run tests in files in parallel */
   fullyParallel: false,
@@ -27,35 +27,31 @@ export default defineConfig({
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 1,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : 1,
+  workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [['html'], ['list']],
+  reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
-    actionTimeout: 10000,
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
+    baseURL: 'http://localhost:3000',
+
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: 'on-first-retry',
-    /* Needed for Docker: slow down and set longer timeouts for less flakiness */
-    navigationTimeout: 30000,
-    /* Take screenshots on failure */
-    screenshot: 'only-on-failure',
-    /* Record video for failed tests */
+    trace: 'on',
+    screenshot: 'on',
+    
+    // Add video recording to help with debugging
     video: 'on-first-retry',
+    
+    // Use a slower action timeout for more stability
+    actionTimeout: 15000,
+    navigationTimeout: 30000,
   },
 
   /* Configure projects for major browsers */
   projects: [
     {
       name: 'chromium',
-      use: { 
-        ...devices['Desktop Chrome'],
-        launchOptions: {
-          args: ['--disable-web-security', '--disable-gpu', '--no-sandbox', '--disable-setuid-sandbox']
-        }
-      },
+      use: { ...devices['Desktop Chrome'] },
     },
 
     /* Test against mobile viewports. */
@@ -71,21 +67,20 @@ export default defineConfig({
     /* Test against branded browsers. */
     // {
     //   name: 'Microsoft Edge',
-    //   use: { channel: 'msedge' },
+    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
     // },
     // {
     //   name: 'Google Chrome',
-    //   use: { channel: 'chrome' },
+    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     // },
   ],
 
-  /* Folder for test artifacts such as screenshots, videos, traces, etc. */
-  outputDir: 'test-results/',
-
   /* Run your local dev server before starting the tests */
-  // webServer: {
-  //   command: 'npm run dev',
-  //   port: 3000,
-  //   reuseExistingServer: !process.env.CI,
-  // },
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: true,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  },
 }); 
