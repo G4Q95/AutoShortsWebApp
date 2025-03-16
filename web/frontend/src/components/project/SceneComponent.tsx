@@ -24,6 +24,7 @@ import ErrorDisplay from '../ErrorDisplay';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
 import { useProject } from './ProjectProvider';
 import { getAvailableVoices, generateVoice, persistVoiceAudio, getStoredAudio } from '@/lib/api-client';
+import SceneAudioControls from '../audio/SceneAudioControls';
 
 /**
  * Utility function to clean post text by removing "Post by u/Username:" prefix
@@ -95,7 +96,10 @@ interface SceneComponentProps {
   isDragging?: boolean;
   /** Whether to display the scene at full width */
   isFullWidth?: boolean;
+  /** Custom styles for the scene component */
   customStyles?: React.CSSProperties;
+  /** Feature flag to use the new SceneAudioControls component instead of built-in audio controls */
+  useNewAudioControls?: boolean;
 }
 
 /**
@@ -141,7 +145,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   editorRef,
   isDragging = false,
   isFullWidth = false,
-  customStyles = {}
+  customStyles = {},
+  useNewAudioControls = false
 }: SceneComponentProps) {
   const { mode, updateSceneText, updateSceneAudio, currentProject } = useProject();
   const [isEditing, setIsEditing] = useState(false);
@@ -1235,47 +1240,65 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             
             {/* Voice generation controls with top padding */}
             <div className="mt-1 pt-1 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-medium text-gray-700">Voice Narration</div>
-                  <button
-                  ref={settingsButtonRef}
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center"
-                  aria-label="Voice settings"
-                >
-                  <SettingsIcon className="h-3 w-3 mr-0.5" />
-                  <span>Settings</span>
-                  </button>
-              </div>
-              
-              {audioError && (
-                <div className="mb-0.5 text-xs text-red-600 bg-red-50 p-0.5 rounded">
-                  {audioError}
-                </div>
+              {!useNewAudioControls ? (
+                /* Original Audio Controls UI */
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-medium text-gray-700">Voice Narration</div>
+                      <button
+                      ref={settingsButtonRef}
+                      onClick={() => setShowSettings(!showSettings)}
+                      className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center"
+                      aria-label="Voice settings"
+                    >
+                      <SettingsIcon className="h-3 w-3 mr-0.5" />
+                      <span>Settings</span>
+                      </button>
+                  </div>
+                  
+                  {audioError && (
+                    <div className="mb-0.5 text-xs text-red-600 bg-red-50 p-0.5 rounded">
+                      {audioError}
+                    </div>
+                  )}
+                  
+                  <select
+                    value={voiceId}
+                    onChange={(e) => setVoiceId(e.target.value)}
+                    className="text-xs py-0.5 px-1 border border-gray-300 rounded w-full mt-0.5 mb-0.5"
+                    disabled={generatingAudio || voices.length === 0}
+                  >
+                    {voices.length === 0 ? (
+                      <option>Loading voices...</option>
+                    ) : (
+                      voices.map((voice) => (
+                        <option key={voice.voice_id} value={voice.voice_id}>
+                          {voice.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  
+                  {/* We're hiding the separate audio player div */}
+                  <div className="hidden">
+                    <audio ref={audioRef} controls src={audioSrc || ''} className="w-full h-7" />
+                  </div>
+                </>
+              ) : (
+                /* New SceneAudioControls Component */
+                <SceneAudioControls 
+                  scene={scene} 
+                  textContent={scene.text || ''}
+                  readOnly={readOnly}
+                  onAudioGenerated={() => {
+                    // Refresh audio state from the scene after it's updated
+                    if (scene.audio?.audio_url) {
+                      setAudioSrc(scene.audio.audio_url);
+                    }
+                  }}
+                />
               )}
-              
-              <select
-                value={voiceId}
-                onChange={(e) => setVoiceId(e.target.value)}
-                className="text-xs py-0.5 px-1 border border-gray-300 rounded w-full mt-0.5 mb-0.5"
-                disabled={generatingAudio || voices.length === 0}
-              >
-                {voices.length === 0 ? (
-                  <option>Loading voices...</option>
-                ) : (
-                  voices.map((voice) => (
-                    <option key={voice.voice_id} value={voice.voice_id}>
-                      {voice.name}
-                    </option>
-                  ))
-                )}
-              </select>
-              
-              {/* We're hiding the separate audio player div */}
-              <div className="hidden">
-                <audio ref={audioRef} controls src={audioSrc || ''} className="w-full h-7" />
-              </div>
-              </div>
+            </div>
           </div>
 
           {/* Controls - positioned at bottom without gap */}
@@ -1318,20 +1341,20 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                       transform: audioSrc ? 'rotateX(180deg)' : 'rotateX(0deg)'
                     }}>
                       {/* Front face - Generate button */}
-                      <button
-                        onClick={handleGenerateVoice}
-                        disabled={generatingAudio || !voiceId}
-                        className="front absolute inset-0 flex-grow px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm"
-                        aria-label="Generate voice"
-                        style={{
-                          backfaceVisibility: 'hidden',
-                          WebkitBackfaceVisibility: 'hidden',
-                          zIndex: audioSrc ? '0' : '2'
-                        }}
-                      >
-                        <Volume2Icon className="h-4 w-4 mr-1" />
-                        <span className="font-medium">{generatingAudio ? "Generating..." : "Generate Voiceover"}</span>
-                      </button>
+                      {!scene.audio && (
+                        <div className="relative" style={{ width: '100%', height: '100%' }}>
+                          <button
+                            onClick={handleGenerateVoice}
+                            disabled={generatingAudio || !voiceId}
+                            className="front absolute inset-0 flex-grow px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm"
+                            aria-label="Generate voice"
+                            data-testid="generate-voiceover-btn"
+                          >
+                            <Volume2Icon className="h-4 w-4 mr-1" />
+                            <span className="font-medium">{generatingAudio ? "Generating..." : "Generate Voiceover"}</span>
+                          </button>
+                        </div>
+                      )}
                       
                       {/* Back face - Audio controls */}
                       <div
