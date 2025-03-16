@@ -63,6 +63,25 @@ export const selectors = {
 };
 ```
 
+### Import Structure Best Practices
+
+We've implemented a clear import structure to prevent common issues:
+
+- **Root selectors**: Global selectors are in `tests/selectors.ts`
+- **Util selectors**: Reusable selectors are in `tests/e2e/utils/selectors.ts`
+- **Test utilities**: Common functions and constants are in `tests/e2e/utils/test-utils.ts`
+
+This separation prevents duplicate imports and circular dependencies that were causing test failures.
+
+Important guidelines to follow:
+- Never import the same constants twice in a file
+- Use named imports to clearly indicate what's being imported
+- When using both global and util selectors, use namespacing:
+  ```typescript
+  import { DRAG_HANDLE_SELECTOR } from '../selectors';
+  import { selectors, clickWithFallbacks } from './utils/selectors';
+  ```
+
 ### 2. Reusable Test Utilities
 
 We've created common test utilities in `web/frontend/tests/e2e/utils/test-utils.ts` to:

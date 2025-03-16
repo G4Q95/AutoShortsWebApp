@@ -14,20 +14,8 @@ import {
   MEDIA_SELECTOR,
   SCENE_COMPONENT_SELECTOR
 } from './utils/test-utils';
-import * as selectors from '../selectors';
-import { 
-  PAGE_LOAD_TIMEOUT,
-  CONTENT_LOAD_TIMEOUT,
-  CRITICAL_STEP_TIMEOUT,
-  TEST_PROJECT_NAME,
-  TEST_REDDIT_VIDEO_URL,
-  waitForElementWithText,
-  elementWithTextExists,
-  SCENES_HEADING,
-  SCENE_CONTAINER_TIMEOUT,
-  DELETION_TIMEOUT
-} from './utils/test-utils';
-import { clickWithFallbacks } from './utils/selectors';
+import { DRAG_HANDLE_SELECTOR } from '../selectors';
+import { selectors, clickWithFallbacks } from './utils/selectors';
 
 /**
  * Tests for scene operations
@@ -136,9 +124,9 @@ test.describe('Scene Operations', () => {
     try {
       // Test drag handle defined in selectors
       console.log('Using drag handle selector from centralized selectors');
-      const dragHandles = page.locator(selectors.DRAG_HANDLE_SELECTOR);
+      const dragHandles = page.locator(DRAG_HANDLE_SELECTOR);
       const dragHandleCount = await dragHandles.count();
-      console.log(`Found ${dragHandleCount} drag handles with selector: ${selectors.DRAG_HANDLE_SELECTOR}`);
+      console.log(`Found ${dragHandleCount} drag handles with selector: ${DRAG_HANDLE_SELECTOR}`);
       
       if (dragHandleCount > 0) {
         console.log(`Found ${dragHandleCount} drag handles`);

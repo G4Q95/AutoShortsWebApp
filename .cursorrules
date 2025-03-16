@@ -109,6 +109,14 @@ The commit message should also include a list of the changes made in the commit 
 
 When making changes to the codebase, documentation must be updated to maintain accuracy. Follow these guidelines:
 
+### Documentation Update Relevance Rule
+Only update documentation that is directly relevant to the changes made. Do not update documentation indiscriminately:
+- Analyze which documents will benefit from the new information
+- Only add information that enhances understanding of the specific component or feature
+- Avoid duplicating information across multiple documents
+- Prioritize updating technical guides over general overview documents for implementation details
+- Do not modify documentation that is unrelated to your changes
+
 1. **progress.md** - Update with every significant change
    - Update after each completed feature or bug fix
    - Modify at the end of each productive chat session with Claude

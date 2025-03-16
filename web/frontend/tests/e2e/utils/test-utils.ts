@@ -2,6 +2,9 @@
  * Test Utilities for Playwright E2E Tests
  * 
  * Common functions to reduce duplication and improve test maintainability.
+ * This file contains core test utilities, timeouts, and constants.
+ * For selectors, see utils/selectors.ts and ../selectors.ts which contain
+ * centralized selectors to improve test resilience.
  */
 
 import { Page, Locator } from '@playwright/test';
