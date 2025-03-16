@@ -242,30 +242,33 @@ We've implemented a more robust approach to testing scene deletion:
 
 ## Progress Tracking
 
-### Phase 1: Selector and Utility Refactoring
-- ✅ Create centralized selectors library (100% complete)
-- ✅ Fix data-testid discrepancy in delete button selectors (100% complete)
-- ✅ Implement test tagging for major feature areas (100% complete)
-- ✅ Improve scene deletion test reliability (100% complete)
-- ✅ Add fallback strategies with proper validation (100% complete)
-- ⬜ Create helper functions for common testing patterns (50% complete)
-- **Phase 1 Progress: 90% complete**
+### Phase 1: Basic Testing Framework Improvements - 95% Complete
 
-### Phase 2: Test Organization and Modularization
-- ⬜ Split core-functionality.spec.ts into domain-specific files (0% complete)
-- ⬜ Create setup/teardown helpers for each test domain (0% complete)
-- ⬜ Implement consistent test patterns across all files (0% complete)
-- ⬜ Update documentation with new test organization (0% complete)
-- **Phase 2 Progress: 0% complete**
+- ✅ Create centralized selectors library
+- ✅ Implement better error reporting
+- ✅ Add more targeted assertions
+- ✅ Improve test timeouts and retry logic
+- ✅ Fix scene deletion test reliability
+- ✅ Add more data-testid attributes to components
+- ✅ Split large test file into domain-specific files
 
-### Phase 3: Advanced Test Features
-- ⬜ Implement visual regression testing for key components (0% complete)
-- ⬜ Add accessibility testing into E2E tests (0% complete)
-- ⬜ Create performance metrics collection during tests (0% complete)
-- ⬜ Implement parallel test execution (0% complete)
-- **Phase 3 Progress: 0% complete**
+### Phase 2: Advanced Testing Framework - 25% Complete
 
-### Overall Progress: 30% complete
+- ✅ Implement mock audio testing to avoid API credits
+- ⬜ Create domain-specific test helpers (25% done)
+- ⬜ Implement visual testing and screenshot comparison
+- ⬜ Add performance testing
+- ⬜ Create test environment profiles (dev/test/staging)
+
+### Phase 3: Continuous Integration - 0% Complete
+
+- ⬜ Integrate tests with CI pipeline
+- ⬜ Implement parallel test execution
+- ⬜ Create test reporting dashboard
+- ⬜ Set up alerts for test failures
+- ⬜ Automated test result analysis
+
+### Overall Progress: 45%
 
 ## Implemented Improvements
 
@@ -291,6 +294,17 @@ We've implemented a more robust approach to testing scene deletion:
    - Enhanced error reporting with detailed logging
    - Added screenshot capture at key test points
 
+5. **Mock Audio Testing**
+   - Implemented environment variable-based mock switching
+   - Used browser-side API interception for voice generation
+   - Created mock response generation that mimics real API
+   - Added detection logic to verify no real API calls are made
+
+6. **Modular Test File Structure**
+   - Split large test file into domain-specific files
+   - Created separate files for home page, project management, scene operations, and audio generation
+   - Added common test utilities and centralized selectors
+
 ## Scene Deletion Test Improvements
 
 The scene deletion test was previously failing or relying on fallback mechanisms because:
@@ -312,11 +326,37 @@ These changes have improved test reliability, ensuring that we properly test the
 
 ## Implementation Plan
 
-1. **Short Term (Next 2 Weeks)**
-   - ✅ Fix scene deletion testing issues
-   - Add more data-testid attributes to all UI components
-   - Create a script to run tests by tag
-   - Refactor high-value helpers for element selection
+1. Complete migration of remaining test code to the new file structure
+2. Create domain-specific test utility files (project-utils.ts, scene-utils.ts, etc.)
+3. Refactor tests to use these utilities to reduce duplication
+4. Add visual comparison testing for critical UI components
+
+## Next Steps
+
+### Phase 1 Completion
+
+1. Finish moving common test setup/teardown code to shared utilities
+
+### Phase 2 Focus
+
+1. Create more domain-specific test helpers for:
+   - Scene creation (`createScene`, `verifySceneContent`)
+   - Project management (`createTestProject`, `cleanupTestProject`)
+   - Audio generation (`generateAndVerifyAudio`)
+
+2. Implement visual regression testing to catch UI changes
+
+3. Add performance testing to measure test execution time
+
+4. Create test environment profiles for different testing scenarios
+
+5. Integrate tests with CI pipeline for continuous integration
+
+6. Implement parallel test execution to speed up test runs
+
+7. Create test reporting dashboard for monitoring test status
+
+8. Set up alerts for test failures and implement automated test result analysis
 
 2. **Medium Term (Next Month)**
    - Split core-functionality.spec.ts into domain-specific files
