@@ -113,3 +113,5 @@ logs/
 commands/
 configs/
 !configs/example/ 
+# Backup files
+backups/
