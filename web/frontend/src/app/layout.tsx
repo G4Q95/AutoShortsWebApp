@@ -4,6 +4,8 @@ import './globals.css';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import EnvironmentValidator from '@/components/EnvironmentValidator';
+import { AudioProvider } from '@/contexts/AudioContext';
+import { VoiceProvider } from '@/contexts/VoiceContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,10 +22,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} flex min-h-screen flex-col`}>
-        <Header />
-        <main className="flex-grow container mx-auto px-4 py-8">{children}</main>
-        <Footer />
-        <EnvironmentValidator />
+        <AudioProvider>
+          <VoiceProvider>
+            <Header />
+            <main className="flex-grow container mx-auto px-4 py-8">{children}</main>
+            <Footer />
+            <EnvironmentValidator />
+          </VoiceProvider>
+        </AudioProvider>
       </body>
     </html>
   );
