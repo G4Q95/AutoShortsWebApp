@@ -17,7 +17,8 @@ import {
   Pause as PauseIcon,
   RotateCw as RegenerateIcon,
   MoreVertical as MoreVerticalIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  Mic as MicIcon
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
@@ -148,6 +149,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   customStyles = {},
   useNewAudioControls = false
 }: SceneComponentProps) {
+  // Use new controls for all scenes
+  const useNewControls = useNewAudioControls;
+  
   const { mode, updateSceneText, updateSceneAudio, currentProject } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(cleanPostText(scene.text));
@@ -1240,9 +1244,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             
             {/* Voice generation controls with top padding */}
             <div className="mt-1 pt-1 border-t border-gray-200">
-              {!useNewAudioControls ? (
+              {!useNewControls ? (
                 /* Original Audio Controls UI */
-                <>
+                <div data-testid="original-audio-controls">
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-medium text-gray-700">Voice Narration</div>
                       <button
@@ -1283,20 +1287,22 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                   <div className="hidden">
                     <audio ref={audioRef} controls src={audioSrc || ''} className="w-full h-7" />
                   </div>
-                </>
+                </div>
               ) : (
                 /* New SceneAudioControls Component */
-                <SceneAudioControls 
-                  scene={scene} 
-                  textContent={scene.text || ''}
-                  readOnly={readOnly}
-                  onAudioGenerated={() => {
-                    // Refresh audio state from the scene after it's updated
-                    if (scene.audio?.audio_url) {
-                      setAudioSrc(scene.audio.audio_url);
-                    }
-                  }}
-                />
+                <div data-testid="new-audio-controls">
+                  <SceneAudioControls 
+                    scene={scene}
+                    textContent={text}
+                    readOnly={readOnly}
+                    onAudioGenerated={() => {
+                      // Refresh audio state from the scene after it's updated
+                      if (scene.audio?.audio_url) {
+                        setAudioSrc(scene.audio.audio_url);
+                      }
+                    }}
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -1321,7 +1327,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             {/* Right side controls */}
             <div className="flex flex-grow" style={{ gap: '0' }}>
             {!scene.isLoading && !scene.error && (
-                <div className="relative flex-grow flex pr-0" style={{ marginRight: '0', padding: '0' }}>
+                <div className="relative flex-grow flex pr-0" style={{ marginRight: '0', padding: '0', width: 'calc(100% - 40px)' }}>
                   {/* This is the flipping container that will rotate */}
                   <div 
                     className={`flip-container flex-grow relative ${audioSrc ? 'flipped' : ''}`}
@@ -1341,102 +1347,117 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                       transform: audioSrc ? 'rotateX(180deg)' : 'rotateX(0deg)'
                     }}>
                       {/* Front face - Generate button */}
-                      {!scene.audio && (
-                        <div className="relative" style={{ width: '100%', height: '100%' }}>
+                      {!scene.audio && !useNewControls && (
+                        <div className="relative w-full" style={{ width: '100%', height: '100%' }}>
                           <button
+                            className="w-full generate-button front absolute inset-0 flex-grow px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm"
+                            data-testid="generate-voice-button"
+                            disabled={generatingAudio || !text || text.length === 0}
                             onClick={handleGenerateVoice}
-                            disabled={generatingAudio || !voiceId}
-                            className="front absolute inset-0 flex-grow px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm"
-                            aria-label="Generate voice"
-                            data-testid="generate-voiceover-btn"
                           >
-                            <Volume2Icon className="h-4 w-4 mr-1" />
-                            <span className="font-medium">{generatingAudio ? "Generating..." : "Generate Voiceover"}</span>
+                            <MicIcon className="h-4 w-4 mr-2" />
+                            Generate Voiceover
                           </button>
                         </div>
                       )}
                       
                       {/* Back face - Audio controls */}
-                      <div
-                        className="back absolute inset-0 flex-grow px-2 py-2 bg-green-600 text-white text-sm rounded-bl-md flex items-center justify-between"
-                        style={{
-                          backfaceVisibility: 'hidden',
-                          WebkitBackfaceVisibility: 'hidden',
-                          transform: 'rotateX(180deg)',
-                          zIndex: audioSrc ? '2' : '0',
-                          right: '0', // Ensure right edge alignment
-                          width: 'calc(100% - 1px)', // Adjusted to reduce gap
-                          paddingRight: '0.75rem', // Add extra right padding to create space from trash button
-                          borderRight: 'none' // Ensure no border on right side
-                        }}
-                      >
-                        {/* Audio Control Section - all controls in a single row with flex */}
-                        <div className="flex items-center w-full justify-between">
-                          {/* Left side - play button and time */}
-                          <div className="flex items-center">
-                            <button 
-                              onClick={togglePlayPause}
-                              className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
-                              style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-                            >
-                              {isPlaying ? 
-                                <PauseIcon className="h-3.5 w-3.5" /> : 
-                                <PlayIcon className="h-3.5 w-3.5" />
-                              }
-                            </button>
+                      {!useNewControls && audioSrc && (
+                        <div
+                          className="back absolute inset-0 flex-grow px-2 py-2 bg-green-600 text-white text-sm rounded-bl-md flex items-center justify-between"
+                          style={{
+                            backfaceVisibility: 'hidden',
+                            WebkitBackfaceVisibility: 'hidden',
+                            transform: 'rotateX(180deg)',
+                            zIndex: audioSrc ? '2' : '0',
+                            right: '0', // Ensure right edge alignment
+                            width: '100%', // Full width
+                            paddingRight: '0.75rem', // Add extra right padding to create space from trash button
+                            borderRight: 'none' // Ensure no border on right side
+                          }}
+                        >
+                          {/* Audio Control Section - all controls in a single row with flex */}
+                          <div className="flex items-center w-full justify-between">
+                            {/* Left side - play button and time */}
+                            <div className="flex items-center">
+                              <button 
+                                onClick={togglePlayPause}
+                                className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
+                                style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                              >
+                                {isPlaying ? 
+                                  <PauseIcon className="h-3.5 w-3.5" /> : 
+                                  <PlayIcon className="h-3.5 w-3.5" />
+                                }
+                              </button>
+                              
+                              <div className="text-xs whitespace-nowrap font-semibold">
+                                <span id={`time-display-${scene.id}`}>
+                                  {audioRef.current ? 
+                                    formatTime(audioRef.current.currentTime || 0) : 
+                                    "0:00"}
+                                </span>
+                                <span className="mx-0.5">/</span>
+                                <span id={`duration-display-${scene.id}`}>
+                                  {audioRef.current ? 
+                                    formatTime(audioRef.current.duration || 0) : 
+                                    "0:00"}
+                                </span>
+                              </div>
+                            </div>
                             
-                            <div className="text-xs whitespace-nowrap font-semibold">
-                              <span id={`time-display-${scene.id}`}>
-                                {audioRef.current ? 
-                                  formatTime(audioRef.current.currentTime || 0) : 
-                                  "0:00"}
-                              </span>
-                              <span className="mx-0.5">/</span>
-                              <span id={`duration-display-${scene.id}`}>
-                                {audioRef.current ? 
-                                  formatTime(audioRef.current.duration || 0) : 
-                                  "0:00"}
-                              </span>
+                            {/* Middle - volume slider */}
+                            <div className="relative mx-2 flex-grow max-w-[250px]">
+                              <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={volume}
+                                className="volume-slider w-full h-2"
+                                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                                data-testid="audio-slider"
+                              />
+                            </div>
+                            
+                            {/* Right - action buttons */}
+                            <div className="flex items-center">
+                              <button 
+                                onClick={handleGenerateVoice}
+                                disabled={generatingAudio}
+                                className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center mr-1.5"
+                                title="Regenerate voice"
+                                style={{ width: '18px', height: '18px' }}
+                              >
+                                <RegenerateIcon className="h-3 w-3" />
+                              </button>
+                              
+                              <button 
+                                className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center"
+                                title="Audio options"
+                                onClick={() => setShowAudioSettings(true)}
+                                ref={audioSettingsButtonRef}
+                                style={{ width: '18px', height: '18px' }}
+                              >
+                                <MoreVerticalIcon className="h-3 w-3" />
+                              </button>
                             </div>
                           </div>
-                          
-                          {/* Middle - volume button with popup */}
-                          <div className="relative mx-2 flex-grow max-w-[250px]">
-                            <input
-                              type="range"
-                              min="0"
-                              max="1"
-                              step="0.01"
-                              value={volume}
-                              className="volume-slider w-full h-2"
-                              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                          <div className="hidden">
+                            <audio
+                              ref={audioRef}
+                              src={audioSrc}
+                              onTimeUpdate={() => {
+                                // This is a placeholder for the time update event
+                              }}
+                              onEnded={() => {
+                                // This is a placeholder for the end of playback event
+                              }}
+                              data-testid="audio-element"
                             />
                           </div>
-                          
-                          {/* Right - action buttons */}
-                          <div className="flex items-center">
-                            <button 
-                              onClick={handleGenerateVoice}
-                              disabled={generatingAudio}
-                              className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center mr-1.5"
-                              title="Regenerate voice"
-                              style={{ width: '18px', height: '18px' }}
-                            >
-                              <RegenerateIcon className="h-3 w-3" />
-                            </button>
-                            
-                            <button 
-                              className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center"
-                              title="Audio options"
-                              onClick={() => setShowAudioSettings(true)}
-                              ref={audioSettingsButtonRef}
-                              style={{ width: '18px', height: '18px' }}
-                            >
-                              <MoreVerticalIcon className="h-3 w-3" />
-                            </button>
-                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1444,12 +1465,12 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             <button
               onClick={handleRemoveScene}
               disabled={isRemoving}
-                className={`flex-shrink-0 w-10 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
+              className={`flex-shrink-0 w-10 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
               aria-label="Remove scene"
-                style={{ marginLeft: '-2px' }} /* Increased negative margin to close the gap */
-              >
-                <TrashIcon className={`h-4 w-4 ${isRemoving ? 'animate-spin' : ''}`} />
-              </button>
+              style={{ marginLeft: '0' }} /* Remove negative margin */
+            >
+              <TrashIcon className={`h-4 w-4 ${isRemoving ? 'animate-spin' : ''}`} />
+            </button>
             </div>
           </div>
           
