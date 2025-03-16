@@ -30,7 +30,7 @@ The current focus is on improving code stability, API connectivity, and refactor
 - ✅ Enhanced media proxy functionality for Reddit videos
 - ✅ Added comprehensive logging for better troubleshooting
 - ✅ Fixed browser tools server integration for E2E testing
-- ✅ All Playwright E2E tests passing successfully (8/8)
+- ✅ All Playwright E2E tests passing successfully (6/6)
 - ✅ Initial project setup and configuration
 - ✅ Basic frontend structure with Next.js
 - ✅ Basic backend structure with FastAPI
@@ -125,6 +125,14 @@ The current focus is on improving code stability, API connectivity, and refactor
     - Fixed navigation issues between test contexts
     - Improved project selection strategies
     - Enhanced media detection and verification
+- ✅ Documentation Organization and Consolidation
+  - Consolidated duplicate documentation files (progress.md, playwrighttest.md)
+  - Created symbolic links for important files in root directory
+  - Established docs/ directory as single source of truth
+  - Structured testing documentation with clear naming conventions
+  - Added Documentation Organization guide to README.md
+  - Removed redundant R2 setup documentation files
+  - Updated file references in documentation
 
 ### In Progress
 - 🔄 Lightweight code refactoring to improve maintainability:
@@ -358,18 +366,14 @@ We are in Phase 2 of the project, focused on connecting the frontend workspace t
   - Backend server configuration fixed ✅
   - Browser tools server integration ✅
   - MongoDB connection issues resolved ✅
-- API standardization (100%)
-  - Error response format ✅
-  - Status codes ✅
-  - Error codes ✅
-  - Success response format ✅
-  - Documentation ✅
-- Audio control system (100%)
-  - Global audio context ✅
-  - Voice selection management ✅
-  - Scene-specific audio controls ✅
-  - Audio playback synchronization ✅
-  - Volume consistency across scenes ✅
+- Documentation Organization and Consolidation ✅
+  - Consolidated duplicate documentation files
+  - Created symbolic links for important files
+  - Established docs/ directory as source of truth
+  - Structured testing documentation with clear naming
+  - Added Documentation Organization guide to README
+  - Removed redundant R2 setup documentation
+  - Ensured single source of truth for all documentation
 
 ## In Progress (50-90%)
 - Console error fixes (95%)

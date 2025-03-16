@@ -357,18 +357,34 @@ This project has several documentation files for different purposes:
 | File | Location | Purpose |
 |------|----------|---------|
 | **README.md** | `/` | Project overview and quick start guide |
-| **PROJECT_OVERVIEW.md** | `/docs/` | Comprehensive project concept, architecture, and business model |
-| **PROJECT_INSTRUCTIONS.md** | `/docs/` | Detailed implementation steps and technical requirements |
+| **PROJECT_OVERVIEW.md** | `/docs/` | Comprehensive project concept, architecture, and business model (symlinked from root) |
+| **PROJECT_INSTRUCTIONS.md** | `/docs/` | Detailed implementation steps and technical requirements (symlinked from root) |
 | **progress.md** | `/docs/` | Current development status, completed tasks, and upcoming work |
 | **DEVELOPMENT_WORKFLOW.md** | `/` | Development process, code quality practices, and workflow guidelines |
 | **API_STANDARDS.md** | `/docs/` | API standards, response formats, and error handling documentation |
 | **API_ENDPOINTS.md** | `/docs/` | Comprehensive API endpoint documentation with examples |
-| **lightweight-refactoring-prompt.md** | `/docs/` | Current refactoring plan and progress |
-| **CONVERSATION_SUMMARY.md** | `/docs/` | Summary of key development conversations and decisions |
+| **lightweight-refactoring-prompt.md** | `/docs/` | Current refactoring plan and progress (symlinked from root) |
+| **2025-03-15-Refactoring-Plan.md** | `/docs/` | Detailed refactoring plan with implementation steps (symlinked from root) |
+| **r2_setup.md** | `/docs/` | CloudFlare R2 storage setup and configuration guide |
+| **playwright-guide.md** | `/docs/` | Guide for running and maintaining Playwright tests |
+| **playwright-status.md** | `/` | Current status of Playwright tests and recent changes |
+| **test-update-efficiency.md** | `/docs/` | Guidelines for improving test efficiency and maintenance |
 | **frontend/README.md** | `/web/frontend/` | Frontend-specific setup and development information |
 | **backend/README.md** | `/web/backend/` | Backend-specific setup and development information |
 
-When starting a new chat in Cursor with Claude, consider adding relevant context files (especially `.cursorrules` and appropriate documentation) to ensure consistent development patterns. 
+When starting a new chat in Cursor with Claude, consider adding relevant context files (especially `.cursorrules` and appropriate documentation) to ensure consistent development patterns.
+
+### Documentation Organization
+
+This project follows a consistent documentation organization strategy:
+
+1. **Source of Truth**: The `docs/` directory contains the authoritative versions of most documentation files
+2. **Symbolic Links**: Important files are symlinked from the root directory for easy access
+3. **Directory-Specific Documentation**: Each major component (frontend, backend) has its own README
+4. **Specialized Guides**: Topic-specific guides are stored in the `docs/` directory
+5. **Testing Documentation**: Test-related documentation is kept in the `docs/` directory with status reports in the root
+
+This organization ensures documentation is easy to find and maintain with a single source of truth for each document.
 
 ## Standards & Best Practices
 
