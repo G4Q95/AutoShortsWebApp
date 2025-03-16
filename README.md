@@ -105,6 +105,16 @@ With Docker services running, execute:
 cd web/frontend && npm test
 ```
 
+### Test Efficiency Guidelines
+
+For a comprehensive guide on making our tests more maintainable and efficient, see [docs/test-update-efficiency.md](docs/test-update-efficiency.md). This document outlines:
+
+- Strategies for reducing test maintenance overhead
+- Best practices for resilient test selectors
+- Guidelines for modular test organization
+- Quick wins to immediately improve test efficiency
+- Implementation plan for ongoing test improvements
+
 ### Alternative: Manual Setup (Without Docker)
 
 If you prefer not to use Docker:

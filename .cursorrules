@@ -317,6 +317,19 @@ cd web/frontend && npm test
 - Screenshots taken by tests can be found in `web/frontend/test-results/`
 - Never use MCP browser tool functions to get logs from Playwright tests
 
+8. **Mock Audio Testing Conventions**:
+- When the user asks to "run the test" or "run the mock test", use mock audio mode to avoid consuming ElevenLabs API credits
+- Only use real ElevenLabs API when the user explicitly asks to "run the full test" or "run the API test"
+- Always confirm with the user before running tests that will consume actual API credits
+- The default test command with mock audio is:
+  ```bash
+  cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=true npm test
+  ```
+- The full API test command is:
+  ```bash
+  cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=false npm test
+  ```
+
 ## Docker Development Guidelines
 
 When working with the Docker development environment:

@@ -1117,6 +1117,37 @@ test.describe('Auto Shorts Core Functionality', () => {
   test('Audio generation and playback', async ({ page }) => {
     console.log('Starting audio generation test...');
     
+    // Check if we're using mock audio
+    const useMockAudio = process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true';
+    console.log('Test environment:', {
+      mockAudioEnabled: useMockAudio,
+      testingMode: process.env.NEXT_PUBLIC_TESTING_MODE
+    });
+    
+    // If using mock audio, set up the same way as mock-audio-test.spec.ts
+    if (useMockAudio) {
+      // First, inject our mock API implementation
+      await page.addInitScript(() => {
+        // Set a flag that this test is running with mock audio
+        window.USE_MOCK_AUDIO = true;
+        
+        // Add a global variable that persists the mock flag
+        window.__MOCK_AUDIO_ENABLED = true;
+        
+        console.log('MOCK: Mock audio flag enabled in core functionality test');
+      });
+      
+      // Set up route interception for mock mode
+      await page.route('**/voice/generate', route => {
+        console.log('****************************');
+        console.log('TEST: Voice API call intercepted!');
+        console.log('Route URL:', route.request().url());
+        console.log('Method:', route.request().method());
+        console.log('****************************');
+        route.continue(); // Allow the request to proceed
+      });
+    }
+    
     // Create a new project first
     await page.goto('/projects/create', { timeout: NAVIGATION_TIMEOUT });
     
@@ -1148,7 +1179,7 @@ test.describe('Auto Shorts Core Functionality', () => {
     await expect(page.locator(MEDIA_SELECTOR).first()).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
     
     // Setup network listener to capture API calls
-    let elevenlabsApiCalled: boolean = false;
+    let elevenlabsApiCalled = false;
     page.on('request', request => {
       if (request.url().includes('elevenlabs') || request.url().includes('/voice/')) {
         console.log('Voice API call detected:', request.url());
@@ -1192,6 +1223,35 @@ test.describe('Auto Shorts Core Functionality', () => {
     // Take a screenshot to see what we're dealing with
     await page.screenshot({ path: 'after-voice-generation.png' });
     
+    // Checking for audio elements after voice generation...
+    console.log('Checking for audio elements after voice generation...');
+    
+    // Log all audio-related elements in DOM for debugging 
+    const audioDomElements = await page.evaluate(() => {
+      const audioTags = Array.from(document.querySelectorAll('audio')).map(el => ({
+        tag: 'audio',
+        src: el.src ? '...' : '', // Truncate long src urls
+        hasControls: el.hasAttribute('controls')
+      }));
+      
+      const playButtons = Array.from(document.querySelectorAll('button')).filter(btn => 
+        btn.textContent?.includes('Play') || 
+        btn.getAttribute('aria-label')?.includes('play') ||
+        btn.classList.contains('play-button')
+      ).map(btn => ({
+        text: btn.textContent?.trim() || 'no-text',
+        classes: Array.from(btn.classList),
+        ariaLabel: btn.getAttribute('aria-label') || 'no-label'
+      }));
+      
+      return {
+        audioTags,
+        playButtons,
+        mockEnabled: window.USE_MOCK_AUDIO ? 'YES' : 'NO'
+      };
+    });
+    console.log('Audio DOM elements:', audioDomElements);
+    
     // Try multiple selectors with a polling approach
     const audioSelectors = [
       'audio[src]', 
@@ -1209,32 +1269,6 @@ test.describe('Auto Shorts Core Functionality', () => {
       '[controls]'
     ];
     
-    // Log the DOM structure to help with debugging
-    console.log('Logging audio-related elements in DOM...');
-    const audioElements = await page.evaluate(() => {
-      // Check for any audio elements
-      const audioTags = Array.from(document.querySelectorAll('audio')).map(el => ({
-        tag: 'audio',
-        src: el.getAttribute('src'),
-        hasControls: el.hasAttribute('controls')
-      }));
-      
-      // Look for buttons with play-related text or icons
-      const playButtons = Array.from(document.querySelectorAll('button')).filter(
-        btn => btn.textContent?.includes('Play') ||
-               btn.innerHTML?.includes('play') ||
-               btn.getAttribute('aria-label')?.includes('play')
-      ).map(btn => ({
-        tag: 'button',
-        text: btn.textContent,
-        ariaLabel: btn.getAttribute('aria-label')
-      }));
-      
-      return { audioTags, playButtons };
-    });
-    console.log('Audio DOM elements:', audioElements);
-    
-    // Instead of waiting for a specific selector, check each one in turn with a short timeout
     let audioElementFound = false;
     for (const selector of audioSelectors) {
       if (audioElementFound) break;
@@ -1261,20 +1295,20 @@ test.describe('Auto Shorts Core Functionality', () => {
       }
     }
     
-    // If all selectors failed but API was called, consider it a partial success
+    // At the end of the test where we verify the API was called
+    // Check if we detected an audio element or at least the voice API call
     if (!audioElementFound && elevenlabsApiCalled) {
       console.log('Audio element not found but API was called successfully. Taking final screenshot.');
-      await page.screenshot({ path: 'voice-api-called-no-audio-element.png' });
+      await page.screenshot({ path: 'audio-element-missing-but-api-called.png' });
       
-      // Instead of waiting for an element, verify the API was called successfully
-      expect(elevenlabsApiCalled).toBe(true);
+      // Consider the test successful if at least the API was called
       console.log('Test passed based on successful API call');
+    } else if (!audioElementFound && !elevenlabsApiCalled) {
+      console.log('ERROR: Neither audio element nor API call was detected. Test failed.');
+      await page.screenshot({ path: 'audio-test-failed.png' });
+      throw new Error('Audio generation test failed: No audio element or API call detected');
     } else if (audioElementFound) {
-      console.log('Found audio element, test passed');
-    } else {
-      console.log('Neither audio element found nor API called. Taking error screenshot.');
-      await page.screenshot({ path: 'no-audio-no-api.png' });
-      throw new Error('Voice generation failed - no audio element found and API not called');
+      console.log('Audio element found and verified. Test passed.');
     }
     
     console.log('Audio generation and playback test completed');

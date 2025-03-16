@@ -67,6 +67,22 @@ This document provides a structured approach to manually testing the Auto Shorts
   - [ ] Network failures are handled gracefully
   - [ ] Proper feedback is shown when extraction fails
 
+## Audio Generation
+
+- [ ] Voice generation works correctly
+  - [ ] Voice dropdown allows selection of different voices
+  - [ ] "Generate Voiceover" button initiates generation
+  - [ ] Loading indicator appears during processing
+  - [ ] Audio controls appear after generation completes
+  - [ ] Generated audio plays correctly
+  - [ ] Audio can be paused and resumed
+
+- [ ] Mock audio testing works (for development)
+  - [ ] Setting NEXT_PUBLIC_MOCK_AUDIO=true enables mock mode
+  - [ ] Mock audio generation completes without ElevenLabs API calls
+  - [ ] Mock audio playback works correctly
+  - [ ] Console logs indicate mock mode is active
+
 ## Performance
 
 - [ ] Application loads quickly

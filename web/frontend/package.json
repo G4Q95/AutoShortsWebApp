@@ -10,7 +10,9 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\"",
-    "test": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 playwright test",
+    "test": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 NEXT_PUBLIC_MOCK_AUDIO=true playwright test tests/e2e/mock-audio-test.spec.ts",
+    "test:real": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 NEXT_PUBLIC_MOCK_AUDIO=false playwright test tests/e2e/core-functionality.spec.ts",
+    "test:all": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 playwright test",
     "test:debug": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 PWDEBUG=1 playwright test",
     "test:watch": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 playwright test --watch"
   },
