@@ -2,27 +2,44 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// Define the voice interface
+/**
+ * Interface describing a voice option
+ * @property id - Unique identifier for the voice
+ * @property name - Display name of the voice
+ */
 interface Voice {
   id: string;
   name: string;
 }
 
-// Define the context interface
+/**
+ * Interface describing the VoiceContext API
+ * @property voices - Array of available voice options
+ * @property selectedVoice - Currently selected voice ID
+ * @property setSelectedVoice - Function to update the selected voice
+ */
 interface VoiceContextType {
   voices: Voice[];
   selectedVoice: string;
   setSelectedVoice: (voiceId: string) => void;
 }
 
-// Create context with default values
+/**
+ * VoiceContext provides global state management for voice selection.
+ * This ensures consistency in voice preferences across the application.
+ */
 const VoiceContext = createContext<VoiceContextType>({
   voices: [],
   selectedVoice: '',
   setSelectedVoice: () => {}
 });
 
-// Provider component
+/**
+ * VoiceProvider component that wraps the application and provides voice selection state.
+ * This component maintains the list of available voices and the currently selected voice.
+ * 
+ * @param children - React children to be wrapped by the provider
+ */
 export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Sample voices - in a real app, these would come from an API
   const [voices, setVoices] = useState<Voice[]>([
@@ -34,7 +51,10 @@ export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   
   const [selectedVoice, setSelectedVoice] = useState<string>('aria');
 
-  // In a real implementation, we would fetch voices from an API
+  /**
+   * In a production implementation, we would fetch voices from an API endpoint.
+   * This commented code shows how that might be implemented.
+   */
   // useEffect(() => {
   //   const fetchVoices = async () => {
   //     try {
@@ -59,5 +79,12 @@ export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
-// Custom hook to use the voice context
+/**
+ * Custom hook to access the VoiceContext.
+ * Use this hook to access and update voice selection state.
+ * 
+ * @returns VoiceContextType with voices array, selected voice, and method to update selection
+ * @example
+ * const { voices, selectedVoice, setSelectedVoice } = useVoiceContext();
+ */
 export const useVoiceContext = () => useContext(VoiceContext); 

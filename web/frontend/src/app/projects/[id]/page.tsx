@@ -6,12 +6,20 @@ import ProjectWorkspace from '@/components/project/ProjectWorkspace';
 import { Project, ProjectProvider } from '@/components/project/ProjectProvider';
 import { Loader2 as LoaderIcon, AlertTriangle as AlertIcon } from 'lucide-react';
 import { getProject, projectExists } from '@/lib/storage-utils';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
+// import dynamic from 'next/dynamic';
 
 interface ProjectPageProps {
   params: {
     id: string;
   };
 }
+
+// Temporarily remove dynamic error boundary
+// const DynamicErrorBoundary = dynamic(
+//   () => import('@/components/ui/ErrorBoundary'),
+//   { ssr: false }
+// );
 
 function ProjectDetail({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -164,9 +172,11 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   // Render project workspace with the loaded project
   return (
     <div key={`project-${project.id}`}>
-      <ProjectProvider>
-        <ProjectWorkspace projectId={project.id} preloadedProject={project} />
-      </ProjectProvider>
+      <ErrorBoundary>
+        <ProjectProvider>
+          <ProjectWorkspace projectId={project.id} preloadedProject={project} />
+        </ProjectProvider>
+      </ErrorBoundary>
     </div>
   );
 }

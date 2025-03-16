@@ -6,6 +6,19 @@ import {
   MoreVertical as MoreVerticalIcon
 } from 'lucide-react';
 
+/**
+ * Props for the AudioPlayerControls component
+ * @property currentTime - Current playback time in seconds
+ * @property duration - Total audio duration in seconds
+ * @property isPlaying - Whether the audio is currently playing
+ * @property volume - Current volume level (0-1)
+ * @property onPlayPause - Handler for play/pause button clicks
+ * @property onVolumeChange - Handler for volume slider changes
+ * @property onRegenerate - Handler for regenerate button clicks
+ * @property onShowSettings - Handler for settings button clicks
+ * @property isGenerating - Whether audio is currently being generated
+ * @property settingsButtonRef - Ref to the settings button for dropdown positioning
+ */
 interface AudioPlayerControlsProps {
   /** Current time in seconds */
   currentTime: number;
@@ -30,8 +43,15 @@ interface AudioPlayerControlsProps {
 }
 
 /**
- * A component that exactly matches the styling of the
- * original audio player controls in SceneComponent
+ * AudioPlayerControls - A reusable component for audio playback controls
+ * 
+ * This component displays play/pause button, time display, volume slider,
+ * regenerate button, and settings button for audio playback. It matches
+ * the exact styling and functionality of the original implementation in
+ * SceneComponent.
+ * 
+ * @param props - Component props
+ * @returns JSX element with audio player controls
  */
 export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
   currentTime,
@@ -45,7 +65,11 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
   isGenerating,
   settingsButtonRef
 }) => {
-  // Format time for audio display
+  /**
+   * Formats time in seconds to minutes:seconds format
+   * @param timeInSeconds - Time value in seconds
+   * @returns Formatted time string (e.g., "1:45")
+   */
   const formatTime = (timeInSeconds: number): string => {
     if (isNaN(timeInSeconds)) return "0:00";
     const minutes = Math.floor(timeInSeconds / 60);
@@ -71,6 +95,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
             onClick={onPlayPause}
             className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
             style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+            aria-label={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? 
               <PauseIcon className="h-3.5 w-3.5" /> : 
@@ -96,6 +121,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
             className="volume-slider w-full h-2"
             onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
             data-testid="audio-slider"
+            aria-label="Volume"
           />
         </div>
         
@@ -106,6 +132,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
             disabled={isGenerating}
             className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center mr-1.5"
             title="Regenerate voice"
+            aria-label="Regenerate voice"
             style={{ width: '18px', height: '18px' }}
           >
             <RegenerateIcon className="h-3 w-3" />
@@ -115,6 +142,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
             ref={settingsButtonRef}
             className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center"
             title="Audio options"
+            aria-label="Audio options"
             onClick={onShowSettings}
             style={{ width: '18px', height: '18px' }}
           >

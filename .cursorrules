@@ -2,19 +2,19 @@
 
 # CRITICAL: DOCKER-FIRST DEVELOPMENT
 # All development MUST use Docker containers. No direct local service running allowed.
-# Current Docker Integration Status:
 # ✅ Frontend (Next.js) - Port 3000
 # ✅ Backend (FastAPI) - Port 8000
 # ✅ Browser-tools-server - Port 3025
 # ✅ MongoDB Atlas - External service
 # ✅ Cloudflare R2 - Integrated via backend container
-# ✅ Playwright - Integrated with browser-tools
+# ✅ Playwright
 
-You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python), MongoDB Atlas, Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies.
+You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python), MongoDB Atlas, docker Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies.
 
 ## Coding Pattern Preferences
 
 - Always prefer simple solutions
+- use as little code as possible
 - Avoid duplication of code whenever possible, which means checking for other areas of the codebase that might already have similar code and functionality
 - Write code that takes into account the different environments: dev, test, and prod
 - You are careful to only make changes that are requested or you are confident are well understood and related to the change being requested
@@ -65,13 +65,6 @@ When working with the browser frontend:
    - Check rendered components when implementing or debugging UI
    - Verify CSS classes are applied correctly
    - Examine DOM structure when working with dynamic content
-
-6. **Server Status Management**:
-   - If Browser Tools server is not running, automatically attempt to restart it using `npx browser-tools-server`
-   - If frontend server is not responding, try restarting it with `cd /web/frontend && npm run dev`
-   - If backend server is not responding, try restarting it with `cd /web/backend && python -m app.main`
-   - If port issues occur, suggest closing ports and retrying (e.g., `lsof -i :PORT` to check, then `kill -9 PID` to close)
-   - Report server status issues if they persist after restart attempts
 
 ## GitHub MCP Tool Usage Guidelines
 
@@ -240,41 +233,6 @@ To commit these changes:
 
 You raise a great point about breaking changes into smaller, more manageable tasks. Here's what I recommend:
 
-### 1. Start with Frontend-Backend Integration Issues
-
-I'd recommend tackling the issues in a specific order that makes the most sense for development flow:
-
-1. **Frontend-Backend Integration First**:
-   - Start by properly connecting the form submission to the backend
-   - This gives you a working end-to-end flow that you can build upon
-
-2. **Backend Environment Configuration**:
-   - Fix the environment variables and mock necessary cloud services
-   - This ensures backend services work correctly with frontend requests
-
-3. **Frontend UI Improvements**:
-   - Complete styling across pages
-   - Implement proper error handling
-   - Add responsive design
-
-4. **Backend Feature Implementation**:
-   - Complete the video processing pipeline
-   - Implement authentication
-
-### 2. One Issue at a Time with Regular Commits
-
-For each task:
-1. Create a new branch for the feature/fix
-2. Make small, testable changes
-3. Test each change
-4. Commit with descriptive messages using our prefix conventions
-5. Merge back to main when complete
-
-This approach has several benefits:
-- Each commit represents a working state
-- Easier to track progress
-- Simpler to debug if issues arise
-- Better code organization
 
 ### Example Implementation Plan:
 
@@ -290,7 +248,7 @@ Let's break down our next steps with specific tasks and commit points:
 - COMMIT: "feat: connect create video form to backend API"
 ```
 
-#### Task 2: Fix Environment Variables
+#: Fix Environment Variables
 ```
 - Create proper .env.example files
 - Implement environment variable checks
@@ -299,12 +257,12 @@ Let's break down our next steps with specific tasks and commit points:
 - COMMIT: "fix: implement proper environment variable handling"
 ```
 
-#### Task 3: Standardize UI Styling
+# Standardize UI Styling
 ```
 - Create consistent component styling
 - Update navigation elements
 - Fix responsive design issues
-- COMMIT: "style: standardize UI components across pages"
+- style: standardize UI components across pages"
 ```
 
 ## About the File Structure Issue
@@ -362,36 +320,6 @@ cd web/frontend && npm test
 ## Docker Development Guidelines
 
 When working with the Docker development environment:
-
-1. **General Docker Usage**:
-   - Always use `docker-compose` for managing the multi-container setup
-   - Rebuild containers when making significant changes with `docker-compose up --build`
-   - Use `docker-compose logs -f [service]` to monitor service logs
-
-2. **Container Considerations**:
-   - Avoid hardcoding hostnames or ports in application code
-   - Use environment variables for connection strings and configuration
-   - Remember that containers are ephemeral - don't store persistent data in them
-
-3. **Docker and Testing**:
-   - Run all tests with Docker containers running
-   - Make sure browser-tools-server is running before running E2E tests
-   - Check container connectivity if tests fail unexpectedly
-
-4. **Common Docker Issues**:
-   - If containers fail to start, check if ports are already in use
-   - For volume mount issues, confirm Docker has permission to access your project directory
-   - Check logs for container-specific errors using `docker-compose logs`
-
-5. **Docker Environment Variables**:
-   - Always keep sensitive information in `.env` (not tracked by git)
-   - Use `.env.example` as a template (tracked by git)
-   - Never hardcode sensitive values in Dockerfiles or docker-compose.yml
-
-6. **Best Practices**:
-   - Keep Docker images lightweight by using multi-stage builds
-   - Use volumes for development to reflect changes without rebuilds
-   - Tag images appropriately when building for different environments
 
 ## Pre-Commit Checklist
 

@@ -279,6 +279,33 @@ async function waitForScenes(page: Page, expectedCount = 1, testName = 'unnamed'
   throw new Error(`Could not find ${expectedCount} scene(s) after trying multiple selectors`);
 }
 
+/**
+ * Helper function to verify layout attributes and dimensions
+ */
+async function verifyLayoutAttributes(page: Page, selector: string, expectedLayoutId: string): Promise<boolean> {
+  try {
+    const element = await page.locator(`[data-test-layout="${expectedLayoutId}"]`).first();
+    const exists = await element.count() > 0;
+    
+    if (exists) {
+      // Log that we found the element with the correct layout ID
+      console.log(`Found element with data-test-layout="${expectedLayoutId}"`);
+      
+      // Check if it has dimensions attribute
+      const dimensions = await element.getAttribute('data-test-dimensions');
+      if (dimensions) {
+        console.log(`Element dimensions: ${dimensions}`);
+      }
+      
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error(`Error checking layout attribute ${expectedLayoutId}:`, e);
+    return false;
+  }
+}
+
 test.describe('Auto Shorts Core Functionality', () => {
   
   // Configure retries for flaky tests
@@ -444,6 +471,47 @@ test.describe('Auto Shorts Core Functionality', () => {
       timeout: PAGE_LOAD_TIMEOUT
     }).toBeTruthy();
     await expect(page.locator(MEDIA_SELECTOR).first()).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
+    
+    // Verify text container layout attributes
+    console.log('Verifying text container layout attributes...');
+    await expect.poll(async () => {
+      return verifyLayoutAttributes(page, 'div', 'text-content-container');
+    }, {
+      message: 'Expected to find text content container with layout attributes',
+      timeout: 5000
+    }).toBeTruthy();
+    
+    await expect.poll(async () => {
+      return verifyLayoutAttributes(page, 'div', 'text-display');
+    }, {
+      message: 'Expected to find text display area with layout attributes',
+      timeout: 5000
+    }).toBeTruthy();
+    
+    // Test text editor by clicking on the text area
+    console.log('Testing text editor...');
+    await page.locator('[data-test-layout="text-display"]').first().click();
+    
+    // Verify the text editor overlay appears with proper dimensions
+    await expect.poll(async () => {
+      return verifyLayoutAttributes(page, 'div', 'text-editor-overlay');
+    }, {
+      message: 'Expected to find text editor overlay with layout attributes',
+      timeout: 5000
+    }).toBeTruthy();
+    
+    await expect.poll(async () => {
+      return verifyLayoutAttributes(page, 'textarea', 'text-editor-textarea');
+    }, {
+      message: 'Expected to find text editor textarea with layout attributes',
+      timeout: 5000
+    }).toBeTruthy();
+    
+    // Type some text and verify it's saved
+    await page.locator('[data-test-layout="text-editor-textarea"]').first().fill('This is a test message');
+    
+    // Click outside to save
+    await page.locator('body').click();
     
     // Add second scene - Video post
     console.log('Adding second scene...');

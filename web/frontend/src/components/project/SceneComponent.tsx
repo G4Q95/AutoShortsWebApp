@@ -751,11 +751,13 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     const isLongText = displayText.length > 100;
     
     return (
-      <div className="relative" style={{ height: '65px' }}> {/* Reduced height for more compact layout */}
+      <div className="relative" style={{ height: '65px' }} data-test-layout="text-content-container">
         {/* Base text container - always visible when not editing */}
         <div 
           className="h-16 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 pt-0.5 pb-1 rounded"
           onClick={() => !readOnly && setIsEditing(true)}
+          data-test-layout="text-display"
+          data-test-dimensions={`height:16px;overflow:hidden`}
         >
           <p className="text-gray-800 line-clamp-3">{displayText}</p>
           
@@ -768,6 +770,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             className="absolute top-0 left-0 right-0 bg-white border border-gray-200 shadow-lg rounded-md z-40 p-2 max-h-64 overflow-y-auto"
             style={{ minHeight: '6rem' }}
             onClick={() => setIsTextExpanded(false)}
+            data-test-layout="text-expanded-overlay"
+            data-test-dimensions={`min-height:6rem;max-height:16rem`}
           >
             <p className="text-gray-800 mb-2">{displayText}</p>
             
@@ -788,6 +792,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
               height: 'auto',
               boxShadow: '0 2px 8px rgba(0,0,0,0.15)' /* Enhanced shadow to emphasize edges */
             }}
+            data-test-layout="text-editor-overlay"
+            data-test-dimensions={`position:absolute;top:0;bottom:-85px`}
           >
             <textarea
               ref={textareaRef}
@@ -803,10 +809,13 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
               }}
               placeholder="Enter scene text..."
               autoFocus
+              data-test-layout="text-editor-textarea"
+              data-test-dimensions={`min-height:160px;height:calc(100% - 26px)`}
             />
             {/* Footer with save hint - with proper rounded corners to match top */}
             <div className="bg-gray-100 py-1.5 px-2 text-xs text-gray-500 flex justify-end border-t border-gray-300"
-                 style={{borderBottomLeftRadius: '6px', borderBottomRightRadius: '6px'}}>
+                 style={{borderBottomLeftRadius: '6px', borderBottomRightRadius: '6px'}}
+                 data-test-layout="text-editor-footer">
               <span>Click outside to save</span>
             </div>
           </div>
@@ -1244,8 +1253,21 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             
             {/* Voice generation controls with top padding */}
             <div className="mt-1 pt-1 border-t border-gray-200">
-              {!useNewControls ? (
-                /* Original Audio Controls UI */
+              {useNewControls ? (
+                // New component (extracted)
+                <div data-testid="new-audio-controls">
+                  <SceneAudioControls 
+                    sceneId={scene.id}
+                    audioSource={audioSrc || undefined}
+                    isGeneratingAudio={generatingAudio}
+                    onGenerateClick={handleGenerateVoice}
+                    onRegenerateClick={handleGenerateVoice}
+                    onVoiceChange={(voice) => setVoiceId(voice)}
+                    onRateChange={handlePlaybackSpeedChange}
+                  />
+                </div>
+              ) : (
+                // Original implementation (inline)
                 <div data-testid="original-audio-controls">
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-medium text-gray-700">Voice Narration</div>
@@ -1287,21 +1309,6 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                   <div className="hidden">
                     <audio ref={audioRef} controls src={audioSrc || ''} className="w-full h-7" />
                   </div>
-                </div>
-              ) : (
-                /* New SceneAudioControls Component */
-                <div data-testid="new-audio-controls">
-                  <SceneAudioControls 
-                    scene={scene}
-                    textContent={text}
-                    readOnly={readOnly}
-                    onAudioGenerated={() => {
-                      // Refresh audio state from the scene after it's updated
-                      if (scene.audio?.audio_url) {
-                        setAudioSrc(scene.audio.audio_url);
-                      }
-                    }}
-                  />
                 </div>
               )}
             </div>
