@@ -635,7 +635,7 @@ export default function ProjectWorkspace({
 
   // Use the original UI rendering for the workspace when we have a project
   return (
-    <div className="max-w-3xl mx-auto bg-white">
+    <div className="max-w-3xl mx-auto bg-white" data-testid="project-workspace">
       <div className="bg-white p-6 rounded-lg shadow">
         {/* Project header */}
         <div className="mb-6 flex justify-between items-center">
@@ -646,6 +646,7 @@ export default function ProjectWorkspace({
               onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
               className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800"
               aria-label="Project title"
+              data-testid="project-title"
             />
           </div>
           <div className="flex flex-col items-end">
@@ -691,11 +692,13 @@ export default function ProjectWorkspace({
                 placeholder="Enter Reddit URL"
                 className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isAddingScene}
+                data-testid="url-input"
               />
               <button
                 onClick={() => handleUrlSubmit()}
                 className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 disabled={isAddingScene || !url.trim()}
+                data-testid="add-content-button"
               >
                 {isAddingScene ? <LoaderIcon className="h-5 w-5 animate-spin" /> : 'Add'}
               </button>
@@ -719,7 +722,7 @@ export default function ProjectWorkspace({
 
         {/* Scenes list */}
         {effectiveProject.scenes.length > 0 && (
-          <div className="mb-8">
+          <div className="mb-8" data-testid="scenes-container">
             <h2 className="text-xl font-semibold mb-4">Scenes</h2>
             <DragDropContext onDragEnd={handleDragEnd}>
               <Droppable droppableId="scenes" direction="horizontal">

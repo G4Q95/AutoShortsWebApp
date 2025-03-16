@@ -145,31 +145,40 @@ export default function ErrorDisplay({
   };
 
   return (
-    <div className={`p-4 border rounded-md mb-4 ${getContainerStyles()} ${className}`}>
-      <div className="flex items-start">
-        {getIcon()}
-        <span>{errorMessage}</span>
-      </div>
-
-      {getSuggestion()}
-
-      {showRetry && onRetry && (
-        <div className="mt-3 text-center">
-          <button
-            type="button"
-            onClick={onRetry}
-            className={`inline-flex items-center px-4 py-2 rounded-md hover:bg-opacity-80 transition-colors
-              ${
-                type === 'network'
-                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-              }`}
-          >
-            <RefreshCwIcon className="w-4 h-4 mr-2" />
-            Retry
-          </button>
+    <div
+      className={`p-4 rounded-md ${getContainerStyles()} ${className}`}
+      data-testid="error-display"
+    >
+      <div className="flex">
+        <div className="flex-shrink-0">
+          {getIcon()}
         </div>
-      )}
+        <div className="ml-3">
+          <h3 className="text-sm font-medium text-red-800">
+            {errorMessage}
+          </h3>
+
+          {getSuggestion()}
+
+          {showRetry && onRetry && (
+            <div className="mt-3 text-center">
+              <button
+                type="button"
+                onClick={onRetry}
+                className={`inline-flex items-center px-4 py-2 rounded-md hover:bg-opacity-80 transition-colors
+                  ${
+                    type === 'network'
+                      ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  }`}
+              >
+                <RefreshCwIcon className="w-4 h-4 mr-2" />
+                Retry
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

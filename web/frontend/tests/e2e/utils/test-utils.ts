@@ -183,8 +183,12 @@ export async function generateVoiceForScene(page: Page, sceneIndex = 0) {
   
   try {
     // First check if the button is directly in the scene
-    await scene.click('text=Generate Voiceover', { timeout: 2000 });
-    buttonClicked = true;
+    const buttonSelector = 'text=Generate Voiceover';
+    const button = await scene.$$(buttonSelector);
+    if (button.length > 0) {
+      await button[0].click({ timeout: 2000 });
+      buttonClicked = true;
+    }
   } catch (e) {
     console.log('Direct button click failed, trying fallback strategies');
     

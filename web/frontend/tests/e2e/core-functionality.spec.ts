@@ -25,6 +25,8 @@ const SCENE_CARD_SELECTOR = '[data-testid="scene-card"], div[class*="memo"] [cla
 // More specific selector for blue number badge
 const BLUE_NUMBER_SELECTOR = '.bg-blue-600, div[data-testid^="scene-number-"], div[class*="scene"] div[class*="blue"]';
 const MEDIA_SELECTOR = 'video[src], img[src]'; // Selector for any video or image with a src attribute
+// Improved selector specifically for scene components
+const SCENE_COMPONENT_SELECTOR = '[data-testid="scene-component"]';
 
 // Add this helper function at the top of the file, after the imports and before the test.describe block
 async function waitForWorkspace(page: Page, testName = 'unnamed') {
@@ -808,37 +810,47 @@ test.describe('Auto Shorts Core Functionality', () => {
     await expect(page.locator(MEDIA_SELECTOR)).toBeVisible({ timeout: CONTENT_LOAD_TIMEOUT });
     console.log('Media content verified - found video or image element');
 
+    // Wait for scene component to appear
+    await expect(page.locator(SCENE_COMPONENT_SELECTOR)).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
+    console.log('Scene component is visible and ready for deletion test');
+
     // Take a screenshot before deletion attempt to see the UI
     await page.screenshot({ path: 'debug-before-deletion.png' });
     
-    // BETTER APPROACH FOR FINDING SCENE CARDS AND DELETE BUTTONS
-    console.log('Second scene found, attempting to delete it');
-
-    // Take a screenshot to see what we're working with
-    await page.screenshot({ path: `second-scene-${Date.now()}.png` });
+    // Get the initial scene count
+    const initialSceneCount = await page.locator(SCENE_COMPONENT_SELECTOR).count();
+    console.log(`Initial scene count: ${initialSceneCount}`);
 
     // Try to find delete buttons directly without using evaluate
     let sceneDeleted = false;
     
     // Try different approaches to delete the scene
     try {
-      // First try data-testid or aria attributes
-      const deleteButtons = page.locator('[data-testid*="delete"], [aria-label*="delete"], [title*="delete"]');
+      // Look specifically for the delete-scene-button
+      const deleteButton = page.locator('[data-testid="delete-scene-button"]');
       
-      if (await deleteButtons.count() > 0) {
-        console.log(`Found ${await deleteButtons.count()} delete buttons by attribute`);
+      if (await deleteButton.count() > 0) {
+        console.log(`Found ${await deleteButton.count()} delete scene buttons`);
         
         // Click the first one
-        await deleteButtons.first().click();
-        console.log('Clicked first delete button');
+        await deleteButton.first().click();
+        console.log('Clicked delete scene button');
         
-        // Check if successful
-        await expect(page.locator(BLUE_NUMBER_SELECTOR).first()).not.toBeVisible({ timeout: 5000 });
-          console.log('Scene was successfully deleted after clicking delete button');
-        sceneDeleted = true;
+        // Check if successful by waiting for scene count to decrease
+        await page.waitForTimeout(1000); // Give some time for deletion to process
+        
+        const newSceneCount = await page.locator(SCENE_COMPONENT_SELECTOR).count();
+        if (newSceneCount < initialSceneCount) {
+          console.log(`Scene was successfully deleted. Scene count: ${initialSceneCount} -> ${newSceneCount}`);
+          sceneDeleted = true;
+        } else {
+          console.log(`Scene count didn't change after clicking delete button: ${newSceneCount}`);
+        }
+      } else {
+        console.log('No delete-scene-button found, trying fallbacks');
       }
-        } catch (e) {
-      console.log('Could not delete scene with attribute buttons, trying other methods');
+    } catch (e) {
+      console.log('Could not delete scene with specific button, trying other methods');
     }
     
     // If above didn't work, try buttons with SVG
@@ -853,13 +865,18 @@ test.describe('Auto Shorts Core Functionality', () => {
         // Try clicking buttons from last to first (delete buttons are often at the end)
         for (let i = svgButtons.length - 1; i >= 0 && !sceneDeleted; i--) {
           await svgButtons[i].click();
+          console.log(`Clicked SVG button ${i}`);
           
-          try {
-            await expect(page.locator(BLUE_NUMBER_SELECTOR).first()).not.toBeVisible({ timeout: 2000 });
-            console.log(`Successfully deleted scene 2 using SVG button ${i}`);
+          // Wait a moment for deletion to process
+          await page.waitForTimeout(1000);
+          
+          // Check if scene count decreased
+          const newSceneCount = await page.locator(SCENE_COMPONENT_SELECTOR).count();
+          if (newSceneCount < initialSceneCount) {
+            console.log(`Successfully deleted scene using SVG button ${i}. Scene count: ${initialSceneCount} -> ${newSceneCount}`);
             sceneDeleted = true;
             break;
-          } catch (e) {
+          } else {
             console.log(`SVG button ${i} did not delete the scene`);
           }
         }
@@ -873,44 +890,31 @@ test.describe('Auto Shorts Core Functionality', () => {
       console.log('Trying positional clicks to delete the scene');
       
       try {
-        // First find the scene by looking for the blue number
-        const blueNumber = page.locator(BLUE_NUMBER_SELECTOR).first();
-        const box = await blueNumber.boundingBox();
+        // Find the scene component
+        const sceneComponent = page.locator(SCENE_COMPONENT_SELECTOR).first();
+        const box = await sceneComponent.boundingBox();
         
         if (box) {
-          // Try clicking at the bottom-right corner of the element's parent container
-          const parentBox = await page.evaluate((selector) => {
-            const element = document.querySelector(selector);
-            if (!element || !element.parentElement || !element.parentElement.parentElement) return null;
-            
-            // Get the scene card (usually 2 levels up from the blue number)
-            const card = element.parentElement.parentElement;
-            const rect = card.getBoundingClientRect();
-            return { 
-              x: rect.x, 
-              y: rect.y, 
-              width: rect.width, 
-              height: rect.height 
-            };
-          }, BLUE_NUMBER_SELECTOR);
+          // Click near the bottom-right corner where delete buttons are often located
+          const x = box.x + box.width - 20;
+          const y = box.y + box.height - 20;
           
-          if (parentBox) {
-            // Click near the bottom-right corner where delete buttons are often located
-            const x = parentBox.x + parentBox.width - 20;
-            const y = parentBox.y + parentBox.height - 20;
-            
-            console.log(`Clicking at position (${x}, ${y})`);
-            await page.mouse.click(x, y);
-            
-            // Check if successful
-            await expect(page.locator(BLUE_NUMBER_SELECTOR).first()).not.toBeVisible({ timeout: 5000 });
-            console.log('Scene was successfully deleted after positional click');
+          console.log(`Clicking at position (${x}, ${y})`);
+          await page.mouse.click(x, y);
+          
+          // Wait a moment for deletion to process
+          await page.waitForTimeout(1000);
+          
+          // Check if scene count decreased
+          const newSceneCount = await page.locator(SCENE_COMPONENT_SELECTOR).count();
+          if (newSceneCount < initialSceneCount) {
+            console.log(`Successfully deleted scene with positional click. Scene count: ${initialSceneCount} -> ${newSceneCount}`);
             sceneDeleted = true;
           } else {
-            console.log('Could not determine parent container size');
+            console.log(`Positional click did not delete the scene. Count remained at ${newSceneCount}`);
           }
         } else {
-          console.log('Could not get blue number position');
+          console.log('Could not get scene component position');
         }
       } catch (e) {
         console.log('Positional click deletion failed:', e);
@@ -920,11 +924,13 @@ test.describe('Auto Shorts Core Functionality', () => {
     // Take a screenshot after all deletion attempts
     await page.screenshot({ path: 'debug-after-all-deletion-attempts.png' });
     
-      // If deletion was successful, verify the scene is gone
+    // If deletion was successful, verify the scene is gone
     if (sceneDeleted) {
       console.log('Verifying scene deletion...');
-      await expect(page.locator(BLUE_NUMBER_SELECTOR).first()).not.toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
-      console.log('Scene deletion verified - blue number 1 is no longer visible');
+      // Check if there are no scene components left, or at least fewer than before
+      const finalSceneCount = await page.locator(SCENE_COMPONENT_SELECTOR).count();
+      expect(finalSceneCount).toBeLessThan(initialSceneCount);
+      console.log(`Scene deletion verified - scene count decreased from ${initialSceneCount} to ${finalSceneCount}`);
     } else {
       console.warn('⚠️ WARNING: All deletion attempts failed, temporarily bypassing strict verification');
     }

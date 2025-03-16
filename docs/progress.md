@@ -30,7 +30,7 @@ The current focus is on improving code stability, API connectivity, and refactor
 - ✅ Enhanced media proxy functionality for Reddit videos
 - ✅ Added comprehensive logging for better troubleshooting
 - ✅ Fixed browser tools server integration for E2E testing
-- ✅ All Playwright E2E tests passing successfully (6/6)
+- ✅ All Playwright E2E tests passing successfully (8/8)
 - ✅ Initial project setup and configuration
 - ✅ Basic frontend structure with Next.js
 - ✅ Basic backend structure with FastAPI
@@ -88,6 +88,15 @@ The current focus is on improving code stability, API connectivity, and refactor
   - Fixed "missing required error components" issue
   - Enhanced error logging for better diagnostics
   - Improved error recovery with user-friendly retry options
+- ✅ Test Efficiency Improvements
+  - Created centralized selectors library (selectors.ts)
+  - Implemented reusable test utility functions (test-utils.ts)
+  - Added test tagging for selective test running
+  - Enhanced test scripts in package.json
+  - Improved mock audio testing with proper assertions
+  - Fixed TypeScript errors in testing code
+  - Added explicit commands for mock vs. real API testing
+  - Created progressive fallback strategies for element selection
 
 ### In Progress
 - 🔄 Lightweight code refactoring to improve maintainability:

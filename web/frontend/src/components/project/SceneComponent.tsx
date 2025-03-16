@@ -777,6 +777,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
           onClick={() => !readOnly && setIsEditing(true)}
           data-test-layout="text-display"
           data-test-dimensions={`height:16px;overflow:hidden`}
+          data-testid="scene-text"
         >
           <p className="text-gray-800 line-clamp-3">{displayText}</p>
           
@@ -1239,6 +1240,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   return manuallyRemoving ? null : (
     <div
       id={`scene-${scene.id}`}
+      data-testid="scene-component"
       className={`relative rounded-lg border overflow-hidden shadow-sm bg-white 
       ${isDragging ? 'border-blue-500 shadow-lg bg-blue-50' : 'border-gray-300'}
       ${isRemoving ? 'opacity-50' : 'opacity-100'} transition-opacity duration-300`}
@@ -1268,14 +1270,14 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       ) : (
         <div className="flex flex-col h-full">
           {/* Media section - fixed height */}
-          <div className="h-40">
+          <div className="h-40" data-testid="scene-media">
           {renderMedia()}
           </div>
 
           {/* Content section - with minimal spacing */}
           <div className="p-1 flex-1 flex flex-col">
             {/* Source info with bottom border */}
-            <div className="flex flex-wrap items-center text-xs text-gray-500 mb-1 pb-1 border-b border-gray-200">
+            <div className="flex flex-wrap items-center text-xs text-gray-500 mb-1 pb-1 border-b border-gray-200" data-testid="scene-source-info">
               {scene.source.author && (
                 <span className="mr-1 truncate">By: {scene.source.author}</span>
               )}
@@ -1329,6 +1331,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                     onChange={(e) => setVoiceId(e.target.value)}
                     className="text-xs py-0.5 px-1 border border-gray-300 rounded w-full mt-0.5 mb-0.5"
                     disabled={generatingAudio || voices.length === 0}
+                    data-testid="voice-selector"
                   >
                     {voices.length === 0 ? (
                       <option>Loading voices...</option>
@@ -1343,7 +1346,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                   
                   {/* We're hiding the separate audio player div */}
                   <div className="hidden">
-                    <audio ref={audioRef} controls src={audioSrc || ''} className="w-full h-7" />
+                    <audio ref={audioRef} controls src={audioSrc || ''} className="w-full h-7" data-testid="audio-element" />
                   </div>
                 </div>
               )}
@@ -1486,19 +1489,6 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                               </button>
                             </div>
                           </div>
-                          <div className="hidden">
-                            <audio
-                              ref={audioRef}
-                              src={audioSrc}
-                              onTimeUpdate={() => {
-                                // This is a placeholder for the time update event
-                              }}
-                              onEnded={() => {
-                                // This is a placeholder for the end of playback event
-                              }}
-                              data-testid="audio-element"
-                            />
-                          </div>
                         </div>
                       )}
                     </div>
@@ -1510,6 +1500,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
               disabled={isRemoving}
               className={`flex-shrink-0 w-10 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
               aria-label="Remove scene"
+              data-testid="delete-scene-button"
               style={{ marginLeft: '0' }} /* Remove negative margin */
             >
               <TrashIcon className={`h-4 w-4 ${isRemoving ? 'animate-spin' : ''}`} />

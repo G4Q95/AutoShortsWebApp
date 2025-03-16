@@ -91,7 +91,19 @@ export default function LoadingIndicator({
     );
   }
   
-  return spinner;
+  return (
+    <div
+      className={`flex items-center justify-center gap-2 ${
+        fullscreen ? 'fixed inset-0 bg-white bg-opacity-80 z-50' : ''
+      } ${className}`}
+      data-testid="loading-indicator"
+    >
+      {/* Simple spinner */}
+      <div className="flex flex-col items-center space-y-2">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700" />
+      </div>
+    </div>
+  );
 }
 
 /**

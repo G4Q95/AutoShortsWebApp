@@ -32,7 +32,7 @@ export const selectors = {
   sceneText: '[data-testid="scene-text"]',
   
   // Scene Controls
-  sceneDeleteButton: '.delete-button',
+  sceneDeleteButton: '[data-testid="delete-scene-button"]',
   dragHandle: '[data-testid="drag-handle"]',
   
   // Voice Generation
@@ -49,9 +49,9 @@ export const selectors = {
   },
   
   sceneDeleteButtonFallbacks: {
-    testId: '[data-testid="scene-delete-button"]',
-    text: '.delete-button',
-    cssClass: '.trash-icon'
+    testId: '[data-testid="delete-scene-button"]',
+    text: 'button[aria-label="Remove scene"]',
+    cssClass: '.bg-red-600'
   },
   
   // Loading and error states

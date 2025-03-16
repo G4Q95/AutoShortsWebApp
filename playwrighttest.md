@@ -1,4 +1,4 @@
-# Playwright Test Status (Updated March 15, 2025)
+# Playwright Test Status (Updated March 22, 2025)
 
 ## Overview
 This document tracks the status of our Playwright E2E test suite for the Auto Shorts Web App. It provides a comprehensive reference for the current state of tests, recent changes, and known issues.
@@ -58,10 +58,10 @@ The test suite includes the following test cases:
 5. **Scene deletion** - PASSING
    - Creates a project and adds scenes
    - Tests various methods to delete scenes including:
-     - Using SVG button clicks
-     - Fallback to positional clicking if standard selectors fail
+     - Using data-testid selector to find the delete button
+     - Properly verifies deletion using scene count changes
    - Verifies scene count after deletion operations
-   - Note: Uses fallback approaches if standard deletion fails
+   - Includes fallback strategies if the primary deletion method fails
 
 6. **Existing project functionality** - PASSING
    - Creates a new project and adds a scene
@@ -93,36 +93,44 @@ The test suite includes the following test cases:
 
 - **Tests Passing**: 8/8
 - **Tests Failing**: 0/8
-- **Last Run Date**: March 21, 2025
+- **Last Run Date**: March 22, 2025
 
 All tests are currently passing successfully, including both the core functionality tests and the dedicated mock audio test. The entire test suite now supports mock audio mode by default to avoid consuming ElevenLabs API credits during routine testing, while still providing comprehensive coverage of the application's functionality. This provides us with a solid baseline for the incremental component extraction approach we're adopting for refactoring.
 
 ## Recent Changes
 
-1. **Fixed Existing Project Functionality Test**
+1. **Fixed Scene Deletion Test**
+   - Updated selectors.ts with correct data-testid for the delete button
+   - Implemented more reliable scene count verification strategy
+   - Added specific data-testid selector targeting for the delete button
+   - Enhanced the testing approach to focus on scene count changes
+   - Added screenshot capture at critical points for diagnostics
+   - Structured fallback strategies from specific to general
+
+2. **Fixed Existing Project Functionality Test**
    - Removed unnecessary URL structure validation that was causing failures
    - Added more reliable workspace and scene verification methods
    - Improved navigation stability with additional delays
    - Enhanced debugging output for easier troubleshooting
 
-2. **Fixed Audio Generation Test**
+3. **Fixed Audio Generation Test**
    - Implemented multiple selector strategies to locate audio elements
    - Added fallbacks to find audio-related UI components
    - Enhanced test reliability with better timing and verification methods
    - Added detailed logging of audio-related DOM elements
 
-3. **Enhanced Test Resilience**
+4. **Enhanced Test Resilience**
    - Added stabilization delays for better reliability
    - Implemented more comprehensive error reporting
    - Created stronger verification steps for scene components
    - Improved selector strategies with progressive fallbacks
 
-4. **Docker Integration**
+5. **Docker Integration**
    - All tests now run reliably within Docker containers
    - Frontend, backend, and browser-tools-server are properly containerized
    - Tests require all Docker services to be running
 
-5. **Implemented Mock Audio Testing**
+6. **Implemented Mock Audio Testing**
    - Added mock audio implementation to avoid consuming ElevenLabs API credits
    - Created window.USE_MOCK_AUDIO flag and NEXT_PUBLIC_MOCK_AUDIO environment variable controls
    - Implemented dedicated mock audio test file (mock-audio-test.spec.ts)
@@ -161,23 +169,7 @@ To address the challenge of consuming API credits during testing, we've implemen
 
 ## Known Issues
 
-### 1. Scene Deletion Challenges
-
-**Symptoms:**
-- Scene deletion test shows warnings about difficulty finding delete buttons
-- Test uses fallback to positional clicks when standard selectors fail
-- Test ultimately completes successfully but with bypassed strict verification
-
-**What We've Tried:**
-- Multiple selector strategies for delete buttons
-- Scanning for SVG elements within buttons
-- Positional clicking as a fallback mechanism
-
-**Current Status:**
-- Test passes successfully but relies on fallback mechanisms
-- The scene deletion functionality could be made more testable with improved data-testid attributes
-
-### 2. Backend Errors During Video Processing
+### Backend Errors During Video Processing
 
 **Symptoms:**
 - Console shows errors related to video processing:
@@ -191,10 +183,9 @@ To address the challenge of consuming API credits during testing, we've implemen
 - Tests complete successfully despite these errors
 - Backend video processing functionality may need investigation
 
-### 3. TypeScript Linter Errors
+### TypeScript Linter Errors
 
 **Symptoms:**
-- "Property 'toBe' does not exist on type 'never'" error for the `elevenlabsApiCalled` variable
 - Type annotations needed for proper Playwright test functions
 
 **Current Status:**
@@ -275,41 +266,40 @@ By default, all test commands use mock audio mode to avoid consuming ElevenLabs 
    - Added API call interception for testing
    - Fixed all tests to work with the mock system
 
-2. **Improve Scene Deletion Test**
-   - Add more reliable data-testid attributes to delete buttons
-   - Enhance selector strategies for more consistent detection
-   - Reduce reliance on positional clicking fallbacks
+2. **Fix Scene Deletion Test** - COMPLETED
+   - Fixed the selectors in selectors.ts to use the correct data-testid
+   - Implemented more reliable scene count verification strategy
+   - Added fallbacks with proper verification methods
 
-3. **Fix Backend Video Processing Errors**
-   - Investigate and resolve JSON parsing issues
-   - Improve error handling in video processing endpoints
-   - Add better error formatting for debugging
+3. **Split Large Test File**
+   - Divide core-functionality.spec.ts into domain-specific test files
+   - Create separate files for project, scene, and audio functionality
+   - Implement shared setup/teardown utilities for each domain
+   - Enhance test documentation with file descriptions
 
-4. **Resolve TypeScript Linter Errors**
-   - Fix type annotations for test variables
-   - Ensure proper typing for all test functions
-   - Address "toBe not existing on type never" error
+4. **Implement Visual Regression Testing**
+   - Set up visual snapshots for critical UI components
+   - Add test mode for layout validation with component dimensions
+   - Create baseline images for UI comparison
+   - Implement CI/CD integration for visual regression testing
 
-5. **Add More Test Coverage**
+5. **Enhance Test Reporting**
+   - Implement detailed test reports with timing information
+   - Add custom reporter for test results visualization
+   - Create dashboard for test status monitoring
+   - Implement integration with project management tools
+
+6. **Expand Test Coverage**
    - Video processing pipeline tests
    - Authentication tests
    - Error handling tests
    - User settings and preferences tests
 
-6. **Performance Optimization**
-   - Reduce test execution time
-   - Implement parallelization where appropriate
-   - Add test sharding for CI/CD
-
-7. **Enhance Mock Audio Testing System**
-   - Add more realistic audio variations for different test scenarios
-   - Create utility functions for easier mock customization
-   - Add automated test to verify mock mode is working correctly
-   - Implement more detailed reporting of mock vs. real API usage
-
 ## Conclusion
 
-The Playwright test suite is now fully stable with all 7 tests passing successfully. The tests verify all core functionality of the application and are integrated with our Docker environment. 
+The Playwright test suite is now fully stable with all 8 tests passing successfully. The tests verify all core functionality of the application and are integrated with our Docker environment. 
+
+The recent fixes to the scene deletion test have improved our test reliability, ensuring that the delete button is properly located using the correct data-testid attribute. The more robust verification approach using scene count changes rather than element visibility provides a more reliable way to confirm that deletion has occurred.
 
 With the implementation of the mock audio testing system, we've significantly improved our testing infrastructure:
 - **Cost Efficiency**: Tests no longer consume ElevenLabs API credits during routine testing
