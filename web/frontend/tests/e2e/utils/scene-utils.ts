@@ -117,7 +117,7 @@ export async function dragAndDropScene(page: Page, sourceIndex: number, targetIn
   
   // Capture screenshot of scene structure to help with debugging
   console.log("Taking screenshot of scene structure for debugging");
-  await page.screenshot({ path: `scene-structure-before-drag-${Date.now()}.png` });
+  await takeDebugScreenshot(page, `scene-structure-before-drag`);
   
   // Output DOM structure of scenes for debugging
   console.log("Inspecting scene structure...");
@@ -151,12 +151,12 @@ export async function dragAndDropScene(page: Page, sourceIndex: number, targetIn
   
   if (!sourceHandle) {
     console.error('ERROR: Could not find drag handle with any selector');
-    await page.screenshot({ path: `drag-handle-not-found-${Date.now()}.png` });
+    await takeDebugScreenshot(page, `drag-handle-not-found`);
     throw new Error('Drag handle not found with any selector');
   }
   
   // Take screenshot to debug
-  await page.screenshot({ path: `before-drag-${Date.now()}.png` });
+  await takeDebugScreenshot(page, `before-drag`);
   
   // Perform drag and drop
   try {
@@ -165,7 +165,7 @@ export async function dragAndDropScene(page: Page, sourceIndex: number, targetIn
     const sourceHandleBound = await sourceHandle.boundingBox();
     
     // Take another screenshot showing the drag handle
-    await page.screenshot({ path: `found-drag-handle-${Date.now()}.png` });
+    await takeDebugScreenshot(page, `found-drag-handle`);
     
     if (!sourceHandleBound) {
       throw new Error('Could not get bounding box for source handle');
@@ -200,7 +200,7 @@ export async function dragAndDropScene(page: Page, sourceIndex: number, targetIn
     console.log('Drag and drop completed');
     
     // Take screenshot after drag
-    await page.screenshot({ path: `after-drag-${Date.now()}.png` });
+    await takeDebugScreenshot(page, `after-drag`);
     
     // Wait a moment for UI to update
     await page.waitForTimeout(500);
@@ -208,7 +208,7 @@ export async function dragAndDropScene(page: Page, sourceIndex: number, targetIn
     return true;
   } catch (error: any) {
     console.error('Error during drag and drop:', error.message);
-    await page.screenshot({ path: `drag-error-${Date.now()}.png` });
+    await takeDebugScreenshot(page, `drag-error`);
     throw error;
   }
 }
@@ -236,7 +236,7 @@ export async function editSceneText(page: Page, newText: string, index = 0) {
   const scene = scenes.nth(index);
   
   // Take a screenshot to debug
-  await page.screenshot({ path: `before-edit-scene-${index}-${Date.now()}.png` });
+  await takeDebugScreenshot(page, `before-edit-scene-${index}`);
   
   console.log('Finding editable text area/element...');
   
@@ -342,7 +342,7 @@ export async function editSceneText(page: Page, newText: string, index = 0) {
           await page.waitForTimeout(1000); // Give more time for edit mode to activate
           
           // Take screenshot to see if edit mode activated
-          await page.screenshot({ path: `edit-mode-activation-${index}-${Date.now()}.png` });
+          await takeDebugScreenshot(page, `edit-mode-activation-${index}`);
           
           // Now try to find textarea or editable element that might have appeared
           const editableElement = scene.locator('textarea, [contenteditable="true"]');
@@ -435,7 +435,7 @@ export async function editSceneText(page: Page, newText: string, index = 0) {
   
   if (!edited) {
     console.error('Could not find editable text element by any method');
-    await page.screenshot({ path: `edit-scene-failed-${index}-${Date.now()}.png` });
+    await takeDebugScreenshot(page, `edit-scene-failed-${index}`);
     throw new Error('Could not edit scene text - no editable element found');
   }
   
@@ -449,7 +449,7 @@ export async function editSceneText(page: Page, newText: string, index = 0) {
   }
   
   // Take a screenshot after editing
-  await page.screenshot({ path: `after-edit-scene-${index}-${Date.now()}.png` });
+  await takeDebugScreenshot(page, `after-edit-scene-${index}`);
   
   console.log(`Successfully edited scene text to: ${newText}`);
 }

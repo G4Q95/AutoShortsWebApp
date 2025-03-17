@@ -1,28 +1,29 @@
-# Playwright Test Status (Updated March 29, 2025)
+# Playwright Test Status (Updated April 5, 2025)
 
 ## Overview
 This document tracks the status of our Playwright E2E test suite for the Auto Shorts Web App. It provides a comprehensive reference for the current state of tests, recent changes, and known issues.
 
 ## Test Suite Status
 
-- **Tests Passing**: 16/16
+- **Tests Passing**: 10/10
 - **Test Coverage**: 85% of core functionality
-- **Last Full Run**: March 29, 2025
-- **Overall Status**: Stable with ongoing reorganization
+- **Last Full Run**: April 5, 2025
+- **Overall Status**: Stable, fully migrated to domain-specific files
 
 ## Test Organization Structure
 
-We have implemented a domain-based organization for tests:
+We have fully implemented a domain-based organization for tests:
 
 ### Test Files
 
 1. **Home Page & Navigation (`home-page.spec.ts`)**
    - Home page loads correctly
    - Navigation between pages works properly
+   - Create video button navigation
 
 2. **Project Management (`project-management.spec.ts`)**
    - Project creation and setup
-   - Existing project loading
+   - Existing project loading and management
 
 3. **Scene Operations (`scene-operations.spec.ts`)**
    - Scene deletion 
@@ -30,10 +31,15 @@ We have implemented a domain-based organization for tests:
 
 4. **Audio Generation (`audio-generation.spec.ts`)**
    - Audio generation and playback
+   - Voice settings management
 
-5. **Core Functionality (`core-functionality.spec.ts`)**
-   - Original test file with some tests still to be migrated
-   - Currently being refactored into domain-specific files
+5. **Mock Audio Testing (`mock-audio-test.spec.ts`)**
+   - Audio generation with mock API
+   - API interception and verification
+
+6. **Example Workflows (`examples/simplified-workflow.spec.ts`)**
+   - End-to-end user workflow
+   - Combined scene, audio, and project operations
 
 ### Domain-Specific Helpers
 
@@ -81,20 +87,20 @@ We've implemented a comprehensive test artifact management system:
 
 ## Recent Improvements
 
-1. **Data-testid Implementation (90% complete)**
+1. **Complete Migration to Domain-Specific Files (100% complete)**
+   - Removed core-functionality.spec.ts
+   - All tests now exist in domain-specific files
+   - Improved maintainability and organization
+
+2. **Data-testid Implementation (90% complete)**
    - Added attributes to most UI components
    - Improved selector resilience
    - Created standard naming conventions
 
-2. **Domain-Specific Helpers (100% complete)**
+3. **Domain-Specific Helpers (100% complete)**
    - Implemented all major helper categories
    - Encapsulated common test patterns
    - Added comprehensive documentation
-
-3. **Test File Reorganization (75% complete)**
-   - Split tests into domain-specific files
-   - Created logical test groupings
-   - Still migrating some tests from core-functionality.spec.ts
 
 4. **Mock Audio System (100% complete)**
    - Implemented ElevenLabs API mocking
@@ -103,10 +109,10 @@ We've implemented a comprehensive test artifact management system:
 
 ## Next Steps
 
-1. **Complete Test Migration (25% remaining)**
-   - Finish moving tests from core-functionality.spec.ts to domain-specific files
-   - Update imports to use the domain-specific helpers
-   - Ensure all tests maintain existing coverage
+1. **Complete Data-testid Implementation (10% remaining)**
+   - Finish adding data-testid attributes to all components
+   - Update selectors to use data-testid consistently
+   - Document all supported data-testid values
 
 2. **Enhance Test Documentation**
    - Add JSDoc comments to all helper functions

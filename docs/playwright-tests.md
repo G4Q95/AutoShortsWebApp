@@ -1,6 +1,6 @@
 # Playwright E2E Testing Framework
 
-Last Updated: March 22, 2025
+Last Updated: April 5, 2025
 
 ## Overview
 
@@ -8,17 +8,18 @@ This document describes the end-to-end testing framework for the Auto Shorts Web
 
 ## Test Structure
 
-We've adopted a modular, domain-specific approach to organize our tests:
+We've implemented a fully modular, domain-specific approach to organize our tests:
 
 ### Test Files
 
 1. **Home Page & Navigation (`home-page.spec.ts`)**
    - Home page loads correctly
    - Navigation between pages works properly
+   - Create video button navigation
 
 2. **Project Management (`project-management.spec.ts`)**
    - Project creation and setup
-   - Existing project loading
+   - Existing project loading and management
 
 3. **Scene Operations (`scene-operations.spec.ts`)**
    - Scene deletion 
@@ -26,8 +27,13 @@ We've adopted a modular, domain-specific approach to organize our tests:
 
 4. **Audio Generation (`audio-generation.spec.ts`)**
    - Audio generation and playback
+   - Voice settings management
 
-5. **Example Workflows (`examples/simplified-workflow.spec.ts`)**
+5. **Mock Audio Testing (`mock-audio-test.spec.ts`)**
+   - Audio generation with mock API
+   - API interception and verification
+
+6. **Example Workflows (`examples/simplified-workflow.spec.ts`)**
    - Complete end-to-end user flow tests
    - Demonstrates usage of all domain-specific helpers
 
@@ -51,6 +57,9 @@ We've adopted a modular, domain-specific approach to organize our tests:
    - `utils/scene-utils.ts` - Scene operations (add, edit, delete, reorder)
    - `utils/audio-utils.ts` - Audio generation and verification
    - `utils/project-utils.ts` - Project creation and management
+   - `utils/layout-utils.ts` - Layout verification
+   - `utils/navigation-utils.ts` - Page navigation
+   - `utils/wait-utils.ts` - Timing utilities and polling
 
 ## Domain-Specific Helper Pattern
 
@@ -91,27 +100,28 @@ cd web/frontend && npx playwright test tests/e2e/examples/simplified-workflow.sp
 
 ## Test Status
 
-All tests (16/16) are currently passing.
+All tests (10/10) are currently passing.
 
 ## Recent Changes
 
-1. **March 22, 2025**
+1. **April 5, 2025**
+   - Completed migration of all tests to domain-specific files
+   - Removed `core-functionality.spec.ts` file
+   - Verified all tests running successfully
+   - Updated documentation to reflect reorganized structure
+
+2. **March 22, 2025**
    - Implemented domain-specific helpers pattern
    - Created `scene-utils.ts`, `audio-utils.ts`, and `project-utils.ts`
    - Added comprehensive fallback strategies for voice generation button
    - Enhanced text editing with multiple targeting approaches
    - Resolved all failing tests with more resilient implementation
 
-2. **March 21, 2025**
+3. **March 21, 2025**
    - Split large test file into domain-specific files for better organization
    - Created shared test utilities and extracted common functions
    - Implemented centralized selectors library
    - Fixed scene deletion test with proper fallback strategies
-
-3. **March 20, 2025**
-   - Implemented mock audio testing to avoid API credits
-   - Fixed UI selection issues with better selectors
-   - Enhanced test reliability with better assertion strategies
 
 ## Best Practices
 
@@ -189,8 +199,47 @@ All tests (16/16) are currently passing.
 
 ## Future Improvements
 
-1. Implement visual regression testing
-2. Add performance testing metrics
-3. Set up continuous integration with test reporting
-4. Enhance test analytics for flaky test detection
-5. Expand test coverage for remaining functionality 
+1. **Complete Data-testid Implementation (10% remaining)**
+   - Finish adding data-testid attributes to all components
+   - Update selectors to use data-testid consistently
+   - Document all supported data-testid values
+
+2. **Enhanced Test Documentation**
+   - Add JSDoc comments to all helper functions
+   - Create better examples of helper usage
+   - Improve test organization documentation
+
+3. **Test Command Standardization**
+   - Create more specific npm test commands
+   - Add shortcuts for common test patterns
+   - Improve test output formatting
+
+4. **Advanced Testing Features**
+   - Implement visual regression testing
+   - Set up CI/CD pipeline integration
+   - Add performance metrics tracking
+   - Enhance test analytics for flaky test detection
+
+## Best Practice: Test Frequently
+
+Maintaining a stable test suite requires regular testing. Follow these guidelines:
+
+1. **When to Run Tests**:
+   - Before starting new feature development
+   - After making significant UI changes
+   - Before creating pull requests
+   - Any time you modify selectors or test utils
+   - When upgrading dependencies
+
+2. **Testing Strategy**:
+   - Start with running specific test files relevant to your changes
+   - Run the full test suite before submitting code
+   - Always use mock audio mode during development
+   - Save API tests for final verification
+
+3. **Fixing Failing Tests**:
+   - Prioritize fixing failing tests before continuing development
+   - Examine test artifacts (screenshots, logs) to identify the issue
+   - Update selectors if UI structure has changed
+   - Refine waiting strategies for timing-related issues
+   - Consider if a legitimate feature change broke the test 

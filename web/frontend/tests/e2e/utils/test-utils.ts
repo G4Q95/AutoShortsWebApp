@@ -78,12 +78,26 @@ export async function createTestProject(page: Page, projectName?: string) {
 
 /**
  * Helper function to take a debug screenshot with a clear name
+ * Includes timeout handling to prevent test failures if screenshot times out
  */
-export async function takeDebugScreenshot(page: Page, name: string) {
-  const cleanName = name.replace(/[^a-z0-9\-]/gi, '-').toLowerCase();
-  const filename = `${cleanName}-${Date.now()}.png`;
-  await page.screenshot({ path: filename });
-  return filename;
+export async function takeDebugScreenshot(page: Page, name: string, timeoutMs = 30000) {
+  try {
+    const cleanName = name.replace(/[^a-z0-9\-]/gi, '-').toLowerCase();
+    const filename = `${cleanName}-${Date.now()}.png`;
+    
+    console.log(`Taking debug screenshot: ${cleanName}`);
+    await page.screenshot({ 
+      path: filename,
+      timeout: timeoutMs
+    });
+    
+    console.log(`Screenshot saved: ${filename}`);
+    return filename;
+  } catch (error: any) {
+    console.warn(`Warning: Failed to take screenshot "${name}": ${error.message}`);
+    // Return a placeholder filename so the test can continue
+    return `failed-screenshot-${Date.now()}.png`;
+  }
 }
 
 /**
