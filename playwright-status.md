@@ -29,7 +29,7 @@ The test suite includes several helper functions to improve reliability:
 - `findElementWithText` - Finds elements containing specific text
 - `elementWithTextExists` - Checks if elements with specific text exist
 - `waitForElementWithText` - Waits for elements with specific text to appear
-- `closeVoiceSettingsIfOpen` - Utility to close voice settings panel if open 
+- `closeVoiceSettingsIfOpen` - Utility to close voice settings panel if open (migrated to audio-utils.ts)
 - `waitForScenes` - Waits for scene elements with multiple selector strategies
 
 ### Test Cases

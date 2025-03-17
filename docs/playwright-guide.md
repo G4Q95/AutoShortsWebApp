@@ -1,170 +1,151 @@
-# Playwright Testing Guide
+# Playwright Testing Guide for Auto Shorts Web App
 
-## Overview
-This document provides guidance on running, maintaining, and troubleshooting Playwright tests for the Auto Shorts Web App.
+This guide provides information on running, maintaining, and troubleshooting Playwright tests for the Auto Shorts Web App.
 
-## Running Tests
+## Basic Test Commands
 
-### Basic Test Commands
-```bash
-# Run all tests with mock audio
-cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=true npm test
+- Run all tests with mock audio (preferred for development):
+  ```bash
+  cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=true npm test
+  ```
 
-# Run specific test file
-cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=true npm test -- <test-file-name>
+- Run a specific test file:
+  ```bash
+  cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=true npx playwright test tests/e2e/examples/simplified-workflow.spec.ts
+  ```
 
-# Run tests with UI mode (for debugging)
-cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=true npx playwright test --ui
-```
+- Run tests in UI mode for debugging:
+  ```bash
+  cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=true npx playwright test --ui
+  ```
 
-### Environment Variables for Testing
-- `NEXT_PUBLIC_MOCK_AUDIO=true` - Use mock audio to avoid consuming API credits
-- `NEXT_PUBLIC_TESTING_MODE=true` - Enable testing mode (set automatically in npm test script)
-- `NEXT_PUBLIC_API_URL=http://localhost:8000` - Set the API URL (set automatically in npm test script)
+- Run a specific test in debug mode:
+  ```bash
+  cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=true npx playwright test tests/e2e/examples/simplified-workflow.spec.ts --debug
+  ```
+
+## Environment Variables for Testing
+
+- `NEXT_PUBLIC_MOCK_AUDIO`: Set to `true` to avoid consuming ElevenLabs API credits
+- `NEXT_PUBLIC_TESTING_MODE`: Set to `true` to enable additional testing features
+- `NEXT_PUBLIC_API_URL`: Override the API URL for testing against different environments
 
 ## Test Structure
 
-The tests are organized in the following structure:
-- `web/frontend/tests/e2e/` - Contains all end-to-end tests
-- `web/frontend/tests/utils/` - Test utilities and helper functions
-- `web/frontend/tests/selectors.ts` - Centralized selectors for tests
+Our tests are organized in the following directories:
 
-## Best Practices for Test Maintenance
+- `tests/e2e/` - End-to-end tests organized by domain
+  - `home.spec.ts` - Homepage functionality
+  - `project-management.spec.ts` - Project creation and management
+  - `scene-operations.spec.ts` - Scene manipulation operations
+  - `audio-generation.spec.ts` - Voice generation tests
+  - `examples/simplified-workflow.spec.ts` - Example of a full workflow test
 
-### Selector Strategies
-1. **Prefer data-testid attributes** - Use `data-testid` attributes for primary selectors
-   ```typescript
-   // Example
-   await page.click('[data-testid="add-scene-button"]');
-   ```
+- `tests/e2e/utils/` - Domain-specific test helpers
+  - `index.ts` - Central export point for all utilities
+  - `selectors.ts` - Centralized selectors with fallbacks
+  - `test-utils.ts` - Common test utilities
+  - `scene-utils.ts` - Scene-specific helper functions
+  - `audio-utils.ts` - Voice generation and audio helpers
+  - `project-utils.ts` - Project management helpers
 
-2. **Use multiple selector options** - Implement fallback selectors for robustness
-   ```typescript
-   // Example
-   const button = await page.$(
-     '[data-testid="delete-scene-button"], .delete-button, button:has-text("Delete")'
-   );
-   ```
+## Domain-Specific Helpers
 
-3. **Check element visibility** - Always verify elements are visible before interaction
-   ```typescript
-   await expect(page.locator('[data-testid="scene-component"]')).toBeVisible();
-   ```
+We've implemented a domain-specific helper pattern to improve test maintainability and readability. These helpers encapsulate common operations into reusable functions:
 
-### Handling Asynchronous Operations
-1. **Wait for navigation** - Use proper navigation waiting
-   ```typescript
-   await Promise.all([
-     page.waitForURL('**/projects/**'),
-     page.click('.project-card')
-   ]);
-   ```
+### Example Usage
 
-2. **Wait for network idle** - For operations that trigger API calls
-   ```typescript
-   await page.waitForLoadState('networkidle');
-   ```
-
-3. **Wait for element state** - Check proper element state before proceeding
-   ```typescript
-   await page.waitForSelector('[data-testid="scene-component"]', { state: 'visible' });
-   ```
-
-### Error Handling and Debugging
-1. **Add descriptive console logs** - For debugging test flow
-   ```typescript
-   console.log('Attempting to add a new scene...');
-   ```
-
-2. **Take screenshots at failure points** - To diagnose visual state
-   ```typescript
-   await page.screenshot({ path: 'screenshots/before-deletion.png' });
-   ```
-
-3. **Check console errors** - Log browser console errors
-   ```typescript
-   page.on('console', msg => {
-     if (msg.type() === 'error') {
-       console.log(`Browser console error: ${msg.text()}`);
-     }
-   });
-   ```
-
-4. **Implement test retries** - For flaky tests
-   ```typescript
-   test.describe('Project Management', () => {
-     test.use({ retries: 2 });
-     // Test cases...
-   });
-   ```
-
-## Common Issues and Solutions
-
-### Issue: Test fails due to navigation timeout
-**Solution**: Implement more robust navigation handling
 ```typescript
-// Instead of
-await page.click('.project-card');
-
-// Use
-await Promise.all([
-  page.waitForURL('**/projects/**'),
-  page.click('.project-card')
-]);
-```
-
-### Issue: Element not found or not visible
-**Solution**: Add waiting and verify visibility
-```typescript
-// Wait for element to be visible and stable
-await page.waitForSelector('[data-testid="scene-component"]', { 
-  state: 'visible',
-  timeout: 10000 
+// Instead of writing complex sequences in every test:
+test('creates a project and adds scenes', async ({ page }) => {
+  // Using domain-specific helpers
+  await createNewProject(page, 'Test Project');
+  await addScene(page);
+  await addScene(page);
+  await editSceneText(page, 0, 'First scene content');
+  await generateVoiceForScene(page, 0);
+  
+  // Verify results
+  await expect(page.locator(selectors.sceneCount)).toHaveText('2');
 });
 ```
 
-### Issue: Media loading failures
-**Solution**: Add verification for media loading
-```typescript
-// Check for media elements
-const mediaElements = await page.$$('video[src], img[src]');
-console.log(`Found ${mediaElements.length} media elements`);
+### Key Helper Functions
 
-// Verify media has loaded
-await page.waitForFunction(() => {
-  const videos = document.querySelectorAll('video');
-  return Array.from(videos).every(v => v.readyState >= 2);
-}, { timeout: 10000 });
-```
+- **Project Management**
+  - `createNewProject(page, name)` - Creates a new project
+  - `deleteProject(page, name)` - Deletes an existing project
+  - `openProject(page, name)` - Opens an existing project
 
-### Issue: Project deletion fails
-**Solution**: Implement robust deletion handling
-```typescript
-// Find delete button
-const deleteButton = await page.locator('[data-testid="delete-project-button"]');
-await expect(deleteButton).toBeVisible();
-await deleteButton.click();
+- **Scene Operations**
+  - `addScene(page)` - Adds a new scene
+  - `deleteScene(page, sceneIndex)` - Deletes a scene
+  - `editSceneText(page, sceneIndex, text)` - Edits scene text
+  - `dragAndDropScene(page, sourceIndex, targetIndex)` - Reorders scenes
 
-// Find and click confirmation button with retries
-let confirmed = false;
-for (let i = 0; i < 3; i++) {
-  try {
-    const confirmButton = await page.locator('[data-testid="confirm-delete-button"], button:has-text("Confirm")');
-    await expect(confirmButton).toBeVisible({ timeout: 5000 });
-    await confirmButton.click();
-    confirmed = true;
-    break;
-  } catch (e) {
-    console.log(`Confirm button click attempt ${i+1} failed`);
-    await page.waitForTimeout(1000);
-  }
-}
-```
+- **Audio Operations**
+  - `generateVoiceForScene(page, sceneIndex)` - Generates voice for a scene
+  - `verifyAudioGenerated(page, sceneIndex)` - Verifies audio was generated
 
-## Maintaining Tests Over Time
+## Common Issues and Troubleshooting
 
-1. **Update selectors when UI changes** - Keep selectors in sync with UI changes
-2. **Review test failures promptly** - Fix failing tests before they become stale
-3. **Keep test helpers modular** - Extract reusable functions to test utility files
-4. **Regularly review test speed and reliability** - Optimize slow or flaky tests
-5. **Add new tests for new features** - Maintain coverage as application evolves 
+### Voice Generation Button Not Found
+
+If you encounter "Voice generation button not found with any selector":
+
+1. Check that `NEXT_PUBLIC_MOCK_AUDIO=true` is set
+2. Ensure the scene has text content before attempting to generate
+3. Look at screenshots to see UI state at failure time
+4. Check test logs for specific selector that failed
+
+### Text Editing Failures
+
+If text editing fails:
+
+1. Verify the text area is visible and active
+2. Check for any overlapping elements that might block interaction
+3. Try clicking on existing text first to activate edit mode
+4. Use multiple targeting strategies as implemented in `editSceneText`
+
+### General Element Selection Issues
+
+For element not found errors:
+
+1. Confirm the element exists in the UI at that point in the test flow
+2. Use multiple selector strategies (data-testid, role, text content)
+3. Add waiting mechanisms before attempting interaction
+4. Take screenshots at failure points to see UI state
+
+### Mock Audio Troubleshooting
+
+If mock audio isn't working properly:
+
+1. Verify `NEXT_PUBLIC_MOCK_AUDIO=true` is set
+2. Check network requests for any calls to actual API endpoints
+3. Verify that mocked responses are correctly configured
+4. Look for console errors related to audio playback
+
+## Best Practices for Test Maintenance
+
+1. **Use Domain-Specific Helpers**
+   - Create reusable functions for common operations
+   - Keep test files clean and focused on business logic
+
+2. **Add Console Logs for Debugging**
+   - Use `console.log` for critical test steps
+   - Log selector attempts and fallback strategies
+
+3. **Take Screenshots**
+   - Capture the UI state at critical points
+   - Always take screenshots before and after key interactions
+
+4. **Use Multiple Selector Strategies**
+   - Start with data-testid attributes
+   - Fall back to accessibility roles and labels
+   - Use text content as a last resort
+
+5. **Clean Up Test Projects**
+   - Always clean up created test projects
+   - Use `test.afterEach` or `test.afterAll` for cleanup
+
+For more detailed information on specific test utilities, see the README in the `tests/e2e/utils/` directory. 

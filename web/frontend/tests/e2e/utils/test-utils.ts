@@ -9,6 +9,34 @@
 
 import { Page, Locator } from '@playwright/test';
 import { selectors, clickWithFallbacks, waitForWithFallbacks } from './selectors';
+import { verifyLayoutAttributes } from './layout-utils';
+import { 
+  waitForButtonReady, 
+  waitForProjectWorkspace, 
+  waitForSceneAppearance, 
+  waitForScenes,
+  PAGE_LOAD_TIMEOUT,
+  NAVIGATION_TIMEOUT,
+  CONTENT_LOAD_TIMEOUT,
+  CRITICAL_STEP_TIMEOUT,
+  SCENE_MEDIA_TIMEOUT,
+  AUDIO_GENERATION_TIMEOUT
+} from './wait-utils';
+
+// Re-export for backward compatibility
+export { 
+  verifyLayoutAttributes,
+  waitForButtonReady, 
+  waitForProjectWorkspace, 
+  waitForSceneAppearance, 
+  waitForScenes,
+  PAGE_LOAD_TIMEOUT,
+  NAVIGATION_TIMEOUT,
+  CONTENT_LOAD_TIMEOUT,
+  CRITICAL_STEP_TIMEOUT,
+  SCENE_MEDIA_TIMEOUT,
+  AUDIO_GENERATION_TIMEOUT
+};
 
 /**
  * Navigate to the homepage
@@ -49,31 +77,13 @@ export async function createTestProject(page: Page, projectName?: string) {
 }
 
 /**
- * Wait for project workspace to load
+ * Helper function to take a debug screenshot with a clear name
  */
-export async function waitForProjectWorkspace(page: Page, timeoutMs = 20000) {
-  console.log('Waiting for project workspace to load...');
-  try {
-    console.log('Current URL:', page.url());
-    await page.waitForSelector(selectors.projectWorkspace, { timeout: timeoutMs });
-    console.log('Project workspace loaded successfully');
-    return true;
-  } catch (error: any) {
-    console.error('Error waiting for project workspace:', error.message);
-    console.log('Taking debug screenshot...');
-    await page.screenshot({ path: `workspace-not-found-${Date.now()}.png` });
-    
-    // Try alternative selectors as fallback
-    console.log('Trying alternative selectors for project workspace...');
-    try {
-      await page.waitForSelector('input[placeholder="Enter Reddit URL"]', { timeout: 5000 });
-      console.log('Found URL input, workspace likely loaded');
-      return true;
-    } catch (e) {
-      console.log('Could not find URL input either');
-      throw error; // Rethrow the original error if all attempts fail
-    }
-  }
+export async function takeDebugScreenshot(page: Page, name: string) {
+  const cleanName = name.replace(/[^a-z0-9\-]/gi, '-').toLowerCase();
+  const filename = `${cleanName}-${Date.now()}.png`;
+  await page.screenshot({ path: filename });
+  return filename;
 }
 
 /**
@@ -98,46 +108,75 @@ export async function addSceneWithContent(
     try {
       await waitForProjectWorkspace(page);
     } catch (e) {
-      throw new Error('Failed to find project workspace when adding scene');
+      console.error('Failed to find project workspace for scene addition');
+      await takeDebugScreenshot(page, 'workspace-not-found-for-scene-add');
+      throw e;
     }
   }
   
-  // Enter URL
+  // Fill URL input field and click Add
   await page.fill(selectors.urlInput, url);
-  
-  // Click add content button
   await page.click(selectors.addContentButton);
   
   // Wait for scene to appear
   const scene = await waitForSceneAppearance(page);
-  console.log('Scene added successfully');
   
+  console.log('Scene added successfully');
   return scene;
 }
 
 /**
- * Wait for a scene to appear in the workspace
+ * Helper function to check audio playback
  */
-export async function waitForSceneAppearance(page: Page, timeoutMs = 30000) {
-  console.log('Waiting for scene to appear...');
+export async function checkAudioPlayback(page: Page) {
+  console.log('Checking for audio playback...');
   
-  // First try with the ideal selector
   try {
-    const scene = await page.waitForSelector(selectors.sceneComponent, { timeout: timeoutMs });
-    console.log('Scene appeared with primary selector');
-    return scene;
+    await page.waitForSelector('audio', { timeout: 10000 });
+    console.log('Audio element found');
+    
+    const audioSrc = await page.locator('audio').getAttribute('src');
+    console.log(`Audio source: ${audioSrc ? 'present' : 'not present'}`);
+    
+    return !!audioSrc;
   } catch (e) {
-    console.log('Primary selector failed, trying fallback selector');
-    // Fallback to a more general selector
+    console.log('No audio element found');
+    return false;
+  }
+}
+
+/**
+ * Helper function to find text content on the page
+ */
+export async function findTextOnPage(page: Page, text: string) {
+  try {
+    const element = await page.waitForSelector(`text=${text}`, { timeout: 1000 });
+    console.log(`Found text: "${text}"`);
+    return element;
+  } catch (e) {
+    console.log(`Text not found: "${text}"`);
+    return null;
+  }
+}
+
+/**
+ * Helper function to find selectors in a resilient way
+ */
+export async function findWithFallbackSelectors(page: Page, selectors: string[]) {
+  for (const selector of selectors) {
+    console.log(`Trying selector: ${selector}`);
     try {
-      const scene = await page.waitForSelector(selectors.sceneContainer, { timeout: 5000 });
-      console.log('Scene appeared with fallback selector');
-      return scene;
+      const element = await page.waitForSelector(selector, { timeout: 1000 });
+      console.log(`Found element with selector: ${selector}`);
+      return page.locator(selector);
     } catch (e) {
-      console.log('All selectors failed when waiting for scene');
-      throw new Error('Failed to find scene after adding content');
+      console.log(`Element not found with selector: ${selector}`);
+      // Continue to next selector
     }
   }
+  
+  console.log('Element not found with any of the fallback selectors');
+  return null;
 }
 
 /**
@@ -255,16 +294,6 @@ export async function textExists(page: Page, text: string) {
 }
 
 /**
- * Take a screenshot for debugging
- */
-export async function takeDebugScreenshot(page: Page, name: string) {
-  const filename = `${name.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.png`;
-  console.log(`Taking debug screenshot: ${filename}`);
-  await page.screenshot({ path: filename, fullPage: true });
-  return filename;
-}
-
-/**
  * Common test utilities for Playwright tests
  * 
  * This file contains shared functions, constants, and test data used across multiple test files
@@ -276,14 +305,6 @@ export const TEST_REDDIT_PHOTO_URL = 'https://www.reddit.com/r/mildlyinteresting
 export const TEST_REDDIT_VIDEO_URL = 'https://www.reddit.com/r/interesting/comments/1j7mwks/sand_that_moves_like_water_in_the_desert/';
 
 // Constants
-export const NAVIGATION_TIMEOUT = 6000;  // Reduced from 30000
-export const PAGE_LOAD_TIMEOUT = 5000;   // Reduced from 10000
-export const CONTENT_LOAD_TIMEOUT = 6000; // Reduced from 40000
-export const CRITICAL_STEP_TIMEOUT = 6000; // Reduced from 60000
-export const SCENE_MEDIA_TIMEOUT = 6000;   // Reduced from 45000
-export const AUDIO_GENERATION_TIMEOUT = 6000; // Reduced from 60000
-
-// Add debug mode to log more information
 export const DEBUG = true;
 
 // Improved scene selectors based on actual UI
@@ -375,62 +396,6 @@ export async function waitForWorkspace(page: Page, testName = 'unnamed') {
 }
 
 /**
- * Helper function to wait for scenes to appear
- */
-export async function waitForScenes(page: Page, expectedCount = 1, testName = 'unnamed') {
-  console.log(`Waiting for ${expectedCount} scene(s) to appear in ${testName}...`);
-  
-  // Take a screenshot to see current state
-  await page.screenshot({ path: `pre-scene-wait-${testName}-${Date.now()}.png` });
-  
-  // First wait for Scenes heading
-  try {
-    await page.waitForSelector('h2:has-text("Scenes"), h3:has-text("Scenes")', { 
-      timeout: PAGE_LOAD_TIMEOUT / 2
-    });
-    console.log('Found Scenes heading');
-  } catch (e) {
-    console.log('Could not find Scenes heading, continuing anyway');
-  }
-  
-  // Try multiple selector strategies
-  const selectors = [
-    '[data-testid^="scene-number-"]',
-    '.bg-blue-600',
-    'div[class*="scene"] .bg-blue-600',
-    'div[id^="scene-"]',
-    'div[class*="memo"] div[class*="blue"]',
-    'div[class*="scene"] div[class*="number"]'
-  ];
-  
-  for (const selector of selectors) {
-    try {
-      const count = await page.locator(selector).count();
-      console.log(`Found ${count} elements with selector: ${selector}`);
-      
-      if (count >= expectedCount) {
-        console.log(`Found expected ${expectedCount} scene(s) with selector: ${selector}`);
-        
-        // Verify by checking visibility
-        const firstElement = page.locator(selector).first();
-        if (await firstElement.isVisible()) {
-          console.log('First scene element is visible');
-          return true;
-        } else {
-          console.log('Found elements but first one is not visible, continuing search');
-        }
-      }
-    } catch (e) {
-      console.log(`Error with selector ${selector}:`, e);
-    }
-  }
-  
-  // Take a screenshot if we failed to find the scenes
-  await page.screenshot({ path: `scene-search-failed-${testName}-${Date.now()}.png` });
-  throw new Error(`Failed to find ${expectedCount} scene(s) with any selector strategy`);
-}
-
-/**
  * Helper function to find elements with specific text content
  */
 export async function findElementWithText(page: Page, selector: string, text: string) {
@@ -465,81 +430,4 @@ export async function waitForElementWithText(page: Page, selector: string, text:
     await page.waitForTimeout(100);
   }
   throw new Error(`Element ${selector} with text "${text}" not found after ${timeout}ms`);
-}
-
-/**
- * Helper function to verify layout attributes and dimensions
- */
-export async function verifyLayoutAttributes(page: Page, selector: string, expectedLayoutId: string): Promise<boolean> {
-  try {
-    const element = await page.locator(`[data-test-layout="${expectedLayoutId}"]`).first();
-    const exists = await element.count() > 0;
-    
-    if (exists) {
-      // Log that we found the element with the correct layout ID
-      console.log(`Found element with data-test-layout="${expectedLayoutId}"`);
-      
-      // Check if it has dimensions attribute
-      const dimensions = await element.getAttribute('data-test-dimensions');
-      if (dimensions) {
-        console.log(`Element dimensions: ${dimensions}`);
-      }
-      
-      return true;
-    }
-    return false;
-  } catch (e) {
-    console.error(`Error checking layout attribute ${expectedLayoutId}:`, e);
-    return false;
-  }
-}
-
-/**
- * Waits for a button to be ready (visible and enabled)
- * @param page Playwright page
- * @param buttonLocator Either a string selector or a Locator object
- * @param timeout Timeout in milliseconds
- * @returns True if button is ready, false otherwise
- */
-export async function waitForButtonReady(page: Page, buttonLocator: string | Locator, timeout: number = 10000): Promise<boolean> {
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < timeout) {
-    try {
-      // Handle both string selectors and Locator objects
-      let button: Locator;
-      if (typeof buttonLocator === 'string') {
-        // If it's a string selector, create a locator
-        button = page.locator(buttonLocator);
-        // Check button exists
-        const buttonCount = await button.count();
-        if (buttonCount === 0) {
-          console.log('Button not found yet');
-          await page.waitForTimeout(500);
-          continue;
-        }
-      } else {
-        // It's already a Locator object
-        button = buttonLocator;
-      }
-
-      // Check if button is visible and enabled
-      const isVisible = await button.isVisible();
-      const isDisabled = await button.isDisabled();
-      
-      if (isVisible && !isDisabled) {
-        console.log('Button found and ready');
-        return true;
-      }
-      
-      console.log('Button found but not ready yet:', { isVisible, isDisabled });
-      await page.waitForTimeout(500);
-    } catch (e) {
-      console.log('Error checking button status:', e);
-      await page.waitForTimeout(500);
-    }
-  }
-  
-  console.log(`Button not ready after ${timeout}ms timeout`);
-  return false;
 } 

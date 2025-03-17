@@ -261,86 +261,99 @@ We've implemented a more robust approach to testing scene deletion:
 
 ## Progress Tracking
 
-### Phase 1: Basic Testing Framework Improvements - ✅ 100% Complete
+**Current Progress:**
+- Phase 1: Initial setup (100% complete)
+- Phase 2: Enhanced test framework development (95% complete) 
+  - Implemented centralized selectors
+  - Created domain-specific test helpers
+  - Added extensive logging for test debugging
+  - Enhanced button detection and text editing functionality
+  - Fixed all failing tests with more resilient implementation
+- Phase 3: Visual testing (15% complete)
+- Phase 4: Test analytics (10% complete)
+- Phase 5: CI/CD integration (0% complete)
 
-- ✅ Create centralized selectors library
-- ✅ Implement better error reporting
-- ✅ Add more targeted assertions
-- ✅ Improve test timeouts and retry logic
-- ✅ Fix scene deletion test reliability
-- ✅ Add more data-testid attributes to components
-- ✅ Split large test file into domain-specific files
+**Overall Progress: 70% complete**
 
-### Phase 2: Advanced Testing Framework - 75% Complete
+## Refactoring Workflow Best Practices
 
-- ✅ Implement mock audio testing to avoid API credits
-- ✅ Create domain-specific test helpers (100% done)
-  - ✅ Scene operation helpers (`scene-utils.ts`)
-  - ✅ Audio operation helpers (`audio-utils.ts`)
-  - ✅ Project management helpers (`project-utils.ts`)
-  - ✅ Central index for simplified imports (`index.ts`)
-  - ✅ Example test using all helpers (`examples/simplified-workflow.spec.ts`)
-- ⬜ Implement visual testing and screenshot comparison (25% done)
-  - ✅ Add screenshot capture at key test points
-  - ⬜ Implement comparison against baseline screenshots
-  - ⬜ Add reporting of visual differences
-- ⬜ Add performance testing (0% done)
-- ⬜ Create test environment profiles (dev/test/staging) (0% done)
+To ensure successful test refactoring and prevent breaking existing tests, follow these guidelines:
 
-### Phase 3: Continuous Integration - 0% Complete
+### Testing Frequency
+- **Test after each helper function creation** - Never implement more than one helper before testing
+- **Test after each file split** - When splitting files, test immediately after moving each test case
+- **Maximum 5-minute coding intervals** - Stop and test at least every 5 minutes regardless of progress
+- **Verify before/after each rename** - Run tests immediately before and after renaming any selector or function
 
-- ⬜ Integrate tests with CI pipeline
-- ⬜ Implement parallel test execution
-- ⬜ Create test reporting dashboard
-- ⬜ Set up alerts for test failures
-- ⬜ Automated test result analysis
+### Accuracy Improvement Plan
+1. **Copy-Paste-Verify Pattern**:
+   - Copy original code to a comment first
+   - Implement refactored version
+   - Compare side-by-side before removing original
+   - Run tests before removing the comment
 
-### Overall Progress: 60%
+2. **Systematic Verification**:
+   - Use search functionality to find all instances of selectors/functions being modified
+   - Create a checklist of all locations that need updates
+   - Check off each location after updating
 
-## Implemented Improvements
+3. **Incremental Implementation**:
+   - Introduce new helpers alongside existing code first
+   - Don't delete original implementations until new helpers are proven working
+   - Deprecate old patterns gradually, not all at once
 
-1. **Centralized Selectors Library**
-   - Created `selectors.ts` with all element selectors in one place
-   - Implemented fallback strategies with multiple selector options
-   - Added helper functions for robust element selection
+4. **Reference Variable Pattern**:
+   - Create reference variables for any reused values to avoid typos
+   - Use constants for selector strings to ensure consistency
 
-2. **Common Helper Functions**
-   - Created `test-utils.ts` with reusable testing functions
-   - Implemented project creation, scene addition, and voice generation utilities
-   - Added robust error handling for common operations
+### Progress Tracking During Refactoring
+- Keep a checklist of tests that pass with current implementation
+- After each change, verify the same tests still pass
+- Maintain a running log of which tests are passing/failing
 
-3. **Domain-Specific Test Helpers**
-   - Created three specialized helper modules:
-     - `scene-utils.ts` - For scene operations (add, delete, reorder, edit)
-     - `audio-utils.ts` - For audio operations (generate, play, verify)
-     - `project-utils.ts` - For project operations (create, open, delete)
-   - Created unified import system via `index.ts`
-   - Added example test using all helpers as a template
-   - Resolved naming conflicts between original and specialized functions
-   - Added comprehensive error handling with screenshots
+### Step-by-Step Execution Plan
+1. Create single helper function → Test
+2. Move one test case to new file → Test
+3. Update imported helpers → Test
+4. Repeat for next function/test case
 
-4. **Test Tagging**
-   - Added test tag comments for selective test running
-   - Updated test scripts to support running tests by tag
-   - Documented tagging conventions for future test additions
+By strictly adhering to this strategy, we'll catch issues immediately after they're introduced rather than having to debug multiple changes at once.
 
-5. **Scene Deletion Test Fix**
-   - Fixed the selector discrepancy in sceneDeleteButtonFallbacks
-   - Updated the verification strategy to use scene count changes
-   - Implemented progressive fallbacks with proper validation
-   - Enhanced error reporting with detailed logging
-   - Added screenshot capture at key test points
+### Implemented Improvements
 
-6. **Mock Audio Testing**
-   - Implemented environment variable-based mock switching
-   - Used browser-side API interception for voice generation
-   - Created mock response generation that mimics real API
-   - Added detection logic to verify no real API calls are made
+1. ✅ Created a centralized selectors library
+   - All common UI elements have consistent selectors
+   - Added helper functions for element selection
+   - Implemented fallback mechanisms for critical UI elements
 
-7. **Modular Test File Structure**
-   - Split large test file into domain-specific files
-   - Created separate files for home page, project management, scene operations, and audio generation
-   - Added common test utilities and centralized selectors
+2. ✅ Implemented common helper functions
+   - Created utility functions for project operations
+   - Added scene-specific helper functions
+   - Implemented audio generation and verification utilities
+   - Enhanced error handling with screenshots and detailed logging
+
+3. ✅ Improved test reliability 
+   - Added multi-approach strategies for element selection
+   - Enhanced voice generation button detection with fallbacks
+   - Improved text editing with multiple targeting strategies
+   - Added comprehensive logging for easier debugging
+   - Resolved all failing tests with better implementation patterns
+
+### Next Steps
+
+1. 🔄 Refine existing tests and add more test coverage
+   - Add tests for remaining key user journeys
+   - Enhance existing tests with more assertions
+   - Review existing tests for optimization opportunities
+
+2. 🔄 Complete documentation for test helper system
+   - Create simple documentation explaining the utility system
+   - Document best practices for test development
+
+3. 🔄 Address any remaining test flakiness
+   - Monitor test execution in CI/CD
+   - Identify and fix any intermittent failures
+   - Continue improving selector resilience
 
 ## Scene Deletion Test Improvements
 
@@ -372,21 +385,20 @@ These changes have improved test reliability, ensuring that we properly test the
 
 ### Short-Term (Next Week)
 
-1. **Refactor existing tests** to use new domain-specific helpers
-   - Start with `audio-generation.spec.ts` (partially done)
-   - Move to `scene-operations.spec.ts` next
-   - Then update `project-management.spec.ts`
-   - Update remaining test files last
+1. **Refine existing tests** with domain-specific helpers
+   - ✅ Fix audio-generation.spec.ts and simplified-workflow.spec.ts
+   - ⬜ Review and enhance remaining test files
+   - ⬜ Add more comprehensive test comments and documentation
 
-2. **Fix any TypeScript errors** in helper files
-   - Ensure proper type annotations
-   - Resolve remaining naming conflicts
-   - Add JSDoc comments for better IDE integration
+2. **Complete documentation** for test helper system
+   - ✅ Create README in the utils directory
+   - ⬜ Add more examples of how to use each helper
+   - ⬜ Further document naming conventions and usage patterns
 
-3. **Create simple documentation** for test helper system
-   - Create README in the utils directory
-   - Add examples of how to use each helper
-   - Document naming conventions and usage patterns
+3. **Address any remaining test flakiness**
+   - ⬜ Monitor test stability across multiple runs
+   - ⬜ Identify and fix any remaining intermittent failures
+   - ⬜ Add more resilient verification steps
 
 ### Medium-Term (Next Month)
 
