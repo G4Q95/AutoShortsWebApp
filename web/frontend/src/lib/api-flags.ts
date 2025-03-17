@@ -43,14 +43,14 @@ export const API_FLAGS = {
 
   // Content API flags
   // Master flag to use all new content API implementations
-  useNewContentAPI: false,  // Disabled by default until tested
+  useNewContentAPI: false,  // Disabled by default until thoroughly tested
   
   // Individual content function flags
   useNewExtractContent: false,
   useNewValidateUrl: false,
 
   // Logging control
-  logApiChoices: isDev || true,  // Log which implementation is being used
+  logApiChoices: process.env.NODE_ENV !== 'production'
 };
 
 /**
