@@ -115,3 +115,21 @@ configs/
 !configs/example/ 
 # Backup files
 backups/
+
+# Playwright test screenshots
+web/frontend/before-*.png
+web/frontend/after-*.png
+web/frontend/*-check-*.png
+web/frontend/pre-*.png
+web/frontend/during-*.png
+web/frontend/scene-structure-*.png
+web/frontend/voice-*.png
+web/frontend/button-*.png
+web/frontend/cleanup-*.png
+web/frontend/debug-*.png
+web/frontend/edit-scene-*.png
+web/frontend/drag-*.png
+web/frontend/existing-*.png
+web/frontend/found-*.png
+web/frontend/waiting-*.png
+web/frontend/audio-*.png
