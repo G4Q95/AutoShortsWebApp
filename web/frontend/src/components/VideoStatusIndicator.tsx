@@ -256,7 +256,7 @@ export default function VideoStatusIndicator({
   };
 
   // Determine if a step is active, completed, or pending
-  const getStepStatus = (step: ProcessingStatus) => {
+  const getStepStatus = (step: ProcessingStatus, currentStatus: ProcessingStatus) => {
     const statusOrder: ProcessingStatus[] = [
       'queued',
       'extracting_content',
@@ -267,9 +267,9 @@ export default function VideoStatusIndicator({
       'completed',
     ];
 
-    if (status === 'failed') {
+    if (currentStatus === 'failed') {
       // If current step is the failed one, mark it as active
-      const currentIndex = statusOrder.indexOf(status);
+      const currentIndex = statusOrder.indexOf(currentStatus);
       const stepIndex = statusOrder.indexOf(step);
 
       if (stepIndex < currentIndex) {
@@ -281,7 +281,7 @@ export default function VideoStatusIndicator({
       }
     }
 
-    const currentIndex = statusOrder.indexOf(status);
+    const currentIndex = statusOrder.indexOf(currentStatus);
     const stepIndex = statusOrder.indexOf(step);
 
     if (currentIndex === -1 || stepIndex === -1) {
@@ -298,8 +298,8 @@ export default function VideoStatusIndicator({
   };
 
   // Get CSS classes for each step based on its status
-  const getStepClasses = (step: ProcessingStatus) => {
-    const stepStatus = getStepStatus(step);
+  const getStepClasses = (step: ProcessingStatus, currentStatus: ProcessingStatus) => {
+    const stepStatus = getStepStatus(step, currentStatus);
 
     const baseClasses = 'flex items-center';
 
@@ -315,174 +315,139 @@ export default function VideoStatusIndicator({
   };
 
   return (
-    <div className={`border rounded-lg p-5 ${className}`}>
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-medium">Video Processing Status</h3>
-
-        <div className="flex items-center gap-2">
-          {/* Placeholder for updated time */}
-          <span className="text-xs text-gray-500">
-            Updated {new Date().toLocaleTimeString()}
-          </span>
-
+    <div 
+      className={`rounded-lg border shadow-sm overflow-hidden ${className}`}
+      data-testid="video-status-indicator"
+    >
+      <div className="p-4 bg-gray-50 border-b" data-testid="video-status-header">
+        <h3 className="text-lg font-medium">
+          Video Status 
           <button
             onClick={handleRefresh}
-            disabled={status === 'completed' || status === 'failed'}
-            className="p-1 hover:bg-gray-100 rounded-full"
-            title="Refresh status"
+            className="ml-2 text-gray-500 hover:text-gray-700"
+            data-testid="video-status-refresh-button"
           >
-            <RefreshCwIcon className={`h-4 w-4 text-gray-500 ${status === 'completed' || status === 'failed' ? 'opacity-50' : ''}`} />
+            <RefreshCwIcon className="h-4 w-4" />
           </button>
-        </div>
+        </h3>
+        {error && (
+          <div className="mt-2 text-red-600 text-sm" data-testid="video-status-error">
+            {error}
+          </div>
+        )}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-red-700 text-sm">
-          <div className="flex items-start">
-            <XCircleIcon className="h-5 w-5 mr-2 flex-shrink-0" />
-            <div>
-              <p className="font-medium">Error processing video</p>
-              <p className="mt-1">{error}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-4">
+      <div className="divide-y" data-testid="video-status-steps">
         {/* Queued */}
-        <div className={getStepClasses('queued')}>
-          <div className="mr-3">
-            {getStepStatus('queued') === 'completed' ? (
-              <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            ) : getStepStatus('queued') === 'active' ? (
-              <Loader2Icon className="h-5 w-5 animate-spin text-blue-600" />
-            ) : getStepStatus('queued') === 'failed' ? (
-              <XCircleIcon className="h-5 w-5 text-red-600" />
-            ) : (
-              <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-            )}
-          </div>
-          <span>{getStatusText('queued')}</span>
+        <div 
+          className={`p-3 flex items-center ${
+            getStepStatus('queued', status) === 'active' ? 'bg-blue-50' : ''
+          }`}
+          data-testid="video-status-step-queued"
+        >
+          <StatusIcon type={getStepStatus('queued', status)} />
+          <span className="ml-3">{getStatusText('queued')}</span>
         </div>
 
         {/* Extracting Content */}
-        <div className={getStepClasses('extracting_content')}>
-          <div className="mr-3">
-            {getStepStatus('extracting_content') === 'completed' ? (
-              <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            ) : getStepStatus('extracting_content') === 'active' ? (
-              <Loader2Icon className="h-5 w-5 animate-spin text-blue-600" />
-            ) : getStepStatus('extracting_content') === 'failed' ? (
-              <XCircleIcon className="h-5 w-5 text-red-600" />
-            ) : (
-              <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-            )}
-          </div>
-          <span>{getStatusText('extracting_content')}</span>
+        <div 
+          className={`p-3 flex items-center ${
+            getStepStatus('extracting_content', status) === 'active' ? 'bg-blue-50' : ''
+          }`}
+          data-testid="video-status-step-extracting"
+        >
+          <StatusIcon type={getStepStatus('extracting_content', status)} />
+          <span className="ml-3">{getStatusText('extracting_content')}</span>
         </div>
 
         {/* Rewriting Text */}
-        <div className={getStepClasses('rewriting_text')}>
-          <div className="mr-3">
-            {getStepStatus('rewriting_text') === 'completed' ? (
-              <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            ) : getStepStatus('rewriting_text') === 'active' ? (
-              <Loader2Icon className="h-5 w-5 animate-spin text-blue-600" />
-            ) : getStepStatus('rewriting_text') === 'failed' ? (
-              <XCircleIcon className="h-5 w-5 text-red-600" />
-            ) : (
-              <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-            )}
-          </div>
-          <span>{getStatusText('rewriting_text')}</span>
+        <div 
+          className={`p-3 flex items-center ${
+            getStepStatus('rewriting_text', status) === 'active' ? 'bg-blue-50' : ''
+          }`}
+          data-testid="video-status-step-rewriting"
+        >
+          <StatusIcon type={getStepStatus('rewriting_text', status)} />
+          <span className="ml-3">{getStatusText('rewriting_text')}</span>
         </div>
 
         {/* Generating Voice */}
-        <div className={getStepClasses('generating_voice')}>
-          <div className="mr-3">
-            {getStepStatus('generating_voice') === 'completed' ? (
-              <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            ) : getStepStatus('generating_voice') === 'active' ? (
-              <Loader2Icon className="h-5 w-5 animate-spin text-blue-600" />
-            ) : getStepStatus('generating_voice') === 'failed' ? (
-              <XCircleIcon className="h-5 w-5 text-red-600" />
-            ) : (
-              <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-            )}
-          </div>
-          <span>{getStatusText('generating_voice')}</span>
+        <div 
+          className={`p-3 flex items-center ${
+            getStepStatus('generating_voice', status) === 'active' ? 'bg-blue-50' : ''
+          }`}
+          data-testid="video-status-step-voice"
+        >
+          <StatusIcon type={getStepStatus('generating_voice', status)} />
+          <span className="ml-3">{getStatusText('generating_voice')}</span>
         </div>
 
         {/* Creating Video */}
-        <div className={getStepClasses('creating_video')}>
-          <div className="mr-3">
-            {getStepStatus('creating_video') === 'completed' ? (
-              <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            ) : getStepStatus('creating_video') === 'active' ? (
-              <Loader2Icon className="h-5 w-5 animate-spin text-blue-600" />
-            ) : getStepStatus('creating_video') === 'failed' ? (
-              <XCircleIcon className="h-5 w-5 text-red-600" />
-            ) : (
-              <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-            )}
-          </div>
-          <span>{getStatusText('creating_video')}</span>
+        <div 
+          className={`p-3 flex items-center ${
+            getStepStatus('creating_video', status) === 'active' ? 'bg-blue-50' : ''
+          }`}
+          data-testid="video-status-step-video"
+        >
+          <StatusIcon type={getStepStatus('creating_video', status)} />
+          <span className="ml-3">{getStatusText('creating_video')}</span>
         </div>
 
         {/* Uploading */}
-        <div className={getStepClasses('uploading')}>
-          <div className="mr-3">
-            {getStepStatus('uploading') === 'completed' ? (
-              <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            ) : getStepStatus('uploading') === 'active' ? (
-              <Loader2Icon className="h-5 w-5 animate-spin text-blue-600" />
-            ) : getStepStatus('uploading') === 'failed' ? (
-              <XCircleIcon className="h-5 w-5 text-red-600" />
-            ) : (
-              <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-            )}
-          </div>
-          <span>{getStatusText('uploading')}</span>
-        </div>
-
-        {/* Completed */}
-        <div className={getStepClasses('completed')}>
-          <div className="mr-3">
-            {getStepStatus('completed') === 'completed' ? (
-              <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            ) : getStepStatus('completed') === 'active' ? (
-              <Loader2Icon className="h-5 w-5 animate-spin text-blue-600" />
-            ) : getStepStatus('completed') === 'failed' ? (
-              <XCircleIcon className="h-5 w-5 text-red-600" />
-            ) : (
-              <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-            )}
-          </div>
-          <span>{getStatusText('completed')}</span>
+        <div 
+          className={`p-3 flex items-center ${
+            getStepStatus('uploading', status) === 'active' ? 'bg-blue-50' : ''
+          }`}
+          data-testid="video-status-step-uploading"
+        >
+          <StatusIcon type={getStepStatus('uploading', status)} />
+          <span className="ml-3">{getStatusText('uploading')}</span>
         </div>
       </div>
 
-      {/* Video preview when available */}
+      {/* Video Result */}
       {videoUrl && status === 'completed' && (
-        <div className="mt-6 p-4 border border-green-200 bg-green-50 rounded-md">
-          <div className="flex justify-between items-center mb-2">
-            <h4 className="font-medium text-green-800">Video Ready!</h4>
-            <a
-              href={videoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center text-sm text-green-600 hover:text-green-800"
+        <div className="p-4 bg-green-50 border-t" data-testid="video-status-result">
+          <div className="flex items-center mb-2">
+            <PlaySquareIcon className="h-5 w-5 text-green-500" />
+            <span className="ml-2 font-medium">Video Ready</span>
+          </div>
+          <div className="flex space-x-2" data-testid="video-status-actions">
+            <a 
+              href={videoUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-sm px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              data-testid="video-status-view-button"
             >
-              <PlaySquareIcon className="h-4 w-4 mr-1" />
               View Video
             </a>
+            <a 
+              href={videoUrl} 
+              download
+              className="text-sm px-3 py-1 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+              data-testid="video-status-download-button"
+            >
+              Download
+            </a>
           </div>
-          <p className="text-sm text-green-700">
-            Your video has been successfully created and is ready to view.
-          </p>
         </div>
       )}
     </div>
   );
+}
+
+// StatusIcon component
+function StatusIcon({ type }: { type: 'pending' | 'active' | 'completed' | 'failed' }) {
+  switch (type) {
+    case 'active':
+      return <div className="h-5 w-5 text-blue-500" data-testid="status-icon-active"><Loader2Icon className="animate-spin" /></div>;
+    case 'completed':
+      return <div className="h-5 w-5 text-green-500" data-testid="status-icon-completed"><CheckCircleIcon /></div>;
+    case 'failed':
+      return <div className="h-5 w-5 text-red-500" data-testid="status-icon-failed"><XCircleIcon /></div>;
+    default:
+      return <div className="h-5 w-5 rounded-full border-2 border-gray-300" data-testid="status-icon-pending"></div>;
+  }
 }
 

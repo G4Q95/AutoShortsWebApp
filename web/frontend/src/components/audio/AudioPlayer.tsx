@@ -177,42 +177,43 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   if (errorMessage) {
     return (
-      <div className={`text-xs text-red-600 bg-red-50 p-1 rounded ${className}`}>
+      <div className={`text-xs text-red-600 bg-red-50 p-1 rounded ${className}`} data-testid="audio-player-error">
         {errorMessage}
       </div>
     );
   }
 
   return (
-    <div className={`audio-player ${className}`}>
+    <div className={`audio-player ${className}`} data-testid="audio-player">
       {/* Hidden audio element */}
-      <audio ref={audioRef} src={audioSrc || ''} className="hidden" />
+      <audio ref={audioRef} src={audioSrc || ''} className="hidden" data-testid="audio-element" />
       
       {/* Audio controls */}
-      <div className="flex items-center w-full justify-between bg-gray-800 rounded p-1.5">
+      <div className="flex items-center w-full justify-between bg-gray-800 rounded p-1.5" data-testid="audio-player-controls">
         {/* Left side - play button and time */}
-        <div className="flex items-center">
+        <div className="flex items-center" data-testid="audio-player-left-controls">
           <button 
             onClick={togglePlayPause}
             className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
             style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
             disabled={!audioSrc || isGenerating}
+            data-testid="audio-play-pause-button"
           >
             {isPlaying ? 
-              <PauseIcon className="h-3.5 w-3.5" /> : 
-              <PlayIcon className="h-3.5 w-3.5" />
+              <PauseIcon className="h-3.5 w-3.5" data-testid="audio-pause-icon" /> : 
+              <PlayIcon className="h-3.5 w-3.5" data-testid="audio-play-icon" />
             }
           </button>
           
-          <div className="text-xs whitespace-nowrap font-semibold text-white">
-            <span>{formatTime(currentTime)}</span>
+          <div className="text-xs whitespace-nowrap font-semibold text-white" data-testid="audio-time-display">
+            <span data-testid="audio-current-time">{formatTime(currentTime)}</span>
             <span className="mx-0.5">/</span>
-            <span>{formatTime(duration)}</span>
+            <span data-testid="audio-duration">{formatTime(duration)}</span>
           </div>
         </div>
         
         {/* Middle - volume slider */}
-        <div className="relative mx-2 flex-grow max-w-[250px]">
+        <div className="relative mx-2 flex-grow max-w-[250px]" data-testid="audio-volume-container">
           <input
             type="range"
             min="0"
@@ -221,18 +222,20 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             value={volume}
             className="audio-player-volume-slider w-full h-2"
             onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+            data-testid="audio-volume-slider"
           />
         </div>
         
         {/* Right - regenerate button */}
         {onRegenerate && (
-          <div className="flex items-center">
+          <div className="flex items-center" data-testid="audio-regenerate-container">
             <button 
               onClick={onRegenerate}
               disabled={isGenerating}
               className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center"
               title="Regenerate voice"
               style={{ width: '18px', height: '18px' }}
+              data-testid="audio-regenerate-button"
             >
               <RegenerateIcon className="h-3 w-3" />
             </button>
@@ -242,7 +245,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       
       {/* Optional speed control */}
       {playbackSpeed !== 1.0 && (
-        <div className="text-xs text-gray-600 mt-0.5">
+        <div className="text-xs text-gray-600 mt-0.5" data-testid="audio-speed-indicator">
           Speed: {playbackSpeed.toFixed(1)}x
         </div>
       )}
