@@ -654,6 +654,7 @@ export default function ProjectWorkspace({
               onClick={handleManualSave}
               className="flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm"
               disabled={isSaving}
+              data-testid="save-project-button"
             >
               <SaveIcon className="h-4 w-4 mr-1" />
               Save
@@ -714,6 +715,7 @@ export default function ProjectWorkspace({
               type="button"
               onClick={fillExampleUrl}
               className="text-blue-600 text-sm underline"
+              data-testid="fill-example-button"
             >
               Fill with example URL
             </button>
@@ -769,6 +771,7 @@ export default function ProjectWorkspace({
             onClick={handleProcessVideo}
             className="px-4 py-3 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
             disabled={isAddingScene || isSaving}
+            data-testid="process-video-button"
           >
             Process Video
           </button>
@@ -778,6 +781,7 @@ export default function ProjectWorkspace({
             onClick={handleFastVideo}
             className="px-4 py-3 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
             disabled={isAddingScene || isSaving}
+            data-testid="fast-video-button"
           >
             <ZapIcon className="h-5 w-5 mr-2" />
             Fast Video

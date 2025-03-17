@@ -76,16 +76,16 @@ export default function LoadingIndicator({
   
   // Create spinner with optional message
   const spinner = (
-    <div className={`flex ${inline ? 'inline-flex' : 'flex-col'} items-center justify-center ${className}`}>
-      <Loader2 className={`animate-spin ${inline ? 'mr-2' : 'mb-2'}`} size={iconSize} />
-      {message && <p className={`${textSize} text-gray-600`}>{message}</p>}
+    <div className={`flex ${inline ? 'inline-flex' : 'flex-col'} items-center justify-center ${className}`} data-testid="spinner-container">
+      <Loader2 className={`animate-spin ${inline ? 'mr-2' : 'mb-2'}`} size={iconSize} data-testid="spinner-icon" />
+      {message && <p className={`${textSize} text-gray-600`} data-testid="loading-message">{message}</p>}
     </div>
   );
   
   // If fullscreen, center in viewport
   if (fullscreen) {
     return (
-      <div className={`fixed inset-0 flex items-center justify-center ${transparent ? 'bg-transparent' : 'bg-white/80 backdrop-blur-sm'} z-50`}>
+      <div className={`fixed inset-0 flex items-center justify-center ${transparent ? 'bg-transparent' : 'bg-white/80 backdrop-blur-sm'} z-50`} data-testid="fullscreen-loading-indicator">
         {spinner}
       </div>
     );
@@ -99,7 +99,7 @@ export default function LoadingIndicator({
       data-testid="loading-indicator"
     >
       {/* Simple spinner */}
-      <div className="flex flex-col items-center space-y-2">
+      <div className="flex flex-col items-center space-y-2" data-testid="spinner-wrapper">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700" />
       </div>
     </div>
@@ -118,7 +118,7 @@ export default function LoadingIndicator({
  * ```
  */
 export function ButtonLoader({ className = '' }: { className?: string }) {
-  return <Loader2 className={`animate-spin h-4 w-4 ${className}`} />;
+  return <Loader2 className={`animate-spin h-4 w-4 ${className}`} data-testid="button-loader" />;
 }
 
 /**
@@ -134,9 +134,9 @@ export function ButtonLoader({ className = '' }: { className?: string }) {
  */
 export function InlineLoader({ message, className = '' }: { message?: string; className?: string }) {
   return (
-    <div className={`inline-flex items-center text-gray-500 ${className}`}>
+    <div className={`inline-flex items-center text-gray-500 ${className}`} data-testid="inline-loader">
       <Loader2 className="animate-spin h-3 w-3 mr-2" />
-      {message && <span className="text-xs">{message}</span>}
+      {message && <span className="text-xs" data-testid="inline-loader-message">{message}</span>}
     </div>
   );
 }
@@ -158,7 +158,7 @@ export function InlineLoader({ message, className = '' }: { message?: string; cl
  */
 export function ContentLoader({ height = 'h-32' }: { height?: string }) {
   return (
-    <div className={`w-full ${height} flex items-center justify-center border border-gray-200 rounded-md bg-gray-50`}>
+    <div className={`w-full ${height} flex items-center justify-center border border-gray-200 rounded-md bg-gray-50`} data-testid="content-loader">
       <LoadingIndicator message="Loading content..." />
     </div>
   );
@@ -175,7 +175,7 @@ export function ContentLoader({ height = 'h-32' }: { height?: string }) {
  */
 export function PageLoader({ message = 'Loading...' }: { message?: string }) {
   return (
-    <div className="w-full h-[calc(100vh-4rem)] flex items-center justify-center">
+    <div className="w-full h-[calc(100vh-4rem)] flex items-center justify-center" data-testid="page-loader">
       <LoadingIndicator size="large" message={message} />
     </div>
   );

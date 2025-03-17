@@ -831,6 +831,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
               autoFocus
               data-test-layout="text-editor-textarea"
               data-test-dimensions={`min-height:160px;height:calc(100% - 26px)`}
+              data-testid="scene-text-textarea"
             />
             {/* Footer with save hint - with proper rounded corners to match top */}
             <div className="bg-gray-100 py-1.5 px-2 text-xs text-gray-500 flex justify-end border-t border-gray-300"
@@ -1287,10 +1288,12 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             </div>
 
             {/* Text content with overlay expansion */}
-            {renderTextContent()}
+            <div data-testid="scene-text-section">
+              {renderTextContent()}
+            </div>
             
             {/* Voice generation controls with top padding */}
-            <div className="mt-1 pt-1 border-t border-gray-200">
+            <div className="mt-1 pt-1 border-t border-gray-200" data-testid="scene-audio-section">
               {useNewControls ? (
                 // New component (extracted)
                 <div data-testid="new-audio-controls">
@@ -1363,6 +1366,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 disabled={isRetrying}
                 className="p-1 text-blue-600 hover:bg-blue-50 rounded-sm flex items-center text-xs"
                 aria-label="Retry loading content"
+                data-testid="scene-retry-button"
               >
                 <RefreshIcon className={`h-3 w-3 ${isRetrying ? 'animate-spin' : ''}`} />
                 <span className="ml-1">Retry</span>
@@ -1430,6 +1434,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                                 onClick={togglePlayPause}
                                 className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
                                 style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                                data-testid="audio-play-button"
                               >
                                 {isPlaying ? 
                                   <PauseIcon className="h-3.5 w-3.5" /> : 
@@ -1474,6 +1479,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                                 className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center mr-1.5"
                                 title="Regenerate voice"
                                 style={{ width: '18px', height: '18px' }}
+                                data-testid="regenerate-voice-button"
                               >
                                 <RegenerateIcon className="h-3 w-3" />
                               </button>
@@ -1484,6 +1490,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                                 onClick={() => setShowAudioSettings(true)}
                                 ref={audioSettingsButtonRef}
                                 style={{ width: '18px', height: '18px' }}
+                                data-testid="audio-settings-button"
                               >
                                 <MoreVerticalIcon className="h-3 w-3" />
                               </button>

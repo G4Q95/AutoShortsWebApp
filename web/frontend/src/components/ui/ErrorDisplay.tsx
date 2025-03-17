@@ -119,12 +119,14 @@ export default function ErrorDisplay({
       className={`flex items-start p-3 rounded-md border ${bgColor} ${borderColor} ${className}`}
       role="alert"
       aria-live="assertive"
+      data-testid="error-display"
+      data-error-type={type}
     >
-      <div className={`shrink-0 ${iconColor} mr-2 pt-0.5`}>
+      <div className={`shrink-0 ${iconColor} mr-2 pt-0.5`} data-testid="error-icon">
         <Icon size={16} />
       </div>
-      <div className={`flex-grow ${textColor} text-sm`}>
-        <p className="font-medium">
+      <div className={`flex-grow ${textColor} text-sm`} data-testid="error-content">
+        <p className="font-medium" data-testid="error-message">
           {errorType === ErrorType.UNAUTHORIZED && '⚠️ Authentication Error: '}
           {errorType === ErrorType.VALIDATION && '⚠️ Validation Error: '}
           {errorType === ErrorType.NOT_FOUND && '🔍 Not Found: '}
@@ -134,22 +136,23 @@ export default function ErrorDisplay({
           {errorMessage}
         </p>
         {errorType === ErrorType.NETWORK && (
-          <p className="mt-1 text-xs opacity-80">
+          <p className="mt-1 text-xs opacity-80" data-testid="error-help-text">
             Check your internet connection or try again later.
           </p>
         )}
         {errorType === ErrorType.TIMEOUT && (
-          <p className="mt-1 text-xs opacity-80">
+          <p className="mt-1 text-xs opacity-80" data-testid="error-help-text">
             The server is taking too long to respond. Please try again later.
           </p>
         )}
       </div>
-      <div className="flex gap-2 ml-2 shrink-0">
+      <div className="flex gap-2 ml-2 shrink-0" data-testid="error-actions">
         {showRetry && onRetry && (
           <button
             onClick={onRetry}
             className={`${iconColor} p-1 hover:bg-white hover:bg-opacity-30 rounded`}
             aria-label="Retry"
+            data-testid="error-retry-button"
           >
             <RefreshCw size={14} />
           </button>
@@ -159,6 +162,7 @@ export default function ErrorDisplay({
             onClick={onDismiss}
             className={`${iconColor} p-1 hover:bg-white hover:bg-opacity-30 rounded`}
             aria-label="Dismiss error"
+            data-testid="error-dismiss-button"
           >
             <CloseIcon size={14} />
           </button>

@@ -86,6 +86,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
         paddingRight: '0.75rem',
         borderRight: 'none'
       }}
+      data-testid="audio-player-controls"
     >
       {/* Audio Control Section - all controls in a single row with flex */}
       <div className="flex items-center w-full justify-between">
@@ -96,6 +97,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
             className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
             style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
             aria-label={isPlaying ? "Pause" : "Play"}
+            data-testid="audio-play-pause-button"
           >
             {isPlaying ? 
               <PauseIcon className="h-3.5 w-3.5" /> : 
@@ -103,7 +105,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
             }
           </button>
           
-          <div className="text-xs whitespace-nowrap font-semibold">
+          <div className="text-xs whitespace-nowrap font-semibold" data-testid="audio-time-display">
             <span>{formatTime(currentTime)}</span>
             <span className="mx-0.5">/</span>
             <span>{formatTime(duration)}</span>
@@ -134,6 +136,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
             title="Regenerate voice"
             aria-label="Regenerate voice"
             style={{ width: '18px', height: '18px' }}
+            data-testid="audio-regenerate-button"
           >
             <RegenerateIcon className="h-3 w-3" />
           </button>
@@ -145,6 +148,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
             aria-label="Audio options"
             onClick={onShowSettings}
             style={{ width: '18px', height: '18px' }}
+            data-testid="audio-settings-button"
           >
             <MoreVerticalIcon className="h-3 w-3" />
           </button>

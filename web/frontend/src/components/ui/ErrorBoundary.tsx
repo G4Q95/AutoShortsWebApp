@@ -2,15 +2,21 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 
+/**
+ * Props for the ErrorBoundary component
+ */
 interface Props {
-  /** Child components that this boundary will catch errors for */
+  /** React children to render when there's no error */
   children: ReactNode;
-  /** Optional fallback component to display when an error occurs */
+  /** Optional custom fallback UI to display when an error occurs */
   fallback?: ReactNode;
 }
 
+/**
+ * State for the ErrorBoundary component
+ */
 interface State {
-  /** Whether an error has been caught */
+  /** Whether an error has occurred */
   hasError: boolean;
 }
 
@@ -36,11 +42,12 @@ class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.hasError) {
       return this.props.fallback || (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-md" data-testid="error-boundary-fallback">
           <h2 className="text-lg text-red-800 font-medium">Something went wrong</h2>
           <button
             onClick={() => this.setState({ hasError: false })}
             className="mt-2 px-3 py-1 bg-red-600 text-white rounded-md text-sm"
+            data-testid="error-boundary-reset"
           >
             Try again
           </button>

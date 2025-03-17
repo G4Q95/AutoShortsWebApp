@@ -157,6 +157,7 @@ export const SceneAudioControls: React.FC<SceneAudioControlsProps> = ({
     <div 
       className={`relative w-full rounded-bl-md overflow-hidden ${className}`}
       style={{ height: '32px', perspective: '1000px' }}
+      data-testid="scene-audio-controls"
     >
       {/* Flip container */}
       <div
@@ -180,6 +181,7 @@ export const SceneAudioControls: React.FC<SceneAudioControlsProps> = ({
             onClick={onGenerateClick}
             disabled={isGeneratingAudio}
             style={{ display: 'flex', alignItems: 'center', paddingRight: '2rem' }}
+            data-testid="generate-voice-button"
           >
             <MicIcon className="w-3.5 h-3.5 mr-1.5" />
             <span className="font-medium">
@@ -192,6 +194,7 @@ export const SceneAudioControls: React.FC<SceneAudioControlsProps> = ({
               onChange={handleVoiceChange}
               className="absolute right-1 h-5 rounded text-xs text-black bg-white py-0"
               style={{ width: '70px' }}
+              data-testid="voice-selector"
             >
               {voices.map((voice: Voice) => (
                 <option key={voice.id} value={voice.id}>
@@ -221,7 +224,7 @@ export const SceneAudioControls: React.FC<SceneAudioControlsProps> = ({
 
       {/* Audio Settings Dropdown */}
       {showSettings && (
-        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-lg p-2 z-50 w-44">
+        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-lg p-2 z-50 w-44" data-testid="audio-settings-dropdown">
           <div className="mb-2">
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Voice
@@ -230,6 +233,7 @@ export const SceneAudioControls: React.FC<SceneAudioControlsProps> = ({
               value={selectedVoice} 
               onChange={handleVoiceChange}
               className="block w-full text-xs border-gray-300 rounded"
+              data-testid="audio-settings-voice-selector"
             >
               {voices.map((voice: Voice) => (
                 <option key={voice.id} value={voice.id}>
@@ -250,6 +254,7 @@ export const SceneAudioControls: React.FC<SceneAudioControlsProps> = ({
               defaultValue="1"
               className="block w-full"
               onChange={handleRateChange}
+              data-testid="audio-settings-speed-slider"
             />
           </div>
         </div>

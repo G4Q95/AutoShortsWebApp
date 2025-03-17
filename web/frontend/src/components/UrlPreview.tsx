@@ -158,6 +158,7 @@ export default function UrlPreview({ url, className = '' }: UrlPreviewProps) {
     return (
       <div
         className={`mt-3 p-3 bg-gray-50 border border-gray-200 rounded-md flex items-center ${className}`}
+        data-testid="url-preview-loading"
       >
         <LoaderIcon className="w-5 h-5 text-blue-500 animate-spin mr-2" />
         <span className="text-sm text-gray-600">Loading preview...</span>
@@ -169,9 +170,10 @@ export default function UrlPreview({ url, className = '' }: UrlPreviewProps) {
     return (
       <div
         className={`mt-3 p-3 bg-red-50 border border-red-200 rounded-md flex items-center ${className}`}
+        data-testid="url-preview-error"
       >
         <XCircleIcon className="w-5 h-5 text-red-500 mr-2" />
-        <span className="text-sm text-red-700">{error}</span>
+        <span className="text-sm text-red-700" data-testid="url-preview-error-message">{error}</span>
       </div>
     );
   }
@@ -183,26 +185,28 @@ export default function UrlPreview({ url, className = '' }: UrlPreviewProps) {
   return (
     <div
       className={`mt-3 p-3 border rounded-md ${metadata.supportedType ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'} ${className}`}
+      data-testid="url-preview"
+      data-supported={metadata.supportedType}
     >
       <div className="flex items-start">
         {metadata.supportedType ? (
-          <CheckCircleIcon className="w-5 h-5 text-green-500 mr-2 mt-0.5" />
+          <CheckCircleIcon className="w-5 h-5 text-green-500 mr-2 mt-0.5" data-testid="url-preview-supported-icon" />
         ) : (
-          <XCircleIcon className="w-5 h-5 text-yellow-500 mr-2 mt-0.5" />
+          <XCircleIcon className="w-5 h-5 text-yellow-500 mr-2 mt-0.5" data-testid="url-preview-unsupported-icon" />
         )}
 
         <div>
-          <h4 className="font-medium text-gray-900">{metadata.title}</h4>
+          <h4 className="font-medium text-gray-900" data-testid="url-preview-title">{metadata.title}</h4>
 
           {metadata.description && (
-            <p className="text-sm text-gray-600 mt-1">{metadata.description}</p>
+            <p className="text-sm text-gray-600 mt-1" data-testid="url-preview-description">{metadata.description}</p>
           )}
 
           <div className="flex items-center mt-2 text-xs text-gray-500">
             <LinkIcon className="w-3 h-3 mr-1" />
-            <span>{metadata.domain}</span>
+            <span data-testid="url-preview-domain">{metadata.domain}</span>
             {metadata.supportedType && (
-              <span className="ml-2 bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs">
+              <span className="ml-2 bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs" data-testid="url-preview-supported-badge">
                 Supported
               </span>
             )}
