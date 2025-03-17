@@ -40,6 +40,10 @@ import {
   GetAudioResponse
 } from './api-types';
 
+// Import new API modules and feature flags
+import * as voiceAPI from './api/voice';
+import { API_FLAGS, logImplementationChoice } from './api-flags';
+
 /**
  * Base URL for the API
  * Uses environment variable if available, falls back to localhost
@@ -592,9 +596,9 @@ export async function getCurrentUser(): Promise<ApiResponse<UserResponse>> {
 }
 
 /**
- * Get available voices from ElevenLabs
+ * Get available voices from ElevenLabs API
  * 
- * @returns {Promise<ApiResponse<VoiceListResponse>>} Promise with list of available voices
+ * @returns {Promise<ApiResponse<VoiceListResponse>>} List of available voices
  * 
  * @example
  * const response = await getAvailableVoices();
@@ -604,6 +608,15 @@ export async function getCurrentUser(): Promise<ApiResponse<UserResponse>> {
  * }
  */
 export async function getAvailableVoices(): Promise<ApiResponse<VoiceListResponse>> {
+  // Determine which implementation to use based on feature flag
+  const useNewImpl = API_FLAGS.useNewVoiceAPI || API_FLAGS.useNewGetVoices;
+  logImplementationChoice('getAvailableVoices', useNewImpl);
+  
+  if (useNewImpl) {
+    return voiceAPI.getAvailableVoices();
+  }
+  
+  // Original implementation
   return fetchAPI<VoiceListResponse>(
     `/voice/voices`,
     {
@@ -630,6 +643,13 @@ export async function getAvailableVoices(): Promise<ApiResponse<VoiceListRespons
  * }
  */
 export async function getVoiceById(voiceId: string): Promise<ApiResponse<Voice>> {
+  logImplementationChoice('getVoiceById', API_FLAGS.useNewGetVoiceById || API_FLAGS.useNewVoiceAPI);
+  
+  if (API_FLAGS.useNewGetVoiceById || API_FLAGS.useNewVoiceAPI) {
+    return voiceAPI.getVoiceById(voiceId);
+  }
+  
+  // Original implementation
   return fetchAPI<Voice>(
     `/voice/voices/${voiceId}`,
     {
@@ -661,6 +681,15 @@ export async function getVoiceById(voiceId: string): Promise<ApiResponse<Voice>>
 export async function generateVoice(
   requestData: GenerateVoiceRequest
 ): Promise<ApiResponse<GenerateVoiceResponse>> {
+  // Determine which implementation to use based on feature flag
+  const useNewImpl = API_FLAGS.useNewVoiceAPI || API_FLAGS.useNewGenerateVoice;
+  logImplementationChoice('generateVoice', useNewImpl);
+  
+  if (useNewImpl) {
+    return voiceAPI.generateVoice(requestData);
+  }
+  
+  // Original implementation
   console.log("***** STARTING VOICE GENERATION *****");
   console.log("generateVoice called with params:", {
     textLength: requestData.text.length,
@@ -809,6 +838,15 @@ export async function generateVoiceAudio(
   characterCount: number;
   processingTime: number;
 }> {
+  // Determine which implementation to use based on feature flag
+  const useNewImpl = API_FLAGS.useNewVoiceAPI || API_FLAGS.useNewGenerateVoice;
+  logImplementationChoice('generateVoiceAudio', useNewImpl);
+  
+  if (useNewImpl) {
+    return voiceAPI.generateVoiceAudio(request);
+  }
+  
+  // Original implementation
   const response = await generateVoice(request);
 
   if (response.error) {
@@ -971,6 +1009,15 @@ export async function downloadVoiceAudio(
 export async function persistVoiceAudio(
   requestData: SaveAudioRequest
 ): Promise<ApiResponse<SaveAudioResponse>> {
+  // Determine which implementation to use based on feature flag
+  const useNewImpl = API_FLAGS.useNewVoiceAPI || API_FLAGS.useNewPersistVoiceAudio;
+  logImplementationChoice('persistVoiceAudio', useNewImpl);
+  
+  if (useNewImpl) {
+    return voiceAPI.persistVoiceAudio(requestData);
+  }
+  
+  // Original implementation
   console.log('Persisting audio to R2 storage');
   return fetchAPI<SaveAudioResponse>(
     '/voice/persist',
@@ -1003,6 +1050,15 @@ export async function getStoredAudio(
   projectId: string,
   sceneId: string
 ): Promise<ApiResponse<GetAudioResponse>> {
+  // Determine which implementation to use based on feature flag
+  const useNewImpl = API_FLAGS.useNewVoiceAPI || API_FLAGS.useNewGetStoredAudio;
+  logImplementationChoice('getStoredAudio', useNewImpl);
+  
+  if (useNewImpl) {
+    return voiceAPI.getStoredAudio(projectId, sceneId);
+  }
+  
+  // Original implementation
   console.log(`Retrieving stored audio for project ${projectId}, scene ${sceneId}`);
   return fetchAPI<GetAudioResponse>(
     `/voice/audio/${projectId}/${sceneId}`,

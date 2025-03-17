@@ -349,3 +349,121 @@ If any test fails during refactoring:
    - Update Refactoring-Plan-V2.md with lessons learned
    - Add the specific issue to "Known Issues" section
    - Update testing procedures if needed 
+
+## Detailed Step-by-Step Implementation
+
+### Phase 1: API Function Inventory & Analysis
+
+#### Step 1: Document Current API Functions
+1. Create an inventory spreadsheet listing each function in api-client.ts
+2. For each function, document:
+   - Name and purpose
+   - Input parameters and return type
+   - Which components/pages use it
+   - Current test coverage
+   - Focus specifically on ElevenLabs integration functions
+
+#### Step 2: Identify Test Coverage Gaps
+1. Run existing tests to establish baseline coverage
+2. Identify functions with insufficient test coverage
+3. **CHECKPOINT**: Confirm before proceeding
+
+### Phase 2: Create Single Function Migration
+
+#### Step 3: Select First Low-Risk Function
+1. Choose the simplest, most isolated ElevenLabs-related function with good test coverage
+2. Create a new file (e.g., `api/voice.ts`) for voice generation domain
+3. Implement the function with identical interface
+
+#### Step 4: Add Feature Flag System
+1. Implement a simple feature flag mechanism
+2. Add toggle to switch between old and new implementation
+3. Run tests to verify both implementations work
+4. **CHECKPOINT**: Confirm before proceeding
+
+### Phase 3: First Function Migration
+
+#### Step 5: Create First Wrapper Function
+1. In api-client.ts, modify the original function to use feature flag:
+   ```typescript
+   export function generateVoice(text: string, voiceId: string): Promise<VoiceResponse> {
+     if (API_FLAGS.useNewVoiceAPI) {
+       return voiceAPI.generateVoice(text, voiceId);
+     }
+     // Original implementation remains
+     return originalImplementation(text, voiceId);
+   }
+   ```
+2. Run tests to verify functionality
+
+#### Step 6: Add Monitoring
+1. Implement logging to compare old vs new implementation
+2. Create metrics to track any differences
+3. Run tests to verify monitoring works
+4. **CHECKPOINT**: Confirm before proceeding
+
+### Phase 4: Testing & Validation
+
+#### Step 7: Test in Isolation
+1. Create focused tests for the refactored function
+2. Test edge cases and error handling
+3. Verify response format consistency
+
+#### Step 8: Test Integration
+1. Run full test suite with new implementation
+2. Test in UI to verify visual/behavioral consistency
+3. **CHECKPOINT**: Confirm before proceeding
+
+### Phase 5: Gradual Deployment
+
+#### Step 9: Enable New Implementation
+1. Set feature flag to use new implementation by default
+2. Run full test suite to verify functionality
+3. Monitor for any issues or inconsistencies
+
+#### Step 10: Clean Up Original Function
+1. If all tests pass, update original function to directly call new implementation
+2. Remove feature flag for this function
+3. Run tests again to verify functionality
+4. **CHECKPOINT**: Confirm before proceeding
+
+### Phase 6: Repeat Process for Next Function
+
+#### Step 11: Select Next Function
+1. Choose another function in the same domain
+2. Repeat steps 3-10 for this function
+3. Gradually build out the new API structure
+
+#### Step 12: Refactor Related Functions Together
+1. After individual function migrations, refactor related functions
+2. Group them in domain-specific files
+3. Maintain backward compatibility
+4. **CHECKPOINT**: Confirm before proceeding
+
+## Implementation Notes (Updated)
+
+- We'll commit after each successful checkpoint
+- All changes will have corresponding tests
+- We'll maintain a log of changes for easy rollback
+- If tests fail, we'll revert to the last checkpoint
+- Focus primarily on ElevenLabs API integration refactoring
+- Leverage lessons from previous refactoring attempts
+- Use more frequent testing than in previous refactoring attempts
+- Maintain backward compatibility throughout the process
+- Ensure all changes are well-documented
+
+## Key Differences from Previous Approach
+
+The previous refactoring attempt encountered issues due to:
+1. Too many changes at once
+2. Insufficient testing between changes
+3. Missing backward compatibility during transition
+4. Lack of feature flags to toggle implementations
+
+This updated plan addresses these issues by:
+1. Migrating one function at a time
+2. Testing exhaustively at each step
+3. Using feature flags for seamless rollback
+4. Adding explicit checkpoints for verification
+5. Implementing monitoring to catch subtle differences
+6. Creating a more granular commit history 
