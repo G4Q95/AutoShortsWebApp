@@ -458,9 +458,27 @@ export function getProjectsList(): Promise<ProjectMetadata[]> {
 export async function deleteProject(projectId: string): Promise<void> {
   try {
     console.log(`[storage-utils] Deleting project: ${projectId}`);
+    
+    // 1. Remove the project data
     const key = getProjectKey(projectId);
     localStorage.removeItem(key);
-    console.log(`[storage-utils] Project deleted: ${projectId}`);
+    console.log(`[storage-utils] Project data deleted: ${projectId}`);
+
+    // 2. Also update the projects list metadata to remove this project
+    try {
+      const projectsListJson = localStorage.getItem(PROJECTS_LIST_KEY) || '[]';
+      const projectsList: ProjectMetadata[] = JSON.parse(projectsListJson);
+      
+      // Filter out the deleted project
+      const updatedList = projectsList.filter(p => p.id !== projectId);
+      
+      // Save the updated list back to localStorage
+      localStorage.setItem(PROJECTS_LIST_KEY, JSON.stringify(updatedList));
+      console.log(`[storage-utils] Project removed from projects list: ${projectId}`);
+    } catch (listError) {
+      console.error(`[storage-utils] Error updating projects list after deletion:`, listError);
+      // Continue with the function even if updating the list fails
+    }
 
     // Verify the delete was successful
     const deletedData = localStorage.getItem(key);

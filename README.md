@@ -364,7 +364,7 @@ This project has several documentation files for different purposes:
 | **API_STANDARDS.md** | `/docs/` | API standards, response formats, and error handling documentation |
 | **API_ENDPOINTS.md** | `/docs/` | Comprehensive API endpoint documentation with examples |
 | **lightweight-refactoring-prompt.md** | `/docs/` | Current refactoring plan and progress (symlinked from root) |
-| **2025-03-15-Refactoring-Plan.md** | `/docs/` | Detailed refactoring plan with implementation steps (symlinked from root) |
+| **Refactoring-Plan-V2.md** | `/docs/` | Detailed refactoring plan with implementation steps (symlinked from root) |
 | **r2_setup.md** | `/docs/` | CloudFlare R2 storage setup and configuration guide |
 | **playwright-guide.md** | `/docs/` | Guide for running and maintaining Playwright tests |
 | **playwright-status.md** | `/` | Current status of Playwright tests and recent changes |
