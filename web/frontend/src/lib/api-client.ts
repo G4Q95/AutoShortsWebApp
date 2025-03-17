@@ -42,6 +42,7 @@ import {
 
 // Import new API modules and feature flags
 import * as voiceAPI from './api/voice';
+import * as contentAPI from './api/content';
 import { API_FLAGS, logImplementationChoice } from './api-flags';
 
 /**
@@ -420,23 +421,31 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
 }
 
 /**
- * Extracts content from a provided URL using the backend content extraction service
- * Handles URL encoding and error cases for failed extractions
+ * Extract content from a URL
  * 
- * @param {string} url - The URL to extract content from (must be from a supported domain)
- * @returns {Promise<ApiResponse<any>>} Promise with extracted content or error details
+ * @param {string} url - The URL to extract content from
+ * @returns {Promise<ApiResponse<any>>} - Response containing the extracted content
  * 
  * @example
- * const result = await extractContent('https://reddit.com/r/stories/123');
- * if (result.error) {
- *   console.error('Failed to extract:', result.error.message);
- * } else {
- *   console.log('Extracted content:', result.data);
+ * const response = await extractContent('https://www.reddit.com/r/interestingasfuck/comments/abc123');
+ * if (response.error) {
+ *   console.error('Error extracting content:', response.error);
+ *   return;
  * }
+ * const content = response.data;
  * 
  * @throws Will not throw, returns error in ApiResponse instead
  */
 export async function extractContent(url: string): Promise<ApiResponse<any>> {
+  // Determine which implementation to use based on feature flags
+  const useNewImpl = API_FLAGS.useNewContentAPI || API_FLAGS.useNewExtractContent;
+  logImplementationChoice('extractContent', useNewImpl);
+  
+  if (useNewImpl) {
+    return contentAPI.extractContent(url);
+  }
+  
+  // Original implementation
   try {
     return await fetchAPI(`/content/extract?url=${encodeURIComponent(url)}`, {
       method: 'GET',

@@ -12,67 +12,63 @@
  */
 
 /**
- * API implementation feature flags
+ * Feature flags for API implementation control
  * 
- * Each flag controls whether to use the new implementation of a specific
- * API function. By default, all flags are set to false (use original implementation).
+ * This module provides a feature flag system to control which implementation
+ * of API functions are used. This allows for:
  * 
- * To enable a new implementation, set the corresponding flag to true.
+ * - Gradual migration between implementations
+ * - Easy rollback capability
+ * - A/B testing of implementations
+ * - Safe deployments with fallback options
+ */
+
+// Use development mode check to determine default logging behavior
+const isDev = process.env.NODE_ENV === 'development';
+
+/**
+ * API feature flags controlling which implementation to use
  */
 export const API_FLAGS = {
-  /**
-   * Whether to use the new implementation of voice-related APIs
-   * Affects: getAvailableVoices, getVoiceById, generateVoice, etc.
-   */
-  useNewVoiceAPI: false,
+  // Voice API flags
+  // Master flag to use all new voice API implementations
+  useNewVoiceAPI: true,  // Enable all new voice API implementations
   
-  /**
-   * Whether to use the new implementation of getAvailableVoices()
-   */
-  useNewGetVoices: false,
+  // Individual voice function flags
+  useNewGetVoices: true,
+  useNewGetVoiceById: true,
+  useNewGenerateVoice: true,
+  useNewPersistVoiceAudio: true,
+  useNewGetStoredAudio: true,
+
+  // Content API flags
+  // Master flag to use all new content API implementations
+  useNewContentAPI: false,  // Disabled by default until tested
   
-  /**
-   * Whether to use the new implementation of getVoiceById()
-   */
-  useNewGetVoiceById: false,
-  
-  /**
-   * Whether to use the new implementation of generateVoice()
-   */
-  useNewGenerateVoice: false,
-  
-  /**
-   * Whether to use the new implementation of persistVoiceAudio()
-   */
-  useNewPersistVoiceAudio: false,
-  
-  /**
-   * Whether to use the new implementation of getStoredAudio()
-   */
-  useNewGetStoredAudio: false,
-  
-  /**
-   * Whether to log API implementation choices (for debugging)
-   */
-  logApiChoices: process.env.NODE_ENV === 'development',
+  // Individual content function flags
+  useNewExtractContent: false,
+  useNewValidateUrl: false,
+
+  // Logging control
+  logApiChoices: isDev || true,  // Log which implementation is being used
 };
 
 /**
- * Helper function to log which implementation is being used
- * Only logs in development mode when logApiChoices is true
+ * Logs which implementation of an API function is being used
+ * Only logs in development mode or when explicitly enabled
  * 
- * @param functionName - Name of the API function
- * @param useNewImpl - Whether the new implementation is being used
+ * @param {string} functionName - The name of the API function
+ * @param {boolean} useNewImpl - Whether the new implementation is being used
  */
 export function logImplementationChoice(functionName: string, useNewImpl: boolean): void {
   if (API_FLAGS.logApiChoices) {
-    console.log(`API Implementation: ${functionName} - Using ${useNewImpl ? 'NEW' : 'ORIGINAL'} implementation`);
+    console.log(`API Choice: ${functionName} using ${useNewImpl ? 'NEW' : 'ORIGINAL'} implementation`);
   }
 }
 
 /**
  * Enable all new voice API implementations
- * Used for testing the fully refactored API
+ * Useful for testing all new implementations at once
  */
 export function enableAllNewVoiceAPIs(): void {
   API_FLAGS.useNewVoiceAPI = true;
@@ -81,11 +77,13 @@ export function enableAllNewVoiceAPIs(): void {
   API_FLAGS.useNewGenerateVoice = true;
   API_FLAGS.useNewPersistVoiceAudio = true;
   API_FLAGS.useNewGetStoredAudio = true;
+  
+  console.log('All new voice API implementations enabled');
 }
 
 /**
  * Disable all new voice API implementations
- * Used for emergency rollback if issues are detected
+ * Useful for quick rollback in case of issues
  */
 export function disableAllNewVoiceAPIs(): void {
   API_FLAGS.useNewVoiceAPI = false;
@@ -94,4 +92,30 @@ export function disableAllNewVoiceAPIs(): void {
   API_FLAGS.useNewGenerateVoice = false;
   API_FLAGS.useNewPersistVoiceAudio = false;
   API_FLAGS.useNewGetStoredAudio = false;
+  
+  console.log('All new voice API implementations disabled');
+}
+
+/**
+ * Enable all new content API implementations
+ * Useful for testing all new implementations at once
+ */
+export function enableAllNewContentAPIs(): void {
+  API_FLAGS.useNewContentAPI = true;
+  API_FLAGS.useNewExtractContent = true;
+  API_FLAGS.useNewValidateUrl = true;
+  
+  console.log('All new content API implementations enabled');
+}
+
+/**
+ * Disable all new content API implementations
+ * Useful for quick rollback in case of issues
+ */
+export function disableAllNewContentAPIs(): void {
+  API_FLAGS.useNewContentAPI = false;
+  API_FLAGS.useNewExtractContent = false;
+  API_FLAGS.useNewValidateUrl = false;
+  
+  console.log('All new content API implementations disabled');
 } 
