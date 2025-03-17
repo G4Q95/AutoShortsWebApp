@@ -1,18 +1,35 @@
 # Auto Shorts Web App - Cursor Rules
 
 # Table of Contents
-# 1. Development Environment
-# 2. Coding Standards & Patterns
-# 3. Project Structure & Organization
-# 4. Frontend Conventions
-# 5. Backend Conventions
-# 6. Testing Guidelines
-# 7. Documentation Guidelines
-# 8. Version Control & Commits
-# 9. Tool Usage Guidelines
+1. [Critical Development Guidelines](#critical-development-guidelines)
+2. [Code Organization & Quality](#code-organization--quality)
+   - [Coding Principles](#coding-principles)
+   - [File Structure & Naming](#file-structure--naming)
+   - [Component Structure](#component-structure)
+   - [Pre-Commit Checklist](#pre-commit-checklist)
+3. [Technology-Specific Guidelines](#technology-specific-guidelines)
+   - [Frontend (Next.js + React)](#frontend-nextjs--react)
+   - [Backend (FastAPI + Python)](#backend-fastapi--python)
+   - [Media Processing](#media-processing)
+   - [Docker Development](#docker-development)
+4. [Testing Guidelines](#testing-guidelines)
+   - [General Testing Practices](#general-testing-practices)
+   - [Playwright Testing](#playwright-testing)
+   - [Test Failure Explanation](#test-failure-explanation)
+5. [Workflow & Process](#workflow--process)
+   - [Git Commit Conventions](#git-commit-conventions)
+   - [Documentation Update Guidelines](#documentation-update-guidelines)
+   - [End of Chat Commits](#end-of-chat-commits)
+6. [Tool Usage Guidelines](#tool-usage-guidelines)
+   - [Browser MCP Tools](#browser-mcp-tools)
+   - [GitHub MCP Tools](#github-mcp-tools)
+7. [Misplaced Content](#misplaced-content)
 
-# 1. DEVELOPMENT ENVIRONMENT
-# CRITICAL: DOCKER-FIRST DEVELOPMENT
+---
+
+## Critical Development Guidelines
+
+# DOCKER-FIRST DEVELOPMENT
 # All development MUST use Docker containers. No direct local service running allowed.
 # ✅ Frontend (Next.js) - Port 3000
 # ✅ Backend (FastAPI) - Port 8000
@@ -23,32 +40,38 @@
 
 You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python), MongoDB Atlas, docker Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies.
 
-# 2. CODING STANDARDS & PATTERNS
+---
 
-## Core Principles
+## Code Organization & Quality
 
+### Coding Principles
 - Always prefer simple solutions
 - Use as little code as possible
-- Avoid duplication of code whenever possible
-- Write code that takes into account different environments: dev, test, and prod
-- Only make changes that are requested or well understood
-- When fixing an issue, exhaust options within existing patterns before introducing new ones
-- Keep the codebase clean and organized
-- Avoid one-time scripts in committed files
-- Never mock data except for tests
-- Never overwrite .env file without asking first
+- Keep the codebase very clean and organized
+- Avoid duplication of code whenever possible - check for other areas of the codebase that might already have similar code and functionality
+- Write code that takes into account the different environments: dev, test, and prod
+- Only make changes that are requested or you are confident are well understood and related to the change being requested
+- Focus on the areas of code relevant to the task; do not touch code that is unrelated
+- When fixing issues, exhaust existing implementation options before introducing new patterns or technologies
+- If you introduce a new pattern, remove the old implementation to avoid duplicate logic
+- Avoid writing scripts in files if possible, especially if the script is likely to be run only once
+- Mocking data is only needed for tests, never mock data for dev or prod
+- Never add stubbing or fake data patterns to code that affects the dev or prod environments
+- Never overwrite .env file without first asking and confirming
 
-## Development Workflow
+### File Structure & Naming
+- Use lowercase with hyphens for directories (e.g., `components/auth-form`, `services/video-processing`)
+- Use PascalCase for React component files (e.g., `UserLogin.jsx`)
+- Use camelCase for utility files (e.g., `apiClient.js`, `videoUtils.js`)
+- Use snake_case for Python files in the backend (e.g., `content_retrieval.py`)
 
-- Focus on code relevant to the task
-- Run tests after significant changes
-- Address test failures before continuing with new features
-- When changing UI components, check existing E2E tests
-
-## Component and File Size Guidelines
-
+### Component Structure
+- Structure React components: imports, component, helpers, exports
+- Structure Python modules: imports, constants, functions, classes, exports
 - Target keeping files under 300 lines of code
-- Files exceeding 500 lines need refactoring evaluation
+- Any file exceeding 500 lines requires refactoring evaluation
+
+#### Refactoring Considerations
 - Test files may be longer when containing multiple related test cases
 - Consider refactoring when a component:
   - Has more than 3-4 distinct responsibilities
@@ -57,47 +80,15 @@ You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python
   - Contains multiple large useEffect hooks
   - Handles more than 3-4 major UI sections
 
-## Refactoring Approaches
-
+#### Refactoring Approaches
 - Extract reusable logic into custom hooks
 - Create component-specific utility functions
 - Split UI sections into sub-components
 - Use composition pattern for complex component trees
 - Split large test files into domain-specific test files
 
-## Pre-Commit Checklist
+### Enhanced Component Structure Guidelines
 
-### Code Quality
-- Code follows established coding standards
-- No unnecessary comments or console logs
-- No hardcoded values that should be configuration
-- No duplicate code
-- No unused variables or imports
-
-### Testing
-- All existing tests pass
-- New tests added for new functionality
-- Edge cases and error conditions tested
-
-### Documentation
-- Code is well-documented
-- README updated if necessary
-- progress.md updated if significant changes
-
-### Security & Performance
-- No sensitive information in code
-- No performance bottlenecks introduced
-- No memory leaks
-
-# 3. PROJECT STRUCTURE & ORGANIZATION
-
-## Directories and Files
-- Use lowercase with hyphens for directories (e.g., `components/auth-form`, `services/video-processing`)
-- Use PascalCase for React component files (e.g., `UserLogin.jsx`)
-- Use camelCase for utility files (e.g., `apiClient.js`, `videoUtils.js`)
-- Use snake_case for Python files in the backend (e.g., `content_retrieval.py`)
-
-## Component Structure
 Follow this structure for React components:
 
 ```tsx
@@ -145,22 +136,78 @@ export function ComponentName({ prop1, prop2 }: ComponentProps) {
 }
 ```
 
-# 4. FRONTEND CONVENTIONS (NEXT.JS + REACT)
+### Pre-Commit Checklist
 
-## React Components
+Before committing code, ensure you've checked the following:
+
+#### Code Quality
+- Code follows the established coding standards
+- No unnecessary comments or console logs
+- No hardcoded values that should be configuration
+- No duplicate code
+- No unused variables or imports
+
+#### Testing
+- All existing tests pass
+- New tests added for new functionality
+- Edge cases and error conditions tested
+
+#### Documentation
+- Code is well-documented
+- README updated if necessary
+- progress.md updated if significant changes
+
+#### Security & Performance
+- No sensitive information in code
+- No performance bottlenecks introduced
+- No memory leaks
+
+---
+
+## Technology-Specific Guidelines
+
+### Frontend (Next.js + React)
+
+#### React Components
 - Use functional components (not class components)
 - Keep components small and focused on a single responsibility
 - Separate UI from business logic when possible
 - Use descriptive names with auxiliary verbs (e.g., `isLoading`, `hasError`)
 
-## Styling with Tailwind CSS
+#### Styling with Tailwind CSS
 - Use Tailwind classes directly in components
 - Create reusable UI components for common patterns
 - Follow desktop-first design with mobile responsiveness
 - Use CSS variables for theme colors and consistent spacing
 - Leverage Tailwind's responsive prefixes for adaptive layouts
 
-## Error Handling Guidelines
+#### Performance Guidelines
+- Optimize images for web delivery
+- Design for desktop first, but ensure compatibility with mobile devices
+- Implement appropriate loading states and fallbacks
+- Use code splitting for larger components where appropriate
+
+### Backend (FastAPI + Python)
+
+#### API Design
+- Use RESTful principles for endpoint design
+- Implement proper status codes and error responses
+- Document all endpoints with OpenAPI specifications
+- Use async functions for I/O bound operations
+
+#### Python Code Style
+- Follow PEP 8 style guidelines
+- Use type hints for function parameters and return values
+- Keep functions concise and single-purpose
+- Document functions with docstrings
+
+#### Security Practices
+- Never expose API keys in frontend code
+- Validate all user inputs
+- Implement proper authentication and authorization
+- Use environment variables for sensitive configuration
+
+### Enhanced Error Handling Guidelines
 - Use try/catch blocks for all async operations
 - Provide meaningful error messages that help with debugging
 - Use the ErrorDisplay component for consistent error presentation
@@ -171,51 +218,45 @@ export function ComponentName({ prop1, prop2 }: ComponentProps) {
 - Handle offline scenarios gracefully
 - Implement retry mechanisms for transient failures
 
-## Performance Guidelines
-- Optimize images for web delivery
-- Design for desktop first, but ensure compatibility with mobile devices
-- Implement appropriate loading states and fallbacks
-- Use code splitting for larger components where appropriate
+### Media Processing
 
-# 5. BACKEND CONVENTIONS (FASTAPI + PYTHON)
-
-## API Design
-- Use RESTful principles for endpoint design
-- Implement proper status codes and error responses
-- Document all endpoints with OpenAPI specifications
-- Use async functions for I/O bound operations
-
-## Python Code Style
-- Follow PEP 8 style guidelines
-- Use type hints for function parameters and return values
-- Keep functions concise and single-purpose
-- Document functions with docstrings
-
-## Security Practices
-- Never expose API keys in frontend code
-- Validate all user inputs
-- Implement proper authentication and authorization
-- Use environment variables for sensitive configuration
-
-## Media Processing Guidelines
-
-### Content Retrieval
+#### Content Retrieval
 - Implement proper error handling for external APIs
 - Cache commonly accessed content when appropriate
 - Use appropriate timeouts for external requests
 - Handle rate limiting gracefully
 
-### Video Generation
+#### Video Generation
 - Optimize for quality-to-file-size ratio
 - Implement proper progress tracking for long-running processes
 - Handle concurrent processing requests efficiently
 - Clean up temporary files after processing
 
-# 6. TESTING GUIDELINES
+### Docker Development
 
-## Playwright Testing Guidelines
+When working with the Docker development environment:
 
-When running tests:
+- Always use docker-compose for local development
+- Ensure all services are properly configured in docker-compose.yml
+- Use environment variables from .env files
+- Don't modify ports unless absolutely necessary
+- Ensure database persistence with proper volume configurations
+- Run all tests within the Docker environment
+- Verify all containers are running before debugging issues
+
+---
+
+## Testing Guidelines
+
+### General Testing Practices
+- Write thorough tests for all major functionality
+- Run tests after making significant changes to ensure they still pass
+- If tests fail after changes, address test failures before continuing with new features
+- When changing UI components or selectors, check that existing E2E tests still work with the new structure
+
+### Playwright Testing
+
+When the user requests to "run the test" or "run tests", this refers to the Playwright end-to-end tests unless otherwise specified. To run these tests:
 
 1. **Test Command**: 
 ```bash
@@ -267,7 +308,7 @@ cd web/frontend && npm test
   cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=false npm test
   ```
 
-## Test Failure Explanation Guidelines
+### Test Failure Explanation
 
 When explaining Playwright test failures:
 1. **Translate Technical to Everyday Language**: Explain what user action was being simulated (e.g., "The test was trying to click the Save button")
@@ -277,23 +318,41 @@ When explaining Playwright test failures:
 5. **Suggest Inspection Points**: Highlight specific UI elements or states to manually check
 6. **Avoid Technical Jargon**: No references to selectors, DOM elements, or technical error codes unless requested
 
-# 7. DOCUMENTATION GUIDELINES
+---
 
-## Documentation Update Guidelines
+## Workflow & Process
 
-When making changes to the codebase, documentation must be updated to maintain accuracy:
+### Git Commit Conventions
 
-### Core Documentation Principles
-- Only update documentation directly relevant to your changes
-- Add information that enhances understanding of the specific component or feature
+Use the following prefixes for commit messages followed by a colon and a space:
+- "fix:" for bug fixes
+- "feat:" for new features
+- "perf:" for performance improvements
+- "docs:" for documentation changes
+- "style:" for formatting changes
+- "refactor:" for code refactoring
+- "test:" for adding missing tests
+- "chore:" for chore tasks
+
+When determining the commit message prefix, pick the most relevant prefix from the list above.
+Use lower case for commit messages.
+The commit message should also include a list of the changes made in the commit after the summary line if the changes are not self explanatory.
+
+### Documentation Update Guidelines
+
+When making changes to the codebase, documentation must be updated to maintain accuracy. Follow these guidelines:
+
+#### Documentation Update Relevance Rule
+Only update documentation that is directly relevant to the changes made. Do not update documentation indiscriminately:
+- Analyze which documents will benefit from the new information
+- Only add information that enhances understanding of the specific component or feature
 - Avoid duplicating information across multiple documents
 - Prioritize updating technical guides over general overview documents for implementation details
-
-### Key Documentation Files
+- Do not modify documentation that is unrelated to your changes
 
 1. **progress.md** - Update with every significant change
    - Update after each completed feature or bug fix
-   - Modify at the end of each productive chat session
+   - Modify at the end of each productive chat session with Claude
    - Move completed items from "In Progress" to "Completed Tasks"
    - Add new items to "Next Steps" when they become relevant
    - Update implementation status percentages to reflect actual progress
@@ -310,17 +369,23 @@ When making changes to the codebase, documentation must be updated to maintain a
 
 4. **PROJECT_OVERVIEW.md** - Update for significant architectural changes
    - Update only when business model, architecture, or core concepts change
+   - Remove the "Project Status Update" section (use progress.md instead)
    - Keep technical decisions and rationale sections current
 
-## End of Chat Commit Summary
+When updating documentation:
+- Always explain the changes in your message to the user
+- Include which files were updated and why
+- Highlight any significant changes to project status or architecture
 
-At the end of each productive chat where files have been modified:
+### End of Chat Commits
 
-1. Provide a recommended commit message following the standard conventions
+At the end of each productive chat where files have been modified, Claude will:
+
+1. Provide a recommended commit message following the standard conventions above
 2. List all files that have been changed and need to be committed
 3. Provide simple instructions for what needs to be done to commit these changes
 
-### Example Commit Summary Format
+#### Example Commit Summary Format
 
 ```
 ## Commit Summary
@@ -338,27 +403,11 @@ To commit these changes:
 4. If prompted to "Save All & Commit Changes", choose this option
 ```
 
-# 8. VERSION CONTROL & COMMITS
+---
 
-## Git Commit Conventions
+## Tool Usage Guidelines
 
-Use the following prefixes for commit messages followed by a colon and a space:
-- "fix:" for bug fixes
-- "feat:" for new features
-- "perf:" for performance improvements
-- "docs:" for documentation changes
-- "style:" for formatting changes
-- "refactor:" for code refactoring
-- "test:" for adding missing tests
-- "chore:" for chore tasks
-
-When determining the commit message prefix, pick the most relevant prefix from the list above.
-Use lower case for commit messages.
-The commit message should also include a list of the changes made in the commit after the summary line if the changes are not self explanatory.
-
-# 9. TOOL USAGE GUIDELINES
-
-## Browser MCP Tool Usage Guidelines
+### Browser MCP Tools
 
 When working with the browser frontend:
 1. **Proactive Log Checking**: Check console logs, errors, and network activity at these key moments:
@@ -388,7 +437,7 @@ When working with the browser frontend:
    - Verify CSS classes are applied correctly
    - Examine DOM structure when working with dynamic content
 
-## GitHub MCP Tool Usage Guidelines
+### GitHub MCP Tools
 
 When working with GitHub:
 1. **Repository Interaction**:
@@ -410,3 +459,25 @@ When working with GitHub:
    - Always check for file existence before attempting to update
    - Use meaningful commit messages following the convention
    - Batch related changes into single commits
+
+---
+
+## Misplaced Content
+
+The following content may be better suited in other documents:
+
+### For PROJECT_INSTRUCTIONS.md
+- The detailed example implementation plan in "Recommended Development Strategy" section seems more appropriate for the project instructions document as it contains specific implementation tasks rather than general rules.
+```
+#### Task 1: Connect Form Submission to Backend
+- Create form validation on frontend
+- Implement form submission handler
+- Connect to backend API endpoint
+- Add loading states
+- Implement basic error handling
+```
+
+### Grey Areas
+- The "Playwright Testing Guidelines" section contains detailed test commands and execution steps which could either remain here (as rules for testing) or be moved to a dedicated testing document. Since these are specific rules for how tests should be run, they can reasonably remain in this file.
+
+- The "Documentation Update Guidelines" section describes both rules for documentation (appropriate for .cursorrules) and specific document purposes. The rules should stay, but the detailed descriptions of each document's purpose could potentially belong in a dedicated documentation guide.

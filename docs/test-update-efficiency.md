@@ -261,7 +261,7 @@ We've implemented a more robust approach to testing scene deletion:
 
 ## Progress Tracking
 
-### Phase 1: Basic Testing Framework Improvements - 95% Complete
+### Phase 1: Basic Testing Framework Improvements - ✅ 100% Complete
 
 - ✅ Create centralized selectors library
 - ✅ Implement better error reporting
@@ -271,13 +271,21 @@ We've implemented a more robust approach to testing scene deletion:
 - ✅ Add more data-testid attributes to components
 - ✅ Split large test file into domain-specific files
 
-### Phase 2: Advanced Testing Framework - 25% Complete
+### Phase 2: Advanced Testing Framework - 75% Complete
 
 - ✅ Implement mock audio testing to avoid API credits
-- ⬜ Create domain-specific test helpers (25% done)
-- ⬜ Implement visual testing and screenshot comparison
-- ⬜ Add performance testing
-- ⬜ Create test environment profiles (dev/test/staging)
+- ✅ Create domain-specific test helpers (100% done)
+  - ✅ Scene operation helpers (`scene-utils.ts`)
+  - ✅ Audio operation helpers (`audio-utils.ts`)
+  - ✅ Project management helpers (`project-utils.ts`)
+  - ✅ Central index for simplified imports (`index.ts`)
+  - ✅ Example test using all helpers (`examples/simplified-workflow.spec.ts`)
+- ⬜ Implement visual testing and screenshot comparison (25% done)
+  - ✅ Add screenshot capture at key test points
+  - ⬜ Implement comparison against baseline screenshots
+  - ⬜ Add reporting of visual differences
+- ⬜ Add performance testing (0% done)
+- ⬜ Create test environment profiles (dev/test/staging) (0% done)
 
 ### Phase 3: Continuous Integration - 0% Complete
 
@@ -287,7 +295,7 @@ We've implemented a more robust approach to testing scene deletion:
 - ⬜ Set up alerts for test failures
 - ⬜ Automated test result analysis
 
-### Overall Progress: 45%
+### Overall Progress: 60%
 
 ## Implemented Improvements
 
@@ -301,25 +309,35 @@ We've implemented a more robust approach to testing scene deletion:
    - Implemented project creation, scene addition, and voice generation utilities
    - Added robust error handling for common operations
 
-3. **Test Tagging**
+3. **Domain-Specific Test Helpers**
+   - Created three specialized helper modules:
+     - `scene-utils.ts` - For scene operations (add, delete, reorder, edit)
+     - `audio-utils.ts` - For audio operations (generate, play, verify)
+     - `project-utils.ts` - For project operations (create, open, delete)
+   - Created unified import system via `index.ts`
+   - Added example test using all helpers as a template
+   - Resolved naming conflicts between original and specialized functions
+   - Added comprehensive error handling with screenshots
+
+4. **Test Tagging**
    - Added test tag comments for selective test running
    - Updated test scripts to support running tests by tag
    - Documented tagging conventions for future test additions
 
-4. **Scene Deletion Test Fix**
+5. **Scene Deletion Test Fix**
    - Fixed the selector discrepancy in sceneDeleteButtonFallbacks
    - Updated the verification strategy to use scene count changes
    - Implemented progressive fallbacks with proper validation
    - Enhanced error reporting with detailed logging
    - Added screenshot capture at key test points
 
-5. **Mock Audio Testing**
+6. **Mock Audio Testing**
    - Implemented environment variable-based mock switching
    - Used browser-side API interception for voice generation
    - Created mock response generation that mimics real API
    - Added detection logic to verify no real API calls are made
 
-6. **Modular Test File Structure**
+7. **Modular Test File Structure**
    - Split large test file into domain-specific files
    - Created separate files for home page, project management, scene operations, and audio generation
    - Added common test utilities and centralized selectors
@@ -352,30 +370,57 @@ These changes have improved test reliability, ensuring that we properly test the
 
 ## Next Steps
 
-### Phase 1 Completion
+### Short-Term (Next Week)
 
-1. Finish moving common test setup/teardown code to shared utilities
+1. **Refactor existing tests** to use new domain-specific helpers
+   - Start with `audio-generation.spec.ts` (partially done)
+   - Move to `scene-operations.spec.ts` next
+   - Then update `project-management.spec.ts`
+   - Update remaining test files last
 
-### Phase 2 Focus
+2. **Fix any TypeScript errors** in helper files
+   - Ensure proper type annotations
+   - Resolve remaining naming conflicts
+   - Add JSDoc comments for better IDE integration
 
-1. Create more domain-specific test helpers for:
-   - Scene creation (`createScene`, `verifySceneContent`)
-   - Project management (`createTestProject`, `cleanupTestProject`)
-   - Audio generation (`generateAndVerifyAudio`)
+3. **Create simple documentation** for test helper system
+   - Create README in the utils directory
+   - Add examples of how to use each helper
+   - Document naming conventions and usage patterns
 
-2. Implement visual regression testing to catch UI changes
+### Medium-Term (Next Month)
 
-3. Add performance testing to measure test execution time
+1. **Enhance Visual Testing**
+   - Set up visual comparison framework
+   - Create baseline screenshots for critical UI states
+   - Add visual regression tests for key components
+   - Implement visual difference reporting
 
-4. Create test environment profiles for different testing scenarios
+2. **Implement Test Analytics**
+   - Add test execution time tracking
+   - Create helper to measure rendering performance
+   - Set up test result collection database
+   - Build simple dashboard for test metrics
 
-5. Integrate tests with CI pipeline for continuous integration
+3. **Improve Test Resilience**
+   - Add automatic retries for flaky operations
+   - Create better network request mocking
+   - Implement conditional testing based on features
+   - Add network throttling for realistic conditions
 
-6. Implement parallel test execution to speed up test runs
+### Long-Term (Next Quarter)
 
-7. Create test reporting dashboard for monitoring test status
+1. **CI/CD Integration**
+   - Set up GitHub Actions for test execution
+   - Configure parallel test execution
+   - Implement automatic test result reporting
+   - Create alerting for test failures
 
-8. Set up alerts for test failures and implement automated test result analysis
+2. **Advanced Test Capabilities**
+   - Add accessibility testing
+   - Implement cross-browser testing
+   - Create mobile device testing
+   - Add API contract testing
 
 2. **Medium Term (Next Month)**
    - Split core-functionality.spec.ts into domain-specific files

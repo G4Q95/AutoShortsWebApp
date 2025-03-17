@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
 import {
+  // Import domain-specific helpers
+  createProject,
+  addScene,
+  dragAndDropScene,
+  cleanupTestProjects,
+  DRAG_HANDLE_SELECTOR,
+  
+  // Import utilities for shared constants and functions
   NAVIGATION_TIMEOUT,
   PAGE_LOAD_TIMEOUT,
   CONTENT_LOAD_TIMEOUT,
@@ -7,14 +15,14 @@ import {
   SCENE_MEDIA_TIMEOUT,
   TEST_PROJECT_NAME,
   TEST_REDDIT_VIDEO_URL,
-  waitForElementWithText,
-  elementWithTextExists,
   SCENES_HEADING,
   BLUE_NUMBER_SELECTOR,
   MEDIA_SELECTOR,
-  SCENE_COMPONENT_SELECTOR
-} from './utils/test-utils';
-import { DRAG_HANDLE_SELECTOR } from '../selectors';
+  SCENE_COMPONENT_SELECTOR,
+  waitForElementWithText,
+  elementWithTextExists
+} from './utils/index';
+
 import { selectors, clickWithFallbacks } from './utils/selectors';
 
 /**
@@ -34,181 +42,65 @@ test.describe('Scene Operations', () => {
     });
   });
   
+  // Global project names to track for cleanup
+  const createdProjectNames: string[] = [];
+  
+  // Clean up test projects after each test instead of after all
+  test.afterEach(async ({ page }) => {
+    console.log('Cleaning up test projects after test...');
+    if (createdProjectNames.length > 0) {
+      await cleanupTestProjects(page, createdProjectNames);
+      // Clear the array after cleanup
+      createdProjectNames.length = 0;
+    }
+  });
+  
   // Add global timeout for all tests
   test.slow();
   
   test('Drag and drop scene reordering', async ({ page }) => {
     console.log('Starting drag and drop test...');
 
-    // Create a project
-    await page.goto('/projects/create', { timeout: NAVIGATION_TIMEOUT });
-    
-    // Wait for the page to fully load
-    await page.waitForSelector('input[placeholder="Enter project name"]', { timeout: PAGE_LOAD_TIMEOUT });
-    
-    // Generate a unique project name with a timestamp to avoid conflicts
+    // Create a project with a unique name
     const projectNameDnD = TEST_PROJECT_NAME + ' DnD ' + Date.now().toString().slice(-4);
-    await page.getByPlaceholder('Enter project name').fill(projectNameDnD);
-    await page.getByRole('button', { name: 'Create Project' }).click();
-    
-    // Wait for project workspace to load
-    await page.waitForURL(/.*\/projects\/[a-z0-9]+$/, { timeout: NAVIGATION_TIMEOUT });
-    
+    createdProjectNames.push(projectNameDnD); // Add to tracked projects
+    await createProject(page, projectNameDnD);
+    console.log('Project created:', projectNameDnD);
+
     // Add first scene
-    console.log('Adding first scene...');
-    await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_VIDEO_URL);
-    await page.getByRole('button', { name: 'Add' }).click();
-    
-    // Wait for first scene to load
-    const blueNumberText = '1';
-    await expect.poll(async () => {
-      return elementWithTextExists(page, BLUE_NUMBER_SELECTOR, blueNumberText);
-    }, {
-      message: `Expected to find blue number with text "${blueNumberText}"`,
-      timeout: PAGE_LOAD_TIMEOUT
-    }).toBeTruthy();
-    console.log('First scene loaded successfully');
-    
-    // Wait for media to load
-    await expect(page.locator(MEDIA_SELECTOR)).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
-    console.log('First scene media loaded successfully');
+    await addScene(page, TEST_REDDIT_VIDEO_URL);
+    console.log('First scene added');
     
     // Add second scene
-    console.log('Adding second scene...');
-    await page.getByPlaceholder('Enter Reddit URL').clear();
-    await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_VIDEO_URL);
-    await page.getByRole('button', { name: 'Add' }).click();
+    await addScene(page, TEST_REDDIT_VIDEO_URL);
+    console.log('Second scene added');
     
-    // Wait for second scene to load
-    const secondSceneText = '2';
-    await expect.poll(async () => {
-      return elementWithTextExists(page, BLUE_NUMBER_SELECTOR, secondSceneText);
-    }, {
-      message: `Expected to find blue number with text "${secondSceneText}"`,
-      timeout: PAGE_LOAD_TIMEOUT
-    }).toBeTruthy();
-    console.log('Second scene loaded successfully');
+    // Verify we have 2 scenes before testing drag and drop
+    const sceneComponents = page.locator(SCENE_COMPONENT_SELECTOR);
+    const sceneCount = await sceneComponents.count();
+    expect(sceneCount).toBe(2);
+    console.log(`Verified scene count: ${sceneCount}`);
     
-    // Wait for second scene media to load
-    const mediaElements = page.locator(MEDIA_SELECTOR);
-    await expect(mediaElements.nth(1)).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
-    console.log('Second scene media loaded successfully');
+    // Wait a moment to ensure scenes are fully loaded
+    await page.waitForTimeout(1000);
     
-    // Add third scene
-    console.log('Adding third scene...');
-    await page.getByPlaceholder('Enter Reddit URL').clear();
-    await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_VIDEO_URL);
-    await page.getByRole('button', { name: 'Add' }).click();
+    // Perform drag and drop (move first scene to second position)
+    await dragAndDropScene(page, 0, 1);
+    console.log('Drag and drop completed');
     
-    // Wait for third scene to load
-    const thirdSceneText = '3';
-    await expect.poll(async () => {
-      return elementWithTextExists(page, BLUE_NUMBER_SELECTOR, thirdSceneText);
-    }, {
-      message: `Expected to find blue number with text "${thirdSceneText}"`,
-      timeout: PAGE_LOAD_TIMEOUT
-    }).toBeTruthy();
-    console.log('Third scene loaded successfully');
+    // Verify the reordering
+    // This is implementation-specific and depends on how your UI shows the reordering
+    // For example, if each scene has a number indicator:
+    await page.waitForTimeout(1000); // Wait for any animations to complete
     
-    // Wait for third scene media to load
-    await expect(mediaElements.nth(2)).toBeVisible({ timeout: SCENE_MEDIA_TIMEOUT });
-    console.log('Third scene media loaded successfully');
+    // Verification can be done by checking specific scene properties
+    // For this example, we just verify that the scenes are still there
+    const scenesAfterDrag = page.locator(SCENE_COMPONENT_SELECTOR);
+    const sceneCountAfterDrag = await scenesAfterDrag.count();
+    expect(sceneCountAfterDrag).toBe(2);
+    console.log(`Verified scene count after drag: ${sceneCountAfterDrag}`);
     
-    // Take a screenshot before drag and drop
-    await page.screenshot({ path: 'debug-before-drag-drop.png' });
-    
-    // Now perform drag and drop
-    // First, get the drag handles or scene elements
-    console.log('Preparing for drag and drop...');
-    
-    try {
-      // Test drag handle defined in selectors
-      console.log('Using drag handle selector from centralized selectors');
-      const dragHandles = page.locator(DRAG_HANDLE_SELECTOR);
-      const dragHandleCount = await dragHandles.count();
-      console.log(`Found ${dragHandleCount} drag handles with selector: ${DRAG_HANDLE_SELECTOR}`);
-      
-      if (dragHandleCount > 0) {
-        console.log(`Found ${dragHandleCount} drag handles`);
-        
-        // Get bounding boxes of first and third scene for drag calculation
-        const sourceHandle = dragHandles.first();
-        const targetHandle = dragHandles.nth(2);
-        
-        const sourceBox = await sourceHandle.boundingBox();
-        const targetBox = await targetHandle.boundingBox();
-        
-        if (sourceBox && targetBox) {
-          // Perform the drag operation
-          console.log('Performing drag operation...');
-          await sourceHandle.hover();
-          await page.mouse.down();
-          await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
-          await page.mouse.up();
-          
-          // Wait for any animations or updates to complete
-          await page.waitForTimeout(1000);
-          
-          // Take a screenshot after drag and drop
-          await page.screenshot({ path: 'debug-after-drag-drop.png' });
-        } else {
-          console.log('Could not get bounding boxes for drag handles');
-        }
-      } else {
-        // Fallback to using scene elements directly
-        console.log('No drag handles found, falling back to scene elements');
-        const sceneElements = page.locator('[data-testid="scene-component"]');
-        const sceneCount = await sceneElements.count();
-        
-        if (sceneCount >= 3) {
-          console.log(`Found ${sceneCount} scene elements, attempting fallback drag with scene elements`);
-          
-          const sourceScene = sceneElements.first();
-          const targetScene = sceneElements.nth(2);
-          
-          const sourceBox = await sourceScene.boundingBox();
-          const targetBox = await targetScene.boundingBox();
-          
-          if (sourceBox && targetBox) {
-            // Perform the drag operation on the scene itself
-            console.log('Performing drag operation on scene elements...');
-            await sourceScene.hover({ position: { x: 20, y: 20 } });
-            await page.mouse.down();
-            await page.mouse.move(targetBox.x + 20, targetBox.y + 20);
-            await page.mouse.up();
-            
-            // Wait for any animations or updates to complete
-            await page.waitForTimeout(1000);
-            
-            // Take a screenshot after drag and drop
-            await page.screenshot({ path: 'debug-after-fallback-drag-drop.png' });
-          } else {
-            console.log('Could not get bounding boxes for scene elements');
-          }
-        } else {
-          console.log(`Not enough scene elements found (${sceneCount}), skipping drag test`);
-        }
-      }
-    } catch (error) {
-      console.log(`Error during drag and drop: ${error}`);
-      await page.screenshot({ path: 'debug-drag-drop-error.png' });
-    }
-    
-    // Clean up - delete the project
-    console.log('Cleaning up: deleting test project...');
-    await page.locator('header').getByRole('link', { name: 'My Projects' }).click();
-    await page.waitForURL(/.*\/projects/, { timeout: NAVIGATION_TIMEOUT });
-    
-    // Wait for projects list to load
-    await page.waitForSelector('h1', { timeout: PAGE_LOAD_TIMEOUT });
-    await waitForElementWithText(page, 'h1', 'Your Projects');
-    
-    // Find and click the project with matching name (using partial match to be safer)
-    const projectItem = page.getByText(projectNameDnD.split(' ')[0], { exact: false });
-    await projectItem.first().click();
-    await page.getByRole('button', { name: 'Delete' }).click();
-    
-    console.log('Drag and drop test completed');
+    console.log('Drag and drop test completed successfully');
   });
   
   test('Scene deletion', async ({ page }) => {
@@ -529,20 +421,6 @@ test.describe('Scene Operations', () => {
     // Assert the deletion was successful or display a helpful message
     expect(sceneDeleted, 
       'Scene was not deleted. This could be due to the delete button not being found or clicked, or the deletion operation failing').toBe(true);
-    
-    // Clean up - delete the project
-    console.log('Cleaning up: deleting test project...');
-    await page.locator('header').getByRole('link', { name: 'My Projects' }).click();
-    await page.waitForURL(/.*\/projects/, { timeout: NAVIGATION_TIMEOUT });
-    
-    // Wait for projects list to load
-    await page.waitForSelector('h1', { timeout: PAGE_LOAD_TIMEOUT });
-    await waitForElementWithText(page, 'h1', 'Your Projects');
-    
-    // Find and click the project with matching name (using partial match to be safer)
-    const projectItem = page.getByText(projectNameDelete.split(' ')[0], { exact: false });
-    await projectItem.first().click();
-    await page.getByRole('button', { name: 'Delete' }).click();
     
     console.log('Scene deletion test completed');
   });

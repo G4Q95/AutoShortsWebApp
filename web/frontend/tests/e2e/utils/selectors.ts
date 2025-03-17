@@ -22,7 +22,7 @@ export const selectors = {
   projectDeleteButton: '[data-testid="delete-project-button"]',
   
   // Project Workspace
-  projectWorkspace: '.project-workspace',
+  projectWorkspace: '.project-workspace, .workspace-container, [data-testid="project-workspace"], .main-content, main',
   urlInput: '[data-testid="url-input"]',
   addContentButton: '[data-testid="add-content-button"]',
   

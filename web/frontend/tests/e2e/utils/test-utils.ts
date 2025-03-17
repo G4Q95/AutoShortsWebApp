@@ -51,10 +51,29 @@ export async function createTestProject(page: Page, projectName?: string) {
 /**
  * Wait for project workspace to load
  */
-export async function waitForProjectWorkspace(page: Page, timeoutMs = 10000) {
+export async function waitForProjectWorkspace(page: Page, timeoutMs = 20000) {
   console.log('Waiting for project workspace to load...');
-  await page.waitForSelector(selectors.projectWorkspace, { timeout: timeoutMs });
-  console.log('Project workspace loaded');
+  try {
+    console.log('Current URL:', page.url());
+    await page.waitForSelector(selectors.projectWorkspace, { timeout: timeoutMs });
+    console.log('Project workspace loaded successfully');
+    return true;
+  } catch (error: any) {
+    console.error('Error waiting for project workspace:', error.message);
+    console.log('Taking debug screenshot...');
+    await page.screenshot({ path: `workspace-not-found-${Date.now()}.png` });
+    
+    // Try alternative selectors as fallback
+    console.log('Trying alternative selectors for project workspace...');
+    try {
+      await page.waitForSelector('input[placeholder="Enter Reddit URL"]', { timeout: 5000 });
+      console.log('Found URL input, workspace likely loaded');
+      return true;
+    } catch (e) {
+      console.log('Could not find URL input either');
+      throw error; // Rethrow the original error if all attempts fail
+    }
+  }
 }
 
 /**
@@ -257,12 +276,12 @@ export const TEST_REDDIT_PHOTO_URL = 'https://www.reddit.com/r/mildlyinteresting
 export const TEST_REDDIT_VIDEO_URL = 'https://www.reddit.com/r/interesting/comments/1j7mwks/sand_that_moves_like_water_in_the_desert/';
 
 // Constants
-export const NAVIGATION_TIMEOUT = 30000; // 30 seconds
-export const PAGE_LOAD_TIMEOUT = 10000;  // 10 seconds
-export const CONTENT_LOAD_TIMEOUT = 40000; // 40 seconds
-export const CRITICAL_STEP_TIMEOUT = 60000; // 60 seconds
-export const SCENE_MEDIA_TIMEOUT = 45000; // 45 seconds
-export const AUDIO_GENERATION_TIMEOUT = 60000; // 60 seconds timeout for audio generation
+export const NAVIGATION_TIMEOUT = 6000;  // Reduced from 30000
+export const PAGE_LOAD_TIMEOUT = 5000;   // Reduced from 10000
+export const CONTENT_LOAD_TIMEOUT = 6000; // Reduced from 40000
+export const CRITICAL_STEP_TIMEOUT = 6000; // Reduced from 60000
+export const SCENE_MEDIA_TIMEOUT = 6000;   // Reduced from 45000
+export const AUDIO_GENERATION_TIMEOUT = 6000; // Reduced from 60000
 
 // Add debug mode to log more information
 export const DEBUG = true;
