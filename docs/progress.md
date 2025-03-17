@@ -166,6 +166,13 @@ The current focus is on improving code stability, API connectivity, and refactor
   - Created `wait-utils.ts` for waiting and polling functions
   - Reorganized test utilities for better maintainability
 - [x] Documented testing procedures and added comprehensive test coverage
+- Created utility modules for test helpers:
+  - ✅ Created layout-utils.ts for layout testing helpers
+  - ✅ Created navigation-utils.ts for navigation testing helpers 
+  - ✅ Created wait-utils.ts for waiting and polling utilities
+  - ✅ Implemented test artifact management system with cleanup script and npm integration
+  - ✅ Migrated closeVoiceSettingsIfOpen to audio-utils.ts
+  - ✅ Updated .gitignore to prevent test artifacts from being committed
 
 ### In Progress
 - 🔄 Lightweight code refactoring to improve maintainability:

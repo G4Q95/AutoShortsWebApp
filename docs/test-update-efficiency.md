@@ -163,6 +163,17 @@ We've implemented a more robust approach to testing scene deletion:
 - Enhanced error reporting and diagnostics
 - Added screenshot capture at key testing points
 
+### 7. Test Artifact Management
+
+We've implemented a comprehensive test artifact management system to handle the screenshot files generated during test runs:
+
+- **Gitignore Rules**: Added patterns to `.gitignore` to prevent test artifacts from being committed
+- **Cleanup Script**: Created `web/frontend/scripts/cleanup-test-artifacts.sh` to remove test artifacts
+- **NPM Integration**: Added `npm run cleanup-tests` command for easy cleanup
+- **Automatic Detection**: Script automatically finds and removes all test-related screenshots
+
+This system ensures that test artifacts don't bloat the repository while still being available for debugging when needed. When test artifacts accumulate and take up disk space, developers can simply run `npm run cleanup-tests` to clean up.
+
 ## Best Practices for Resilient Selectors
 
 1. **Prioritize data-testid attributes**:
@@ -392,10 +403,12 @@ These changes have improved test reliability, ensuring that we properly test the
 
 2. **Complete documentation** for test helper system
    - ✅ Create README in the utils directory
+   - ✅ Add test artifact management documentation
    - ⬜ Add more examples of how to use each helper
    - ⬜ Further document naming conventions and usage patterns
 
 3. **Address any remaining test flakiness**
+   - ✅ Implement test artifact management system
    - ⬜ Monitor test stability across multiple runs
    - ⬜ Identify and fix any remaining intermittent failures
    - ⬜ Add more resilient verification steps
