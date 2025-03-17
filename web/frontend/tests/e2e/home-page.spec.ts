@@ -131,4 +131,31 @@ test.describe('Home Page Functionality', () => {
     
     console.log('Navigation test completed successfully');
   });
+
+  test('Click create video button navigates to project creation', async ({ page }) => {
+    console.log('Starting create video button navigation test...');
+    
+    // Navigate to home page
+    await page.goto('/', { timeout: NAVIGATION_TIMEOUT });
+    
+    // Find and click the create video button in the main content area
+    const mainCreateButton = page.locator('main').getByRole('link', { name: /Create Video/i });
+    await expect(mainCreateButton).toBeVisible();
+    await mainCreateButton.click();
+    
+    // Wait for navigation to complete and check URL
+    await page.waitForURL(/.*\/projects\/create/, { timeout: NAVIGATION_TIMEOUT });
+    const currentUrl = await page.url();
+    console.log('Current URL after clicking Create Video button:', currentUrl);
+    
+    // Verify we're on the project creation page by checking for the project name input
+    const projectNameInput = page.locator(selectors.projectNameInput);
+    await expect(projectNameInput).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
+    
+    // Verify create project button is visible
+    const createProjectButton = page.locator(selectors.createProjectButton);
+    await expect(createProjectButton).toBeVisible();
+    
+    console.log('Create video button navigation test completed successfully');
+  });
 }); 

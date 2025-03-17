@@ -532,14 +532,35 @@ These are alternative implementation ideas that could be explored in the future:
 
 ## Next Steps
 
-- [x] Implement data-testid throughout app for more reliable testing (70%)
+- [x] Implement data-testid throughout app for more reliable testing (90%)
   - Added data-testid attributes to SceneComponent ✅
   - Added data-testid attributes to ProjectWorkspace ✅
   - Added data-testid attributes to AudioPlayerControls ✅
   - Added data-testid attributes to SceneAudioControls ✅
   - Added data-testid attributes to ErrorBoundary ✅
+  - Added data-testid attributes to Header and Footer ✅
+  - Added data-testid attributes to UrlPreview ✅
+  - Added data-testid attributes to LoadingIndicator ✅
   - Created how-to-update-tests.md guide ✅
-  - Remaining components still need data-testid attributes (30%)
+  - Remaining components still need data-testid attributes (10%)
+- [x] Create domain-specific test helpers (100%)
+  - Implemented project-utils.ts for project operations ✅
+  - Created scene-utils.ts for scene operations ✅
+  - Built audio-utils.ts for audio generation testing ✅
+  - Implemented layout-utils.ts for layout testing ✅
+  - Added navigation-utils.ts for navigation operations ✅
+  - Created wait-utils.ts for timing operations ✅
+- [x] Test file reorganization (75%)
+  - Split tests into domain-specific files ✅
+  - Created home-page.spec.ts, project-management.spec.ts ✅
+  - Created scene-operations.spec.ts, audio-generation.spec.ts ✅
+  - Need to complete migration from core-functionality.spec.ts (25%)
+- [x] Test artifact management system (100%)
+  - Added gitignore rules for test artifacts ✅
+  - Created cleanup-test-artifacts.sh script ✅
+  - Added npm run cleanup-tests command ✅
 - [ ] Create visual regression tests for core UI components (0%)
-- [ ] Implement API mocking for backend services (0%)
+- [x] Implement API mocking for backend services (100%)
+  - Added mock audio system to avoid ElevenLabs API calls ✅
+  - Implemented environment variable controls ✅
 - [ ] Set up CI pipeline for automated testing (0%) 
