@@ -12,9 +12,22 @@ import { takeDebugScreenshot, waitForScenes } from './test-utils';
 /**
  * Add a scene with content from a URL
  * 
- * @param page - Playwright page
+ * This function adds a new scene to the project workspace by:
+ * 1. Finding and filling the URL input field
+ * 2. Clicking the Add Content button
+ * 3. Waiting for the new scene to appear
+ * 4. Verifying the scene count has increased
+ * 
+ * @param page - Playwright page object
  * @param url - Reddit URL to add (defaults to a test URL)
  * @returns Promise resolving when scene is added
+ * 
+ * @example
+ * // Add a scene with default test URL
+ * await addScene(page);
+ * 
+ * // Add a scene with specific URL
+ * await addScene(page, 'https://www.reddit.com/r/pics/comments/abcdef/');
  */
 export async function addScene(
   page: Page,
@@ -40,9 +53,26 @@ export async function addScene(
 /**
  * Delete a scene at the specified index
  * 
- * @param page - Playwright page
- * @param index - Index of scene to delete (0-based)
+ * This function removes a scene from the project workspace by:
+ * 1. Finding the delete button for the scene at the specified index
+ * 2. Clicking the delete button
+ * 3. Waiting for the scene to be removed
+ * 4. Verifying the scene count has decreased
+ * 
+ * If the primary delete button selector fails, it attempts fallback strategies
+ * to ensure reliable testing even with UI changes.
+ * 
+ * @param page - Playwright page object
+ * @param index - Index of scene to delete (0-based, defaults to first scene)
  * @returns Promise resolving when scene is deleted
+ * @throws Error if scene at specified index doesn't exist
+ * 
+ * @example
+ * // Delete the first scene
+ * await deleteScene(page);
+ * 
+ * // Delete the third scene (index 2)
+ * await deleteScene(page, 2);
  */
 export async function deleteScene(page: Page, index = 0) {
   console.log(`Deleting scene at index ${index}`);

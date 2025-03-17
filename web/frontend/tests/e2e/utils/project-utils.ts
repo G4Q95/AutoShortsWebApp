@@ -16,9 +16,26 @@ import {
 /**
  * Create a new test project
  * 
- * @param page - Playwright page
- * @param projectName - Optional project name (generates random one if not provided)
- * @returns The name of the created project
+ * This function creates a new project by:
+ * 1. Navigating to the home page
+ * 2. Clicking the "Create Video" button
+ * 3. Entering the project name
+ * 4. Clicking the "Create Project" button
+ * 5. Waiting for the project workspace to load
+ * 
+ * The function takes screenshots before and after project creation for debugging
+ * purposes and provides detailed logging.
+ * 
+ * @param page - Playwright page object
+ * @param projectName - Optional project name (generates timestamp-based name if not provided)
+ * @returns The name of the created project for reference in other test steps
+ * 
+ * @example
+ * // Create a project with an auto-generated name
+ * const projectName = await createProject(page);
+ * 
+ * // Create a project with a specific name
+ * await createProject(page, 'My Custom Project');
  */
 export async function createProject(page: Page, projectName?: string) {
   const name = projectName || `Test Project ${Date.now()}`;
@@ -189,10 +206,30 @@ export async function createMultipleProjects(
 /**
  * Clean up all test projects
  * 
- * @param page - Playwright page
+ * This function ensures a clean testing environment by:
+ * 1. Navigating to the projects list page
+ * 2. Identifying test projects (either by specific names or a keyword)
+ * 3. Deleting each test project by clicking its delete button
+ * 4. Confirming the deletion in the confirmation dialog
+ * 
+ * The function is designed to be used in afterEach or afterAll blocks to
+ * prevent test projects from accumulating. It provides detailed logging
+ * and takes screenshots for debugging purposes.
+ * 
+ * @param page - Playwright page object
  * @param projectNames - Optional array of specific project names to clean up
  * @param testKeyword - Keyword to identify test projects (default is "Test Project")
  * @returns Promise resolving when cleanup is complete
+ * 
+ * @example
+ * // Clean up all projects containing "Test Project" in their name
+ * await cleanupTestProjects(page);
+ * 
+ * // Clean up specific projects by name
+ * await cleanupTestProjects(page, ['Project A', 'Project B']);
+ * 
+ * // Clean up all projects containing a custom keyword
+ * await cleanupTestProjects(page, undefined, 'Demo Project');
  */
 export async function cleanupTestProjects(
   page: Page, 

@@ -109,15 +109,17 @@ We've implemented a comprehensive test artifact management system:
 
 ## Next Steps
 
-1. **Complete Data-testid Implementation (10% remaining)**
-   - Finish adding data-testid attributes to all components
-   - Update selectors to use data-testid consistently
-   - Document all supported data-testid values
-
-2. **Enhance Test Documentation**
+1. **Enhance Test Documentation**
    - Add JSDoc comments to all helper functions
    - Create better examples of helper usage
-   - Improve test organization overview
+   - Document all supported data-testid values
+   - Improve navigation between documentation files
+
+2. **Set up Visual Regression Tests**
+   - Implement visual comparison for key UI components
+   - Create baseline screenshots for critical UI states
+   - Add visual regression tests for key components
+   - Implement visual difference reporting
 
 3. **Test Command Standardization**
    - Create more specific npm test commands
@@ -125,6 +127,6 @@ We've implemented a comprehensive test artifact management system:
    - Improve test output formatting
 
 4. **Future Plans**
-   - Implement visual regression testing
+   - Implement performance metrics collection
    - Set up CI/CD pipeline integration
-   - Add performance metrics tracking 
+   - Add accessibility testing components 

@@ -24,8 +24,34 @@ declare global {
 /**
  * Set up mock audio in the test environment
  * 
- * @param page - Playwright page
+ * This function injects JavaScript into the browser to mock the audio generation
+ * functionality, allowing tests to run without consuming ElevenLabs API credits.
+ * It creates:
+ * 1. A global flag (USE_MOCK_AUDIO) to enable mock mode
+ * 2. A mock audio blob to simulate audio data
+ * 3. A mock URL for the audio src attribute
+ * 
+ * The mock audio is automatically detected by the application code when the
+ * window.USE_MOCK_AUDIO flag is set to true.
+ * 
+ * @param page - Playwright page object
  * @returns Promise resolving when mock audio is set up
+ * 
+ * @example
+ * // Set up mock audio at the beginning of your test
+ * test('Audio generation test', async ({ page }) => {
+ *   await setupMockAudio(page);
+ *   // Rest of your test using mock audio
+ * });
+ * 
+ * @example
+ * // Alternative setup with environment variable
+ * // In your test file:
+ * test.beforeEach(async ({ page }) => {
+ *   if (process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true') {
+ *     await setupMockAudio(page);
+ *   }
+ * });
  */
 export async function setupMockAudio(page: Page) {
   console.log('Setting up mock audio generation');
@@ -57,9 +83,27 @@ export async function setupMockAudio(page: Page) {
 /**
  * Generate voice for a scene
  * 
- * @param page - Playwright page
- * @param sceneIndex - Index of scene to generate voice for (0-based)
+ * This function triggers voice generation for a scene by:
+ * 1. Finding the scene at the specified index
+ * 2. Locating the voice generation button within that scene
+ * 3. Clicking the button to start generation
+ * 4. Waiting for the voice generation to complete
+ * 
+ * The function uses multiple strategies to find the voice generation button
+ * to ensure test reliability even when UI changes occur. It takes screenshots
+ * at critical points for debugging and provides detailed logging.
+ * 
+ * @param page - Playwright page object
+ * @param sceneIndex - Index of scene to generate voice for (0-based, defaults to first scene)
  * @returns Promise resolving when voice generation completes
+ * @throws Error if scene at specified index doesn't exist or voice button can't be found
+ * 
+ * @example
+ * // Generate voice for the first scene
+ * await generateVoiceForScene(page);
+ * 
+ * // Generate voice for the second scene
+ * await generateVoiceForScene(page, 1);
  */
 export async function generateVoiceForScene(page: Page, sceneIndex = 0) {
   console.log(`Generating voice for scene at index ${sceneIndex}`);
