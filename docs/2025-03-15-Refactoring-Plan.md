@@ -60,13 +60,38 @@ This document outlines our structured approach to refactoring the Auto Shorts We
 - Created documentation for layout testing in `docs/LAYOUT_TESTING.md`
 - Enhanced Playwright tests to verify component layout attributes
 - Applied layout testing to text editing components
+- Completed major component extraction for SceneComponent:
+  - Extracted audio functionality to SceneAudioControls and related components
+  - Extracted text editing functionality to SceneTextEditor
+  - Reduced SceneComponent from 1680 lines to 73 lines
+- Created comprehensive audio component structure:
+  - SceneAudioControls
+  - AudioPlayerControls
+  - AudioPlayer
+  - AudioSettings
+  - VoiceSettings
+  - FlipContainer
+  - GenerateVoiceoverButton
+  - SceneControlsLayout
+- Reorganized Playwright tests into domain-specific files
+- Improved test reliability with better selectors and utilities
 
 ### Currently Working On
-- Breaking down large components, starting with SceneComponent.tsx
-- Extracting text editing functionality from SceneComponent.tsx
+- Fixing styling issues with SceneAudioControls component:
+  - Generate Voiceover Button styling
+  - Audio Player styling alignment
+  - Integration with trash button
+  - Layout structure correctness
 
 ### Next Tasks
-- Extract audio-related functionality from SceneComponent.tsx into dedicated components
+- Complete audio controls styling fixes
+- Refactor api-client.ts (1016 lines) into domain-specific modules:
+  - Content extraction
+  - Project management
+  - Audio/voice generation
+  - User management
+  - Video processing
+- Continue ProjectProvider and ProjectReducer refactoring
 - Clean up test scripts that are no longer needed
 
 ## Risk Assessment

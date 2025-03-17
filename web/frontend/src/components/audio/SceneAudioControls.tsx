@@ -5,6 +5,8 @@ import { useAudioContext } from '@/contexts/AudioContext';
 import { AudioPlayerControls } from './AudioPlayerControls';
 import { Mic as MicIcon } from 'lucide-react';
 import { useVoiceContext } from '@/contexts/VoiceContext';
+import { FlipContainer } from './FlipContainer';
+import { GenerateVoiceoverButton } from './GenerateVoiceoverButton';
 
 interface Voice {
   id: string;
@@ -94,46 +96,36 @@ export const SceneAudioControls: React.FC<SceneAudioControlsProps> = ({
   // Handle audio ended
   const handleAudioEnded = () => {
     setAudioPlaying(false);
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      setCurrentTime(0);
-    }
   };
 
-  // Toggle audio settings
+  // Toggle settings
   const toggleSettings = () => {
     setShowSettings(!showSettings);
   };
 
   // Handle voice change
   const handleVoiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onVoiceChange?.(e.target.value);
-  };
-
-  // Handle rate change
-  const handleRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rate = parseFloat(e.target.value);
-    onRateChange?.(rate);
-  };
-
-  // Keep audio element in sync with AudioContext
-  useEffect(() => {
-    if (!audioRef.current) return;
-    
-    if (isThisAudioPlaying && audioRef.current.paused) {
-      audioRef.current.play().catch(console.error);
-    } else if (!isThisAudioPlaying && !audioRef.current.paused) {
-      audioRef.current.pause();
+    if (onVoiceChange) {
+      onVoiceChange(e.target.value);
     }
-  }, [isThisAudioPlaying, sceneId]);
+  };
 
-  // Close settings when clicking outside
+  // Handle rate change (audio playback speed)
+  const handleRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (onRateChange) {
+      onRateChange(parseFloat(e.target.value));
+    }
+  };
+
+  // Handle click outside settings
   useEffect(() => {
+    if (!showSettings) return;
+
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        settingsButtonRef.current && 
+        settingsButtonRef.current &&
         !settingsButtonRef.current.contains(event.target as Node) &&
-        showSettings
+        !document.querySelector('[data-testid="audio-settings-dropdown"]')?.contains(event.target as Node)
       ) {
         setShowSettings(false);
       }
@@ -156,57 +148,19 @@ export const SceneAudioControls: React.FC<SceneAudioControlsProps> = ({
   return (
     <div 
       className={`relative w-full rounded-bl-md overflow-hidden ${className}`}
-      style={{ height: '32px', perspective: '1000px' }}
+      style={{ height: '32px' }}
       data-testid="scene-audio-controls"
     >
-      {/* Flip container */}
-      <div
-        className="w-full h-full relative transition-transform duration-500 transform-style-preserve-3d"
-        style={{
-          transformStyle: 'preserve-3d',
-          transform: isFlipped ? 'rotateX(180deg)' : 'rotateX(0)',
-        }}
-      >
-        {/* Front - Generate Button */}
-        <div
-          className="front absolute inset-0 backface-hidden"
-          style={{ 
-            backfaceVisibility: 'hidden',
-            zIndex: isFlipped ? 0 : 1,
-            width: '100%',
-          }}
-        >
-          <button
-            className="w-full h-full flex justify-center items-center px-4 text-sm bg-green-600 text-white rounded-bl-md hover:bg-green-700 transition-colors relative overflow-hidden"
+      <FlipContainer
+        isFlipped={isFlipped}
+        frontContent={
+          <GenerateVoiceoverButton 
             onClick={onGenerateClick}
-            disabled={isGeneratingAudio}
-            style={{ display: 'flex', alignItems: 'center', paddingRight: '2rem' }}
-            data-testid="generate-voice-button"
-          >
-            <MicIcon className="w-3.5 h-3.5 mr-1.5" />
-            <span className="font-medium">
-              {isGeneratingAudio ? 'Generating...' : audioButtonText}
-            </span>
-            
-            {/* Voice selector */}
-            <select
-              value={selectedVoice}
-              onChange={handleVoiceChange}
-              className="absolute right-1 h-5 rounded text-xs text-black bg-white py-0"
-              style={{ width: '70px' }}
-              data-testid="voice-selector"
-            >
-              {voices.map((voice: Voice) => (
-                <option key={voice.id} value={voice.id}>
-                  {voice.name}
-                </option>
-              ))}
-            </select>
-          </button>
-        </div>
-
-        {/* Back - Audio Controls */}
-        {audioSource && (
+            isGenerating={isGeneratingAudio}
+            disabled={!selectedVoice || isGeneratingAudio}
+          />
+        }
+        backContent={
           <AudioPlayerControls
             currentTime={currentTime}
             duration={duration}
@@ -219,8 +173,8 @@ export const SceneAudioControls: React.FC<SceneAudioControlsProps> = ({
             isGenerating={isGeneratingAudio}
             settingsButtonRef={settingsButtonRef as React.RefObject<HTMLButtonElement>}
           />
-        )}
-      </div>
+        }
+      />
 
       {/* Audio Settings Dropdown */}
       {showSettings && (

@@ -51,7 +51,7 @@ interface AudioPlayerControlsProps {
  * SceneComponent.
  * 
  * @param props - Component props
- * @returns JSX element with audio player controls
+ * @returns JSX element
  */
 export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
   currentTime,
@@ -66,25 +66,30 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
   settingsButtonRef
 }) => {
   /**
-   * Formats time in seconds to minutes:seconds format
-   * @param timeInSeconds - Time value in seconds
-   * @returns Formatted time string (e.g., "1:45")
+   * Formats time in seconds to mm:ss
+   * @param timeInSeconds - Time in seconds
+   * @returns Formatted time string
    */
   const formatTime = (timeInSeconds: number): string => {
-    if (isNaN(timeInSeconds)) return "0:00";
+    if (isNaN(timeInSeconds)) return '00:00';
+    
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = Math.floor(timeInSeconds % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
-
+  
   return (
     <div
       className="back absolute inset-0 flex-grow px-2 py-2 bg-green-600 text-white text-sm rounded-bl-md flex items-center justify-between"
       style={{
         right: '0',
         width: '100%',
-        paddingRight: '0.75rem',
-        borderRight: 'none'
+        paddingRight: '0.5rem',
+        borderRight: 'none',
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
+        transform: 'rotateX(180deg)',
       }}
       data-testid="audio-player-controls"
     >
@@ -95,7 +100,7 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
           <button 
             onClick={onPlayPause}
             className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
-            style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+            style={{ width: '18px', height: '18px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
             aria-label={isPlaying ? "Pause" : "Play"}
             data-testid="audio-play-pause-button"
           >
@@ -120,37 +125,36 @@ export const AudioPlayerControls: React.FC<AudioPlayerControlsProps> = ({
             max="1"
             step="0.01"
             value={volume}
-            className="volume-slider w-full h-2"
+            className="volume-slider w-full h-1.5"
             onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
             data-testid="audio-slider"
             aria-label="Volume"
+            style={{ background: 'rgba(255, 255, 255, 0.3)', borderRadius: '3px' }}
           />
         </div>
         
         {/* Right - action buttons */}
         <div className="flex items-center">
-          <button 
+          <button
             onClick={onRegenerate}
             disabled={isGenerating}
-            className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center mr-1.5"
-            title="Regenerate voice"
-            aria-label="Regenerate voice"
-            style={{ width: '18px', height: '18px' }}
-            data-testid="audio-regenerate-button"
+            className={`p-0.5 hover:bg-green-700 rounded-full flex-shrink-0 mr-1 ${isGenerating ? 'opacity-50' : ''}`}
+            style={{ width: '18px', height: '18px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'rgba(0, 0, 0, 0.2)' }}
+            aria-label="Regenerate voiceover"
+            data-testid="regenerate-voice-button"
           >
-            <RegenerateIcon className="h-3 w-3" />
+            <RegenerateIcon className="h-3.5 w-3.5" />
           </button>
           
-          <button 
+          <button
             ref={settingsButtonRef}
-            className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center"
-            title="Audio options"
-            aria-label="Audio options"
             onClick={onShowSettings}
-            style={{ width: '18px', height: '18px' }}
+            className="p-0.5 hover:bg-green-700 rounded-full flex-shrink-0"
+            style={{ width: '18px', height: '18px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'rgba(0, 0, 0, 0.2)' }} 
+            aria-label="Audio settings"
             data-testid="audio-settings-button"
           >
-            <MoreVerticalIcon className="h-3 w-3" />
+            <MoreVerticalIcon className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
