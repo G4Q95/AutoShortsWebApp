@@ -205,11 +205,25 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
 
   // Add state for view mode
   const [isCompactView, setIsCompactView] = useState<boolean>(true);
+  
+  // Add state for info section visibility
+  const [showInfo, setShowInfo] = useState<boolean>(false);
 
   // Toggle view mode function
   const toggleViewMode = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent event from bubbling up
+    e.stopPropagation();
     setIsCompactView(!isCompactView);
+  };
+  
+  // Toggle info section
+  const toggleInfo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowInfo(!showInfo);
+  };
+  
+  // Utility function to count words in a string
+  const getWordCount = (text: string): number => {
+    return text.split(/\s+/).filter(word => word.length > 0).length;
   };
   
   // Helper function to create a Blob URL from audio_base64 data
@@ -1357,15 +1371,75 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
 
           {/* Content section - with minimal spacing */}
           <div className={`p-1 ${isCompactView ? 'flex-1' : ''} flex flex-col`}>
-            {/* Source info with bottom border */}
-            <div className="flex flex-wrap items-center text-xs text-gray-500 mb-1 pb-1 border-b border-gray-200" data-testid="scene-source-info">
-              {scene.source.author && (
-                <span className="mr-1 truncate">By: {scene.source.author}</span>
-              )}
-              {scene.source.subreddit && (
-                <span className="truncate">r/{scene.source.subreddit}</span>
-              )}
+            {/* Source info with bottom border - now collapsible */}
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-1 pb-1 border-b border-gray-200">
+              <button 
+                onClick={toggleInfo}
+                className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                aria-label={showInfo ? "Hide source details" : "Show source details"}
+                data-testid="toggle-info-button"
+              >
+                <span>
+                  {showInfo ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                  )}
+                </span>
+                {!showInfo && <span>Info</span>}
+              </button>
+              
+              {/* Word count always visible */}
+              <div className="flex items-center gap-1" data-testid="text-stats">
+                <span className="text-xs text-gray-500">{getWordCount(scene.text)} words</span>
+                <span className="text-xs text-gray-500">|</span>
+                <span className="text-xs text-gray-500">{scene.text.length} chars</span>
+              </div>
             </div>
+            
+            {/* Expanded info section */}
+            {showInfo && (
+              <div className="mb-2 text-xs text-gray-600 bg-gray-50 p-2 rounded" data-testid="scene-info-expanded">
+                {/* Username/Author */}
+                {scene.source && scene.source.author && (
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className="font-semibold">By:</span>
+                    <span>{scene.source.author}</span>
+                  </div>
+                )}
+                
+                {/* Subreddit */}
+                {scene.source && scene.source.subreddit && (
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className="font-semibold">Subreddit:</span>
+                    <span>r/{scene.source.subreddit}</span>
+                  </div>
+                )}
+                
+                {/* Full URL */}
+                {scene.url && (
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold">Source URL:</span>
+                    <a 
+                      href={scene.url} 
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:underline truncate"
+                    >
+                      {scene.url}
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Text content with overlay expansion */}
             <div data-testid="scene-text-section">
