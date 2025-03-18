@@ -259,20 +259,20 @@ const ScenePreviewPlayer = ({
           <video 
             ref={videoRef}
             src={mediaUrl}
-            className="w-full h-full object-contain max-h-full"
+            className="w-full h-auto object-contain"
             playsInline
             muted={isMuted}
             data-testid="video-element"
-            style={{ maxWidth: '100%', margin: 'auto' }}
+            style={{ maxWidth: '100%', maxHeight: '100%', margin: 'auto' }}
           />
         ) : (
           <img 
             ref={imageRef}
             src={mediaUrl}
             alt="Scene content"
-            className="w-full h-full object-contain max-h-full"
+            className="w-auto h-auto object-contain"
             data-testid="image-element"
-            style={{ maxWidth: '100%', margin: 'auto' }}
+            style={{ maxWidth: '100%', maxHeight: '100%', margin: 'auto' }}
           />
         )}
         

@@ -203,6 +203,15 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const volumeButtonRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Add state for view mode
+  const [isCompactView, setIsCompactView] = useState<boolean>(true);
+
+  // Toggle view mode function
+  const toggleViewMode = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent event from bubbling up
+    setIsCompactView(!isCompactView);
+  };
+  
   // Helper function to create a Blob URL from audio_base64 data
   const createAudioBlobUrl = useCallback((audioBase64: string, contentType: string): string => {
     try {
@@ -737,7 +746,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     
     // Use ScenePreviewPlayer for all media types
     return (
-      <div className="relative w-full bg-black rounded-t-lg overflow-hidden" style={{ height: 'auto', minHeight: '160px' }}>
+      <div className="relative w-full bg-black rounded-t-lg overflow-hidden" 
+           style={{ height: isCompactView ? '160px' : 'auto', minHeight: '160px' }}>
         <ScenePreviewPlayer
           projectId={currentProject?.id || ''}
           sceneId={scene.id}
@@ -746,8 +756,33 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
           mediaType={scene.media.type}
           trim={{ start: trimStart, end: trimEnd }}
           onTrimChange={handleTrimChange}
-          className="w-full h-full rounded-t-lg"
+          className={`w-full h-full rounded-t-lg`}
         />
+        
+        {/* View mode toggle button */}
+        <button 
+          className="absolute top-2 right-2 p-1 bg-gray-800 bg-opacity-60 rounded text-white z-10 hover:bg-opacity-80 transition-colors"
+          onClick={toggleViewMode}
+          title={isCompactView ? "Expand view" : "Compact view"}
+          aria-label={isCompactView ? "Expand view" : "Compact view"}
+          data-testid="view-mode-toggle"
+        >
+          {isCompactView ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <polyline points="9 21 3 21 3 15"></polyline>
+              <line x1="21" y1="3" x2="14" y2="10"></line>
+              <line x1="3" y1="21" x2="10" y2="14"></line>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="4 14 10 14 10 20"></polyline>
+              <polyline points="20 10 14 10 14 4"></polyline>
+              <line x1="14" y1="10" x2="21" y2="3"></line>
+              <line x1="3" y1="21" x2="10" y2="14"></line>
+            </svg>
+          )}
+        </button>
       </div>
     );
   };
@@ -1311,13 +1346,13 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         renderErrorState()
       ) : (
         <div className="flex flex-col h-full">
-          {/* Media section - fixed height */}
-          <div className="h-40" data-testid="scene-media">
-          {renderMedia()}
+          {/* Media section - fixed or dynamic height based on view mode */}
+          <div className={isCompactView ? "h-40" : ""} data-testid="scene-media">
+            {renderMedia()}
           </div>
 
           {/* Content section - with minimal spacing */}
-          <div className="p-1 flex-1 flex flex-col">
+          <div className={`p-1 ${isCompactView ? 'flex-1' : ''} flex flex-col`}>
             {/* Source info with bottom border */}
             <div className="flex flex-wrap items-center text-xs text-gray-500 mb-1 pb-1 border-b border-gray-200" data-testid="scene-source-info">
               {scene.source.author && (
