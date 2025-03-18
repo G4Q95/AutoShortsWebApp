@@ -6,6 +6,7 @@
  * - Content extraction (extractContent, rewriteText)
  * - Project management (createProject, updateProject, etc.)
  * - Voice generation (generateVoice, getVoices)
+ * - Video processing (createVideo, getVideoCreationStatus)
  * - User management (getCurrentUser)
  */
 
@@ -20,6 +21,9 @@ export * from './projects';
 
 // Re-export everything from the voice module
 export * from './voice';
+
+// Re-export everything from the video module
+export * from './video';
 
 // Re-export everything from the user module
 export * from './user';
