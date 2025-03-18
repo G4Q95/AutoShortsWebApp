@@ -95,6 +95,8 @@ class ErrorCodes:
     MEDIA_PROCESSING_ERROR = "media_processing_error"
     MEDIA_NOT_SUPPORTED = "media_not_supported"
     MEDIA_TOO_LARGE = "media_too_large"
+    MEDIA_STORAGE_ERROR = "media_storage_error"
+    MEDIA_DOWNLOAD_ERROR = "media_download_error"
     
     # Content errors
     CONTENT_EXTRACTION_ERROR = "content_extraction_error"

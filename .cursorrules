@@ -318,6 +318,47 @@ When explaining Playwright test failures:
 5. **Suggest Inspection Points**: Highlight specific UI elements or states to manually check
 6. **Avoid Technical Jargon**: No references to selectors, DOM elements, or technical error codes unless requested
 
+When working with the test suite:
+
+1. **Test Execution Mode**
+- All tests MUST run in headless mode by default
+- Debug mode should only be used with explicit `--debug` flag
+- Video recording is enabled for failed tests only
+- Screenshots are taken automatically on failures
+
+2. **Media Storage Testing**
+- Monitor network requests for media uploads
+- Verify successful storage in R2
+- Check response status codes and payloads
+- Validate media metadata and storage keys
+
+3. **Preview Playback Testing**
+- Test media synchronization
+- Verify trim controls functionality
+- Check loading states and error handling
+- Test different media types (image, video, gallery)
+
+4. **Test Command Reference**
+```bash
+# Run all tests in headless mode
+npm test
+
+# Run tests with debug mode (manual intervention)
+npm run test:debug
+
+# Run tests with mock audio
+NEXT_PUBLIC_MOCK_AUDIO=true npm test
+
+# Run tests with real API calls
+NEXT_PUBLIC_MOCK_AUDIO=false npm test
+```
+
+5. **Test Debugging**
+- Use `PWDEBUG=1` for debugging specific tests
+- Check test artifacts in `test-results/`
+- Review console logs and network requests
+- Analyze video recordings of failed tests
+
 ---
 
 ## Workflow & Process

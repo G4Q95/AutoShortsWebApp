@@ -248,6 +248,14 @@ The current focus is on improving code stability, API connectivity, and refactor
   - 🔄 Developing video segmentation and assembly endpoints
   - 🔄 Adding video generation progress monitoring
 
+- 🔄 Video Preview Playback Feature Implementation:
+  - 🔄 Implementing media content persistence to R2 storage
+  - 🔄 Creating scene preview player with media-audio synchronization
+  - 🔄 Building trimming controls for adjusting media duration
+  - 🔄 Developing sequential playback for all scenes in a project
+  - 🔄 Setting up default duration logic based on content type
+  - Detailed implementation plan available in docs/Video-Integration-Implementation.md
+
 ## Component Implementation Status
 
 ### Frontend Components
@@ -259,6 +267,9 @@ The current focus is on improving code stability, API connectivity, and refactor
 - `VoiceContext`: Voice selection management - COMPLETED
 - `AudioPlayerControls`: Reusable audio player UI - COMPLETED
 - `SceneAudioControls`: Scene-specific audio generation and playback - COMPLETED
+- `ScenePreviewPlayer`: Media playback with audio synchronization - IN PROGRESS (15% complete)
+- `TrimControls`: Interface for adjusting media duration - IN PROGRESS (10% complete)
+- `ProjectPreviewPlayer`: Sequential playback of all scenes - NOT STARTED
 - Scene reordering with drag-and-drop - COMPLETED
 - Project saving with MongoDB - COMPLETED
 - Project listing and management - COMPLETED
@@ -270,7 +281,7 @@ The current focus is on improving code stability, API connectivity, and refactor
 - Voice API with enhanced error handling - COMPLETED
 - Feature flag system for API implementation control - COMPLETED
 - Scene text editing functionality - NOT STARTED
-- Media trimming/cropping controls - NOT STARTED
+- Media trimming/cropping controls - IN PROGRESS (10% complete)
 - Video generation interface - IN PROGRESS (30% complete)
 
 ### Backend Services
@@ -282,12 +293,16 @@ The current focus is on improving code stability, API connectivity, and refactor
 - Comprehensive logging system - COMPLETED
 - Docker containerization - COMPLETED
 - API documentation and standards - COMPLETED
+- Media persistence service - IN PROGRESS (5% complete)
 - Video processing pipeline - IN PROGRESS (40% complete)
   - Task queue management - COMPLETED
   - FFMPEG integration - IN PROGRESS
   - Scene-to-video conversion - IN PROGRESS
   - Video assembly - NOT STARTED
-- Cloud storage integration - IN PROGRESS (20% complete)
+- Cloud storage integration - IN PROGRESS (50% complete)
+  - Audio storage implemented - COMPLETED
+  - Media storage integration - IN PROGRESS (15% complete)
+  - Content metadata tracking - NOT STARTED
 
 ### Testing Framework
 - Playwright E2E Testing Framework - COMPLETED
@@ -628,3 +643,54 @@ These are alternative implementation ideas that could be explored in the future:
 - Enhanced video editing capabilities
 - User account management and authentication
 - Collaborative editing features 
+
+## Media Storage and Preview Implementation Plan
+
+### Current Implementation Status
+
+The implementation of video preview and media storage is now underway:
+
+#### Phase 1: Media Storage (In Progress)
+- [x] Backend media service implementation
+- [x] Media type detection and validation
+- [x] R2 storage integration for audio files
+- [ ] R2 storage for Reddit media content
+- [ ] Verify storage functionality with network monitoring
+- [ ] Implement proper error handling for failed uploads
+- [ ] Add retry mechanism for failed uploads
+
+#### Phase 2: Preview Playback (In Progress)
+- [x] ScenePreviewPlayer component implementation
+- [x] TrimControls component implementation
+- [ ] Integrate preview components with Scene UI
+- [ ] Add media loading states and error handling
+- [ ] Implement proper audio synchronization
+- [ ] Add video quality selection options
+
+#### Phase 3: Testing and Validation
+- [x] Update Playwright configuration for headless testing
+- [ ] Add media storage integration tests
+- [ ] Add preview playback tests
+- [ ] Add end-to-end flow tests
+- [ ] Implement network request mocking for tests
+- [ ] Add performance testing for media loading
+
+### Detailed Implementation Steps
+
+1. **Media Storage Verification**
+   - Monitor network requests for media uploads
+   - Verify successful storage in R2
+   - Implement proper error handling
+   - Add retry mechanism for failed uploads
+
+2. **Preview Integration**
+   - Add ScenePreviewPlayer to Scene component
+   - Implement media loading states
+   - Add error handling for failed media loads
+   - Test audio synchronization
+
+3. **Testing Implementation**
+   - Create new test cases for media storage
+   - Add preview playback tests
+   - Implement network request mocking
+   - Add performance benchmarks 

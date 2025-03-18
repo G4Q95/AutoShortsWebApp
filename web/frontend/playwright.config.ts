@@ -39,8 +39,14 @@ export default defineConfig({
     trace: 'on',
     screenshot: 'on',
     
-    // Add video recording to help with debugging
-    video: 'on-first-retry',
+    // Force headless mode
+    headless: true,
+    
+    // Add video recording for failed tests
+    video: {
+      mode: 'retain-on-failure',
+      size: { width: 1280, height: 720 }
+    },
     
     // Use a slower action timeout for more stability
     actionTimeout: 15000,
