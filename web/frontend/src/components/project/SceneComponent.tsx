@@ -761,7 +761,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     // Use ScenePreviewPlayer for all media types
     return (
       <div className="relative w-full bg-black rounded-t-lg overflow-hidden" 
-           style={{ height: isCompactView ? '160px' : 'auto', minHeight: '160px' }}>
+           style={{ height: isCompactView ? '180px' : 'auto', minHeight: '180px' }}>
         {/* Center the content in compact view */}
         <div className="flex items-center justify-center w-full h-full">
           <ScenePreviewPlayer
@@ -1365,52 +1365,52 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       ) : (
         <div className="flex flex-col h-full">
           {/* Media section - fixed or dynamic height based on view mode */}
-          <div className={isCompactView ? "h-40" : ""} data-testid="scene-media">
+          <div className={isCompactView ? "h-[180px]" : ""} data-testid="scene-media">
             {renderMedia()}
           </div>
 
           {/* Content section - with minimal spacing */}
           <div className={`p-1 ${isCompactView ? 'flex-1' : ''} flex flex-col`}>
-            {/* Source info with bottom border - now collapsible */}
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1 pb-1 border-b border-gray-200">
+            {/* Source info with bottom border - now smaller and more compact */}
+            <div className="flex items-center justify-between text-[10px] text-gray-500 mb-0.5 pb-0.5 border-b border-gray-200 h-5">
               <button 
                 onClick={toggleInfo}
-                className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                className="flex items-center gap-0.5 hover:text-gray-700 transition-colors"
                 aria-label={showInfo ? "Hide source details" : "Show source details"}
                 data-testid="toggle-info-button"
               >
                 <span>
                   {showInfo ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10"></circle>
                       <line x1="12" y1="16" x2="12" y2="12"></line>
                       <line x1="12" y1="8" x2="12.01" y2="8"></line>
                     </svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10"></circle>
                       <line x1="12" y1="16" x2="12" y2="12"></line>
                       <line x1="12" y1="8" x2="12.01" y2="8"></line>
                     </svg>
                   )}
                 </span>
-                {!showInfo && <span>Info</span>}
+                {!showInfo && <span className="text-[10px]">Info</span>}
               </button>
               
-              {/* Word count always visible */}
-              <div className="flex items-center gap-1" data-testid="text-stats">
-                <span className="text-xs text-gray-500">{getWordCount(scene.text)} words</span>
-                <span className="text-xs text-gray-500">|</span>
-                <span className="text-xs text-gray-500">{scene.text.length} chars</span>
-              </div>
+              {/* Subreddit name with truncation */}
+              {scene.source && scene.source.subreddit && (
+                <span className="truncate max-w-[65%] text-[10px] text-gray-500">
+                  r/{scene.source.subreddit}
+                </span>
+              )}
             </div>
             
             {/* Expanded info section */}
             {showInfo && (
-              <div className="mb-2 text-xs text-gray-600 bg-gray-50 p-2 rounded" data-testid="scene-info-expanded">
+              <div className="mb-1 text-[10px] text-gray-600 bg-gray-50 p-1 rounded" data-testid="scene-info-expanded">
                 {/* Username/Author */}
                 {scene.source && scene.source.author && (
-                  <div className="flex items-center gap-1 mb-1">
+                  <div className="flex items-center gap-1 mb-0.5">
                     <span className="font-semibold">By:</span>
                     <span>{scene.source.author}</span>
                   </div>
@@ -1418,16 +1418,22 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 
                 {/* Subreddit */}
                 {scene.source && scene.source.subreddit && (
-                  <div className="flex items-center gap-1 mb-1">
+                  <div className="flex items-center gap-1 mb-0.5">
                     <span className="font-semibold">Subreddit:</span>
                     <span>r/{scene.source.subreddit}</span>
                   </div>
                 )}
                 
+                {/* Word and character count */}
+                <div className="flex items-center gap-1 mb-0.5">
+                  <span className="font-semibold">Stats:</span>
+                  <span>{getWordCount(scene.text)} words, {scene.text.length} chars</span>
+                </div>
+                
                 {/* Full URL */}
                 {scene.url && (
-                  <div className="flex flex-col gap-1">
-                    <span className="font-semibold">Source URL:</span>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-semibold">Source:</span>
                     <a 
                       href={scene.url} 
                       target="_blank"
@@ -1447,7 +1453,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             </div>
             
             {/* Voice generation controls with top padding */}
-            <div className="mt-1 pt-1 border-t border-gray-200" data-testid="scene-audio-section">
+            <div className="mt-0.5 pt-0.5 border-t border-gray-200" data-testid="scene-audio-section">
               {useNewControls ? (
                 // New component (extracted)
                 <div data-testid="new-audio-controls">
