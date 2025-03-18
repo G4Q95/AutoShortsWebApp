@@ -233,3 +233,54 @@ New components needed:
    - Create basic command wrappers
    - Test with sample media
    - Implement progress tracking 
+
+## Detailed Implementation Plan
+
+### Step 1: Assess Existing Components (1-2 days)
+- Examine the ScenePreviewPlayer component code
+- Review the TrimControls implementation
+- Identify connection points between media and audio components
+- Evaluate existing FFmpeg scripts for media processing
+
+### Step 2: Scene Player Integration (2-3 days)
+- Replace black square media display with ScenePreviewPlayer in Scene card
+- Connect player to R2-stored media files
+- Implement audio-video synchronization logic
+- Add play/pause controls for combined media and audio
+- Handle different media types (images vs videos)
+
+### Step 3: Timeline & Trimming (2-3 days)
+- Implement timeline scrubber UI
+- Add visual position indicators for voiceover relative to video
+- Connect TrimControls to Scene player
+- Implement trim point visualization
+- Create backend endpoints to persist trim settings
+- Store trim data in project metadata
+
+### Step 4: Scene Duration Logic (1-2 days)
+- Implement default duration logic:
+  - Images: match audio duration
+  - Videos: respect trim points
+- Add visual indicators for recommended durations
+- Create UI for adjusting durations
+
+### Step 5: Sequential Playback (2-3 days)
+- Develop ProjectPreviewPlayer component
+- Implement scene transition logic
+- Create playlist functionality for all scenes
+- Add overall project controls (play all, pause, next, previous)
+- Build progress tracking across multiple scenes
+
+### Step 6: FFmpeg Integration (3-4 days)
+- Set up backend endpoints for FFmpeg operations
+- Implement media + audio merging functionality
+- Create progress tracking for processing
+- Add error handling for media operations
+- Implement background processing for video generation
+
+### Step 7: Testing & Refinement (1-2 days)
+- Develop comprehensive tests for media playback
+- Test trimming functionality across media types
+- Verify audio synchronization
+- Test sequential playback
+- Ensure trim settings persist correctly 

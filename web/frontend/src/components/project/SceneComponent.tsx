@@ -26,6 +26,7 @@ import { transformRedditVideoUrl } from '@/lib/media-utils';
 import { useProject } from './ProjectProvider';
 import { getAvailableVoices, generateVoice, persistVoiceAudio, getStoredAudio } from '@/lib/api-client';
 import SceneAudioControls from '../audio/SceneAudioControls';
+import ScenePreviewPlayer from '../preview/ScenePreviewPlayer';
 
 /**
  * Utility function to clean post text by removing "Post by u/Username:" prefix
@@ -152,7 +153,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   // Use new controls for all scenes
   const useNewControls = useNewAudioControls;
   
-  const { mode, updateSceneText, updateSceneAudio, currentProject } = useProject();
+  const { mode, updateSceneText, updateSceneAudio, currentProject, updateSceneMedia } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(cleanPostText(scene.text));
   const [isRetrying, setIsRetrying] = useState(false);
@@ -707,6 +708,23 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     // Prioritize the stored URL if available
     const mediaUrl = scene.media.storedUrl || scene.media.url;
     
+    // Default trim values
+    const trimStart = scene.media.trim?.start || 0;
+    const trimEnd = scene.media.trim?.end || 0;
+    
+    // Handle trim change
+    const handleTrimChange = (start: number, end: number) => {
+      if (currentProject && scene.media) {
+        const updatedMedia = {
+          ...scene.media,
+          trim: { start, end }
+        };
+        
+        // Update the scene media with new trim settings
+        updateSceneMedia(scene.id, updatedMedia);
+      }
+    };
+    
     // Diagnostic logging for media URLs
     console.log(`[MEDIA-RENDER] Scene ${scene.id} media info:`, {
       originalUrl: scene.media.url,
@@ -716,79 +734,22 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       urlUsed: mediaUrl,
       fromStorage: !!scene.media.storedUrl && mediaUrl === scene.media.storedUrl
     });
-
-    switch (scene.media.type) {
-      case 'image':
-        return (
-          <div className="relative w-full h-40 bg-gray-100 rounded-t-lg overflow-hidden">
-            <div className="w-full h-full flex items-center justify-center">
-              <Image
-                src={mediaUrl}
-                alt={scene.text || 'Scene image'}
-                width={400}
-                height={200}
-                className="rounded-t-lg h-40 object-contain"
-                style={{ maxWidth: '100%' }}
-              />
-            </div>
-          </div>
-        );
-
-      case 'video':
-        return (
-          <div className="relative w-full h-40 bg-black rounded-t-lg overflow-hidden">
-            <video
-              src={transformRedditVideoUrl(mediaUrl)}
-              controls
-              className="w-full h-full object-contain rounded-t-lg"
-              crossOrigin="anonymous"
-              poster={scene.media.thumbnailUrl}
-              onError={(e) => {
-                // Log video errors for debugging
-                console.error(`Error loading video: ${mediaUrl}`, e);
-              }}
-            />
-            {/* Add fallback for video poster/thumbnail errors */}
-            {scene.media.thumbnailUrl && (
-              <img 
-                src={scene.media.thumbnailUrl}
-                alt="Video thumbnail"
-                className="absolute top-0 left-0 w-full h-full object-contain opacity-0"
-                style={{ zIndex: -1 }}
-                onError={(e) => {
-                  console.warn(`Failed to load thumbnail: ${scene.media?.thumbnailUrl}`);
-                  // Remove the failed thumbnail URL from the image to prevent continuous error
-                  (e.target as HTMLImageElement).removeAttribute('src');
-                }}
-              />
-            )}
-          </div>
-        );
-
-      case 'gallery':
-        // For simplicity, just show the first image of the gallery
-        return (
-          <div className="relative w-full h-40 bg-gray-100 rounded-t-lg overflow-hidden">
-            <div className="w-full h-full flex items-center justify-center">
-              <Image
-                src={mediaUrl}
-                alt={scene.text || 'Gallery image'}
-                width={400}
-                height={200}
-                className="rounded-t-lg h-40 object-contain"
-                style={{ maxWidth: '100%' }}
-              />
-            </div>
-          </div>
-        );
-
-      default:
-        return (
-          <div className="bg-gray-200 w-full h-40 flex items-center justify-center rounded-t-lg">
-            <p className="text-gray-500">Unsupported media type</p>
-          </div>
-        );
-    }
+    
+    // Use ScenePreviewPlayer for all media types
+    return (
+      <div className="relative w-full h-40 bg-black rounded-t-lg overflow-hidden">
+        <ScenePreviewPlayer
+          projectId={currentProject?.id || ''}
+          sceneId={scene.id}
+          mediaUrl={scene.media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
+          audioUrl={audioSrc || undefined}
+          mediaType={scene.media.type}
+          trim={{ start: trimStart, end: trimEnd }}
+          onTrimChange={handleTrimChange}
+          className="w-full h-full rounded-t-lg"
+        />
+      </div>
+    );
   };
 
   // Modified onSceneMove to prevent dragging when settings are open

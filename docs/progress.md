@@ -235,6 +235,43 @@ The current focus is on improving code stability, API connectivity, and refactor
   - Creating video assembly with transition effects
   - Building API endpoints for video processing status updates
   
+  Detailed Video Integration Plan (7 phases):
+  1. **Component Assessment** (1-2 days)
+     - Examine ScenePreviewPlayer and TrimControls implementations
+     - Identify connection points between media and audio components
+     - Evaluate existing FFmpeg scripts
+  
+  2. **Scene Player Integration** (2-3 days)
+     - Replace media display with ScenePreviewPlayer in Scene cards
+     - Connect player to R2-stored media files
+     - Implement audio-video synchronization
+     - Add unified media playback controls
+  
+  3. **Timeline & Trimming Implementation** (2-3 days)
+     - Build timeline scrubber UI with visual indicators
+     - Connect TrimControls to Scene player
+     - Create trim settings persistence API
+     - Store trim data in project metadata
+  
+  4. **Scene Duration Logic** (1-2 days)
+     - Implement type-specific duration handling
+     - Add visual duration indicators
+     - Create duration adjustment UI
+  
+  5. **Sequential Playback** (2-3 days)
+     - Develop ProjectPreviewPlayer for multi-scene playback
+     - Implement scene transitions and playlist functionality
+     - Add project-level playback controls
+  
+  6. **FFmpeg Integration** (3-4 days)
+     - Create backend endpoints for video processing
+     - Implement media-audio merging
+     - Add progress tracking and error handling
+  
+  7. **Testing & Refinement** (1-2 days)
+     - Test all aspects of media playback and processing
+     - Verify cross-media type functionality
+     - Ensure settings persistence and recovery
 - 🔄 Enhancing project workspace UI:
   - Adding text editing capabilities for scene content
   - Implementing media trimming and cropping controls
