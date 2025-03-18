@@ -17,6 +17,7 @@ interface ScenePreviewPlayerProps {
   trim?: { start: number; end: number };
   onTrimChange?: (start: number, end: number) => void;
   className?: string;
+  isCompactView?: boolean;
 }
 
 const ScenePreviewPlayer = ({
@@ -28,6 +29,7 @@ const ScenePreviewPlayer = ({
   trim = { start: 0, end: 0 },
   onTrimChange,
   className = '',
+  isCompactView = true,
 }: ScenePreviewPlayerProps) => {
   // State for player
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -41,6 +43,11 @@ const ScenePreviewPlayer = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Add state to track media aspect ratio
+  const [aspectRatio, setAspectRatio] = useState<number>(16/9); // Default to horizontal
+  const [isVertical, setIsVertical] = useState<boolean>(false);
   
   // Initialize player
   useEffect(() => {
@@ -82,6 +89,51 @@ const ScenePreviewPlayer = ({
       };
     }
   }, [mediaType, mediaUrl]);
+  
+  // Add handler to detect aspect ratio when media loads
+  const handleMediaLoad = () => {
+    if (mediaType === 'video' && videoRef.current) {
+      const video = videoRef.current;
+      const ratio = video.videoWidth / video.videoHeight;
+      setAspectRatio(ratio);
+      setIsVertical(ratio < 1); // Ratio < 1 means height > width (vertical)
+      setIsLoading(false);
+    } else if (mediaType === 'image' && imageRef.current) {
+      const image = imageRef.current;
+      const ratio = image.naturalWidth / image.naturalHeight;
+      setAspectRatio(ratio);
+      setIsVertical(ratio < 1); // Ratio < 1 means height > width (vertical)
+      setIsLoading(false);
+    }
+  };
+  
+  // Add this handler to the video element
+  useEffect(() => {
+    if (mediaType === 'video' && videoRef.current) {
+      const video = videoRef.current;
+      video.addEventListener('loadedmetadata', handleMediaLoad);
+      
+      return () => {
+        video.removeEventListener('loadedmetadata', handleMediaLoad);
+      };
+    }
+  }, [mediaType, videoRef.current]);
+  
+  // Add this handler to the image element
+  useEffect(() => {
+    if (mediaType === 'image' && imageRef.current) {
+      const image = imageRef.current;
+      if (image.complete) {
+        handleMediaLoad();
+      } else {
+        image.addEventListener('load', handleMediaLoad);
+      }
+      
+      return () => {
+        image.removeEventListener('load', handleMediaLoad);
+      };
+    }
+  }, [mediaType, imageRef.current]);
   
   // Handler functions
   const handleAudioMetadata = () => {
@@ -242,13 +294,39 @@ const ScenePreviewPlayer = ({
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
   
+  // Function to determine optimal styling based on aspect ratio
+  const getMediaStyle = (): React.CSSProperties => {
+    // For vertical media in compact view, maintain height and center
+    if (isVertical && isCompactView) {
+      return {
+        maxWidth: '100%',
+        maxHeight: '160px', 
+        margin: 'auto',
+        display: 'block'
+      };
+    }
+    
+    // For horizontal media or expanded view, let it fill naturally
+    return {
+      width: isCompactView && !isVertical ? '100%' : 'auto', // Full width for horizontal in compact view
+      height: 'auto',
+      maxWidth: '100%',
+      maxHeight: isCompactView ? '160px' : '400px',
+      margin: 'auto',
+      display: 'block',
+      objectFit: isCompactView && !isVertical ? 'cover' as const : 'contain' as const
+    };
+  };
+  
   return (
     <div 
+      ref={containerRef}
       className={`flex flex-col bg-gray-900 rounded-lg overflow-hidden ${className}`}
       data-testid="scene-preview-player"
+      style={{ maxWidth: isCompactView ? (isVertical ? 'min(160px, 100%)' : '100%') : '100%' }}
     >
       {/* Media Display */}
-      <div className="relative aspect-video bg-black flex items-center justify-center">
+      <div className="relative bg-black flex items-center justify-center">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
@@ -259,11 +337,11 @@ const ScenePreviewPlayer = ({
           <video 
             ref={videoRef}
             src={mediaUrl}
-            className="w-full h-auto object-contain"
+            className="w-auto h-auto object-contain"
             playsInline
             muted={isMuted}
             data-testid="video-element"
-            style={{ maxWidth: '100%', maxHeight: '100%', margin: 'auto' }}
+            style={getMediaStyle()}
           />
         ) : (
           <img 
@@ -272,7 +350,7 @@ const ScenePreviewPlayer = ({
             alt="Scene content"
             className="w-auto h-auto object-contain"
             data-testid="image-element"
-            style={{ maxWidth: '100%', maxHeight: '100%', margin: 'auto' }}
+            style={getMediaStyle()}
           />
         )}
         
@@ -293,70 +371,72 @@ const ScenePreviewPlayer = ({
           data-testid="play-pause-button"
         >
           {isPlaying ? (
-            <PauseIcon className="w-16 h-16 text-white opacity-70" />
+            <PauseIcon className={`${isCompactView ? 'w-10 h-10' : 'w-16 h-16'} text-white opacity-70`} />
           ) : (
-            <PlayIcon className="w-16 h-16 text-white opacity-70" />
+            <PlayIcon className={`${isCompactView ? 'w-10 h-10' : 'w-16 h-16'} text-white opacity-70`} />
           )}
         </button>
       </div>
       
-      {/* Controls */}
-      <div className="bg-gray-800 p-3 text-white">
-        {/* Progress bar */}
-        <div className="flex items-center mb-2">
-          <span className="text-xs">{formatTime(currentTime)}</span>
-          <input
-            type="range"
-            min={0}
-            max={duration}
-            value={currentTime}
-            onChange={handleSeek}
-            className="flex-grow mx-2 h-2 rounded-full bg-gray-600 appearance-none"
-            step="0.1"
-            data-testid="seek-slider"
-          />
-          <span className="text-xs">{formatTime(duration)}</span>
-        </div>
-        
-        {/* Playback controls */}
-        <div className="flex items-center">
-          <button
-            onClick={isPlaying ? handlePause : handlePlay}
-            className="mr-3"
-            data-testid="play-pause-control"
-          >
-            {isPlaying ? (
-              <PauseIcon className="w-6 h-6" />
-            ) : (
-              <PlayIcon className="w-6 h-6" />
-            )}
-          </button>
+      {/* Controls - Hide in compact view */}
+      {!isCompactView && (
+        <div className="bg-gray-800 p-3 text-white">
+          {/* Progress bar */}
+          <div className="flex items-center mb-2">
+            <span className="text-xs">{formatTime(currentTime)}</span>
+            <input
+              type="range"
+              min={0}
+              max={duration}
+              value={currentTime}
+              onChange={handleSeek}
+              className="flex-grow mx-2 h-2 rounded-full bg-gray-600 appearance-none"
+              step="0.1"
+              data-testid="seek-slider"
+            />
+            <span className="text-xs">{formatTime(duration)}</span>
+          </div>
           
-          {/* Volume control */}
-          <button
-            onClick={toggleMute}
-            className="mr-2"
-            data-testid="mute-button"
-          >
-            {isMuted ? (
-              <span>🔇</span>
-            ) : (
-              <span>🔊</span>
-            )}
-          </button>
-          
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.1"
-            value={volume}
-            onChange={handleVolumeChange}
-            className="w-20 h-2 rounded-full bg-gray-600 appearance-none"
-            data-testid="volume-slider"
-          />
+          {/* Playback controls */}
+          <div className="flex items-center">
+            <button
+              onClick={isPlaying ? handlePause : handlePlay}
+              className="mr-3"
+              data-testid="play-pause-control"
+            >
+              {isPlaying ? (
+                <PauseIcon className="w-6 h-6" />
+              ) : (
+                <PlayIcon className="w-6 h-6" />
+              )}
+            </button>
+            
+            {/* Volume control */}
+            <button
+              onClick={toggleMute}
+              className="mr-2"
+              data-testid="mute-button"
+            >
+              {isMuted ? (
+                <span>🔇</span>
+              ) : (
+                <span>🔊</span>
+              )}
+            </button>
+            
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={volume}
+              onChange={handleVolumeChange}
+              className="w-20 h-2 rounded-full bg-gray-600 appearance-none"
+              data-testid="volume-slider"
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

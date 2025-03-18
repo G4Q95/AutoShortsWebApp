@@ -748,16 +748,20 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     return (
       <div className="relative w-full bg-black rounded-t-lg overflow-hidden" 
            style={{ height: isCompactView ? '160px' : 'auto', minHeight: '160px' }}>
-        <ScenePreviewPlayer
-          projectId={currentProject?.id || ''}
-          sceneId={scene.id}
-          mediaUrl={scene.media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
-          audioUrl={audioSrc || undefined}
-          mediaType={scene.media.type}
-          trim={{ start: trimStart, end: trimEnd }}
-          onTrimChange={handleTrimChange}
-          className={`w-full h-full rounded-t-lg`}
-        />
+        {/* Center the content in compact view */}
+        <div className="flex items-center justify-center w-full h-full">
+          <ScenePreviewPlayer
+            projectId={currentProject?.id || ''}
+            sceneId={scene.id}
+            mediaUrl={scene.media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
+            audioUrl={audioSrc || undefined}
+            mediaType={scene.media.type}
+            trim={{ start: trimStart, end: trimEnd }}
+            onTrimChange={handleTrimChange}
+            className="rounded-t-lg"
+            isCompactView={isCompactView}
+          />
+        </div>
         
         {/* View mode toggle button */}
         <button 
