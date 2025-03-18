@@ -531,30 +531,48 @@ To commit these changes:
 - Performance optimization
 
 ### In Progress
+🔄 API Refactoring
+- Modular API client implementation
+- Feature flag infrastructure
+- Enhanced error handling
+- Improved testability
+- Gradual rollout strategy
+
 🔄 Video Processing Pipeline
 - FFMPEG integration
 - Scene processing
 - Transition effects
 - Progress tracking
 
-🔄 API Standardization
-- Consistent response formats
-- Error handling standardization
-- Documentation updates
-- Frontend integration
+### API Refactoring Best Practices
 
-### Next Phase
-📋 Content Enhancement
-- Text editing
-- Media customization
-- Voice generation
-- Preview system
+When implementing new API features or refactoring existing ones, follow these guidelines:
 
-📋 User Authentication
-- Google OAuth integration
-- User sessions
-- Profile management
-- Role-based access
+1. **Feature Flag Strategy**
+   - Always initialize feature flags to `false` by default
+   - Enable flags incrementally with thorough testing
+   - Implement fallback mechanisms for graceful degradation
+   - Never enable multiple feature flags simultaneously without testing each independently
+
+2. **Testing Methodology**
+   - Create dedicated test environments for new API implementations
+   - Test both original and new implementations before switching
+   - Verify compatibility with existing UI components
+   - Include both success and error scenarios in tests
+
+3. **Incremental Rollout**
+   - Test in isolated environments before integration
+   - Enable for development and testing environments first
+   - Monitor error rates and performance metrics
+   - Implement emergency rollback mechanisms
+
+4. **Documentation Requirements**
+   - Document all API changes in code comments
+   - Update API documentation with new endpoints and response formats
+   - Include examples of request/response formats
+   - Document known limitations and edge cases
+
+Following these guidelines will help maintain application stability while improving the codebase.
 
 ## Implementation Guidelines
 

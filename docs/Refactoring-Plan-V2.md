@@ -29,38 +29,187 @@ This document outlines our revised approach to refactoring the Auto Shorts Web A
 3. **Test Coverage Assessment** ✅
    - Review existing test coverage
    - Identify gaps in test coverage
-   - Plan additional tests needed
+   - Create plan for increasing test coverage before refactoring
+   - Establish required test pass rate for refactoring to proceed
 
-### Phase 2: Feature Flag Implementation ✅
-1. **Set Up Feature Flag System** ✅
-   - Create feature flag mechanism
-   - Implement logging for feature flag usage
-   - Add helper functions for enabling/disabling groups of flags
+### Phase 2: Infrastructure Setup (In Progress) 🔄
+1. **Feature Flag System** ✅
+   - Create feature flag mechanism for toggling between original and new implementations
+   - Implement flags for each API module
+   - Add functions to enable/disable all flags simultaneously
+   - Create test page for feature flag verification
 
-2. **Gradually Integrate Feature Flags** ✅
-   - Voice API functions:
-     - getAvailableVoices ✅
-     - getVoiceById ✅
-     - generateVoice ✅
-     - persistVoiceAudio ✅
-     - getStoredAudio ✅
+2. **Enhanced Error Handling** ✅
+   - Develop comprehensive error handling module
+   - Implement error categorization system (NETWORK, API, VALIDATION, TIMEOUT, etc.)
+   - Create consistent error formatting and logging
+   - Add context enhancement for detailed error reporting
 
-### Phase 3: Modular API Implementation ✅
-1. **Create Domain-Specific API Modules** ✅
-   - Voice API module (src/lib/api/voice.ts) ✅
-     - Implement voice-specific functions
-     - Add comprehensive error handling
-     - Add detailed logging
+3. **Testing Infrastructure** ✅
+   - Create side-by-side testing capabilities
+   - Implement test pages for direct API function comparison
+   - Add visual feedback for API response/error comparison
+   - Enhance test pages with error visualization capabilities
 
-2. **Update Tests for New API Modules** ✅
-   - Add unit tests for Voice API functions
-   - Ensure all tests pass with both implementations
+4. **Monitoring Setup** 🔄
+   - Implement runtime metrics collection
+   - Add performance tracking for API calls
+   - Create dashboards for measuring refactoring impact
+   - Set up alerting for critical issues
 
-### Phase 4: Migration and Testing (In Progress)
-1. **Migrate to New Implementations**
-   - Enable new implementations in development
-   - Validate with E2E tests
-   - Address any issues discovered
+### Phase 3: Module Implementation (In Progress) 🔄
+1. **Content API Module** ✅
+   - Create isolated content API module with enhanced error handling
+   - Implement all content extraction and validation functions
+   - Fix parameter consistency issues (particularly in timeout handling)
+   - Ensure full test coverage with edge cases
+   - Update test page to verify implementations
+
+2. **Voice API Module** 🔄
+   - Create isolated voice API module
+   - Implement voice generation and manipulation functions
+   - Add enhanced error handling with proper context
+   - Ensure consistent parameter handling
+   - Update test page to verify implementations
+
+3. **Video Generation API Module** 🕒
+   - Create isolated video API module
+   - Implement video creation and status functions
+   - Add enhanced error handling with proper context
+   - Ensure proper progress monitoring and timeouts
+   - Update test page to verify implementations
+
+4. **Core API Utilities** 🕒
+   - Enhance core fetch wrapper
+   - Implement global error handling options
+   - Add improved timeout mechanism
+   - Create retry strategy for transient errors
+   - Add request/response logging options
+
+### Phase 4: Validation and Rollout (Planned) 🕒
+1. **Incremental Feature Flag Activation**
+   - Begin with least critical functions
+   - Monitor error rates and performance metrics
+   - Gradually enable more critical functions
+   - Maintain ability to quickly revert changes
+
+2. **Comprehensive Testing**
+   - Run complete test suite with each flag activation
+   - Monitor browser console for errors
+   - Conduct manual testing of affected workflows
+   - Verify that all modules work together correctly
+
+3. **Documentation Updates**
+   - Create comprehensive API documentation
+   - Document best practices for API usage
+   - Update architecture diagrams
+   - Document error handling patterns
+
+4. **Clean-up Phase**
+   - Remove feature flags after successful validation
+   - Archive legacy implementations
+   - Clean up test utilities
+   - Formalize new API structure
+
+## Current Implementation Status
+
+### Enhanced Error Handling Module ✅
+- **Implementation**: 100% complete
+- **Features**:
+  - Error categorization (NETWORK, API, VALIDATION, TIMEOUT, AUTHORIZATION, UNKNOWN)
+  - Enhanced error objects with context, timestamp, and original error
+  - Consistent error formatting and logging
+  - Response error extraction utilities
+  - API error detection and handling
+
+### Feature Flag System ✅
+- **Implementation**: 100% complete
+- **Features**:
+  - Individual flags for each API module
+  - Flags for specific functions within modules
+  - Bulk enable/disable functions
+  - Integration with existing API client
+
+### Content API Module ✅
+- **Implementation**: 100% complete
+- **Features**: 
+  - Fully implemented extractContent with enhanced error handling
+  - Implemented validateUrl with proper error context
+  - Added rewriteText with consistent error handling
+  - Fixed parameter handling issues, particularly with timeouts
+  - Comprehensive test page with error visualization
+
+### Voice API Module 🔄
+- **Implementation**: 15% complete
+- **Features**:
+  - Basic function structure created
+  - Not yet enhanced with new error handling
+
+### Video API Module 🕒
+- **Implementation**: 0% complete
+- **Features**:
+  - Not yet started
+
+### Core API Enhancements 🕒
+- **Implementation**: 30% complete
+- **Features**:
+  - Basic error handling implemented
+  - Need to enhance timeout mechanism
+  - Need to add retry strategy
+
+## Best Practices Established
+
+1. **Error Handling**
+   - Always categorize errors appropriately
+   - Include rich context with all errors
+   - Use consistent naming and formatting
+   - Log all errors with operation name and context
+   - Check response objects for error conditions before proceeding
+
+2. **Feature Flags**
+   - Create atomic flags for granular control
+   - Group flags for easier management
+   - Test both implementations side by side
+   - Never enable all flags at once in production
+
+3. **Testing**
+   - Create visual test pages for API functions
+   - Test error conditions explicitly
+   - Compare response structures between implementations
+   - Verify network request patterns match
+   - Run full test suite before and after each change
+
+4. **API Design**
+   - Maintain consistent parameter ordering
+   - Use appropriate timeout values for each operation
+   - Follow existing patterns for backward compatibility
+   - Document all functions with JSDoc comments
+
+## Lessons Learned
+
+1. **Incremental Changes**
+   - Implement one module at a time
+   - Test each module independently before integration
+   - Be patient with the refactoring process
+   - Don't rush to enable all new implementations at once
+
+2. **Error Handling is Critical**
+   - Robust error handling improves debugging
+   - Categorized errors help identify patterns
+   - Context-rich errors speed up troubleshooting
+   - Error handling should be consistent across the application
+
+3. **Testing Infrastructure Pays Off**
+   - Visual test pages make validation easier
+   - Side-by-side comparison helps verify correctness
+   - Error visualization aids in debugging
+   - Comprehensive test coverage prevents regressions
+
+4. **Communication is Key**
+   - Document refactoring strategy clearly
+   - Update progress regularly
+   - Communicate changes to the team
+   - Share lessons learned to improve future refactoring
 
 ## Testing Strategy
 
