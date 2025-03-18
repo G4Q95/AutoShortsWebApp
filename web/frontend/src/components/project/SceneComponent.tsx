@@ -737,7 +737,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     
     // Use ScenePreviewPlayer for all media types
     return (
-      <div className="relative w-full h-40 bg-black rounded-t-lg overflow-hidden">
+      <div className="relative w-full bg-black rounded-t-lg overflow-hidden" style={{ height: 'auto', minHeight: '160px' }}>
         <ScenePreviewPlayer
           projectId={currentProject?.id || ''}
           sceneId={scene.id}

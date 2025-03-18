@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { PlayIcon, PauseIcon } from '@heroicons/react/24/solid';
+import { PlayIcon, PauseIcon } from 'lucide-react';
 
 interface ScenePreviewPlayerProps {
   projectId: string;
@@ -259,18 +259,20 @@ const ScenePreviewPlayer = ({
           <video 
             ref={videoRef}
             src={mediaUrl}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain max-h-full"
             playsInline
             muted={isMuted}
             data-testid="video-element"
+            style={{ maxWidth: '100%', margin: 'auto' }}
           />
         ) : (
           <img 
             ref={imageRef}
             src={mediaUrl}
             alt="Scene content"
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain max-h-full"
             data-testid="image-element"
+            style={{ maxWidth: '100%', margin: 'auto' }}
           />
         )}
         
