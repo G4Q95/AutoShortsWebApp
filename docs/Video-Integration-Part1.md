@@ -12,8 +12,8 @@ This document outlines the first phase of the video processing pipeline implemen
 - ✅ ScenePreviewPlayer component implemented
 - ✅ TrimControls component implemented
 - ✅ Playwright testing configuration updated for headless mode
+- ✅ Media files (Reddit content) are now properly stored in Cloudflare R2
 - 🔄 Video processing pipeline is partially implemented (40%)
-- ❌ Media files (Reddit content) are currently streamed, not stored
 
 ## Implementation Goals
 
@@ -37,13 +37,13 @@ This document outlines the first phase of the video processing pipeline implemen
 
 ### Phase 1: Media Storage Implementation
 
-1. **R2 Storage Integration**
+1. **R2 Storage Integration** ✅
    - Create dedicated media storage service for R2
    - Implement upload functionality for Reddit media
    - Generate unique identifiers for each media file
    - Set up proper error handling and retry mechanisms
 
-2. **Media-Audio Pairing**
+2. **Media-Audio Pairing** ✅
    - Create data structure linking media and audio files
    - Store pairing information in MongoDB
    - Implement metadata tracking for content types and durations

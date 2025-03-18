@@ -13,6 +13,29 @@ import {
 } from './ProjectTypes';
 import { getProject } from '../../lib/storage-utils';
 
+// Current possible action types
+type ProjectAction =
+  | { type: 'CREATE_PROJECT'; payload: { title: string } }
+  | { type: 'SET_CURRENT_PROJECT'; payload: { projectId: string } }
+  | { type: 'ADD_SCENE'; payload: { url: string } }
+  | { type: 'ADD_SCENE_LOADING'; payload: { sceneId: string; url: string } }
+  | { type: 'ADD_SCENE_SUCCESS'; payload: { scene: Scene } }
+  | { type: 'ADD_SCENE_ERROR'; payload: { sceneId: string; error: string } }
+  | { type: 'REMOVE_SCENE'; payload: { sceneId: string } }
+  | { type: 'REORDER_SCENES'; payload: { sceneIds: string[] } }
+  | { type: 'UPDATE_SCENE_TEXT'; payload: { sceneId: string; text: string } }
+  | { type: 'LOAD_PROJECTS_SUCCESS'; payload: { projects: Project[] } }
+  | { type: 'LOAD_PROJECT_SUCCESS'; payload: { project: Project } }
+  | { type: 'SET_ERROR'; payload: { error: string } }
+  | { type: 'SET_SAVING'; payload: { isSaving: boolean } }
+  | { type: 'SET_DELETING'; payload: { isDeleting: boolean } }
+  | { type: 'SET_PROJECT_TITLE'; payload: { title: string } }
+  | { type: 'SET_LAST_SAVED'; payload: { timestamp: number } }
+  | { type: 'UPDATE_SCENE_AUDIO'; payload: { sceneId: string; audioData: Partial<Scene['audio']> } }
+  | { type: 'UPDATE_SCENE_MEDIA'; payload: { sceneId: string; mediaData: Partial<Scene['media']> } }
+  | { type: 'SET_MODE'; payload: { mode: AppMode } }
+  | { type: 'SET_SCENE_STORING_MEDIA'; payload: { sceneId: string; isStoringMedia: boolean } };
+
 /**
  * Project state reducer that handles all project-related state updates.
  * Implements a Redux-style reducer pattern for managing project state.
@@ -105,6 +128,50 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         ...state,
         currentProject: project,
         error: project ? null : `Project with ID ${action.payload.projectId} not found`,
+      };
+    }
+
+    /**
+     * Adds a new scene to the current project.
+     * 
+     * @action ADD_SCENE
+     * @payload { url: string }
+     */
+    case 'ADD_SCENE': {
+      if (!state.currentProject) {
+        return {
+          ...state,
+          error: 'No active project to add scene to',
+        };
+      }
+
+      const newScene: Scene = {
+        id: generateId(),
+        url: action.payload.url,
+        text: '',
+        source: {
+          platform: 'reddit', // Default to reddit for now
+        },
+        createdAt: Date.now(),
+        isLoading: true,
+      };
+
+      const updatedProject: Project = {
+        ...state.currentProject,
+        scenes: [...state.currentProject.scenes, newScene],
+        updatedAt: Date.now(),
+      };
+
+      // Create updated projects array, safely handling null projects
+      const updatedProjects = state.projects.map(p => 
+        p && p.id === updatedProject.id ? updatedProject : p
+      );
+
+      return {
+        ...state,
+        currentProject: updatedProject,
+        projects: updatedProjects,
+        error: null,
       };
     }
 
@@ -399,8 +466,7 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
 
     /**
-     * Updates the audio data and voice settings of a scene.
-     * Preserves other scene data while updating the audio-related properties.
+     * Updates the audio data of a scene.
      * 
      * @action UPDATE_SCENE_AUDIO
      * @payload { sceneId: string; audioData: Scene['audio']; voiceSettings: Scene['voice_settings'] }
@@ -415,13 +481,80 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
 
       const updatedScenes = state.currentProject.scenes.map((scene) =>
         scene.id === action.payload.sceneId
-          ? { 
-              ...scene, 
-              audio: action.payload.audioData,
-              voice_settings: action.payload.voiceSettings
+          ? {
+              ...scene,
+              audio: action.payload.audioData ? {
+                ...(scene.audio || {}),
+                ...action.payload.audioData,
+              } : undefined,
+              voice_settings: action.payload.voiceSettings ? {
+                ...(scene.voice_settings || {
+                  voice_id: '',
+                  stability: 0.5,
+                  similarity_boost: 0.75,
+                  style: 0,
+                  speaker_boost: false,
+                  speed: 1.0,
+                }),
+                ...action.payload.voiceSettings,
+              } : undefined,
             }
           : scene
       );
+
+      const updatedProject: Project = {
+        ...state.currentProject,
+        scenes: updatedScenes,
+        updatedAt: Date.now(),
+      };
+
+      // Update projects array
+      const updatedProjects = state.projects.map(p => 
+        p && p.id === updatedProject.id ? updatedProject : p
+      );
+
+      return {
+        ...state,
+        currentProject: updatedProject,
+        projects: updatedProjects,
+      };
+    }
+
+    /**
+     * Updates the media data of a scene with storage information.
+     * 
+     * @action UPDATE_SCENE_MEDIA
+     * @payload { sceneId: string; mediaData: Partial<Scene['media']> }
+     */
+    case 'UPDATE_SCENE_MEDIA': {
+      if (!state.currentProject) {
+        return {
+          ...state,
+          error: 'No active project to update scene media in',
+        };
+      }
+
+      const updatedScenes = state.currentProject.scenes.map((scene) => {
+        if (scene.id === action.payload.sceneId) {
+          // Ensure we have valid media object to work with
+          const currentMedia = scene.media || {
+            type: 'image', // Default type
+            url: '',       // Empty URL
+          };
+          
+          return { 
+            ...scene, 
+            media: {
+              ...currentMedia,
+              ...action.payload.mediaData,
+              // Ensure required properties are present
+              type: action.payload.mediaData?.type || currentMedia.type,
+              url: action.payload.mediaData?.url || currentMedia.url,
+            }
+          };
+        }
+        return scene;
+      });
 
       const updatedProject: Project = {
         ...state.currentProject,
@@ -602,6 +735,48 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       return {
         ...state,
         mode: action.payload.mode,
+      };
+    }
+
+    /**
+     * Updates whether a scene is currently storing media to R2.
+     * 
+     * @action SET_SCENE_STORING_MEDIA
+     * @payload { sceneId: string; isStoringMedia: boolean }
+     */
+    case 'SET_SCENE_STORING_MEDIA': {
+      if (!state.currentProject) {
+        return {
+          ...state,
+          error: 'No active project to update scene media storage state in',
+        };
+      }
+
+      const updatedScenes = state.currentProject.scenes.map((scene) => {
+        if (scene.id === action.payload.sceneId) {
+          return { 
+            ...scene, 
+            isStoringMedia: action.payload.isStoringMedia
+          };
+        }
+        return scene;
+      });
+
+      const updatedProject: Project = {
+        ...state.currentProject,
+        scenes: updatedScenes,
+        updatedAt: Date.now(),
+      };
+
+      // Safely update projects array
+      const updatedProjects = state.projects.map((p) => 
+        p && p.id === updatedProject.id ? updatedProject : p
+      );
+
+      return {
+        ...state,
+        currentProject: updatedProject,
+        projects: updatedProjects,
       };
     }
 

@@ -1079,3 +1079,96 @@ export async function getStoredAudio(
     }
   );
 }
+
+/**
+ * Media Storage Interfaces
+ */
+export interface MediaStorageRequest {
+  url: string;
+  project_id: string;
+  scene_id: string;
+  media_type?: string;
+  create_thumbnail?: boolean;
+}
+
+export interface MediaStorageResponse {
+  success: boolean;
+  url?: string;
+  storage_key?: string;
+  media_type?: string;
+  content_type?: string;
+  file_size?: number;
+  original_url?: string;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Stores media content from a URL to R2 storage.
+ * 
+ * This function uploads media from the specified URL to R2 storage,
+ * making it accessible for the application without relying on the 
+ * original source URL.
+ * 
+ * @param requestData - Media storage request data
+ * @returns Promise with storage details
+ * 
+ * @example
+ * ```typescript
+ * const result = await storeMediaContent({
+ *   url: "https://example.com/image.jpg",
+ *   project_id: "project123",
+ *   scene_id: "scene456",
+ *   media_type: "image"
+ * });
+ * 
+ * if (result.data) {
+ *   console.log('Media stored at:', result.data.url);
+ * }
+ */
+export async function storeMediaContent(
+  requestData: MediaStorageRequest
+): Promise<ApiResponse<MediaStorageResponse>> {
+  try {
+    // Calculate appropriate timeout based on potential media size
+    // Video files may take longer to process
+    const isVideo = requestData.media_type?.includes('video');
+    const timeoutMs = isVideo ? 60000 : 30000; // 60s for video, 30s for others
+    
+    // Log info about the storage request
+    console.log(`Storing media from URL: ${requestData.url}`);
+    console.log(`Project ID: ${requestData.project_id}, Scene ID: ${requestData.scene_id}`);
+    
+    return await fetchAPI<MediaStorageResponse>(
+      '/media/store',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      },
+      timeoutMs
+    );
+  } catch (error) {
+    console.error('Failed to store media content:', error);
+    return {
+      error: {
+        status_code: 500,
+        message: `Failed to store media content: ${error instanceof Error ? error.message : String(error)}`,
+        error_code: 'media_storage_error',
+      },
+      data: null as any,
+      timing: {
+        start: 0,
+        end: 0,
+        duration: 0,
+      },
+      connectionInfo: {
+        success: false,
+        server: API_BASE_URL,
+        status: 500,
+        statusText: 'Internal Error',
+      },
+    };
+  }
+}

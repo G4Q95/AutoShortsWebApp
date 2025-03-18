@@ -30,44 +30,48 @@ export interface Scene {
     height?: number;
     /** Duration of video content in seconds */
     duration?: number;
+    /** Optional storage key for media stored in R2 */
+    storageKey?: string;
+    /** Optional URL to the stored media in R2 */
+    storedUrl?: string;
+    /** Original source URL (used when media is stored in R2) */
+    originalUrl?: string;
+    /** Content type (MIME type) of the media */
+    contentType?: string;
+    /** File size in bytes */
+    fileSize?: number;
+    /** Indicates if media is being loaded from storage */
+    isStorageBacked?: boolean;
+    /** Timestamp when media was stored */
+    storedAt?: number;
+    /** Trim settings for media playback */
+    trim?: {
+      /** Start time in seconds */
+      start: number;
+      /** End time in seconds */
+      end: number;
+    };
   };
   /** Text content associated with the scene */
   text: string;
-  /** Source information for attribution */
-  source: {
-    /** Original content author */
-    author?: string;
-    /** Subreddit where content was found (if from Reddit) */
-    subreddit?: string;
-    /** Platform where content was sourced from */
-    platform: string;
-  };
-  /** Timestamp when the scene was created */
-  createdAt: number;
-  /** Whether the scene is currently loading content */
-  isLoading?: boolean;
-  /** Error message if content loading failed */
-  error?: string;
-  /** Audio data for voice narration */
+  /** Indicates if the scene is currently storing media */
+  isStoringMedia?: boolean;
+  /** Audio data associated with the scene */
   audio?: {
+    /** URL to the audio file */
+    audio_url?: string;
     /** Base64 encoded audio data */
     audio_base64?: string;
-    /** Content type of the audio (e.g., audio/mpeg) */
+    /** Content type of the audio */
     content_type?: string;
-    /** URL created from the audio data (for playback) */
-    audio_url?: string;
-    /** Persistent URL to the audio file in R2 storage */
+    /** URL to persistent storage location */
     persistentUrl?: string;
-    /** Storage key for the audio file in R2 */
+    /** Storage key in R2 */
     storageKey?: string;
-    /** Timestamp when the audio was generated */
-    generated_at?: number;
-    /** Number of characters in the text used for audio */
-    character_count?: number;
   };
-  /** Voice settings for narration */
+  /** Voice settings for text-to-speech */
   voice_settings?: {
-    /** ID of the selected voice */
+    /** ElevenLabs voice ID */
     voice_id: string;
     /** Voice stability setting (0-1) */
     stability: number;
@@ -75,11 +79,28 @@ export interface Scene {
     similarity_boost: number;
     /** Voice style setting (0-1) */
     style: number;
-    /** Whether speaker boost is enabled */
+    /** Speaker boost setting */
     speaker_boost: boolean;
-    /** Speech speed setting (0.7-1.2) */
+    /** Voice speed multiplier */
     speed: number;
   };
+  /** Source platform and metadata */
+  source: {
+    /** Platform the content came from (e.g., 'reddit') */
+    platform: string;
+    /** Original author of the content */
+    author?: string;
+    /** Subreddit if from Reddit */
+    subreddit?: string;
+  };
+  /** Loading state for new scenes */
+  isLoading?: boolean;
+  /** Error message if content extraction failed */
+  error?: string;
+  /** Creation timestamp */
+  createdAt: number;
+  /** Last modification timestamp */
+  updatedAt?: number;
 }
 
 /**
@@ -179,6 +200,8 @@ export type ProjectAction =
   | { type: 'UPDATE_SCENE_TEXT'; payload: { sceneId: string; text: string } }
   /** Update the audio data of a scene */
   | { type: 'UPDATE_SCENE_AUDIO'; payload: { sceneId: string; audioData: Scene['audio']; voiceSettings: Scene['voice_settings'] } }
+  /** Update the media data of a scene with storage information */
+  | { type: 'UPDATE_SCENE_MEDIA'; payload: { sceneId: string; mediaData: Partial<Scene['media']> } }
   /** Update the project title */
   | { type: 'SET_PROJECT_TITLE'; payload: { title: string } }
   /** Set an error message */

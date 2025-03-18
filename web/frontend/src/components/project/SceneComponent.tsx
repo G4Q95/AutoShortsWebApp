@@ -163,6 +163,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const localPreview = useRef<string | null>(null);
   const isRemovedRef = useRef<boolean>(false);
   
+  // Progress bar state for media storage
+  const [progress, setProgress] = useState(0);
+  
   // Voice generation states
   const [voiceId, setVoiceId] = useState<string>(scene.voice_settings?.voice_id || "");
   const [voices, setVoices] = useState<any[]>([]);
@@ -701,13 +704,26 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       );
     }
 
+    // Prioritize the stored URL if available
+    const mediaUrl = scene.media.storedUrl || scene.media.url;
+    
+    // Diagnostic logging for media URLs
+    console.log(`[MEDIA-RENDER] Scene ${scene.id} media info:`, {
+      originalUrl: scene.media.url,
+      storedUrl: scene.media.storedUrl,
+      storageKey: scene.media.storageKey, 
+      isStorageBacked: scene.media.isStorageBacked,
+      urlUsed: mediaUrl,
+      fromStorage: !!scene.media.storedUrl && mediaUrl === scene.media.storedUrl
+    });
+
     switch (scene.media.type) {
       case 'image':
         return (
           <div className="relative w-full h-40 bg-gray-100 rounded-t-lg overflow-hidden">
             <div className="w-full h-full flex items-center justify-center">
               <Image
-                src={scene.media.url}
+                src={mediaUrl}
                 alt={scene.text || 'Scene image'}
                 width={400}
                 height={200}
@@ -722,12 +738,30 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         return (
           <div className="relative w-full h-40 bg-black rounded-t-lg overflow-hidden">
             <video
-              src={transformRedditVideoUrl(scene.media.url)}
+              src={transformRedditVideoUrl(mediaUrl)}
               controls
               className="w-full h-full object-contain rounded-t-lg"
               crossOrigin="anonymous"
               poster={scene.media.thumbnailUrl}
+              onError={(e) => {
+                // Log video errors for debugging
+                console.error(`Error loading video: ${mediaUrl}`, e);
+              }}
             />
+            {/* Add fallback for video poster/thumbnail errors */}
+            {scene.media.thumbnailUrl && (
+              <img 
+                src={scene.media.thumbnailUrl}
+                alt="Video thumbnail"
+                className="absolute top-0 left-0 w-full h-full object-contain opacity-0"
+                style={{ zIndex: -1 }}
+                onError={(e) => {
+                  console.warn(`Failed to load thumbnail: ${scene.media?.thumbnailUrl}`);
+                  // Remove the failed thumbnail URL from the image to prevent continuous error
+                  (e.target as HTMLImageElement).removeAttribute('src');
+                }}
+              />
+            )}
           </div>
         );
 
@@ -737,7 +771,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
           <div className="relative w-full h-40 bg-gray-100 rounded-t-lg overflow-hidden">
             <div className="w-full h-full flex items-center justify-center">
               <Image
-                src={scene.media.url}
+                src={mediaUrl}
                 alt={scene.text || 'Gallery image'}
                 width={400}
                 height={200}
@@ -1238,6 +1272,38 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     }
   }, [generatingAudio, text]);
 
+  // Effect to animate progress bar when media is being stored
+  useEffect(() => {
+    if (scene.isStoringMedia) {
+      // Reset progress when storage starts
+      setProgress(0);
+      
+      // Create an interval to update the progress every 50ms
+      const totalDuration = 5000; // 5 seconds in ms
+      const interval = 50; // Update every 50ms
+      const steps = totalDuration / interval;
+      const increment = 100 / steps;
+      
+      const timer = setInterval(() => {
+        setProgress(prev => {
+          const newProgress = prev + increment;
+          // When we reach 100%, clear the interval
+          if (newProgress >= 100) {
+            clearInterval(timer);
+            return 100;
+          }
+          return newProgress;
+        });
+      }, interval);
+      
+      // Clean up the interval on unmount
+      return () => clearInterval(timer);
+    } else {
+      // If not storing media anymore, reset progress
+      setProgress(0);
+    }
+  }, [scene.isStoringMedia]);
+
   return manuallyRemoving ? null : (
     <div
       id={`scene-${scene.id}`}
@@ -1255,6 +1321,20 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         'draggable': 'true'
       } : {})}
     >
+      {/* Media Storage Progress Bar */}
+      {scene.isStoringMedia && (
+        <div className="absolute top-0 left-0 right-0 z-20 h-1 bg-gray-200">
+          <div 
+            className="h-full bg-blue-500 transition-all duration-50 ease-linear"
+            style={{ width: `${progress}%` }}
+            data-testid="media-storage-progress"
+          ></div>
+          <div className="absolute top-1 right-2 text-xs text-blue-600 font-medium">
+            Saving media...
+          </div>
+        </div>
+      )}
+
       {/* Scene number indicator */}
       <div 
         data-testid={`scene-number-${index + 1}`}

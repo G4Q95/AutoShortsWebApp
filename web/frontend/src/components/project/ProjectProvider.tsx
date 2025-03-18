@@ -13,7 +13,10 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
+  useState,
 } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { extractContent } from '../../lib/api-client';
 import {
   saveProject,
@@ -23,7 +26,7 @@ import {
   projectExists,
   clearAllProjects,
 } from '../../lib/storage-utils';
-import { determineMediaType } from '../../lib/media-utils';
+import { determineMediaType, generateVideoThumbnail } from '../../lib/media-utils';
 
 import { 
   Project, 
@@ -75,6 +78,8 @@ const ProjectContext = createContext<(ProjectState & {
   updateSceneText: (sceneId: string, text: string) => void;
   /** Updates the audio data and voice settings of a scene */
   updateSceneAudio: (sceneId: string, audioData: Scene['audio'], voiceSettings: Scene['voice_settings']) => void;
+  /** Updates the media data of a scene with R2 storage details */
+  updateSceneMedia: (sceneId: string, mediaData: Partial<Scene['media']>) => void;
   /** Updates the project title */
   setProjectTitle: (title: string) => void;
   /** Manually triggers a save of the current project */
@@ -95,6 +100,12 @@ const ProjectContext = createContext<(ProjectState & {
   nextMode: () => void;
   /** Return to the previous UI mode */
   previousMode: () => void;
+  /** Stores all unstored media for the current project in R2 */
+  storeAllMedia: () => Promise<{
+    total: number;
+    success: number;
+    failed: number;
+  } | null>;
 }) | undefined>(undefined);
 
 /**
@@ -123,6 +134,15 @@ const ProjectContext = createContext<(ProjectState & {
  */
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(projectReducer, initialState);
+  const router = useRouter();
+  const pathname = usePathname();
+  const prevPathRef = useRef(pathname);
+  
+  // Add a ref to track media storage operations in progress
+  const mediaStorageOperationsRef = useRef<Record<string, boolean>>({});
+  
+  // Keep track of storage operations
+  const [storageInProgress, setStorageInProgress] = useState(false);
 
   // Auto-save timer reference
   const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -176,7 +196,28 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Capture project reference to ensure it doesn't change during save operation
       const projectToSave = { ...state.currentProject };
       
+      // Log scenes count to help debug
       console.log(`Saving project: ${projectToSave.id}, ${projectToSave.title}, scenes: ${projectToSave.scenes.length}`);
+      
+      // If project has no scenes but should have them, try to recover
+      if (projectToSave.scenes.length === 0) {
+        try {
+          // Check if we can recover scenes from localStorage
+          const key = `auto-shorts-project-${projectToSave.id}`;
+          const storedProjectJson = localStorage.getItem(key);
+          if (storedProjectJson) {
+            const storedProject = JSON.parse(storedProjectJson);
+            if (storedProject.scenes && storedProject.scenes.length > 0) {
+              console.log(`Recovered ${storedProject.scenes.length} scenes from localStorage during save`);
+              // Use the recovered scenes
+              projectToSave.scenes = storedProject.scenes;
+            }
+          }
+        } catch (recoveryError) {
+          console.error('Failed to recover scenes during save:', recoveryError);
+        }
+      }
+      
       dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
 
       await saveProject(projectToSave);
@@ -184,7 +225,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const timestamp = Date.now();
       dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp } });
 
-      console.log(`Project "${projectToSave.title}" saved successfully`);
+      console.log(`Project "${projectToSave.title}" saved successfully with ${projectToSave.scenes.length} scenes`);
     } catch (error) {
       console.error('Failed to save project:', error);
       dispatch({
@@ -213,11 +254,32 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (!isMounted) return;
         
         try {
-          await saveCurrentProject();
+          // Cache the current project to avoid null issues
+          const currentProject = state.currentProject;
+          
+          // Verify project still exists before saving
+          if (!currentProject) {
+            console.warn('Auto-save canceled: Project no longer exists in state');
+            return;
+          }
+          
+          console.log(`Auto-save triggered for project: ${currentProject.id}, scenes: ${currentProject.scenes.length}`);
+          
+          // Create a fresh copy of the project to avoid reference issues
+          const projectToSave = JSON.parse(JSON.stringify(currentProject));
+          
+          // Save directly using saveProject to ensure a complete save
+          await saveProject(projectToSave);
+          
+          // Then update the last saved timestamp in the UI
+          if (isMounted) {
+            dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
+            console.log(`Auto-save completed successfully for project: ${projectToSave.id}`);
+          }
         } catch (error) {
           console.error('Auto-save failed:', error);
         }
-      }, 3000); // Auto-save 3 seconds after last change
+      }, 1000); // Reduced from 3000ms to 1000ms for faster saving
     }
 
     // Cleanup function to clear the timer and prevent further saves
@@ -228,7 +290,114 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         autoSaveTimerRef.current = null;
       }
     };
-  }, [state.currentProject, saveCurrentProject]);
+  }, [state.currentProject, dispatch]);
+
+  // Add Effect to listen for pathname changes and save immediately
+  useEffect(() => {
+    // If pathname changed and we have a current project, save immediately
+    if (prevPathRef.current !== pathname && state.currentProject) {
+      console.log(`Navigation detected from ${prevPathRef.current} to ${pathname} - saving project ${state.currentProject.id} immediately`);
+      
+      try {
+        // Create a fresh deep copy of the project to avoid reference issues
+        const projectToSave = JSON.parse(JSON.stringify(state.currentProject));
+        
+        // Use the synchronous version of localStorage directly for immediate save
+        const key = `auto-shorts-project-${projectToSave.id}`;
+        localStorage.setItem(key, JSON.stringify(projectToSave));
+        
+        // Also update the projects list with this project's metadata
+        const projectsListKey = 'auto-shorts-projects-list';
+        const projectsListJson = localStorage.getItem(projectsListKey) || '[]';
+        const projectsList = JSON.parse(projectsListJson);
+        
+        // Create metadata for this project
+        const metadata = {
+          id: projectToSave.id,
+          title: projectToSave.title,
+          createdAt: projectToSave.createdAt,
+          updatedAt: projectToSave.updatedAt,
+          thumbnailUrl: projectToSave.scenes.find((s: Scene) => s.media?.thumbnailUrl)?.media?.thumbnailUrl,
+        };
+        
+        // Update or add to the list
+        const existingIndex = projectsList.findIndex((p: { id: string }) => p.id === projectToSave.id);
+        if (existingIndex >= 0) {
+          projectsList[existingIndex] = metadata;
+        } else {
+          projectsList.push(metadata);
+        }
+        
+        // Save updated list
+        localStorage.setItem(projectsListKey, JSON.stringify(projectsList));
+        
+        console.log(`Immediate save on navigation: Project ${projectToSave.id} with ${projectToSave.scenes.length} scenes saved`);
+      } catch (error) {
+        console.error('Error during immediate navigation save:', error);
+      }
+    }
+    
+    // Update reference for next comparison
+    prevPathRef.current = pathname;
+  }, [pathname, state.currentProject]);
+
+  // Add a separate beforeunload effect to handle browser/tab closure
+  useEffect(() => {
+    // Only add beforeunload listener if we have an active project
+    if (!state.currentProject) return;
+    
+    // Create a sync handler for beforeunload
+    const handleBeforeUnload = () => {
+      console.log('Page unload detected - performing immediate save');
+      
+      // We need to perform a synchronous save here since beforeunload doesn't wait for async
+      try {
+        // Create a fresh deep copy of the project to avoid reference issues
+        const projectToSave = JSON.parse(JSON.stringify(state.currentProject));
+        
+        // Use the synchronous version of localStorage directly
+        const key = `auto-shorts-project-${projectToSave.id}`;
+        localStorage.setItem(key, JSON.stringify(projectToSave));
+        
+        // Also update the projects list with this project's metadata
+        const projectsListKey = 'auto-shorts-projects-list';
+        const projectsListJson = localStorage.getItem(projectsListKey) || '[]';
+        const projectsList = JSON.parse(projectsListJson);
+        
+        // Create metadata for this project
+        const metadata = {
+          id: projectToSave.id,
+          title: projectToSave.title,
+          createdAt: projectToSave.createdAt,
+          updatedAt: projectToSave.updatedAt,
+          thumbnailUrl: projectToSave.scenes.find((s: Scene) => s.media?.thumbnailUrl)?.media?.thumbnailUrl,
+        };
+        
+        // Update or add to the list
+        const existingIndex = projectsList.findIndex((p: { id: string }) => p.id === projectToSave.id);
+        if (existingIndex >= 0) {
+          projectsList[existingIndex] = metadata;
+        } else {
+          projectsList.push(metadata);
+        }
+        
+        // Save updated list
+        localStorage.setItem(projectsListKey, JSON.stringify(projectsList));
+        
+        console.log(`Immediate save on page unload: Project ${projectToSave.id} with ${projectToSave.scenes.length} scenes`);
+      } catch (error) {
+        console.error('Error during immediate page unload save:', error);
+      }
+    };
+
+    // Add the beforeunload event listener
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Remove the event listener when component unmounts
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [state.currentProject]);
 
   // Create a new project
   const createProject = useCallback((title: string) => {
@@ -240,7 +409,105 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
   }, []);
 
-  // Add a scene - enhanced with better error handling
+  // Update scene media data
+  const updateSceneMedia = useCallback((
+    sceneId: string, 
+    mediaData: Partial<Scene['media']>
+  ) => {
+    dispatch({ 
+      type: 'UPDATE_SCENE_MEDIA', 
+      payload: { 
+        sceneId, 
+        mediaData 
+      } 
+    });
+    
+    // Save the project after updating media to ensure persistence
+    saveCurrentProject().catch(error => {
+      console.error('Error saving project after updating scene media:', error);
+    });
+  }, [saveCurrentProject]);
+
+  // Store all unstored media for the current project in R2
+  const storeAllMedia = useCallback(async (): Promise<{
+    total: number;
+    success: number;
+    failed: number;
+  } | null> => {
+    // First check if a current project exists
+    if (!state.currentProject) {
+      console.error('No active project to store media for');
+      dispatch({
+        type: 'SET_ERROR',
+        payload: { error: 'No active project to store media for' },
+      });
+      return null;
+    }
+
+    // Create a local reference to ensure consistency
+    const currentProject = { ...state.currentProject };
+    console.log(`Initiating storage of all media for project: ${currentProject.id}`);
+
+    try {
+      // Import the utility function
+      const { storeAllProjectMedia } = await import('../../lib/media-utils');
+      
+      // Store all media for the project
+      const result = await storeAllProjectMedia(
+        currentProject,
+        updateSceneMedia
+      );
+      
+      console.log('Media storage process completed:', result);
+      return result;
+    } catch (error) {
+      console.error('Error storing project media:', error);
+      dispatch({
+        type: 'SET_ERROR',
+        payload: { 
+          error: error instanceof Error ? error.message : 'Unknown error storing media' 
+        },
+      });
+      return null;
+    }
+  }, [state.currentProject, updateSceneMedia]);
+
+  // Add a function to check if media storage is in progress
+  const isMediaStorageInProgress = useCallback(() => {
+    return Object.values(mediaStorageOperationsRef.current).some(inProgress => inProgress);
+  }, []);
+
+  // Add a useEffect to show a visual indicator when storage is in progress
+  useEffect(() => {
+    // Update the document title to indicate storage is in progress
+    if (storageInProgress) {
+      const originalTitle = document.title;
+      document.title = '⏳ Saving... - ' + originalTitle;
+      
+      return () => {
+        document.title = originalTitle;
+      };
+    }
+  }, [storageInProgress]);
+
+  // Helper function to ensure a consistent reference to the current project and its scenes
+  const getProjectWithScenes = useCallback((projectId: string): Promise<Project | null> => {
+    // First try to get from state
+    if (state.currentProject && state.currentProject.id === projectId) {
+      return Promise.resolve({...state.currentProject});
+    }
+    
+    // If not in state, try to get from localStorage
+    return getProject(projectId).then(project => {
+      if (!project) {
+        console.warn(`Project ${projectId} not found in localStorage`);
+        return null;
+      }
+      return project;
+    });
+  }, [state.currentProject]);
+
+  // Add a scene - enhanced with better error handling and immediate saving
   const addScene = useCallback(async (url: string) => {
     // First check if a current project exists
     if (!state.currentProject) {
@@ -254,15 +521,99 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     // Create a local reference to the current project to ensure consistency
     const currentProject = { ...state.currentProject };
-    console.log(`Adding scene to project: ${currentProject.id}, current scene count: ${currentProject.scenes.length}`);
+    const projectId = currentProject.id;
+    
+    console.log(`Adding scene to project: ${projectId}, current scene count: ${currentProject.scenes.length}`);
 
     const sceneId = generateId();
+    
+    // Generate the new scene object
+    const newScene: Scene = {
+      id: sceneId,
+      url: url,
+      text: '',
+      source: {
+        platform: 'reddit', // Default to reddit for now
+      },
+      createdAt: Date.now(),
+      isLoading: true,
+    };
+    
+    // Make a defensive copy of the existing scenes array
+    const currentScenes = [...currentProject.scenes];
+    
+    // Update the UI state first to show the loading scene
     dispatch({
       type: 'ADD_SCENE_LOADING',
       payload: { sceneId, url },
     });
 
+    // IMPORTANT: Perform immediate synchronous save right after dispatching
     try {
+      // Get a fresh copy of the project that includes the new scene
+      const freshProject = await getProjectWithScenes(projectId);
+      
+      if (!freshProject) {
+        throw new Error(`Failed to get project ${projectId} for saving`);
+      }
+      
+      console.log(`IMMEDIATE SAVE: Starting with project ${freshProject.id}, scenes count: ${freshProject.scenes.length}`);
+      
+      // Get all existing scene IDs to prevent duplication
+      const existingSceneIds = new Set(freshProject.scenes.map(s => s.id));
+      
+      // Only add the new scene if it doesn't already exist
+      if (!existingSceneIds.has(sceneId)) {
+        // Create updated project with all scenes plus the new one
+        const projectToSave = {
+          ...freshProject,
+          scenes: [...freshProject.scenes, newScene],
+          updatedAt: Date.now(),
+        };
+        
+        // Save to localStorage 
+        const key = `auto-shorts-project-${projectToSave.id}`;
+        localStorage.setItem(key, JSON.stringify(projectToSave));
+        
+        console.log(`IMMEDIATE SAVE: Saved ${projectToSave.scenes.length} scenes to project ${projectToSave.id}`);
+        
+        // Update the projects list metadata
+        const projectsListKey = 'auto-shorts-projects-list';
+        const projectsListJson = localStorage.getItem(projectsListKey) || '[]';
+        const projectsList = JSON.parse(projectsListJson);
+        
+        // Create or update metadata
+        const metadata = {
+          id: projectToSave.id,
+          title: projectToSave.title,
+          createdAt: projectToSave.createdAt,
+          updatedAt: projectToSave.updatedAt,
+          thumbnailUrl: projectToSave.scenes.find((s: Scene) => s.media?.thumbnailUrl)?.media?.thumbnailUrl,
+          scenesCount: projectToSave.scenes.length,
+        };
+        
+        // Update or add to the list
+        const existingIndex = projectsList.findIndex((p: { id: string }) => p.id === projectToSave.id);
+        if (existingIndex >= 0) {
+          projectsList[existingIndex] = metadata;
+        } else {
+          projectsList.push(metadata);
+        }
+        
+        // Save updated list
+        localStorage.setItem(projectsListKey, JSON.stringify(projectsList));
+        
+        // Update local reference for later use in this function
+        currentProject.scenes = [...projectToSave.scenes];
+      } else {
+        console.log(`Scene ${sceneId} already exists in project, not adding duplicate`);
+      }
+    } catch (syncError) {
+      console.error('Error during immediate scene save:', syncError);
+    }
+
+    try {
+      // Extract content from URL
       const response = await extractContent(url);
 
       if (response.error) {
@@ -298,18 +649,24 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         mediaUrl = sceneData.media_url;
       }
 
-      // Create the new scene object
-      const newScene: Scene = {
+      // Original thumbnailUrl extraction - SIMPLIFIED back to the original version
+      // This is the key change that restores the working logic
+      console.log('API Response thumbnail check:');
+      console.log('- Direct thumbnail_url:', sceneData.thumbnail_url);
+      console.log('- Metadata thumbnails:', sceneData.metadata?.thumbnail_url);
+
+      // Create the new scene object with content data
+      const updatedScene: Scene = {
         id: sceneId,
         url,
         text: sceneData.text || '',
         media: mediaUrl && mediaType ? { 
           type: mediaType as 'image' | 'video' | 'gallery', 
           url: mediaUrl,
-          thumbnailUrl: sceneData.thumbnail_url,
-          width: sceneData.width,
-          height: sceneData.height,
-          duration: sceneData.duration
+          thumbnailUrl: sceneData.thumbnail_url, // Simple direct assignment like the original
+          width: sceneData.width || sceneData.metadata?.width,
+          height: sceneData.height || sceneData.metadata?.height,
+          duration: sceneData.duration || sceneData.metadata?.duration
         } : undefined,
         source: {
           platform: 'reddit',
@@ -319,15 +676,39 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         createdAt: Date.now(),
       };
 
-      // Create the updated project with the new scene
+      // Log the final scene media data for debugging
+      console.log(`Final scene with thumbnail:`, updatedScene.media?.thumbnailUrl);
+
+      // CRITICAL STEP: Get a fresh copy of the project from localStorage to ensure we have all scenes
+      console.log(`Getting fresh project ${projectId} before updating scene ${sceneId}`);
+      const freshProject = await getProjectWithScenes(projectId);
+      
+      if (!freshProject) {
+        throw new Error(`Failed to get fresh project ${projectId}`);
+      }
+      
+      console.log(`Retrieved fresh project with ${freshProject.scenes.length} scenes`);
+
+      // Update the scene in the fresh project's scenes array
+      const updatedScenes = freshProject.scenes.map(scene => 
+        scene.id === sceneId ? updatedScene : scene
+      );
+      
+      // If scene wasn't found (somehow got lost), add it again
+      if (!updatedScenes.some(scene => scene.id === sceneId)) {
+        console.warn(`Scene ${sceneId} not found in project, re-adding it`);
+        updatedScenes.push(updatedScene);
+      }
+      
+      // Create the updated project with all scenes
       const updatedProject: Project = {
-        ...currentProject,
-        scenes: [...currentProject.scenes, newScene],
+        ...freshProject,
+        scenes: updatedScenes,
         updatedAt: Date.now()
       };
 
       // 1. First save to localStorage for persistence
-      console.log(`Saving project with new scene to localStorage: ${updatedProject.id}`);
+      console.log(`Saving project with updated scene to localStorage: ${updatedProject.id}, scenes: ${updatedScenes.length}`);
       await saveProject(updatedProject);
       
       // 2. Update the UI state
@@ -342,18 +723,130 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         payload: { timestamp: Date.now() } 
       });
       
-      console.log(`Scene added successfully. Project now has ${updatedProject.scenes.length} scenes.`);
+      // 4. Force another immediate save to ensure scene persistence
+      try {
+        // Create a fresh copy with content
+        const finalProject = JSON.parse(JSON.stringify(updatedProject));
+        
+        // Immediate synchronous localStorage save
+        const key = `auto-shorts-project-${finalProject.id}`;
+        localStorage.setItem(key, JSON.stringify(finalProject));
+        console.log(`Second IMMEDIATE SAVE: Updated scene ${sceneId} with content in project ${finalProject.id}, scenes: ${finalProject.scenes.length}`);
+      } catch (syncError) {
+        console.error('Error during second immediate scene save:', syncError);
+      }
+      
+      // 5. Initiate background media storage if media exists
+      if (updatedScene.media?.url) {
+        try {
+          // Import the storeSceneMedia utility
+          const { storeSceneMedia } = await import('../../lib/media-utils');
+          
+          console.log(`[STORAGE-DEBUG] Starting media storage for scene: ${updatedScene.id}`);
+          console.log(`[STORAGE-DEBUG] Media URL to store: ${updatedScene.media.url}`);
+          console.log(`[STORAGE-DEBUG] Current media state:`, {
+            type: updatedScene.media.type,
+            hasUrl: !!updatedScene.media.url,
+            isStorageBacked: updatedScene.media.isStorageBacked,
+            hasStorageKey: !!updatedScene.media.storageKey
+          });
+          
+          // Set the scene's storing media flag to true
+          dispatch({
+            type: 'SET_SCENE_STORING_MEDIA',
+            payload: { sceneId: updatedScene.id, isStoringMedia: true }
+          });
+          
+          // Store media in R2 storage
+          console.log(`[STORAGE-DEBUG] Calling storeSceneMedia function`);
+          const success = await storeSceneMedia(
+            updatedScene,
+            projectId,
+            updateSceneMedia
+          );
+          
+          // Set the scene's storing media flag to false since storage is complete
+          dispatch({
+            type: 'SET_SCENE_STORING_MEDIA',
+            payload: { sceneId: updatedScene.id, isStoringMedia: false }
+          });
+          
+          if (success) {
+            console.log(`[STORAGE-DEBUG] Successfully stored media for scene: ${updatedScene.id}`);
+            
+            // Get the latest scene to verify storage worked
+            const latestProject = await getProjectWithScenes(projectId);
+            if (latestProject) {
+              const latestScene = latestProject.scenes.find(s => s.id === updatedScene.id);
+              if (latestScene && latestScene.media) {
+                console.log(`[STORAGE-DEBUG] Verification - Latest scene media state:`, {
+                  url: latestScene.media.url,
+                  storedUrl: latestScene.media.storedUrl,
+                  isStorageBacked: latestScene.media.isStorageBacked,
+                  storageKey: latestScene.media.storageKey
+                });
+              }
+            }
+          } else {
+            console.warn(`[STORAGE-DEBUG] Failed to store media for scene: ${updatedScene.id}`);
+          }
+          
+          // Final save to ensure scene is fully stored with current state
+          const currentState = state.currentProject;
+          if (currentState) {
+            console.log(`Final save for scene: ${updatedScene.id} from current state with ${currentState.scenes.length} scenes`);
+            
+            // Verify we're not losing scenes
+            if (currentState.scenes.length < updatedScenes.length) {
+              console.warn(`WARNING: Current state has fewer scenes (${currentState.scenes.length}) than expected (${updatedScenes.length})`);
+              
+              // Use the previously saved updatedProject to ensure we don't lose scenes
+              await saveProject(updatedProject);
+              
+              // Force a UI update with the correct scenes
+              dispatch({
+                type: 'LOAD_PROJECT_SUCCESS',
+                payload: { project: updatedProject },
+              });
+            } else {
+              // Save current state as normal
+              await saveProject(currentState);
+            }
+            
+            console.log(`Final save completed for scene: ${updatedScene.id}`);
+            
+            // Verify the save worked by loading the project again
+            const verifyProject = await getProject(projectId);
+            if (verifyProject) {
+              console.log(`Scene added, now fetching updated project ${projectId} from storage`);
+              console.log(`Verification: Project has ${verifyProject.scenes.length} scenes in storage`);
+            }
+          }
+        } catch (storageError) {
+          console.error('Error during media storage:', storageError);
+          
+          // Set the scene's storing media flag to false in case of error
+          dispatch({
+            type: 'SET_SCENE_STORING_MEDIA',
+            payload: { sceneId: updatedScene.id, isStoringMedia: false }
+          });
+        }
+      }
     } catch (error) {
-      console.error('Error adding scene:', error);
+      console.error('Error extracting content:', error);
       dispatch({
         type: 'ADD_SCENE_ERROR',
         payload: {
           sceneId,
-          error: error instanceof Error ? error.message : 'Unknown error occurred',
+          error: error instanceof Error ? error.message : 'Failed to extract content',
         },
       });
+      
+      // Ensure we reset tracking if there's an error
+      delete mediaStorageOperationsRef.current[sceneId];
+      setStorageInProgress(!isMediaStorageInProgress());
     }
-  }, [state.currentProject, dispatch]);
+  }, [state.currentProject, dispatch, updateSceneMedia, saveCurrentProject, isMediaStorageInProgress, saveProject, getProjectWithScenes]);
 
   // Remove a scene - simplified for reliability
   const removeScene = useCallback((sceneId: string) => {
@@ -401,6 +894,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             type: 'LOAD_PROJECT_SUCCESS',
             payload: { project: updatedProject },
           });
+          
+          // Perform a secondary save to ensure persistence after all state updates
+          setTimeout(async () => {
+            try {
+              console.log(`Performing follow-up save after scene removal: ${sceneId}`);
+              // Use a fresh copy of the project to ensure all state updates are captured
+              const freshProject = {...updatedProject, updatedAt: Date.now()};
+              await saveProject(freshProject);
+              console.log(`Follow-up save completed for project: ${freshProject.id}`);
+            } catch (saveError) {
+              console.error('Failed to perform follow-up save after scene removal:', saveError);
+            }
+          }, 500);
         })
         .catch(error => {
           console.error('Error saving project after scene removal:', error);
@@ -420,17 +926,24 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [state.currentProject, dispatch]);
 
-  // Reorder scenes
+  // Reorder scenes in the current project
   const reorderScenes = useCallback((sceneIds: string[]) => {
-    dispatch({ type: 'REORDER_SCENES', payload: { sceneIds } });
-    
-    // We need to manually trigger a save here to ensure reordering is persisted
+    if (!state.currentProject) return;
+
+    dispatch({
+      type: 'REORDER_SCENES',
+      payload: { sceneIds },
+    });
+
+    // Save after reordering with a slight delay to avoid too many saves
     setTimeout(() => {
-      saveCurrentProject().catch(error => {
-        console.error('Error saving project after reordering scenes:', error);
-      });
-    }, 100);
-  }, [saveCurrentProject]);
+      try {
+        saveCurrentProject();
+      } catch (error) {
+        console.error('Error during follow-up save after reordering:', error);
+      }
+    }, 1000);
+  }, [state.currentProject, dispatch, saveCurrentProject]);
 
   // Update scene text
   const updateSceneText = useCallback((sceneId: string, text: string) => {
@@ -667,6 +1180,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     reorderScenes,
     updateSceneText,
     updateSceneAudio,
+    updateSceneMedia,
     setProjectTitle,
     saveCurrentProject,
     deleteCurrentProject,
@@ -677,6 +1191,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setMode,
     nextMode,
     previousMode,
+    storeAllMedia,
   }), [
     createProject,
     setCurrentProject,
@@ -685,6 +1200,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     reorderScenes,
     updateSceneText,
     updateSceneAudio,
+    updateSceneMedia,
     setProjectTitle,
     saveCurrentProject,
     deleteCurrentProject,
@@ -695,6 +1211,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setMode,
     nextMode,
     previousMode,
+    storeAllMedia,
   ]);
 
   // Combine state and actions only when either changes

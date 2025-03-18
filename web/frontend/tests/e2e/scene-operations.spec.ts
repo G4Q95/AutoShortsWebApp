@@ -268,7 +268,7 @@ test.describe('Scene Operations', () => {
     // Ensure the page is fully loaded and stable before attempting deletion
     console.log('Ensuring page is stable before deletion...');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(2000); // Give the UI a moment to stabilize
+    await page.waitForTimeout(6000); // Increased from 2000ms to 6000ms to allow video content to fully load
     
     // Try multiple strategies to find and click the delete button
     console.log('Attempting to delete scene with multiple strategies...');

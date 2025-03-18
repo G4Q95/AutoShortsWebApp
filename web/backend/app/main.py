@@ -246,12 +246,12 @@ app.include_router(content_router, prefix="/api/v1/content")
 app.include_router(projects_router, prefix="/api/v1/projects")
 app.include_router(voice_router, prefix="/api/v1/voice")
 app.include_router(test_router, prefix="/api/v1")
-app.include_router(media_router, prefix="/api")  # New media router
+app.include_router(media.router, prefix="/api/v1")  # Media router with correct name
 
-# Register API routers
+# Register API routers for legacy endpoints (deprecated, to be removed)
 app.include_router(test_router, prefix="/api/test")
 app.include_router(content_router, prefix="/api/content")
 app.include_router(projects_router, prefix="/api/projects")
 app.include_router(videos.router, prefix="/api/videos")
 app.include_router(voice_router, prefix="/api/voice")
-app.include_router(media_router, prefix="/api")  # New media router
+app.include_router(media.router, prefix="/api")  # Media router with correct name

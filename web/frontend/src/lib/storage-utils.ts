@@ -268,6 +268,10 @@ export async function getProjects(): Promise<Project[]> {
 export async function saveProject(project: Project): Promise<void> {
   try {
     console.log(`[storage-utils] Saving project: ${project.id}, title: ${project.title}`);
+    
+    // Log detailed scene information
+    console.log(`[storage-utils] Project contains ${project.scenes.length} scenes, scene IDs: [${project.scenes.map(s => s.id).join(', ')}]`);
+    
     const key = getProjectKey(project.id);
     const projectData = JSON.stringify(project);
     console.log(`[storage-utils] Project data size: ${projectData.length} characters`);
@@ -292,6 +296,14 @@ export async function saveProject(project: Project): Promise<void> {
         `[storage-utils] Project save verification failed - data not found for key: ${key}`
       );
     } else {
+      // Parse the saved data to verify scene count
+      try {
+        const savedProject = JSON.parse(savedData) as Project;
+        console.log(`[storage-utils] Project save verified - found ${savedProject.scenes.length} scenes in saved project ${project.id}`);
+      } catch (parseError) {
+        console.error(`[storage-utils] Error parsing saved project data during verification:`, parseError);
+      }
+      
       console.log(`[storage-utils] Project save verified - found data for key: ${key}`);
     }
   } catch (error) {
@@ -384,6 +396,11 @@ export async function getProject(projectId: string): Promise<Project | null> {
         return null;
       }
 
+      // Log scene information for debugging
+      console.log(
+        `[storage-utils] Successfully loaded project ${projectId} with ${project.scenes.length} scenes: [${project.scenes.map(s => s.id).join(', ')}]`
+      );
+      
       console.log(`[storage-utils] Successfully parsed project ${projectId}:`, {
         id: project.id,
         title: project.title,
