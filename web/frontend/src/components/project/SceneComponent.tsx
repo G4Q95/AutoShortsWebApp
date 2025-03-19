@@ -761,7 +761,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     // Use ScenePreviewPlayer for all media types
     return (
       <div className="relative w-full bg-black rounded-t-lg overflow-hidden" 
-           style={{ height: isCompactView ? '180px' : 'auto', minHeight: '180px' }}>
+           style={{ height: isCompactView ? '190px' : 'auto', minHeight: '190px' }}>
         {/* Center the content in compact view */}
         <div className="flex items-center justify-center w-full h-full">
           <ScenePreviewPlayer
@@ -829,7 +829,30 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         >
           <p className="text-gray-800 line-clamp-3">{displayText}</p>
           
-          {/* Removed the blue expand arrow */}
+          {/* Info button in the top-right corner of text box */}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowInfo(!showInfo);
+            }}
+            className="absolute top-0 right-0 p-0.5 text-blue-500 hover:text-blue-700 z-10 transition-colors"
+            title="Show source information"
+            aria-label="Show source information"
+            data-testid="info-button"
+            style={{
+              top: "-1px",
+              right: "-3px", // Changed from -1px to -3px to move it further right
+              padding: "2px",
+              backgroundColor: "rgba(255, 255, 255, 0.8)",
+              borderRadius: "0 0 0 4px"
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </button>
         </div>
         
         {/* Expanded overlay - shown when user expands without editing */}
@@ -847,6 +870,64 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             <div className="absolute bottom-1 right-1 p-1">
               <ChevronUpIcon className="h-3 w-3 text-blue-600" />
             </div>
+          </div>
+        )}
+        
+        {/* Info overlay - shown when info button is clicked */}
+        {showInfo && !isEditing && (
+          <div 
+            className="absolute top-0 right-0 bg-white border border-gray-200 shadow-lg rounded-md z-50 p-2 mt-6 mr-1 w-64 text-xs"
+            style={{ maxWidth: 'calc(100% - 8px)' }}
+          >
+            <div className="flex justify-between items-center mb-1 pb-1 border-b border-gray-200">
+              <span className="font-semibold text-gray-700">Source Information</span>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowInfo(false);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XIcon className="h-3 w-3" />
+              </button>
+            </div>
+            
+            {/* Username/Author */}
+            {scene.source && scene.source.author && (
+              <div className="flex items-center gap-1 mb-0.5">
+                <span className="font-semibold">By:</span>
+                <span>{scene.source.author}</span>
+              </div>
+            )}
+            
+            {/* Subreddit */}
+            {scene.source && scene.source.subreddit && (
+              <div className="flex items-center gap-1 mb-0.5">
+                <span className="font-semibold">Subreddit:</span>
+                <span>r/{scene.source.subreddit}</span>
+              </div>
+            )}
+            
+            {/* Word and character count */}
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="font-semibold">Stats:</span>
+              <span>{getWordCount(scene.text)} words, {scene.text.length} chars</span>
+            </div>
+            
+            {/* Full URL */}
+            {scene.url && (
+              <div className="flex flex-col gap-0.5">
+                <span className="font-semibold">Source:</span>
+                <a 
+                  href={scene.url} 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline truncate"
+                >
+                  {scene.url}
+                </a>
+              </div>
+            )}
           </div>
         )}
         
@@ -1318,6 +1399,17 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     }
   }, [scene.isStoringMedia]);
 
+  // Find and modify the getMediaStyle function to ensure videos fill the container properly
+  const getMediaStyle = (): React.CSSProperties => {
+    return {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover', // Change from 'contain' to 'cover' to fill the space
+      objectPosition: 'center',
+      maxHeight: isCompactView ? '190px' : '500px'
+    };
+  };
+
   return manuallyRemoving ? null : (
     <div
       id={`scene-${scene.id}`}
@@ -1365,95 +1457,19 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       ) : (
         <div className="flex flex-col h-full">
           {/* Media section - fixed or dynamic height based on view mode */}
-          <div className={isCompactView ? "h-[180px]" : ""} data-testid="scene-media">
+          <div className={isCompactView ? "h-[190px]" : ""} data-testid="scene-media">
             {renderMedia()}
           </div>
 
           {/* Content section - with minimal spacing */}
           <div className={`p-1 ${isCompactView ? 'flex-1' : ''} flex flex-col`}>
-            {/* Source info with bottom border - now smaller and more compact */}
-            <div className="flex items-center justify-between text-[10px] text-gray-500 mb-0.5 pb-0.5 border-b border-gray-200 h-5">
-              <button 
-                onClick={toggleInfo}
-                className="flex items-center gap-0.5 hover:text-gray-700 transition-colors"
-                aria-label={showInfo ? "Hide source details" : "Show source details"}
-                data-testid="toggle-info-button"
-              >
-                <span>
-                  {showInfo ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="16" x2="12" y2="12"></line>
-                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="16" x2="12" y2="12"></line>
-                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                    </svg>
-                  )}
-                </span>
-                {!showInfo && <span className="text-[10px]">Info</span>}
-              </button>
-              
-              {/* Subreddit name with truncation */}
-              {scene.source && scene.source.subreddit && (
-                <span className="truncate max-w-[65%] text-[10px] text-gray-500">
-                  r/{scene.source.subreddit}
-                </span>
-              )}
-            </div>
-            
-            {/* Expanded info section */}
-            {showInfo && (
-              <div className="mb-1 text-[10px] text-gray-600 bg-gray-50 p-1 rounded" data-testid="scene-info-expanded">
-                {/* Username/Author */}
-                {scene.source && scene.source.author && (
-                  <div className="flex items-center gap-1 mb-0.5">
-                    <span className="font-semibold">By:</span>
-                    <span>{scene.source.author}</span>
-                  </div>
-                )}
-                
-                {/* Subreddit */}
-                {scene.source && scene.source.subreddit && (
-                  <div className="flex items-center gap-1 mb-0.5">
-                    <span className="font-semibold">Subreddit:</span>
-                    <span>r/{scene.source.subreddit}</span>
-                  </div>
-                )}
-                
-                {/* Word and character count */}
-                <div className="flex items-center gap-1 mb-0.5">
-                  <span className="font-semibold">Stats:</span>
-                  <span>{getWordCount(scene.text)} words, {scene.text.length} chars</span>
-                </div>
-                
-                {/* Full URL */}
-                {scene.url && (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-semibold">Source:</span>
-                    <a 
-                      href={scene.url} 
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-500 hover:underline truncate"
-                    >
-                      {scene.url}
-                    </a>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Text content with overlay expansion */}
             <div data-testid="scene-text-section">
               {renderTextContent()}
             </div>
             
             {/* Voice generation controls with top padding */}
-            <div className="mt-0.5 pt-0.5 border-t border-gray-200" data-testid="scene-audio-section">
+            <div className="pt-0.5 border-t border-gray-200" data-testid="scene-audio-section">
               {useNewControls ? (
                 // New component (extracted)
                 <div data-testid="new-audio-controls">
@@ -1560,7 +1576,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                       {!scene.audio && !useNewControls && (
                         <div className="relative w-full" style={{ width: '100%', height: '100%' }}>
                           <button
-                            className={`w-full generate-button front absolute inset-0 flex-grow px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm ${process.env.NEXT_PUBLIC_TESTING_MODE === 'true' || process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' || (typeof window !== 'undefined' && window.USE_MOCK_AUDIO) ? 'test-mode-button' : ''}`}
+                            className={`w-full generate-button front absolute inset-0 flex-grow px-3 py-2.5 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm ${process.env.NEXT_PUBLIC_TESTING_MODE === 'true' || process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' || (typeof window !== 'undefined' && window.USE_MOCK_AUDIO) ? 'test-mode-button' : ''}`}
                             data-testid="generate-voice-button"
                             disabled={generatingAudio && !(process.env.NEXT_PUBLIC_TESTING_MODE === 'true' || process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' || (typeof window !== 'undefined' && window.USE_MOCK_AUDIO))}
                             onClick={handleGenerateVoice}
@@ -1665,7 +1681,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             <button
               onClick={handleRemoveScene}
               disabled={isRemoving}
-              className={`flex-shrink-0 w-10 py-2 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
+              className={`flex-shrink-0 w-10 py-2.5 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
               aria-label="Remove scene"
               data-testid="delete-scene-button"
               style={{ marginLeft: '0' }} /* Remove negative margin */

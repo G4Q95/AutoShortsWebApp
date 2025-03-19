@@ -299,22 +299,23 @@ const ScenePreviewPlayer = ({
     // For vertical media in compact view, maintain height and center
     if (isVertical && isCompactView) {
       return {
-        maxWidth: '100%',
-        maxHeight: '160px', 
+        width: 'auto',
+        height: '100%',
+        maxHeight: '190px', // Increased from 160px
         margin: 'auto',
-        display: 'block'
+        display: 'block',
+        objectFit: 'contain' as const
       };
     }
     
-    // For horizontal media or expanded view, let it fill naturally
+    // For horizontal media or expanded view, fill the space
     return {
-      width: isCompactView && !isVertical ? '100%' : 'auto', // Full width for horizontal in compact view
-      height: 'auto',
-      maxWidth: '100%',
-      maxHeight: isCompactView ? '160px' : '400px',
+      width: '100%',
+      height: isCompactView ? '100%' : 'auto',
+      maxHeight: isCompactView ? '190px' : '400px', // Increased from 160px
       margin: 'auto',
       display: 'block',
-      objectFit: isCompactView && !isVertical ? 'cover' as const : 'contain' as const
+      objectFit: 'cover' as const // Changed from 'contain' to 'cover' to fill space completely
     };
   };
   
