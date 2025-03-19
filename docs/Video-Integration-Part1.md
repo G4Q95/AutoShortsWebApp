@@ -10,28 +10,33 @@ This document outlines the first phase of the video processing pipeline implemen
 - ✅ Audio files are being stored in Cloudflare R2
 - ✅ Scene management with drag-and-drop reordering is complete
 - ✅ ScenePreviewPlayer component implemented
+- ✅ Media display with adaptive aspect ratio detection implemented
+- ✅ Compact and expanded view modes for scenes implemented
+- ✅ Collapsible information display with space optimization implemented
 - ✅ TrimControls component implemented
 - ✅ Playwright testing configuration updated for headless mode
 - ✅ Media files (Reddit content) are now properly stored in Cloudflare R2
-- 🔄 Video processing pipeline is partially implemented (40%)
+- 🔄 Video processing pipeline is partially implemented (45%)
 
 ## Implementation Goals
 
 1. **Media Storage**
-   - Download and store Reddit media content in Cloudflare R2
-   - Implement proper pairing between media files and generated audio
-   - Create organized storage structure in R2
+   - ✅ Download and store Reddit media content in Cloudflare R2
+   - ✅ Implement proper pairing between media files and generated audio
+   - ✅ Create organized storage structure in R2
 
 2. **Preview Playback**
-   - Create individual scene previews with synchronized audio
-   - Implement sequential playback of all scenes
-   - Add basic play/pause controls
+   - ✅ Create individual scene previews with synchronized audio
+   - ✅ Add view mode toggle for compact and expanded displays
+   - ✅ Implement adaptive media sizing based on content aspect ratio
+   - 🔄 Implement sequential playback of all scenes
+   - ✅ Add basic play/pause controls
 
 3. **Media Trimming**
-   - Add ability to trim the beginning and end of media
-   - Set appropriate default durations:
-     - Photos: Length of the generated voiceover
-     - Videos: Original video length with voiceover at the beginning
+   - ✅ Add ability to trim the beginning and end of media
+   - 🔄 Set appropriate default durations:
+     - 🔄 Photos: Length of the generated voiceover
+     - 🔄 Videos: Original video length with voiceover at the beginning
 
 ## Technical Approach
 
@@ -51,28 +56,30 @@ This document outlines the first phase of the video processing pipeline implemen
 ### Phase 2: Basic Preview Player
 
 1. **Scene Player Component** ✅
-   - Create `ScenePreviewPlayer` component for individual scenes
-   - Implement HTML5 video/audio elements with controls
-   - Add proper handling for different media types (images vs videos)
-   - Synchronize media playback with audio
+   - ✅ Create `ScenePreviewPlayer` component for individual scenes
+   - ✅ Implement HTML5 video/audio elements with controls
+   - ✅ Add proper handling for different media types (images vs videos)
+   - ✅ Synchronize media playback with audio
+   - ✅ Implement adaptive sizing based on content aspect ratio
+   - ✅ Add compact and expanded view modes
 
 2. **Project Player Component**
-   - Create `ProjectPreviewPlayer` for sequential playback
-   - Implement scene transition logic
-   - Add playlist functionality for all scenes
-   - Create playback controls (play, pause, next, previous)
+   - 🔄 Create `ProjectPreviewPlayer` for sequential playback
+   - 🔄 Implement scene transition logic
+   - 🔄 Add playlist functionality for all scenes
+   - 🔄 Create playback controls (play, pause, next, previous)
 
 ### Phase 3: Trimming Controls
 
 1. **Trimming UI** ✅
-   - Create scrubbing interface with customizable brackets
-   - Implement visual indicators for trim points
-   - Add duration display and timing controls
+   - ✅ Create scrubbing interface with customizable brackets
+   - ✅ Implement visual indicators for trim points
+   - ✅ Add duration display and timing controls
 
-2. **Duration Logic**
-   - Implement logic for default durations based on content type
-   - Create separate handling for images and videos
-   - Store and retrieve trim settings from project data
+2. **Duration Logic** 🔄
+   - 🔄 Implement logic for default durations based on content type
+   - 🔄 Create separate handling for images and videos
+   - 🔄 Store and retrieve trim settings from project data
 
 ## Testing Plan
 
@@ -175,6 +182,51 @@ For the initial implementation (Part 1), we'll proceed with the direct FFMPEG ap
    - Duration logic
    - Settings persistence
 
+5. **Scene Player Integration (2-3 days)** ✅
+   - Replace black square media display with ScenePreviewPlayer in Scene card
+   - Connect player to R2-stored media files
+   - Implement audio-video synchronization logic
+   - Add play/pause controls for combined media and audio
+   - Handle different media types (images vs videos)
+   - Implement adaptive sizing based on content aspect ratio
+   - Add view mode toggle for compact/expanded displays
+
+6. **Timeline & Trimming (2-3 days)**
+   - Implement timeline scrubber UI
+   - Add visual position indicators for voiceover relative to video
+   - Connect TrimControls to Scene player
+   - Implement trim point visualization
+   - Create backend endpoints to persist trim settings
+   - Store trim data in project metadata
+
+7. **Scene Duration Logic (1-2 days)**
+   - Implement default duration logic:
+     - Images: match audio duration
+     - Videos: respect trim points
+   - Add visual indicators for recommended durations
+   - Create UI for adjusting durations
+
+8. **Sequential Playback (2-3 days)**
+   - Develop ProjectPreviewPlayer component
+   - Implement scene transition logic
+   - Create playlist functionality for all scenes
+   - Add overall project controls (play all, pause, next, previous)
+   - Build progress tracking across multiple scenes
+
+9. **FFmpeg Integration (3-4 days)**
+   - Set up backend endpoints for FFmpeg operations
+   - Implement media + audio merging functionality
+   - Create progress tracking for processing
+   - Add error handling for media operations
+   - Implement background processing for video generation
+
+10. **Testing & Refinement (1-2 days)**
+    - Develop comprehensive tests for media playback
+    - Test trimming functionality across media types
+    - Verify audio synchronization
+    - Test sequential playback
+    - Ensure trim settings persist correctly
+
 ## API Requirements
 
 New backend endpoints needed:
@@ -198,29 +250,33 @@ New components needed:
 
 1. **Player Components**
    - `ScenePreviewPlayer` - Individual scene playback ✅
-   - `ProjectPreviewPlayer` - Full project playback
+   - `ProjectPreviewPlayer` - Full project playback 🔄
    - `MediaControls` - Reusable playback controls ✅
    - `TrimControls` - Interface for adjusting timing ✅
 
 2. **UI Enhancements**
-   - Scene duration indicators
-   - Progress bar for playback
-   - Timeline view for project
-   - Visual trim indicators
+   - ✅ Scene view mode toggle (compact/expanded)
+   - ✅ Collapsible information display
+   - ✅ Adaptive media sizing based on content
+   - 🔄 Scene duration indicators
+   - 🔄 Progress bar for playback
+   - 🔄 Timeline view for project
+   - ✅ Visual trim indicators
 
 ## Next Steps
 
-1. **Verify R2 Storage Integration**
+1. **Complete Preview Integration**
+   - ✅ Add ScenePreviewPlayer to Scene component
+   - ✅ Test media synchronization
+   - ✅ Add loading states
+   - ✅ Add error handling for media failures
+   - 🔄 Implement sequential playback of all scenes
+
+2. **Verify R2 Storage Integration**
    - Add logging for R2 operations
    - Monitor network requests
    - Implement proper error handling
    - Add retry mechanisms for transient failures
-
-2. **Complete Preview Integration**
-   - Add ScenePreviewPlayer to Scene component
-   - Test media synchronization
-   - Add loading states
-   - Add error handling for media failures
 
 3. **Enhance Testing**
    - Add media storage tests
@@ -242,12 +298,14 @@ New components needed:
 - Identify connection points between media and audio components
 - Evaluate existing FFmpeg scripts for media processing
 
-### Step 2: Scene Player Integration (2-3 days)
-- Replace black square media display with ScenePreviewPlayer in Scene card
-- Connect player to R2-stored media files
-- Implement audio-video synchronization logic
-- Add play/pause controls for combined media and audio
-- Handle different media types (images vs videos)
+### Step 2: Scene Player Integration (2-3 days) ✅
+- ✅ Replace black square media display with ScenePreviewPlayer in Scene card
+- ✅ Connect player to R2-stored media files
+- ✅ Implement audio-video synchronization logic
+- ✅ Add play/pause controls for combined media and audio
+- ✅ Handle different media types (images vs videos)
+- ✅ Implement adaptive sizing based on content aspect ratio
+- ✅ Add view mode toggle for compact/expanded displays
 
 ### Step 3: Timeline & Trimming (2-3 days)
 - Implement timeline scrubber UI
