@@ -840,10 +840,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             aria-label="Show source information"
             data-testid="info-button"
             style={{
-              top: "-1px",
-              right: "0px", // Changed from -3px to 0px to move it slightly left
+              top: "0px",
+              right: "0px",
               padding: "2px",
-              backgroundColor: "rgba(255, 255, 255, 0.8)",
+              backgroundColor: "transparent", // Remove the white background
               borderRadius: "0 0 0 4px"
             }}
           >
@@ -911,7 +911,6 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             {/* Full URL */}
             {scene.url && (
               <div className="flex flex-col gap-0.5">
-                <span className="font-semibold">Source:</span>
                 <a 
                   href={scene.url} 
                   target="_blank"
