@@ -841,7 +841,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             data-testid="info-button"
             style={{
               top: "-1px",
-              right: "-3px", // Changed from -1px to -3px to move it further right
+              right: "0px", // Changed from -3px to 0px to move it slightly left
               padding: "2px",
               backgroundColor: "rgba(255, 255, 255, 0.8)",
               borderRadius: "0 0 0 4px"
@@ -907,12 +907,6 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 <span>r/{scene.source.subreddit}</span>
               </div>
             )}
-            
-            {/* Word and character count */}
-            <div className="flex items-center gap-1 mb-0.5">
-              <span className="font-semibold">Stats:</span>
-              <span>{getWordCount(scene.text)} words, {scene.text.length} chars</span>
-            </div>
             
             {/* Full URL */}
             {scene.url && (
