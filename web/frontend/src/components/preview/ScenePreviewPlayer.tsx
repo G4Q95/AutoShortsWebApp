@@ -43,7 +43,7 @@ const ScenePreviewPlayer = ({
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const [controlsLocked, setControlsLocked] = useState<boolean>(false);
   const [trimActive, setTrimActive] = useState<boolean>(false);
-  const [activeHandle, setActiveHandle] = useState<'start' | 'end' | null>(null);
+  const [activeHandle, setActiveHandle] = useState<'start' | 'end' | 'position' | null>(null);
   const [trimStart, setTrimStart] = useState<number>(trim.start);
   const [trimEnd, setTrimEnd] = useState<number>(trim.end || 0);
   
@@ -155,9 +155,14 @@ const ScenePreviewPlayer = ({
     const handleMouseMove = (e: MouseEvent) => {
       if (!activeHandle || !timelineRef.current) return;
       
+      // Prevent default behaviors
+      e.preventDefault();
+      
       const rect = timelineRef.current.getBoundingClientRect();
-      const position = (e.clientX - rect.left) / rect.width;
-      const newTime = Math.max(0, Math.min(position * duration, duration));
+      let position = (e.clientX - rect.left) / rect.width;
+      // Clamp position to [0, 1]
+      position = Math.max(0, Math.min(position, 1));
+      const newTime = position * duration;
       
       if (activeHandle === 'start') {
         if (newTime < trimEnd - 0.5) { // Minimum 0.5s duration
@@ -173,23 +178,41 @@ const ScenePreviewPlayer = ({
             onTrimChange(trimStart, newTime);
           }
         }
+      } else if (activeHandle === 'position') {
+        // Handle current position indicator drag
+        setCurrentTime(newTime);
+        if (mediaType === 'video' && videoRef.current) {
+          videoRef.current.currentTime = newTime;
+        }
+        if (audioRef.current) {
+          audioRef.current.currentTime = newTime;
+        }
       }
     };
     
     const handleMouseUp = () => {
       setActiveHandle(null);
+      document.body.style.cursor = 'default';
     };
     
     if (activeHandle) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      
+      // Set cursor style based on active handle
+      if (activeHandle === 'start' || activeHandle === 'end') {
+        document.body.style.cursor = 'ew-resize';
+      } else if (activeHandle === 'position') {
+        document.body.style.cursor = 'grabbing';
+      }
     }
     
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
     };
-  }, [activeHandle, duration, trimStart, trimEnd, onTrimChange]);
+  }, [activeHandle, timelineRef, duration, trimStart, trimEnd, onTrimChange, mediaType]);
   
   // Handler functions
   const handleAudioMetadata = () => {
@@ -322,6 +345,9 @@ const ScenePreviewPlayer = ({
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (!timelineRef.current || activeHandle) return;
     
+    // Stop propagation to prevent scene dragging
+    e.stopPropagation();
+    
     const rect = timelineRef.current.getBoundingClientRect();
     const clickPosition = (e.clientX - rect.left) / rect.width;
     const newTime = clickPosition * duration;
@@ -334,6 +360,12 @@ const ScenePreviewPlayer = ({
     if (audioRef.current) {
       audioRef.current.currentTime = newTime;
     }
+  };
+  
+  const handlePositionIndicatorMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setActiveHandle('position');
   };
   
   const handleTrimHandleMouseDown = (handle: 'start' | 'end', e: React.MouseEvent) => {
@@ -466,7 +498,10 @@ const ScenePreviewPlayer = ({
         
         {/* Play/Pause overlay */}
         <button
-          onClick={isPlaying ? handlePause : handlePlay}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent event from bubbling up to scene
+            isPlaying ? handlePause() : handlePlay();
+          }}
           className="absolute inset-0 w-full h-full flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-20 transition-opacity"
           data-testid="play-pause-button"
         >
@@ -477,84 +512,102 @@ const ScenePreviewPlayer = ({
           )}
         </button>
         
-        {/* Hoverable controls - updated for better transparency and hover interaction */}
+        {/* Hoverable controls */}
         <div 
           className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${shouldShowControls ? 'opacity-100' : 'opacity-0'}`}
           style={{ pointerEvents: shouldShowControls ? 'auto' : 'none' }}
           data-testid="hover-controls"
+          onClick={(e) => e.stopPropagation()} // Prevent clicks from reaching scene container
         >
-          {/* Integrated timeline scrubber with trim controls - more transparent */}
-          <div className="bg-black bg-opacity-30 backdrop-blur-sm px-2 py-1">
-            {/* Time display and timeline */}
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-white opacity-90">{formatTime(currentTime)}</span>
-              
-              {/* Timeline container */}
+          {/* Integrated timeline scrubber with trim controls */}
+          <div className="bg-black bg-opacity-30 backdrop-blur-sm py-1 w-full">
+            {/* Timeline container - full width */}
+            <div className="px-1 w-full">
               <div 
                 ref={timelineRef}
-                className="flex-grow relative h-4 flex items-center cursor-pointer"
-                onClick={handleTimelineClick}
+                className="relative h-5 flex items-center cursor-pointer w-full"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent event from reaching scene
+                  handleTimelineClick(e);
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation(); // Prevent drag from reaching scene container
+                }}
                 data-testid="timeline-container"
               >
-                {/* Timeline track */}
-                <div className="absolute w-full h-0.5 bg-gray-500 bg-opacity-60 rounded-full"></div>
+                {/* Timeline track - more visible */}
+                <div className="absolute w-full h-1.5 bg-gray-500 bg-opacity-70 rounded-full"></div>
                 
                 {/* Voiceover/active region */}
                 <div 
-                  className="absolute h-0.5 bg-blue-400 bg-opacity-70 rounded-full"
+                  className="absolute h-1.5 bg-blue-400 bg-opacity-80 rounded-full"
                   style={{ 
-                    left: `${(trimStart / duration) * 100}%`, 
-                    width: `${((trimEnd || duration) - trimStart) / duration * 100}%` 
+                    left: `${(trimStart / (duration || 1)) * 100}%`, 
+                    width: `${((trimEnd || duration) - trimStart) / (duration || 1) * 100}%` 
                   }}
                   data-testid="active-region"
+                  onMouseDown={(e) => e.stopPropagation()} // Prevent drag start
                 ></div>
                 
                 {/* Current position indicator */}
                 <div
-                  className="absolute w-0.5 h-2.5 bg-white rounded-full pointer-events-none"
-                  style={{ left: `${(currentTime / duration) * 100}%` }}
+                  className="absolute w-2 h-5 bg-white rounded-full cursor-grab"
+                  style={{ left: `${(currentTime / (duration || 1)) * 100}%`, marginLeft: "-1px" }}
                   data-testid="position-indicator"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handlePositionIndicatorMouseDown(e);
+                  }}
                 ></div>
                 
                 {/* Trim handles - only visible when trim mode is active */}
                 {trimActive && (
                   <>
-                    {/* Start trim handle - more subtle bracket */}
+                    {/* Start trim handle */}
                     <div 
-                      className="absolute h-2.5 w-1 bg-white bg-opacity-80 rounded cursor-ew-resize"
+                      className="absolute h-3 w-1 bg-white bg-opacity-80 rounded cursor-ew-resize"
                       style={{ 
-                        left: `${(trimStart / duration) * 100}%`,
+                        left: `${(trimStart / (duration || 1)) * 100}%`,
                         marginLeft: '-0.5px',
                         top: '50%',
                         transform: 'translateY(-50%)'
                       }}
-                      onMouseDown={(e) => handleTrimHandleMouseDown('start', e)}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleTrimHandleMouseDown('start', e);
+                      }}
                       data-testid="trim-start-handle"
                     >
-                      <div className="absolute h-2.5 w-1 border-l border-white opacity-80" style={{ left: '-2px' }}></div>
+                      <div className="absolute h-3 w-1 border-l border-white opacity-80" style={{ left: '-2px' }}></div>
                     </div>
                     
-                    {/* End trim handle - more subtle bracket */}
+                    {/* End trim handle */}
                     <div 
-                      className="absolute h-2.5 w-1 bg-white bg-opacity-80 rounded cursor-ew-resize"
+                      className="absolute h-3 w-1 bg-white bg-opacity-80 rounded cursor-ew-resize"
                       style={{ 
-                        left: `${(trimEnd / duration) * 100}%`,
+                        left: `${(trimEnd / (duration || 1)) * 100}%`,
                         marginLeft: '-0.5px',
                         top: '50%',
                         transform: 'translateY(-50%)'
                       }}
-                      onMouseDown={(e) => handleTrimHandleMouseDown('end', e)}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleTrimHandleMouseDown('end', e);
+                      }}
                       data-testid="trim-end-handle"
                     >
-                      <div className="absolute h-2.5 w-1 border-r border-white opacity-80" style={{ right: '-2px' }}></div>
+                      <div className="absolute h-3 w-1 border-r border-white opacity-80" style={{ right: '-2px' }}></div>
                     </div>
                     
-                    {/* Trim duration display - more subtle */}
+                    {/* Trim duration display */}
                     <div 
-                      className="absolute text-[8px] text-white py-0.5 px-1 bg-black bg-opacity-30 rounded pointer-events-none"
+                      className="absolute text-[7px] text-white py-0.5 px-1 bg-black bg-opacity-30 rounded pointer-events-none"
                       style={{ 
-                        left: `${((trimStart + (trimEnd - trimStart) / 2) / duration) * 100}%`,
-                        bottom: '-14px',
+                        left: `${((trimStart + (trimEnd - trimStart) / 2) / (duration || 1)) * 100}%`,
+                        bottom: '-12px',
                         transform: 'translateX(-50%)'
                       }}
                     >
@@ -563,80 +616,100 @@ const ScenePreviewPlayer = ({
                   </>
                 )}
                 
-                {/* Hidden range input for keyboard accessibility */}
+                {/* Seek slider - hidden but used for keyboard accessibility */}
                 <input
                   type="range"
                   min={0}
-                  max={duration}
+                  max={duration || 1}
                   value={currentTime}
-                  onChange={handleSeek}
-                  className="absolute w-full h-full opacity-0 cursor-pointer"
-                  step="0.1"
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    handleSeek(e);
+                  }}
+                  className="absolute w-full opacity-0 cursor-pointer"
+                  step="any"
                   data-testid="hover-seek-slider"
+                  onMouseDown={(e) => e.stopPropagation()} // Prevent scene drag
                 />
               </div>
               
-              <span className="text-xs text-white opacity-90">{formatTime(duration)}</span>
-            </div>
-            
-            {/* Controls row - more compact */}
-            <div className="flex items-center justify-between">
-              {/* Left controls: volume */}
-              <div className="flex items-center">
-                <button
-                  onClick={toggleMute}
-                  className="text-white opacity-80 p-0.5"
-                  data-testid="hover-mute-button"
-                >
-                  {isMuted ? (
-                    <VolumeXIcon className="w-2.5 h-2.5" />
-                  ) : volume < 0.5 ? (
-                    <VolumeIcon className="w-2.5 h-2.5" />
-                  ) : (
-                    <Volume2Icon className="w-2.5 h-2.5" />
-                  )}
-                </button>
+              {/* Time and controls row */}
+              <div className="flex items-center justify-between mt-0.5">
+                {/* Time display - smaller and below timeline */}
+                <div className="flex gap-1">
+                  <span className="text-[8px] text-white opacity-80">{formatTime(currentTime)} / {formatTime(duration)}</span>
+                </div>
                 
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={volume}
-                  onChange={handleVolumeChange}
-                  className="w-10 h-0.5 rounded-full bg-gray-500 bg-opacity-60 appearance-none ml-1"
-                  data-testid="hover-volume-slider"
-                />
-              </div>
-              
-              {/* Right controls: trim toggle and lock */}
-              <div className="flex items-center">
-                {/* Trim mode toggle */}
-                <button
-                  onClick={toggleTrimMode}
-                  className={`text-white opacity-80 p-0.5 mx-0.5 rounded-sm ${trimActive ? 'bg-blue-500 bg-opacity-40' : ''}`}
-                  data-testid="trim-mode-toggle"
-                  title={trimActive ? "Exit Trim Mode" : "Trim Mode"}
-                >
-                  <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M7 5L7 19" strokeLinecap="round" />
-                    <path d="M17 5L17 19" strokeLinecap="round" />
-                  </svg>
-                </button>
-                
-                {/* Lock button */}
-                <button
-                  onClick={toggleControlsLock}
-                  className="text-white opacity-80 p-0.5"
-                  data-testid="controls-lock-toggle"
-                  title={controlsLocked ? "Hide Controls" : "Lock Controls"}
-                >
-                  {controlsLocked ? (
-                    <ChevronDownIcon className="w-2.5 h-2.5" />
-                  ) : (
-                    <ChevronUpIcon className="w-2.5 h-2.5" />
-                  )}
-                </button>
+                {/* Controls at right */}
+                <div className="flex items-center gap-2">
+                  {/* Volume control - smaller */}
+                  <div className="flex items-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleMute();
+                      }}
+                      className="text-white opacity-80 p-0.5"
+                      data-testid="hover-mute-button"
+                    >
+                      {isMuted ? (
+                        <VolumeXIcon className="w-2 h-2" />
+                      ) : volume < 0.5 ? (
+                        <VolumeIcon className="w-2 h-2" />
+                      ) : (
+                        <Volume2Icon className="w-2 h-2" />
+                      )}
+                    </button>
+                    
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={volume}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleVolumeChange(e);
+                      }}
+                      className="w-6 h-0.5 rounded-full bg-gray-500 bg-opacity-60 appearance-none ml-0.5"
+                      data-testid="hover-volume-slider"
+                      onMouseDown={(e) => e.stopPropagation()} // Prevent scene drag
+                    />
+                  </div>
+                  
+                  {/* Trim mode toggle */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleTrimMode();
+                    }}
+                    className={`text-white opacity-80 p-0.5 rounded-sm ${trimActive ? 'bg-blue-500 bg-opacity-40' : ''}`}
+                    data-testid="trim-mode-toggle"
+                    title={trimActive ? "Exit Trim Mode" : "Trim Mode"}
+                  >
+                    <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M7 5L7 19" strokeLinecap="round" />
+                      <path d="M17 5L17 19" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  
+                  {/* Lock button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleControlsLock();
+                    }}
+                    className="text-white opacity-80 p-0.5"
+                    data-testid="controls-lock-toggle"
+                    title={controlsLocked ? "Hide Controls" : "Lock Controls"}
+                  >
+                    {controlsLocked ? (
+                      <ChevronDownIcon className="w-2 h-2" />
+                    ) : (
+                      <ChevronUpIcon className="w-2 h-2" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
