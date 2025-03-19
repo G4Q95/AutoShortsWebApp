@@ -840,8 +840,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             aria-label="Show source information"
             data-testid="info-button"
             style={{
-              top: "0px",
-              right: "0px",
+              top: "-2px",
+              right: "-2px",
               padding: "2px",
               backgroundColor: "transparent", // Remove the white background
               borderRadius: "0 0 0 4px"
