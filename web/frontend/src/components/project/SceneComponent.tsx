@@ -1560,16 +1560,13 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                     )}
                   </select>
                   
-                  {/* We're hiding the separate audio player div */}
+                  {/* We're hiding the audio player div completely, but keeping it for test mode */}
                   <div 
-                    className={`audio-container ${typeof window !== 'undefined' && 
-                    (window.USE_MOCK_AUDIO === true || 
-                     process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' ||
-                     process.env.NEXT_PUBLIC_TESTING_MODE === 'true') ? 'block' : 'hidden'}`}
+                    className="audio-container hidden"
                     data-testid="audio-container">
                     <audio 
                       ref={audioRef} 
-                      controls 
+                      controls={false}
                       src={audioSrc || ''} 
                       className="w-full h-7" 
                       data-testid="audio-element" 
