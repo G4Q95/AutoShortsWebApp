@@ -1575,15 +1575,6 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                       data-testid="audio-element" 
                       preload="metadata"
                     />
-                    {typeof window !== 'undefined' && 
-                     (window.USE_MOCK_AUDIO === true || 
-                      process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' ||
-                      process.env.NEXT_PUBLIC_TESTING_MODE === 'true') && (
-                      <div className="text-xs text-gray-500 mt-1">
-                        Audio debug: {audioSrc ? 'Source available' : 'No source'} 
-                        ({audioRef.current ? 'Element exists' : 'No element'})
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
