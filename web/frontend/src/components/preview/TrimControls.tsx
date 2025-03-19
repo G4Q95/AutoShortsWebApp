@@ -12,6 +12,7 @@ interface TrimControlsProps {
   trimEnd: number;
   onChange: (start: number, end: number) => void;
   className?: string;
+  compact?: boolean;
 }
 
 const TrimControls = ({
@@ -20,6 +21,7 @@ const TrimControls = ({
   trimEnd,
   onChange,
   className = '',
+  compact = false,
 }: TrimControlsProps) => {
   // State
   const [startPosition, setStartPosition] = useState<number>(trimStart);
@@ -64,14 +66,14 @@ const TrimControls = ({
   };
   
   return (
-    <div className={`p-4 bg-gray-800 rounded-lg ${className}`} data-testid="trim-controls">
-      <div className="flex justify-between mb-2 text-white text-sm">
+    <div className={`${compact ? 'p-2' : 'p-4'} ${className}`} data-testid="trim-controls">
+      <div className="flex justify-between mb-2 text-white text-xs">
         <div>Trim Media</div>
         <div>Duration: {formatTime(endPosition - startPosition)}</div>
       </div>
       
       {/* Timeline visualization */}
-      <div className="relative h-8 bg-gray-700 rounded mb-4" data-testid="trim-timeline">
+      <div className={`relative ${compact ? 'h-6' : 'h-8'} bg-gray-700 rounded mb-2`} data-testid="trim-timeline">
         {/* Total duration bar */}
         <div className="absolute inset-0 rounded bg-gray-600"></div>
         
@@ -101,7 +103,7 @@ const TrimControls = ({
       </div>
       
       {/* Controls */}
-      <div className="flex justify-between gap-4">
+      <div className="flex justify-between gap-2">
         {/* Start control */}
         <div className="flex-1">
           <div className="flex justify-between text-white text-xs mb-1">
@@ -116,7 +118,7 @@ const TrimControls = ({
             step={0.1}
             value={startPosition}
             onChange={handleStartChange}
-            className="w-full h-2 rounded-full bg-gray-600 appearance-none"
+            className="w-full h-1.5 rounded-full bg-gray-600 appearance-none"
             data-testid="trim-start-input"
           />
         </div>
@@ -135,7 +137,7 @@ const TrimControls = ({
             step={0.1}
             value={endPosition}
             onChange={handleEndChange}
-            className="w-full h-2 rounded-full bg-gray-600 appearance-none"
+            className="w-full h-1.5 rounded-full bg-gray-600 appearance-none"
             data-testid="trim-end-input"
           />
         </div>
@@ -144,7 +146,7 @@ const TrimControls = ({
       {/* Reset button */}
       <button
         onClick={() => onChange(0, duration)}
-        className="mt-4 px-4 py-2 bg-gray-600 text-white rounded text-sm hover:bg-gray-500"
+        className={`mt-2 px-2 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-500`}
         data-testid="trim-reset-button"
       >
         Reset Trim

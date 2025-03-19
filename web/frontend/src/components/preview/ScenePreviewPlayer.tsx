@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { PlayIcon, PauseIcon } from 'lucide-react';
+import { PlayIcon, PauseIcon, ChevronUpIcon, ChevronDownIcon, VolumeIcon, Volume2Icon, VolumeXIcon } from 'lucide-react';
 
 interface ScenePreviewPlayerProps {
   projectId: string;
@@ -39,15 +39,30 @@ const ScenePreviewPlayer = ({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
+  // State for hover and trim controls
+  const [isHovering, setIsHovering] = useState<boolean>(false);
+  const [controlsLocked, setControlsLocked] = useState<boolean>(false);
+  const [trimActive, setTrimActive] = useState<boolean>(false);
+  const [activeHandle, setActiveHandle] = useState<'start' | 'end' | null>(null);
+  const [trimStart, setTrimStart] = useState<number>(trim.start);
+  const [trimEnd, setTrimEnd] = useState<number>(trim.end || 0);
+  
   // Refs for media elements
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
   
   // Add state to track media aspect ratio
   const [aspectRatio, setAspectRatio] = useState<number>(16/9); // Default to horizontal
   const [isVertical, setIsVertical] = useState<boolean>(false);
+  
+  // Update local trim state when props change
+  useEffect(() => {
+    setTrimStart(trim.start);
+    setTrimEnd(trim.end || duration);
+  }, [trim.start, trim.end, duration]);
   
   // Initialize player
   useEffect(() => {
@@ -135,6 +150,47 @@ const ScenePreviewPlayer = ({
     }
   }, [mediaType, imageRef.current]);
   
+  // Set up event listeners for trim handle dragging
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!activeHandle || !timelineRef.current) return;
+      
+      const rect = timelineRef.current.getBoundingClientRect();
+      const position = (e.clientX - rect.left) / rect.width;
+      const newTime = Math.max(0, Math.min(position * duration, duration));
+      
+      if (activeHandle === 'start') {
+        if (newTime < trimEnd - 0.5) { // Minimum 0.5s duration
+          setTrimStart(newTime);
+          if (onTrimChange) {
+            onTrimChange(newTime, trimEnd);
+          }
+        }
+      } else if (activeHandle === 'end') {
+        if (newTime > trimStart + 0.5) { // Minimum 0.5s duration
+          setTrimEnd(newTime);
+          if (onTrimChange) {
+            onTrimChange(trimStart, newTime);
+          }
+        }
+      }
+    };
+    
+    const handleMouseUp = () => {
+      setActiveHandle(null);
+    };
+    
+    if (activeHandle) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [activeHandle, duration, trimStart, trimEnd, onTrimChange]);
+  
   // Handler functions
   const handleAudioMetadata = () => {
     if (audioRef.current) {
@@ -146,6 +202,7 @@ const ScenePreviewPlayer = ({
         // Set trim.end to audio duration if not already set
         if (trim.end === 0 && onTrimChange) {
           onTrimChange(trim.start, audioRef.current.duration);
+          setTrimEnd(audioRef.current.duration);
         }
       }
     }
@@ -165,6 +222,7 @@ const ScenePreviewPlayer = ({
       // Set default trim.end to video duration if not already set
       if (trim.end === 0 && onTrimChange) {
         onTrimChange(trim.start, videoRef.current.duration);
+        setTrimEnd(videoRef.current.duration);
       }
     }
   };
@@ -183,18 +241,18 @@ const ScenePreviewPlayer = ({
     }
     
     // Handle trim end point (stop playback)
-    if (trim.end > 0 && currentTime >= trim.end) {
+    if (trimEnd > 0 && currentTime >= trimEnd) {
       handlePause();
       
       // Reset to start position
       if (mediaType === 'video' && videoRef.current) {
-        videoRef.current.currentTime = trim.start;
+        videoRef.current.currentTime = trimStart;
       }
       if (audioRef.current) {
-        audioRef.current.currentTime = trim.start;
+        audioRef.current.currentTime = trimStart;
       }
       
-      setCurrentTime(trim.start);
+      setCurrentTime(trimStart);
     }
   };
   
@@ -203,13 +261,13 @@ const ScenePreviewPlayer = ({
     
     // Reset to start position
     if (mediaType === 'video' && videoRef.current) {
-      videoRef.current.currentTime = trim.start;
+      videoRef.current.currentTime = trimStart;
     }
     if (audioRef.current) {
-      audioRef.current.currentTime = trim.start;
+      audioRef.current.currentTime = trimStart;
     }
     
-    setCurrentTime(trim.start);
+    setCurrentTime(trimStart);
   };
   
   // Playback control functions
@@ -217,14 +275,14 @@ const ScenePreviewPlayer = ({
     setIsPlaying(true);
     
     // Start playback from trim.start if at beginning
-    if (currentTime < trim.start || currentTime >= trim.end) {
+    if (currentTime < trimStart || currentTime >= trimEnd) {
       if (mediaType === 'video' && videoRef.current) {
-        videoRef.current.currentTime = trim.start;
+        videoRef.current.currentTime = trimStart;
       }
       if (audioRef.current) {
-        audioRef.current.currentTime = trim.start;
+        audioRef.current.currentTime = trimStart;
       }
-      setCurrentTime(trim.start);
+      setCurrentTime(trimStart);
     }
     
     // Play the appropriate media
@@ -261,6 +319,28 @@ const ScenePreviewPlayer = ({
     }
   };
   
+  const handleTimelineClick = (e: React.MouseEvent) => {
+    if (!timelineRef.current || activeHandle) return;
+    
+    const rect = timelineRef.current.getBoundingClientRect();
+    const clickPosition = (e.clientX - rect.left) / rect.width;
+    const newTime = clickPosition * duration;
+    
+    // Update current time
+    setCurrentTime(newTime);
+    if (mediaType === 'video' && videoRef.current) {
+      videoRef.current.currentTime = newTime;
+    }
+    if (audioRef.current) {
+      audioRef.current.currentTime = newTime;
+    }
+  };
+  
+  const handleTrimHandleMouseDown = (handle: 'start' | 'end', e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent timeline click
+    setActiveHandle(handle);
+  };
+  
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
@@ -287,6 +367,20 @@ const ScenePreviewPlayer = ({
     }
   };
   
+  // Toggle control lock
+  const toggleControlsLock = () => {
+    setControlsLocked(!controlsLocked);
+  };
+  
+  // Toggle trim mode
+  const toggleTrimMode = () => {
+    setTrimActive(!trimActive);
+    // Auto-lock controls when trim mode is active
+    if (!trimActive && !controlsLocked) {
+      setControlsLocked(true);
+    }
+  };
+  
   // Helper function to format time
   const formatTime = (timeInSeconds: number): string => {
     const minutes = Math.floor(timeInSeconds / 60);
@@ -301,7 +395,7 @@ const ScenePreviewPlayer = ({
       return {
         width: 'auto',
         height: '100%',
-        maxHeight: '190px', // Increased from 160px
+        maxHeight: '190px',
         margin: 'auto',
         display: 'block',
         objectFit: 'contain' as const
@@ -311,13 +405,16 @@ const ScenePreviewPlayer = ({
     // For horizontal media or expanded view, fill the space
     return {
       width: '100%',
-      height: isCompactView ? '100%' : 'auto',
-      maxHeight: isCompactView ? '190px' : '400px', // Increased from 160px
+      height: '100%',
+      maxHeight: isCompactView ? '190px' : '400px',
       margin: 'auto',
       display: 'block',
-      objectFit: 'cover' as const // Changed from 'contain' to 'cover' to fill space completely
+      objectFit: isCompactView ? 'cover' : 'contain' as const
     };
   };
+  
+  // Determine if controls should be visible
+  const shouldShowControls = isHovering || controlsLocked;
   
   return (
     <div 
@@ -325,6 +422,8 @@ const ScenePreviewPlayer = ({
       className={`flex flex-col bg-gray-900 rounded-lg overflow-hidden ${className}`}
       data-testid="scene-preview-player"
       style={{ maxWidth: isCompactView ? (isVertical ? 'min(160px, 100%)' : '100%') : '100%' }}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
     >
       {/* Media Display */}
       <div className="relative bg-black flex items-center justify-center">
@@ -377,67 +476,172 @@ const ScenePreviewPlayer = ({
             <PlayIcon className={`${isCompactView ? 'w-10 h-10' : 'w-16 h-16'} text-white opacity-70`} />
           )}
         </button>
-      </div>
-      
-      {/* Controls - Hide in compact view */}
-      {!isCompactView && (
-        <div className="bg-gray-800 p-3 text-white">
-          {/* Progress bar */}
-          <div className="flex items-center mb-2">
-            <span className="text-xs">{formatTime(currentTime)}</span>
-            <input
-              type="range"
-              min={0}
-              max={duration}
-              value={currentTime}
-              onChange={handleSeek}
-              className="flex-grow mx-2 h-2 rounded-full bg-gray-600 appearance-none"
-              step="0.1"
-              data-testid="seek-slider"
-            />
-            <span className="text-xs">{formatTime(duration)}</span>
-          </div>
-          
-          {/* Playback controls */}
-          <div className="flex items-center">
-            <button
-              onClick={isPlaying ? handlePause : handlePlay}
-              className="mr-3"
-              data-testid="play-pause-control"
-            >
-              {isPlaying ? (
-                <PauseIcon className="w-6 h-6" />
-              ) : (
-                <PlayIcon className="w-6 h-6" />
-              )}
-            </button>
+        
+        {/* Hoverable controls - updated for better transparency and hover interaction */}
+        <div 
+          className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${shouldShowControls ? 'opacity-100' : 'opacity-0'}`}
+          style={{ pointerEvents: shouldShowControls ? 'auto' : 'none' }}
+          data-testid="hover-controls"
+        >
+          {/* Integrated timeline scrubber with trim controls - more transparent */}
+          <div className="bg-black bg-opacity-30 backdrop-blur-sm px-2 py-1">
+            {/* Time display and timeline */}
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-white opacity-90">{formatTime(currentTime)}</span>
+              
+              {/* Timeline container */}
+              <div 
+                ref={timelineRef}
+                className="flex-grow relative h-4 flex items-center cursor-pointer"
+                onClick={handleTimelineClick}
+                data-testid="timeline-container"
+              >
+                {/* Timeline track */}
+                <div className="absolute w-full h-0.5 bg-gray-500 bg-opacity-60 rounded-full"></div>
+                
+                {/* Voiceover/active region */}
+                <div 
+                  className="absolute h-0.5 bg-blue-400 bg-opacity-70 rounded-full"
+                  style={{ 
+                    left: `${(trimStart / duration) * 100}%`, 
+                    width: `${((trimEnd || duration) - trimStart) / duration * 100}%` 
+                  }}
+                  data-testid="active-region"
+                ></div>
+                
+                {/* Current position indicator */}
+                <div
+                  className="absolute w-0.5 h-2.5 bg-white rounded-full pointer-events-none"
+                  style={{ left: `${(currentTime / duration) * 100}%` }}
+                  data-testid="position-indicator"
+                ></div>
+                
+                {/* Trim handles - only visible when trim mode is active */}
+                {trimActive && (
+                  <>
+                    {/* Start trim handle - more subtle bracket */}
+                    <div 
+                      className="absolute h-2.5 w-1 bg-white bg-opacity-80 rounded cursor-ew-resize"
+                      style={{ 
+                        left: `${(trimStart / duration) * 100}%`,
+                        marginLeft: '-0.5px',
+                        top: '50%',
+                        transform: 'translateY(-50%)'
+                      }}
+                      onMouseDown={(e) => handleTrimHandleMouseDown('start', e)}
+                      data-testid="trim-start-handle"
+                    >
+                      <div className="absolute h-2.5 w-1 border-l border-white opacity-80" style={{ left: '-2px' }}></div>
+                    </div>
+                    
+                    {/* End trim handle - more subtle bracket */}
+                    <div 
+                      className="absolute h-2.5 w-1 bg-white bg-opacity-80 rounded cursor-ew-resize"
+                      style={{ 
+                        left: `${(trimEnd / duration) * 100}%`,
+                        marginLeft: '-0.5px',
+                        top: '50%',
+                        transform: 'translateY(-50%)'
+                      }}
+                      onMouseDown={(e) => handleTrimHandleMouseDown('end', e)}
+                      data-testid="trim-end-handle"
+                    >
+                      <div className="absolute h-2.5 w-1 border-r border-white opacity-80" style={{ right: '-2px' }}></div>
+                    </div>
+                    
+                    {/* Trim duration display - more subtle */}
+                    <div 
+                      className="absolute text-[8px] text-white py-0.5 px-1 bg-black bg-opacity-30 rounded pointer-events-none"
+                      style={{ 
+                        left: `${((trimStart + (trimEnd - trimStart) / 2) / duration) * 100}%`,
+                        bottom: '-14px',
+                        transform: 'translateX(-50%)'
+                      }}
+                    >
+                      {formatTime(trimEnd - trimStart)}
+                    </div>
+                  </>
+                )}
+                
+                {/* Hidden range input for keyboard accessibility */}
+                <input
+                  type="range"
+                  min={0}
+                  max={duration}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="absolute w-full h-full opacity-0 cursor-pointer"
+                  step="0.1"
+                  data-testid="hover-seek-slider"
+                />
+              </div>
+              
+              <span className="text-xs text-white opacity-90">{formatTime(duration)}</span>
+            </div>
             
-            {/* Volume control */}
-            <button
-              onClick={toggleMute}
-              className="mr-2"
-              data-testid="mute-button"
-            >
-              {isMuted ? (
-                <span>🔇</span>
-              ) : (
-                <span>🔊</span>
-              )}
-            </button>
-            
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={volume}
-              onChange={handleVolumeChange}
-              className="w-20 h-2 rounded-full bg-gray-600 appearance-none"
-              data-testid="volume-slider"
-            />
+            {/* Controls row - more compact */}
+            <div className="flex items-center justify-between">
+              {/* Left controls: volume */}
+              <div className="flex items-center">
+                <button
+                  onClick={toggleMute}
+                  className="text-white opacity-80 p-0.5"
+                  data-testid="hover-mute-button"
+                >
+                  {isMuted ? (
+                    <VolumeXIcon className="w-2.5 h-2.5" />
+                  ) : volume < 0.5 ? (
+                    <VolumeIcon className="w-2.5 h-2.5" />
+                  ) : (
+                    <Volume2Icon className="w-2.5 h-2.5" />
+                  )}
+                </button>
+                
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={volume}
+                  onChange={handleVolumeChange}
+                  className="w-10 h-0.5 rounded-full bg-gray-500 bg-opacity-60 appearance-none ml-1"
+                  data-testid="hover-volume-slider"
+                />
+              </div>
+              
+              {/* Right controls: trim toggle and lock */}
+              <div className="flex items-center">
+                {/* Trim mode toggle */}
+                <button
+                  onClick={toggleTrimMode}
+                  className={`text-white opacity-80 p-0.5 mx-0.5 rounded-sm ${trimActive ? 'bg-blue-500 bg-opacity-40' : ''}`}
+                  data-testid="trim-mode-toggle"
+                  title={trimActive ? "Exit Trim Mode" : "Trim Mode"}
+                >
+                  <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M7 5L7 19" strokeLinecap="round" />
+                    <path d="M17 5L17 19" strokeLinecap="round" />
+                  </svg>
+                </button>
+                
+                {/* Lock button */}
+                <button
+                  onClick={toggleControlsLock}
+                  className="text-white opacity-80 p-0.5"
+                  data-testid="controls-lock-toggle"
+                  title={controlsLocked ? "Hide Controls" : "Lock Controls"}
+                >
+                  {controlsLocked ? (
+                    <ChevronDownIcon className="w-2.5 h-2.5" />
+                  ) : (
+                    <ChevronUpIcon className="w-2.5 h-2.5" />
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
