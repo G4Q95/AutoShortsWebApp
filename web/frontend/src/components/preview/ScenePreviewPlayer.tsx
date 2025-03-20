@@ -520,12 +520,12 @@ const ScenePreviewPlayer = ({
           onClick={(e) => e.stopPropagation()} // Prevent clicks from reaching scene container
         >
           {/* Integrated timeline scrubber with trim controls */}
-          <div className="bg-black bg-opacity-30 backdrop-blur-sm py-1 w-full">
+          <div className="py-0.5 w-full">
             {/* Timeline container - full width */}
             <div className="px-1 w-full">
               <div 
                 ref={timelineRef}
-                className="relative h-5 flex items-center cursor-pointer w-full"
+                className="relative h-3 flex items-center cursor-pointer w-full"
                 onClick={(e) => {
                   e.stopPropagation(); // Prevent event from reaching scene
                   handleTimelineClick(e);
@@ -536,11 +536,11 @@ const ScenePreviewPlayer = ({
                 data-testid="timeline-container"
               >
                 {/* Timeline track - more visible */}
-                <div className="absolute w-full h-1.5 bg-gray-500 bg-opacity-70 rounded-full"></div>
+                <div className="absolute w-full h-0.5 bg-gray-500 bg-opacity-80 rounded-full"></div>
                 
                 {/* Voiceover/active region */}
                 <div 
-                  className="absolute h-1.5 bg-blue-400 bg-opacity-80 rounded-full"
+                  className="absolute h-0.5 bg-blue-400 bg-opacity-80 rounded-full"
                   style={{ 
                     left: `${(trimStart / (duration || 1)) * 100}%`, 
                     width: `${((trimEnd || duration) - trimStart) / (duration || 1) * 100}%` 
@@ -551,8 +551,8 @@ const ScenePreviewPlayer = ({
                 
                 {/* Current position indicator */}
                 <div
-                  className="absolute w-2 h-5 bg-white rounded-full cursor-grab"
-                  style={{ left: `${(currentTime / (duration || 1)) * 100}%`, marginLeft: "-1px" }}
+                  className="absolute w-1.5 h-3 bg-white rounded-full cursor-grab"
+                  style={{ left: `${(currentTime / (duration || 1)) * 100}%`, marginLeft: "-0.75px" }}
                   data-testid="position-indicator"
                   onMouseDown={(e) => {
                     e.stopPropagation();
@@ -566,10 +566,10 @@ const ScenePreviewPlayer = ({
                   <>
                     {/* Start trim handle */}
                     <div 
-                      className="absolute h-3 w-1 bg-white bg-opacity-80 rounded cursor-ew-resize"
+                      className="absolute h-2 w-0.5 bg-white bg-opacity-80 rounded cursor-ew-resize"
                       style={{ 
                         left: `${(trimStart / (duration || 1)) * 100}%`,
-                        marginLeft: '-0.5px',
+                        marginLeft: '-0.25px',
                         top: '50%',
                         transform: 'translateY(-50%)'
                       }}
@@ -580,15 +580,15 @@ const ScenePreviewPlayer = ({
                       }}
                       data-testid="trim-start-handle"
                     >
-                      <div className="absolute h-3 w-1 border-l border-white opacity-80" style={{ left: '-2px' }}></div>
+                      <div className="absolute h-2 w-0.5 border-l border-white opacity-80" style={{ left: '-1px' }}></div>
                     </div>
                     
                     {/* End trim handle */}
                     <div 
-                      className="absolute h-3 w-1 bg-white bg-opacity-80 rounded cursor-ew-resize"
+                      className="absolute h-2 w-0.5 bg-white bg-opacity-80 rounded cursor-ew-resize"
                       style={{ 
                         left: `${(trimEnd / (duration || 1)) * 100}%`,
-                        marginLeft: '-0.5px',
+                        marginLeft: '-0.25px',
                         top: '50%',
                         transform: 'translateY(-50%)'
                       }}
@@ -599,19 +599,7 @@ const ScenePreviewPlayer = ({
                       }}
                       data-testid="trim-end-handle"
                     >
-                      <div className="absolute h-3 w-1 border-r border-white opacity-80" style={{ right: '-2px' }}></div>
-                    </div>
-                    
-                    {/* Trim duration display */}
-                    <div 
-                      className="absolute text-[7px] text-white py-0.5 px-1 bg-black bg-opacity-30 rounded pointer-events-none"
-                      style={{ 
-                        left: `${((trimStart + (trimEnd - trimStart) / 2) / (duration || 1)) * 100}%`,
-                        bottom: '-12px',
-                        transform: 'translateX(-50%)'
-                      }}
-                    >
-                      {formatTime(trimEnd - trimStart)}
+                      <div className="absolute h-2 w-0.5 border-r border-white opacity-80" style={{ right: '-1px' }}></div>
                     </div>
                   </>
                 )}
@@ -634,14 +622,14 @@ const ScenePreviewPlayer = ({
               </div>
               
               {/* Time and controls row */}
-              <div className="flex items-center justify-between mt-0.5">
-                {/* Time display - smaller and below timeline */}
-                <div className="flex gap-1">
-                  <span className="text-[8px] text-white opacity-80">{formatTime(currentTime)} / {formatTime(duration)}</span>
+              <div className="flex items-center justify-between">
+                {/* Time display - smaller and compact format */}
+                <div className="flex">
+                  <span className="text-[6px] text-white">{formatTime(currentTime)}/{formatTime(duration)}</span>
                 </div>
                 
                 {/* Controls at right */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   {/* Volume control - smaller */}
                   <div className="flex items-center">
                     <button
@@ -649,32 +637,44 @@ const ScenePreviewPlayer = ({
                         e.stopPropagation();
                         toggleMute();
                       }}
-                      className="text-white opacity-80 p-0.5"
+                      className="text-white p-0.5"
                       data-testid="hover-mute-button"
                     >
                       {isMuted ? (
-                        <VolumeXIcon className="w-2 h-2" />
+                        <VolumeXIcon className="w-1.5 h-1.5" />
                       ) : volume < 0.5 ? (
-                        <VolumeIcon className="w-2 h-2" />
+                        <VolumeIcon className="w-1.5 h-1.5" />
                       ) : (
-                        <Volume2Icon className="w-2 h-2" />
+                        <Volume2Icon className="w-1.5 h-1.5" />
                       )}
                     </button>
                     
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={volume}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        handleVolumeChange(e);
-                      }}
-                      className="w-6 h-0.5 rounded-full bg-gray-500 bg-opacity-60 appearance-none ml-0.5"
-                      data-testid="hover-volume-slider"
-                      onMouseDown={(e) => e.stopPropagation()} // Prevent scene drag
-                    />
+                    <div className="relative w-8 mx-0.5">
+                      <div className="absolute top-1/2 -translate-y-1/2 w-full h-0.5 bg-gray-500 rounded-full"></div>
+                      <div 
+                        className="absolute top-1/2 -translate-y-1/2 h-0.5 bg-blue-400 rounded-full" 
+                        style={{ width: `${volume * 100}%` }}
+                      ></div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={volume}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleVolumeChange(e);
+                        }}
+                        className="w-full h-2 opacity-0 cursor-pointer relative z-10"
+                        data-testid="hover-volume-slider"
+                        onMouseDown={(e) => e.stopPropagation()} // Prevent scene drag
+                      />
+                      {/* Tiny thumb indicator */}
+                      <div 
+                        className="absolute top-1/2 -translate-y-1/2 w-1 h-1 bg-white rounded-full pointer-events-none"
+                        style={{ left: `calc(${volume * 100}% - 2px)` }}
+                      ></div>
+                    </div>
                   </div>
                   
                   {/* Trim mode toggle */}
@@ -683,11 +683,11 @@ const ScenePreviewPlayer = ({
                       e.stopPropagation();
                       toggleTrimMode();
                     }}
-                    className={`text-white opacity-80 p-0.5 rounded-sm ${trimActive ? 'bg-blue-500 bg-opacity-40' : ''}`}
+                    className={`text-white p-0.5 rounded-sm ${trimActive ? 'bg-blue-500 bg-opacity-40' : ''}`}
                     data-testid="trim-mode-toggle"
                     title={trimActive ? "Exit Trim Mode" : "Trim Mode"}
                   >
-                    <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg className="w-1.5 h-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M7 5L7 19" strokeLinecap="round" />
                       <path d="M17 5L17 19" strokeLinecap="round" />
                     </svg>
@@ -699,14 +699,14 @@ const ScenePreviewPlayer = ({
                       e.stopPropagation();
                       toggleControlsLock();
                     }}
-                    className="text-white opacity-80 p-0.5"
+                    className="text-white p-0.5"
                     data-testid="controls-lock-toggle"
                     title={controlsLocked ? "Hide Controls" : "Lock Controls"}
                   >
                     {controlsLocked ? (
-                      <ChevronDownIcon className="w-2 h-2" />
+                      <ChevronDownIcon className="w-1.5 h-1.5" />
                     ) : (
-                      <ChevronUpIcon className="w-2 h-2" />
+                      <ChevronUpIcon className="w-1.5 h-1.5" />
                     )}
                   </button>
                 </div>
