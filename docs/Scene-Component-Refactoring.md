@@ -227,7 +227,7 @@ For each step:
 
 ### Current Status:
 - Original SceneComponent.tsx size: 1986 lines
-- Current size after initial refactoring: ~1250 lines
+- Current size after refactoring: ~1250 lines
 - Reduction: ~736 lines
 - Implementation Progress: 90% complete
 
@@ -253,17 +253,39 @@ For each step:
 - ✅ Implemented React.memo for SceneMediaPlayer with custom comparison logic
 - ✅ Implemented React.memo for SceneVoiceSettings with custom comparison logic
 - ✅ Ran comprehensive tests to verify optimizations (all tests passing)
+- ✅ Created SceneAudioControls component to handle audio playback UI
+- ✅ Implemented SceneActions component for scene management actions
 
 ### Current Focus:
-- Preparing for final integration into SceneComponent
-- Final documentation updates
+- Completing extraction of remaining functionality from SceneComponent to SceneContainer
+- Finalizing integration of all extracted components
 - Ensuring all tests pass with the new component structure
-- Production readiness review
+- Resolving linter warnings and improving type safety
 
 ### Next Steps:
-1. Update main SceneComponent to use SceneContainer
-2. Final documentation updates for all extracted components
-3. Prepare for production release
+1. Extract remaining functionality from SceneComponent.tsx:
+   - Move the fetchStoredAudio logic to SceneContainer
+   - Extract the createAudioBlobUrl and base64ToBlob utility functions
+   - Move the audio playback speed controls to SceneAudioControls
+   - Finalize voice settings integration with proper state management
+   - Remove any duplicate code between SceneComponent and SceneContainer
+
+2. Update main SceneComponent to use SceneContainer as its primary rendering component
+   - Implement a lightweight wrapper that passes props to SceneContainer
+   - Ensure all event handlers and callbacks are properly connected
+   - Validate that all existing functionality works as expected
+
+3. Fix remaining type issues and linter warnings:
+   - Add proper type definitions for all props and state variables
+   - Remove any remaining 'any' type assertions
+   - Ensure consistent naming conventions across components
+   - Verify proper JSDoc comments for all public functions and components
+
+4. Final testing and documentation:
+   - Run comprehensive test suite to verify all functionality
+   - Update component documentation with clear descriptions
+   - Document component relationships and data flow
+   - Prepare for code review and production release
 
 ### Testing Status:
 - ✅ Voice settings integration tests passing
@@ -272,8 +294,4 @@ For each step:
 - ✅ Component integration tests successful
 - ✅ React.memo optimizations verified working
 - ✅ All Playwright tests passing (10/10)
-
-## Next Steps:
-
-1. Update SceneComponent to use all new components
-2. Final cleanup and testing 
+- ⏳ Final integration testing with SceneContainer pending 
