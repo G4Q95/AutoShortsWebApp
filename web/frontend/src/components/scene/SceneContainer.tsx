@@ -51,12 +51,23 @@ interface SceneContainerProps {
   onDelete: () => void;
 }
 
-// Define extended voice settings interface to ensure proper typing
+// Define extended voice settings interface to ensure proper typing with both keys
 interface SceneVoiceSettingsState {
+  voice_id?: string;
   stability: number;
   similarity_boost: number;
   style: number;
-  speaker_boost: boolean; // Changed from 'true' to 'boolean' to match the API type
+  speaker_boost: boolean; // This is the property in our local state
+  speed: number;
+}
+
+// Type that maps between our component state and the API format
+interface VoiceSettingsForAPI {
+  voice_id: string;
+  stability: number;
+  similarity_boost: number;
+  style: number;
+  speaker_boost: boolean;
   speed: number;
 }
 
@@ -104,6 +115,8 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(audioState.volume);
+  // Add playback speed state
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
 
   // Add confirmation state for scene removal
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -144,6 +157,14 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
     setAudioVolume(newVolume);
   };
 
+  // Add playback speed handler
+  const handlePlaybackSpeedChange = (newSpeed: number) => {
+    setPlaybackSpeed(newSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = newSpeed;
+    }
+  };
+
   // Add event listeners for audio playback
   useEffect(() => {
     const audioElement = audioRef.current;
@@ -157,6 +178,8 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
       audioElement.addEventListener('pause', handlePause);
       audioElement.addEventListener('ended', handleEnded);
       audioElement.volume = volume;
+      // Set playback speed on audio element when it's available
+      audioElement.playbackRate = playbackSpeed;
     }
     
     return () => {
@@ -166,7 +189,7 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
         audioElement.removeEventListener('ended', handleEnded);
       }
     };
-  }, [audioRef.current, volume]);
+  }, [audioRef.current, volume, playbackSpeed]);
 
   // Handle view mode toggle
   const handleViewModeToggle = () => {
@@ -253,7 +276,14 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
   // Handle voice generation
   const handleGenerateVoice = async () => {
     if (!voiceId) {
-      setAudioError('Please select a voice first');
+      // TODO: Better error handling
+      console.error('No voice selected');
+      return;
+    }
+
+    if (!text.trim()) {
+      // TODO: Better error handling
+      console.error('No text to generate audio for');
       return;
     }
 
@@ -261,62 +291,84 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
     setAudioError(null);
 
     try {
-      // Generate audio using the API
-      const response = await generateVoice({
-        text: cleanPostText(scene.text),
+      const result = await generateVoice({
+        text,
         voice_id: voiceId,
         stability: voiceSettings.stability,
         similarity_boost: voiceSettings.similarity_boost,
-        style: voiceSettings.style, 
+        style: voiceSettings.style,
         use_speaker_boost: voiceSettings.speaker_boost,
+        output_format: "mp3_44100_128",
         speed: voiceSettings.speed
       });
+
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      const { audio_base64 } = result.data!;
       
-      if (response.data) {
-        // Audio data should contain audio_base64 and content_type
-        const { audio_base64, content_type } = response.data;
-        
-        if (audio_base64 && content_type) {
-          // Create audio URL from base64 data
-          const audioUrl = `data:${content_type};base64,${audio_base64}`;
-          setAudioSrc(audioUrl);
-          
-          // Persist audio for longer-term storage
-          try {
-            const persistResponse = await persistVoiceAudio({
-              audio_base64,
-              content_type,
-              project_id: currentProject?.id || '',
-              scene_id: scene.id,
-              voice_id: voiceId
-            });
+      // Create blob URL for audio playback
+      const blob = new Blob(
+        [Uint8Array.from(atob(audio_base64), c => c.charCodeAt(0))],
+        { type: 'audio/mp3' }
+      );
+      const url = URL.createObjectURL(blob);
+      setAudioSrc(url);
+
+      // Prepare audio data for storage
+      const audioData = {
+        audio_base64,
+        content_type: 'audio/mp3',
+        audio_url: url,
+        generated_at: Date.now(),
+        character_count: result.data.character_count
+      };
+
+      // Prepare voice settings for storage - map to the expected scene component format
+      const updatedVoiceSettings: VoiceSettingsForAPI = {
+        voice_id: voiceId,
+        stability: voiceSettings.stability,
+        similarity_boost: voiceSettings.similarity_boost,
+        style: voiceSettings.style,
+        speaker_boost: voiceSettings.speaker_boost,
+        speed: voiceSettings.speed
+      };
+
+      // Update scene with audio data
+      updateSceneAudio(scene.id, audioData, updatedVoiceSettings);
+
+      // Persist audio to storage if project ID is available
+      if (currentProject?.id) {
+        try {
+          const persistResult = await persistVoiceAudio({
+            audio_base64,
+            content_type: 'audio/mp3',
+            project_id: currentProject.id,
+            scene_id: scene.id,
+            voice_id: voiceId
+          });
+
+          if (persistResult.error) {
+            console.error('Error persisting audio:', persistResult.error);
+          } else if (persistResult.data?.success) {
+            // Update scene with persistent URL
+            const audioDataWithUrl = {
+              ...audioData,
+              persistentUrl: persistResult.data.url,
+              storageKey: persistResult.data.storage_key
+            };
             
-            if (persistResponse.data && persistResponse.data.url) {
-              // Update scene with persistent audio URL
-              updateSceneAudio(scene.id, {
-                ...scene.audio,
-                audio_url: audioUrl,
-                persistentUrl: persistResponse.data.url
-              }, scene.voice_settings || {
-                voice_id: voiceId,
-                stability: voiceSettings.stability,
-                similarity_boost: voiceSettings.similarity_boost,
-                style: voiceSettings.style,
-                speaker_boost: voiceSettings.speaker_boost,
-                speed: voiceSettings.speed
-              });
-            }
-          } catch (persistError) {
-            console.error('Error persisting audio:', persistError);
-            // Continue with temporary URL even if persistence fails
+            // Update scene with audio data and the same voice settings
+            updateSceneAudio(scene.id, audioDataWithUrl, updatedVoiceSettings);
           }
+        } catch (error) {
+          console.error('Error persisting audio:', error);
         }
-      } else {
-        setAudioError(response.error ? response.error.message : 'Failed to generate audio');
       }
     } catch (error) {
-      console.error('Error generating voice:', error);
-      setAudioError('Error generating voice. Please try again.');
+      console.error('Error generating audio:', error);
+      setAudioError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsGeneratingAudio(false);
     }
@@ -503,6 +555,8 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
               isGeneratingAudio={isGeneratingAudio}
               onGenerateClick={handleGenerateVoice}
               onRegenerateClick={handleRegenerateVoice}
+              onVoiceChange={handleVoiceChange}
+              onRateChange={handlePlaybackSpeedChange}
             />
           </div>
         )}
