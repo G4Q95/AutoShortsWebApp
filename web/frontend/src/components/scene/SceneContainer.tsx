@@ -249,13 +249,16 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
     handleGenerateVoice();
   };
 
-  // Audio generation handler
+  // Handle voice generation
   const handleGenerateVoice = async () => {
-    if (!voiceId || !currentProject) return;
-    
+    if (!voiceId) {
+      setAudioError('Please select a voice first');
+      return;
+    }
+
     setIsGeneratingAudio(true);
     setAudioError(null);
-    
+
     try {
       // Generate audio using the API
       const response = await generateVoice({
@@ -269,39 +272,38 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
       });
       
       if (response.data) {
-        // Set audio source for playback - handle the api type issue by using type assertion
-        // This will be fixed in the future when the API types are updated
-        const audioUrl = (response.data as any).audio_url;
-        if (audioUrl) {
+        // Audio data should contain audio_base64 and content_type
+        const { audio_base64, content_type } = response.data;
+        
+        if (audio_base64 && content_type) {
+          // Create audio URL from base64 data
+          const audioUrl = `data:${content_type};base64,${audio_base64}`;
           setAudioSrc(audioUrl);
           
           // Persist audio for longer-term storage
           try {
             const persistResponse = await persistVoiceAudio({
-              project_id: currentProject.id,
+              audio_base64,
+              content_type,
+              project_id: currentProject?.id || '',
               scene_id: scene.id,
-              audio_url: audioUrl // Use type assertion to avoid lint error
-            } as any);
+              voice_id: voiceId
+            });
             
-            if (persistResponse.data) {
-              // Get persistent URL with type assertion
-              const persistentUrl = (persistResponse.data as any).persistent_url;
-              
-              if (persistentUrl) {
-                // Update scene with persistent audio URL
-                updateSceneAudio(scene.id, {
-                  ...scene.audio,
-                  audio_url: audioUrl,
-                  persistentUrl: persistentUrl
-                }, scene.voice_settings || {
-                  voice_id: voiceId,
-                  stability: voiceSettings.stability,
-                  similarity_boost: voiceSettings.similarity_boost,
-                  style: voiceSettings.style,
-                  speaker_boost: voiceSettings.speaker_boost,
-                  speed: voiceSettings.speed
-                });
-              }
+            if (persistResponse.data && persistResponse.data.url) {
+              // Update scene with persistent audio URL
+              updateSceneAudio(scene.id, {
+                ...scene.audio,
+                audio_url: audioUrl,
+                persistentUrl: persistResponse.data.url
+              }, scene.voice_settings || {
+                voice_id: voiceId,
+                stability: voiceSettings.stability,
+                similarity_boost: voiceSettings.similarity_boost,
+                style: voiceSettings.style,
+                speaker_boost: voiceSettings.speaker_boost,
+                speed: voiceSettings.speed
+              });
             }
           } catch (persistError) {
             console.error('Error persisting audio:', persistError);
@@ -429,8 +431,6 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
             onCancelEdit={handleCancelEdit}
             onKeyDown={handleKeyDown}
             onToggleTextExpand={handleToggleTextExpand}
-            infoText={scene.url || ''}
-            showInfo={showInfo}
             readOnly={readOnly}
             wordCount={getWordCount(text)}
             originalText={scene.text}

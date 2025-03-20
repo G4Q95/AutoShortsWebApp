@@ -229,7 +229,7 @@ The current focus is on improving code stability, API connectivity, and refactor
 - ✅ Created compact info display with direct source attribution
 
 ### In Progress
-- 🔄 Scene Component Refactoring (Phase 1 - 70% Complete):
+- 🔄 Scene Component Refactoring (Phase 1 - 85% Complete):
   - ✅ Created initial component structure plan
   - ✅ Extracted utility functions to scene-utils.ts
   - ✅ Extracted event handlers to dedicated files
@@ -248,16 +248,19 @@ The current focus is on improving code stability, API connectivity, and refactor
     - Voice generation and settings
     - Scene removal with confirmation
     - Drag and drop reordering
+  - ✅ Type safety improvements:
+    - Fixed proper typing in handleGenerateVoice function
+    - Removed 'as any' type assertions
+    - Fixed component prop interfaces
+    - Implemented proper API response handling
   - 🔄 Currently implementing:
-    - Media trim controls integration
-    - Performance optimizations
-    - Enhanced error handling
-    - Loading state improvements
+    - Performance optimizations with React.memo
+    - Final integration with SceneComponent
+    - Additional error handling improvements
   - Next steps:
-    - Complete media trim controls integration
-    - Add performance optimizations
-    - Enhance error handling
-    - Improve loading states
+    - Update main SceneComponent to use SceneContainer
+    - Final cleanup and performance verification
+    - Prepare for production release
 
 - 🔄 Implementing end-to-end video processing pipeline:
   - Setting up backend FFMPEG integration for video segment creation
