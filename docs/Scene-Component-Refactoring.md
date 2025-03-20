@@ -85,21 +85,22 @@ This document outlines the step-by-step approach to refactoring the Scene compon
 
 ### Phase 3: Extract Custom Hooks
 
-6. **Create hooks directory**
+6. **Create hooks directory** ✅
    - Set up `hooks/scene` directory structure
-   - Create index file for hook exports
+   - Created index file for hook exports
 
-7. **Extract media-related logic into custom hook**
-   - Create `useSceneMedia.ts` hook
-   - Move media state and related functions
-   - Update imports and references
-   - Test thoroughly
+7. **Extract media-related logic into custom hook** ✅
+   - Created `useSceneMedia.ts` hook
+   - Moved media state and related functions
+   - Added comprehensive tests
+   - Validated core functionality
 
-8. **Extract audio-related logic into custom hook**
-   - Create `useSceneAudio.ts` hook
-   - Move audio state and related functions
-   - Update imports and references
-   - Test thoroughly
+8. **Extract audio-related logic into custom hook** ✅
+   - Created `useSceneAudio.ts` hook
+   - Moved audio state and related functions
+   - Extracted voice generation logic
+   - Added comprehensive tests
+   - Validated core functionality
 
 9. **Extract edit-related logic into custom hook**
    - Create `useSceneEdit.ts` hook
@@ -206,8 +207,8 @@ For each step:
 
 ### Current Status:
 - Component initial size: 1986 lines
-- Current size after refactoring: ~1786 lines
-- Reduction: ~200 lines (10% complete)
+- Current size after refactoring: ~1486 lines
+- Reduction: ~500 lines (25% complete)
 
 ### Completed Steps:
 - ✅ Pure utility functions extracted to scene-utils.ts
@@ -215,9 +216,12 @@ For each step:
   - UI event handlers (view toggle, info display, scene removal)
   - Audio handling (blob conversion, playback, volume, speed)
   - Text management (editing, saving, word counting)
+- ✅ Custom hooks extraction:
+  - useSceneMedia for media state and operations
+  - useSceneAudio for voice generation and audio playback
 - ✅ All tests passing after each extraction step
 
 ### Next Steps:
-- Extract state management to custom hooks
+- Complete remaining custom hooks (useSceneEdit, useSceneApi)
 - Create dedicated components for UI sections
 - Implement proper container component architecture 
