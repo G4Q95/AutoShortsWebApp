@@ -227,9 +227,9 @@ For each step:
 
 ### Current Status:
 - Original SceneComponent.tsx size: 1986 lines
-- Current size after refactoring: ~1250 lines
-- Reduction: ~736 lines
-- Implementation Progress: 90% complete
+- Current size after refactoring: ~1240 lines
+- Reduction: ~746 lines
+- Implementation Progress: 95% complete
 
 ### Recent Changes:
 - ✅ Moved voice_id access from scene.audio to scene.voice_settings
@@ -255,17 +255,24 @@ For each step:
 - ✅ Ran comprehensive tests to verify optimizations (all tests passing)
 - ✅ Created SceneAudioControls component to handle audio playback UI
 - ✅ Implemented SceneActions component for scene management actions
+- ✅ Created audio-utils.ts with fetchStoredAudio and cleanupAudioUrl functions
+- ✅ Integrated fetchStoredAudio into SceneContainer with proper error handling
+- ✅ Fixed type issues in audio utilities to match API expectations
+- ✅ Verified all tests passing with utility integration (10/10 tests)
+- ✅ Resolved linter errors in audio utilities implementation
+- ✅ Aligned type structures between SceneComponent and utility functions
 
 ### Current Focus:
-- Completing extraction of remaining functionality from SceneComponent to SceneContainer
-- Finalizing integration of all extracted components
-- Ensuring all tests pass with the new component structure
-- Resolving linter warnings and improving type safety
+- Finalizing the comprehensive extraction of audio functionality
+- Completing the SceneAudioControls component integration 
+- Creating the final wrapper for SceneComponent to use SceneContainer
+- Ensuring proper type safety across all components
+- Maintaining test coverage during the final integration phase
 
 ### Next Steps:
 1. Extract remaining functionality from SceneComponent.tsx:
-   - Move the fetchStoredAudio logic to SceneContainer
-   - Extract the createAudioBlobUrl and base64ToBlob utility functions
+   - ✅ Move the fetchStoredAudio logic to SceneContainer
+   - ✅ Extract the audio utilities to dedicated utility files
    - Move the audio playback speed controls to SceneAudioControls
    - Finalize voice settings integration with proper state management
    - Remove any duplicate code between SceneComponent and SceneContainer
@@ -276,8 +283,8 @@ For each step:
    - Validate that all existing functionality works as expected
 
 3. Fix remaining type issues and linter warnings:
-   - Add proper type definitions for all props and state variables
-   - Remove any remaining 'any' type assertions
+   - ✅ Add proper type definitions for all props and state variables
+   - ✅ Remove any remaining 'any' type assertions
    - Ensure consistent naming conventions across components
    - Verify proper JSDoc comments for all public functions and components
 
@@ -293,5 +300,5 @@ For each step:
 - ✅ Audio generation verification successful
 - ✅ Component integration tests successful
 - ✅ React.memo optimizations verified working
-- ✅ All Playwright tests passing (10/10)
+- ✅ Audio utilities integrated and verified (10/10 tests passing)
 - ⏳ Final integration testing with SceneContainer pending 
