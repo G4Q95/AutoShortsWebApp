@@ -128,6 +128,20 @@ The project is in active development with several key components in place:
   - Dynamic timeout management
   - Input validation with detailed error messages
   - Multiple output format support
+- ✅ Component Architecture Refactoring (65%)
+  - SceneComponent broken down into modular components
+  - Extracted 8 specialized components:
+    - SceneHeader: Scene numbering and source display
+    - SceneTextContent: Text display with expansion
+    - SceneTextEditor: Text editing functionality
+    - SceneMediaPlayer: Media playback with view modes
+    - SceneVoiceSettings: Voice generation controls
+    - SceneTrimControls: Media trimming interface
+    - SceneActions: Scene operation buttons
+    - SceneTimingControls: Duration management
+  - Full details in [docs/Scene-Component-Refactoring.md](docs/Scene-Component-Refactoring.md)
+  - Reduced main component size by ~63%
+  - Enhanced maintainability and separation of concerns
 - ✅ Feature Flag Implementation
   - API module isolation
   - Controlled feature rollout
