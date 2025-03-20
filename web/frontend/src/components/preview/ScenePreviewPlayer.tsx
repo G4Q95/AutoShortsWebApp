@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { PlayIcon, PauseIcon, ChevronUpIcon, ChevronDownIcon, VolumeIcon, Volume2Icon, VolumeXIcon } from 'lucide-react';
+import { PlayIcon, PauseIcon, ChevronUpIcon, ChevronDownIcon, VolumeIcon, Volume2Icon, VolumeXIcon, LockIcon, UnlockIcon } from 'lucide-react';
 
 interface ScenePreviewPlayerProps {
   projectId: string;
@@ -413,7 +413,7 @@ const ScenePreviewPlayer = ({
     }
   };
   
-  // Helper function to format time
+  // Helper function to format time with proper padding for consistent width
   const formatTime = (timeInSeconds: number): string => {
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = Math.floor(timeInSeconds % 60);
@@ -506,9 +506,9 @@ const ScenePreviewPlayer = ({
           data-testid="play-pause-button"
         >
           {isPlaying ? (
-            <PauseIcon className={`${isCompactView ? 'w-10 h-10' : 'w-16 h-16'} text-white opacity-70`} />
+            <PauseIcon className={`${isCompactView ? 'w-5 h-5' : 'w-8 h-8'} text-white opacity-70`} />
           ) : (
-            <PlayIcon className={`${isCompactView ? 'w-10 h-10' : 'w-16 h-16'} text-white opacity-70`} />
+            <PlayIcon className={`${isCompactView ? 'w-5 h-5' : 'w-8 h-8'} text-white opacity-70`} />
           )}
         </button>
         
@@ -622,94 +622,78 @@ const ScenePreviewPlayer = ({
               </div>
               
               {/* Time and controls row */}
-              <div className="flex items-center justify-between">
-                {/* Time display - smaller and compact format */}
-                <div className="flex">
-                  <span className="text-[6px] text-white">{formatTime(currentTime)}/{formatTime(duration)}</span>
+              <div className="flex items-center w-full px-1 h-4">
+                {/* Time display */}
+                <div className="flex items-center">
+                  <span className="text-[6px] text-white font-mono tabular-nums leading-none">{formatTime(currentTime)}/{formatTime(duration)}</span>
                 </div>
                 
-                {/* Controls at right */}
-                <div className="flex items-center gap-1">
-                  {/* Volume control - smaller */}
-                  <div className="flex items-center">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleMute();
-                      }}
-                      className="text-white p-0.5"
-                      data-testid="hover-mute-button"
-                    >
-                      {isMuted ? (
-                        <VolumeXIcon className="w-1.5 h-1.5" />
-                      ) : volume < 0.5 ? (
-                        <VolumeIcon className="w-1.5 h-1.5" />
-                      ) : (
-                        <Volume2Icon className="w-1.5 h-1.5" />
-                      )}
-                    </button>
-                    
-                    <div className="relative w-8 mx-0.5">
-                      <div className="absolute top-1/2 -translate-y-1/2 w-full h-0.5 bg-gray-500 rounded-full"></div>
-                      <div 
-                        className="absolute top-1/2 -translate-y-1/2 h-0.5 bg-blue-400 rounded-full" 
-                        style={{ width: `${volume * 100}%` }}
-                      ></div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.1"
-                        value={volume}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          handleVolumeChange(e);
-                        }}
-                        className="w-full h-2 opacity-0 cursor-pointer relative z-10"
-                        data-testid="hover-volume-slider"
-                        onMouseDown={(e) => e.stopPropagation()} // Prevent scene drag
-                      />
-                      {/* Tiny thumb indicator */}
-                      <div 
-                        className="absolute top-1/2 -translate-y-1/2 w-1 h-1 bg-white rounded-full pointer-events-none"
-                        style={{ left: `calc(${volume * 100}% - 2px)` }}
-                      ></div>
-                    </div>
-                  </div>
-                  
-                  {/* Trim mode toggle */}
+                {/* Volume control - directly next to time */}
+                <div className="flex items-center ml-2">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleTrimMode();
+                      toggleMute();
                     }}
-                    className={`text-white p-0.5 rounded-sm ${trimActive ? 'bg-blue-500 bg-opacity-40' : ''}`}
-                    data-testid="trim-mode-toggle"
-                    title={trimActive ? "Exit Trim Mode" : "Trim Mode"}
+                    className="text-white flex items-center h-3 leading-none"
+                    data-testid="hover-mute-button"
                   >
-                    <svg className="w-1.5 h-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M7 5L7 19" strokeLinecap="round" />
-                      <path d="M17 5L17 19" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                  
-                  {/* Lock button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleControlsLock();
-                    }}
-                    className="text-white p-0.5"
-                    data-testid="controls-lock-toggle"
-                    title={controlsLocked ? "Hide Controls" : "Lock Controls"}
-                  >
-                    {controlsLocked ? (
-                      <ChevronDownIcon className="w-1.5 h-1.5" />
+                    {isMuted ? (
+                      <VolumeXIcon className="w-1.5 h-1.5" />
+                    ) : volume < 0.5 ? (
+                      <VolumeIcon className="w-1.5 h-1.5" />
                     ) : (
-                      <ChevronUpIcon className="w-1.5 h-1.5" />
+                      <Volume2Icon className="w-1.5 h-1.5" />
                     )}
                   </button>
+                  
+                  <div className="relative w-6 mx-0.5 h-3 flex items-center">
+                    <div className="absolute w-full h-0.5 bg-gray-500 rounded-full"></div>
+                    <div 
+                      className="absolute h-0.5 bg-blue-400 rounded-full" 
+                      style={{ width: `${volume * 100}%` }}
+                    ></div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={volume}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleVolumeChange(e);
+                      }}
+                      className="w-full h-3 opacity-0 cursor-pointer relative z-10"
+                      data-testid="hover-volume-slider"
+                      onMouseDown={(e) => e.stopPropagation()} // Prevent scene drag
+                    />
+                    {/* Tiny thumb indicator */}
+                    <div 
+                      className="absolute w-1 h-1 bg-white rounded-full pointer-events-none"
+                      style={{ left: `calc(${volume * 100}% - 2px)` }}
+                    ></div>
+                  </div>
                 </div>
+                
+                {/* Spacer to push lock button to the right */}
+                <div className="flex-grow"></div>
+                
+                {/* Lock button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleControlsLock();
+                  }}
+                  className="text-white flex items-center h-3 leading-none"
+                  data-testid="controls-lock-toggle"
+                  title={controlsLocked ? "Hide Controls" : "Lock Controls"}
+                >
+                  {controlsLocked ? (
+                    <LockIcon className="w-1.5 h-1.5" />
+                  ) : (
+                    <UnlockIcon className="w-1.5 h-1.5" />
+                  )}
+                </button>
               </div>
             </div>
           </div>
