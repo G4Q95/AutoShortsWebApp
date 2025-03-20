@@ -249,3 +249,46 @@ For each step:
 - Create remaining UI components (media player, voice settings, actions)
 - Implement proper container component architecture
 - Integrate new components into main SceneComponent 
+
+### 3. Extraction of Media Player Section
+
+✅ **Done** - Created `SceneMediaPlayer.tsx` which:
+- Integrates with existing ScenePreviewPlayer for media display
+- Implements view mode toggle
+- Handles media URLs with proper fallbacks
+- Maintains trim control functionality
+- Includes storage status indicator
+
+### 4. Extraction of Voice Settings Section
+
+✅ **Done** - Created `SceneVoiceSettings.tsx` which:
+- Provides voice selection dropdown and settings button
+- Implements complete voice settings panel with sliders for:
+  - Speed
+  - Stability
+  - Similarity Boost
+  - Style
+  - Speaker Boost toggle
+- Loads available voices from the API
+- Displays voice generation errors
+- Includes Generate/Regenerate voice button with loading state
+- Maintains all original functionality with clean separation of concerns
+
+### Current Status
+
+- ⬇️ Component size reduced from 1986 lines to approximately 1300 lines (35% complete)
+- ✅ Tests passing after each extraction step
+
+### Components Created:
+1. `SceneHeader.tsx`
+2. `SceneTextContent.tsx`
+3. `SceneTextEditor.tsx`
+4. `SceneMediaPlayer.tsx`
+5. `SceneVoiceSettings.tsx`
+
+## Next Steps:
+
+1. Extract Scene Actions (Add Scene, Delete Scene, Duplicate, etc.)
+2. Extract Scene Timing Controls
+3. Update SceneComponent to use all new components
+4. Final cleanup and testing 
