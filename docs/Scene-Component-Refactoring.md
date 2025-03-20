@@ -227,13 +227,19 @@ For each step:
 - Original SceneComponent.tsx size: 1986 lines
 - Current size after initial refactoring: ~1250 lines
 - Reduction: ~736 lines
-- Implementation Progress: 70% complete
+- Implementation Progress: 75% complete
 
 ### Recent Changes:
 - ✅ Moved voice_id access from scene.audio to scene.voice_settings
 - ✅ Fixed voice settings panel integration
 - ✅ Updated SceneVoiceSettings component props
-- ✅ Verified all tests passing after voice settings changes
+- ✅ Implemented voice generation with proper API integration
+- ✅ Added voice settings state management in SceneContainer
+- ✅ Integrated SceneMediaPlayer with proper props structure
+- ✅ Connected SceneTextContent with expanded props interface
+- ✅ Added media trim change handling functionality
+- ✅ Fixed API type definitions and property alignment
+- ✅ Verified all tests passing after integration changes
 
 ### Current Focus:
 - Continuing extraction of functionality from SceneComponent.tsx to SceneContainer.tsx
@@ -242,8 +248,8 @@ For each step:
 - Maintaining test coverage during refactoring
 
 ### Next Steps:
-1. Complete remaining voice settings integration
-2. Extract remaining media control functionality
+1. Complete audio playback control implementation
+2. Finalize media trim controls integration
 3. Implement performance optimizations
 4. Add comprehensive error handling
 5. Final testing pass

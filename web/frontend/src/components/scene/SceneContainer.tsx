@@ -10,6 +10,8 @@ import { cleanPostText, getWordCount } from '@/utils/scene/event-handlers';
 import { GripVertical } from 'lucide-react';
 import { SceneActions } from './SceneActions';
 import { SceneVoiceSettings } from './SceneVoiceSettings';
+import { getAvailableVoices, generateVoice, persistVoiceAudio } from '@/lib/api-client';
+import { Voice, VoiceSettings, GenerateVoiceResponse, SaveAudioRequest } from '@/lib/api-types';
 
 /**
  * Props for the SceneContainer component
@@ -83,18 +85,23 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
   
   // Add state for audio generation
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioSrc, setAudioSrc] = useState<string | null>(
+    scene.audio?.persistentUrl || scene.audio?.audio_url || null
+  );
 
   // Add confirmation state for scene removal
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Add state for voice settings
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [voiceId, setVoiceId] = useState<string>(scene.voice_settings?.voice_id || "");
   const [voiceSettings, setVoiceSettings] = useState({
-    stability: 0.5,
-    similarity_boost: 0.75,
-    style: 0.5,
-    speaker_boost: true,
-    speed: 1.0
+    stability: scene.voice_settings?.stability || 0.5,
+    similarity_boost: scene.voice_settings?.similarity_boost || 0.75,
+    style: scene.voice_settings?.style || 0.5,
+    speaker_boost: scene.voice_settings?.speaker_boost || true,
+    speed: scene.voice_settings?.speed || 1.0
   });
 
   // Handle view mode toggle
@@ -138,25 +145,114 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
     setIsTextExpanded(!isTextExpanded);
   };
 
-  // Audio handlers
+  // Voice settings handlers
+  const handleVoiceChange = (newVoiceId: string) => {
+    setVoiceId(newVoiceId);
+    
+    // Update scene voice settings in the project
+    if (scene.voice_settings) {
+      updateSceneAudio(scene.id, scene.audio || {}, {
+        ...scene.voice_settings,
+        voice_id: newVoiceId
+      });
+    } else {
+      // Create new voice settings object if it doesn't exist
+      updateSceneAudio(scene.id, scene.audio || {}, {
+        voice_id: newVoiceId,
+        stability: voiceSettings.stability,
+        similarity_boost: voiceSettings.similarity_boost,
+        style: voiceSettings.style,
+        speaker_boost: voiceSettings.speaker_boost,
+        speed: voiceSettings.speed
+      });
+    }
+  };
+
+  const handleVoiceSettingsChange = (settings: Partial<typeof voiceSettings>) => {
+    const updatedSettings = { ...voiceSettings, ...settings };
+    setVoiceSettings(updatedSettings);
+    
+    // Update scene voice settings in the project
+    if (scene.voice_settings) {
+      updateSceneAudio(scene.id, scene.audio || {}, {
+        ...scene.voice_settings,
+        ...settings
+      });
+    }
+  };
+
+  // Audio generation handler
   const handleGenerateVoice = async () => {
+    if (!voiceId || !currentProject) return;
+    
     setIsGeneratingAudio(true);
+    setAudioError(null);
+    
     try {
-      // TODO: Implement voice generation
-      // This will be connected to the voice generation API
-      setIsGeneratingAudio(false);
+      // Generate audio using the API
+      const response = await generateVoice({
+        text: cleanPostText(scene.text),
+        voice_id: voiceId,
+        stability: voiceSettings.stability,
+        similarity_boost: voiceSettings.similarity_boost,
+        style: voiceSettings.style, 
+        use_speaker_boost: voiceSettings.speaker_boost,
+        speed: voiceSettings.speed
+      });
+      
+      if (response.data) {
+        // Set audio source for playback
+        if (response.data.audio_url) {
+          setAudioSrc(response.data.audio_url);
+          
+          // Persist audio for longer-term storage
+          try {
+            const persistResponse = await persistVoiceAudio({
+              project_id: currentProject.id,
+              scene_id: scene.id,
+              audio_url: response.data.audio_url
+            });
+            
+            if (persistResponse.data && persistResponse.data.persistent_url) {
+              // Update scene with persistent audio URL
+              updateSceneAudio(scene.id, {
+                ...scene.audio,
+                audio_url: response.data.audio_url,
+                persistentUrl: persistResponse.data.persistent_url
+              }, scene.voice_settings || {
+                voice_id: voiceId,
+                stability: voiceSettings.stability,
+                similarity_boost: voiceSettings.similarity_boost,
+                style: voiceSettings.style,
+                speaker_boost: voiceSettings.speaker_boost,
+                speed: voiceSettings.speed
+              });
+            }
+          } catch (persistError) {
+            console.error('Error persisting audio:', persistError);
+            // Continue with temporary URL even if persistence fails
+          }
+        }
+      } else {
+        setAudioError(response.error ? response.error.message : 'Failed to generate audio');
+      }
     } catch (error) {
       console.error('Error generating voice:', error);
+      setAudioError('Error generating voice. Please try again.');
+    } finally {
       setIsGeneratingAudio(false);
     }
   };
 
-  const handleVoiceChange = (voiceId: string) => {
-    if (scene.voice_settings) {
-      updateSceneAudio(scene.id, scene.audio || {}, {
-        ...scene.voice_settings,
-        voice_id: voiceId
-      });
+  // Handle media trim change
+  const handleTrimChange = (start: number, end: number) => {
+    if (scene.media) {
+      // Update local state if needed (for UI feedback)
+      // Later we'll add the actual media update to the backend
+      console.log(`Trim changed for scene ${scene.id}: ${start} - ${end}`);
+      
+      // TODO: Implement proper media update handling
+      // This would update the scene.media.trim property in the project context
     }
   };
 
@@ -211,15 +307,6 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
     }
   };
 
-  const handleToggleVoiceSettings = () => {
-    setShowVoiceSettings(prev => !prev);
-  };
-
-  const handleVoiceSettingsChange = (settings: Partial<typeof voiceSettings>) => {
-    setVoiceSettings(prev => ({ ...prev, ...settings }));
-    // TODO: In the future, we might want to save these settings to the backend
-  };
-
   return (
     <div
       id={`scene-${scene.id}`}
@@ -250,194 +337,82 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
             projectId={currentProject?.id || ''}
             sceneId={scene.id}
             media={mediaProps}
-            audioUrl={scene.audio?.persistentUrl || scene.audio?.audio_url || null}
             isCompactView={isCompactView}
             onToggleViewMode={handleViewModeToggle}
-            onTrimChange={(start, end) => {
-              if (scene.media) {
-                const updatedMedia = {
-                  ...scene.media,
-                  trim: { start, end }
-                };
-                // TODO: Implement media update handler
-              }
-            }}
           />
         </div>
 
-        {/* Show info section if enabled */}
-        {showInfo && (
-          <div className="px-2 pt-1 text-xs text-gray-500 border-t border-gray-100">
-            <p>Source: {scene.source ? `${scene.source.platform || 'Unknown'} ${scene.source.author ? `by ${scene.source.author}` : ''}` : 'Unknown'}</p>
-            {scene.media && (
-              <p>Media: {scene.media.type} - {scene.media.url.substring(0, 50)}...</p>
-            )}
-            {scene.audio && (
-              <p>Audio: {scene.audio.persistentUrl || scene.audio.audio_url || 'None'}</p>
-            )}
-          </div>
-        )}
-
         {/* Text content section */}
-        <div className="p-2" data-testid="scene-text-section">
+        <div className="p-2 flex-grow" data-testid="scene-text-content">
           <SceneTextContent
             text={text}
-            originalText={scene.text}
-            wordCount={getWordCount(text)}
             isEditing={isEditing}
             isTextExpanded={isTextExpanded}
-            readOnly={readOnly}
             onTextChange={handleTextChange}
             onStartEditing={handleStartEditing}
             onSaveText={handleSaveText}
             onCancelEdit={handleCancelEdit}
             onKeyDown={handleKeyDown}
-            onToggleTextExpand={handleToggleTextExpand}
+            onToggleExpand={handleToggleTextExpand}
+            infoText={scene.url || ''}
+            showInfo={showInfo}
+            readOnly={readOnly}
+            wordCount={getWordCount(text)}
+            originalText={scene.text}
           />
         </div>
-        
+
+        {/* Voice settings and generation */}
+        <div className="p-2 border-t border-gray-100">
+          <SceneVoiceSettings
+            voiceId={voiceId}
+            voiceSettings={voiceSettings}
+            isGenerating={isGeneratingAudio}
+            audioError={audioError}
+            onVoiceChange={handleVoiceChange}
+            onSettingsChange={handleVoiceSettingsChange}
+            onGenerateClick={handleGenerateVoice}
+          />
+        </div>
+
         {/* Audio controls section */}
-        <div className="border-t border-gray-200" data-testid="scene-audio-section">
-          <div data-testid="original-audio-controls">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-medium text-gray-700">Voice Narration</div>
-              <button 
-                className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center" 
-                aria-label="Voice settings"
-                onClick={handleToggleVoiceSettings}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="lucide lucide-settings h-3 w-3 mr-0.5"
-                >
-                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <span>Settings</span>
-              </button>
-            </div>
-            
-            {/* Voice settings modal (displayed conditionally) */}
-            {showVoiceSettings && (
-              <SceneVoiceSettings
-                voiceId={scene.voice_settings?.voice_id || '9BWtsMINqrJLrRacOk9x'}
-                voiceSettings={voiceSettings}
-                isGenerating={isGeneratingAudio}
-                audioError={null}
-                onVoiceChange={handleVoiceChange}
-                onSettingsChange={handleVoiceSettingsChange}
-                onGenerateClick={handleGenerateVoice}
-              />
-            )}
-            
-            {/* Voice selector dropdown */}
-            {!showVoiceSettings && (
-              <select
-                className="text-xs py-0.5 px-1 border border-gray-300 rounded w-full mt-0.5 mb-0.5"
-                value={scene.voice_settings?.voice_id || '9BWtsMINqrJLrRacOk9x'}
-                onChange={(e) => handleVoiceChange(e.target.value)}
-                data-testid="voice-selector"
-              >
-                <option value="9BWtsMINqrJLrRacOk9x">Aria</option>
-                <option value="CwhRBWXzGAHq8TQ4Fs17">Roger</option>
-                <option value="EXAVITQu4vr4xnSDxMaL">Sarah</option>
-                <option value="FGY2WhTYpPnrIDTdsKH5">Laura</option>
-                <option value="IKne3meq5aSn9XLyUdCD">Charlie</option>
-                <option value="JBFqnCBsd6RMkjVDRZzb">George</option>
-                <option value="N2lVS1w4EtoT3dr4eOWO">Callum</option>
-                <option value="SAz9YHcvj6GT2YYXdXww">River</option>
-                <option value="TX3LPaxmHKxFdv7VOQHJ">Liam</option>
-                <option value="XB0fDUnXU5powFXDhCwa">Charlotte</option>
-                <option value="Xb7hH8MSUJpSbSDYk0k2">Alice</option>
-                <option value="XrExE9yKIg1WjnnlVkGX">Matilda</option>
-                <option value="bIHbv24MWmeRgasZH58o">Will</option>
-                <option value="cgSgspJ2msm6clMCkdW9">Jessica</option>
-                <option value="cjVigY5qzO86Huf0OWal">Eric</option>
-                <option value="iP95p4xoKVk53GoZ742B">Chris</option>
-                <option value="nPczCjzI2devNBz1zQrb">Brian</option>
-                <option value="onwK4e9ZLuTAKqWW03F9">Daniel</option>
-                <option value="pFZP5JQG7iQjIQuC4Bku">Lily</option>
-                <option value="pqHfZKP75CvOlQylNhV4">Bill</option>
-                <option value="2ThAKyuZyXACCyKT2Uks">Lloyd</option>
-                <option value="KRzS7KO2TLlh1BRPgHnB">Dave - Male Deep Voice - for Media and AI</option>
-                <option value="NYC9WEgkq1u4jiqBseQ9">Russell - Dramatic British TV</option>
-                <option value="OHzg7CJflKQVgTfGO2FE">Michael - Deep, Resonant, Confident</option>
-                <option value="YHSgh4k0SYcUeBa80k3j">Valentino</option>
-                <option value="ZF6FPAbjXT4488VcRRnw">Amelia</option>
-                <option value="c7R3SZn5vgoVpwrGa9W0">Marcus - authoritative and deep</option>
-                <option value="i2TMQs8AnTGWix92bxez">Tom - trailer narrator</option>
-                <option value="lxYfHSkYm1EzQzGhdbfc">Jessica - A VO Professional; now cloned!</option>
-                <option value="pVnrL6sighQX7hVz89cp">Soothing Narrator</option>
-                <option value="uju3wxzG5OhpWcoi3SMy">Michael C. Vincent</option>
-              </select>
-            )}
-            
-            <div className="audio-container hidden" data-testid="audio-container">
-              <audio 
-                src={scene.audio?.persistentUrl || scene.audio?.audio_url || ''}
-                className="w-full h-7"
-                data-testid="audio-element"
-                preload="metadata"
-              />
-            </div>
+        {audioSrc && (
+          <div className="mt-1 border-t border-gray-100">
+            <SceneAudioControls
+              key={`audio-controls-${scene.id}`}
+              audioUrl={audioSrc}
+              sceneId={scene.id}
+            />
           </div>
-        </div>
-        
-        {/* Scene Actions Section */}
-        <div className="border-t border-gray-200 flex justify-between items-stretch">
-          <div className="flex items-center">
-            {/* Additional actions can be added here */}
+        )}
+
+        {/* Delete button */}
+        {showDeleteConfirm ? (
+          <div className="absolute bottom-0 right-0 flex items-center bg-red-50 rounded-bl-md rounded-tr-md overflow-hidden">
+            <button
+              onClick={handleCancelDelete}
+              className="px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
+              data-testid="cancel-delete-button"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSceneRemove}
+              className="px-2 py-1 text-xs text-white bg-red-600 hover:bg-red-700"
+              data-testid="confirm-delete-button"
+            >
+              Delete
+            </button>
           </div>
-          <div className="flex flex-grow" style={{ gap: 0 }}>
-            {showDeleteConfirm ? (
-              <>
-                <button
-                  className="flex-grow px-3 py-2.5 bg-gray-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-gray-700"
-                  onClick={handleCancelDelete}
-                  data-testid="cancel-delete-button"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="flex-shrink-0 w-10 py-2.5 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700"
-                  onClick={handleSceneRemove}
-                  data-testid="confirm-delete-button"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </button>
-              </>
-            ) : (
-              <button
-                className="flex-shrink-0 w-10 py-2.5 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700"
-                onClick={handleSceneRemove}
-                aria-label="Remove scene"
-                data-testid="delete-scene-button"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                  <line x1="10" x2="10" y1="11" y2="17" />
-                  <line x1="14" x2="14" y1="11" y2="17" />
-                </svg>
-              </button>
-            )}
+        ) : (
+          <div className="absolute bottom-0 right-0">
+            <SceneActions
+              onDelete={handleSceneRemove}
+              className="mt-auto"
+            />
           </div>
-        </div>
-        
-        {children}
+        )}
       </div>
-      <SceneActions onDelete={onDelete} />
     </div>
   );
 }; 
