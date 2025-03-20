@@ -13,6 +13,7 @@ import { SceneVoiceSettings } from './SceneVoiceSettings';
 import { getAvailableVoices, generateVoice, persistVoiceAudio } from '@/lib/api-client';
 import { Voice, VoiceSettings, GenerateVoiceResponse, SaveAudioRequest, SaveAudioResponse } from '@/lib/api-types';
 import { useAudioContext } from '@/contexts/AudioContext';
+import { fetchStoredAudio, cleanupAudioUrl } from '@/utils/scene/audio-utils';
 
 /**
  * Props for the SceneContainer component
@@ -383,6 +384,48 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
       onSceneReorder(scene.id, dragIndex);
     }
   };
+
+  // Add useEffect to fetch stored audio on component mount
+  useEffect(() => {
+    const loadStoredAudio = async () => {
+      if (currentProject?.id) {
+        // Create a wrapper function to correctly adapt the updateSceneAudio to the required signature
+        const updateAudioWrapper = (
+          sceneId: string, 
+          audio: NonNullable<Scene['audio']>, 
+          voiceSettings: VoiceSettings
+        ) => {
+          // Create a new object that matches the Scene['voice_settings'] structure
+          const adaptedVoiceSettings = {
+            voice_id: voiceId, // Use the current voiceId from component state
+            stability: voiceSettings.stability,
+            similarity_boost: voiceSettings.similarity_boost,
+            style: voiceSettings.style ?? 0,
+            speaker_boost: voiceSettings.use_speaker_boost ?? false, 
+            speed: voiceSettings.speed ?? 1.0
+          };
+          
+          updateSceneAudio(sceneId, audio, adaptedVoiceSettings);
+        };
+        
+        await fetchStoredAudio(
+          currentProject.id,
+          scene.id,
+          scene,
+          setAudioSrc,
+          updateAudioWrapper,
+          voiceId
+        );
+      }
+    };
+    
+    loadStoredAudio();
+    
+    // Cleanup function to revoke blob URLs when component unmounts
+    return () => {
+      cleanupAudioUrl(audioSrc);
+    };
+  }, [scene.id, scene.audio, currentProject?.id, updateSceneAudio, voiceId, scene.voice_settings]);
 
   return (
     <div
