@@ -59,7 +59,7 @@ interface SceneMediaPlayerProps {
  * Media player component for scene with view mode toggle
  * Integrates with ScenePreviewPlayer for media display and controls
  */
-export const SceneMediaPlayer: React.FC<SceneMediaPlayerProps> = ({
+const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   projectId,
   sceneId,
   media,
@@ -146,4 +146,48 @@ export const SceneMediaPlayer: React.FC<SceneMediaPlayerProps> = ({
       )}
     </div>
   );
-}; 
+};
+
+/**
+ * Custom comparison function for React.memo
+ * Only re-render when media content or view state changes
+ */
+function arePropsEqual(prevProps: SceneMediaPlayerProps, nextProps: SceneMediaPlayerProps): boolean {
+  // Check for media presence first
+  const prevHasMedia = !!prevProps.media;
+  const nextHasMedia = !!nextProps.media;
+  
+  if (prevHasMedia !== nextHasMedia) {
+    return false;
+  }
+  
+  // If no media in both cases, other changes don't matter much
+  if (!prevHasMedia && !nextHasMedia) {
+    return true;
+  }
+  
+  // Compare essential media properties
+  const mediaChanged = prevProps.media && nextProps.media && (
+    prevProps.media.url !== nextProps.media.url ||
+    prevProps.media.storedUrl !== nextProps.media.storedUrl ||
+    prevProps.media.type !== nextProps.media.type ||
+    prevProps.media.isStorageBacked !== nextProps.media.isStorageBacked ||
+    // Compare trim values
+    (prevProps.media.trim?.start !== nextProps.media.trim?.start) ||
+    (prevProps.media.trim?.end !== nextProps.media.trim?.end)
+  );
+  
+  // Compare view state and audio
+  return !(
+    mediaChanged ||
+    prevProps.audioUrl !== nextProps.audioUrl ||
+    prevProps.isCompactView !== nextProps.isCompactView ||
+    prevProps.projectId !== nextProps.projectId ||
+    prevProps.sceneId !== nextProps.sceneId
+  );
+}
+
+/**
+ * Memoized version of SceneMediaPlayer to prevent unnecessary re-renders
+ */
+export const SceneMediaPlayer = React.memo(SceneMediaPlayerComponent, arePropsEqual); 

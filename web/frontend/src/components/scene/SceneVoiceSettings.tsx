@@ -70,7 +70,7 @@ interface SceneVoiceSettingsProps {
  * - Voice settings panel with sliders for various parameters
  * - Generate/Regenerate voice button
  */
-export const SceneVoiceSettings: React.FC<SceneVoiceSettingsProps> = ({
+const SceneVoiceSettingsComponent: React.FC<SceneVoiceSettingsProps> = ({
   voiceId,
   voiceSettings,
   isGenerating,
@@ -375,4 +375,36 @@ export const SceneVoiceSettings: React.FC<SceneVoiceSettingsProps> = ({
       )}
     </div>
   );
-}; 
+};
+
+/**
+ * Custom comparison function for React.memo
+ * Only re-render when essential voice props change
+ */
+function arePropsEqual(prevProps: SceneVoiceSettingsProps, nextProps: SceneVoiceSettingsProps): boolean {
+  // Compare basic props
+  if (
+    prevProps.voiceId !== nextProps.voiceId ||
+    prevProps.isGenerating !== nextProps.isGenerating ||
+    prevProps.audioError !== nextProps.audioError
+  ) {
+    return false;
+  }
+  
+  // Compare voice settings object
+  const prevSettings = prevProps.voiceSettings;
+  const nextSettings = nextProps.voiceSettings;
+  
+  return (
+    prevSettings.stability === nextSettings.stability &&
+    prevSettings.similarity_boost === nextSettings.similarity_boost &&
+    prevSettings.style === nextSettings.style &&
+    prevSettings.speaker_boost === nextSettings.speaker_boost &&
+    prevSettings.speed === nextSettings.speed
+  );
+}
+
+/**
+ * Memoized version of SceneVoiceSettings to prevent unnecessary re-renders
+ */
+export const SceneVoiceSettings = React.memo(SceneVoiceSettingsComponent, arePropsEqual); 

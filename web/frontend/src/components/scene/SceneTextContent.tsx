@@ -79,7 +79,7 @@ interface SceneTextContentProps {
  * - Text expansion for long content
  * - Keyboard shortcuts (Ctrl+Enter to save, Esc to cancel)
  */
-export const SceneTextContent: React.FC<SceneTextContentProps> = ({
+const SceneTextContentComponent: React.FC<SceneTextContentProps> = ({
   text,
   originalText,
   wordCount,
@@ -210,4 +210,25 @@ export const SceneTextContent: React.FC<SceneTextContentProps> = ({
       )}
     </div>
   );
-}; 
+};
+
+/**
+ * Custom comparison function for React.memo
+ * Only re-render when essential props change
+ */
+function arePropsEqual(prevProps: SceneTextContentProps, nextProps: SceneTextContentProps): boolean {
+  return (
+    prevProps.text === nextProps.text &&
+    prevProps.wordCount === nextProps.wordCount &&
+    prevProps.isEditing === nextProps.isEditing &&
+    prevProps.isTextExpanded === nextProps.isTextExpanded &&
+    prevProps.readOnly === nextProps.readOnly &&
+    prevProps.maxCompactHeight === nextProps.maxCompactHeight
+    // We intentionally exclude function props from comparison
+  );
+}
+
+/**
+ * Memoized version of SceneTextContent to prevent unnecessary re-renders
+ */
+export const SceneTextContent = React.memo(SceneTextContentComponent, arePropsEqual); 

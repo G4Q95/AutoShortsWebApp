@@ -40,7 +40,7 @@ interface SceneHeaderProps {
  * Header component for Scene cards
  * Displays scene number and controls for view mode and info visibility
  */
-export const SceneHeader: React.FC<SceneHeaderProps> = ({
+const SceneHeaderComponent: React.FC<SceneHeaderProps> = ({
   index,
   isCompactView,
   showInfo,
@@ -92,4 +92,23 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
       </div>
     </div>
   );
-}; 
+};
+
+/**
+ * Custom comparison function for React.memo
+ * Only re-render if any of these props change
+ */
+function arePropsEqual(prevProps: SceneHeaderProps, nextProps: SceneHeaderProps): boolean {
+  return (
+    prevProps.index === nextProps.index &&
+    prevProps.isCompactView === nextProps.isCompactView &&
+    prevProps.showInfo === nextProps.showInfo
+    // We intentionally exclude function props from comparison as they may change identity
+    // but that shouldn't trigger a re-render
+  );
+}
+
+/**
+ * Memoized version of SceneHeader to prevent unnecessary re-renders
+ */
+export const SceneHeader = React.memo(SceneHeaderComponent, arePropsEqual); 
