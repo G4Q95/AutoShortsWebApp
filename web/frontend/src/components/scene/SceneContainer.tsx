@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Scene } from '../project/ProjectProvider';
 import { useProject } from '../project/ProjectProvider';
 import { getSceneContainerClassName } from '@/utils/scene';
+import { SceneMediaPlayer } from './SceneMediaPlayer';
+import { SceneTextContent } from './SceneTextContent';
+import { cleanPostText, getWordCount } from '@/utils/scene/event-handlers';
 
 /**
  * Props for the SceneContainer component
@@ -34,7 +37,7 @@ interface SceneContainerProps {
   /** Feature flag to use the new SceneAudioControls component instead of built-in audio controls */
   useNewAudioControls?: boolean;
   /** Children components */
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 /**
@@ -57,7 +60,61 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
   useNewAudioControls = false,
   children
 }) => {
-  const { currentProject } = useProject();
+  const { currentProject, updateSceneText } = useProject();
+  
+  // Add state for view mode
+  const [isCompactView, setIsCompactView] = useState(true);
+  
+  // Add state for text editing
+  const [isEditing, setIsEditing] = useState(false);
+  const [text, setText] = useState(cleanPostText(scene.text));
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
+  
+  // Handle view mode toggle
+  const handleViewModeToggle = () => {
+    setIsCompactView(!isCompactView);
+  };
+
+  // Text content handlers
+  const handleTextChange = (newText: string) => {
+    setText(newText);
+  };
+
+  const handleStartEditing = () => {
+    setIsEditing(true);
+  };
+
+  const handleSaveText = () => {
+    updateSceneText(scene.id, text);
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setText(cleanPostText(scene.text));
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      handleSaveText();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
+
+  const handleToggleTextExpand = () => {
+    setIsTextExpanded(!isTextExpanded);
+  };
+
+  // Transform scene.media to match SceneMediaPlayer's expected format
+  const mediaProps = scene.media ? {
+    url: scene.media.url,
+    storedUrl: scene.media.storedUrl,
+    type: scene.media.type,
+    trim: scene.media.trim,
+    storageKey: scene.media.storageKey,
+    isStorageBacked: scene.media.isStorageBacked
+  } : null;
 
   return (
     <div
@@ -65,7 +122,7 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
       className={`${getSceneContainerClassName(
         isFullWidth,
         !isDragging && scene.id === currentProject?.id,
-        false // isEditing will be managed by child components
+        isEditing
       )}`}
       style={{
         maxWidth: '100%',
@@ -87,8 +144,45 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
       <div className="flex flex-col h-full">
         {/* Media section wrapper */}
         <div className="h-[190px]" data-testid="scene-media">
-          {children}
+          <SceneMediaPlayer
+            projectId={currentProject?.id || ''}
+            sceneId={scene.id}
+            media={mediaProps}
+            audioUrl={scene.audio?.persistentUrl || scene.audio?.audio_url || null}
+            isCompactView={isCompactView}
+            onToggleViewMode={handleViewModeToggle}
+            onTrimChange={(start, end) => {
+              if (scene.media) {
+                const updatedMedia = {
+                  ...scene.media,
+                  trim: { start, end }
+                };
+                // TODO: Implement media update handler
+              }
+            }}
+          />
         </div>
+
+        {/* Text content section */}
+        <div className="p-2" data-testid="scene-text-section">
+          <SceneTextContent
+            text={text}
+            originalText={scene.text}
+            wordCount={getWordCount(text)}
+            isEditing={isEditing}
+            isTextExpanded={isTextExpanded}
+            readOnly={readOnly}
+            onTextChange={handleTextChange}
+            onStartEditing={handleStartEditing}
+            onSaveText={handleSaveText}
+            onCancelEdit={handleCancelEdit}
+            onKeyDown={handleKeyDown}
+            onToggleTextExpand={handleToggleTextExpand}
+          />
+        </div>
+        
+        {/* Other components will be added here */}
+        {children}
       </div>
     </div>
   );
