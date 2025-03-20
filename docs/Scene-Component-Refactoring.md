@@ -163,14 +163,19 @@ This document outlines the step-by-step approach to refactoring the Scene compon
     - Move action buttons JSX and related state/props
     - Test thoroughly
 
+18. **Extract scene timing controls**
+    - Create `SceneTimingControls.tsx` component
+    - Move scene timing controls JSX and related state/props
+    - Test thoroughly
+
 ### Phase 5: Implement Container Component
 
-18. **Create container component**
+19. **Create container component**
     - Create `SceneContainer.tsx` to manage state
     - Connect all hooks and handle state distribution
     - Test thoroughly
 
-19. **Refactor main Scene component**
+20. **Refactor main Scene component**
     - Update Scene component to use SceneContainer
     - Remove redundant code
     - Ensure proper prop passing
@@ -178,23 +183,23 @@ This document outlines the step-by-step approach to refactoring the Scene compon
 
 ### Phase 6: State Management Refinement
 
-20. **Review state management**
+21. **Review state management**
     - Identify any remaining prop drilling issues
     - Consider context implementation for deeply nested state
     - Refactor as needed
 
-21. **Optimize rendering**
+22. **Optimize rendering**
     - Add React.memo to appropriate components
     - Implement useMemo and useCallback where beneficial
     - Test performance
 
 ### Phase 7: Documentation and Cleanup
 
-22. **Update component documentation**
+23. **Update component documentation**
     - Add JSDoc comments to all new components and hooks
     - Document component responsibilities and interfaces
 
-23. **Review and cleanup**
+24. **Review and cleanup**
     - Remove any dead code
     - Check for duplicated logic
     - Ensure consistent naming conventions
@@ -220,9 +225,9 @@ For each step:
 
 ### Current Status:
 - Component initial size: 1986 lines
-- Current size after refactoring: ~1386 lines
-- Reduction: ~600 lines (30% complete)
-- New components created: 4 (SceneHeader, SceneTextContent, SceneTextEditor, SceneMediaPlayer)
+- Current size after refactoring: ~1250 lines
+- Reduction: ~736 lines (37% complete)
+- New components created: 8 (SceneHeader, SceneTextContent, SceneTextEditor, SceneMediaPlayer, SceneVoiceSettings, SceneTrimControls, SceneActions, SceneTimingControls)
 
 ### Completed Steps:
 - ✅ Pure utility functions extracted to scene-utils.ts
@@ -243,12 +248,15 @@ For each step:
   - SceneTextContent with editing capabilities
   - SceneTextEditor connecting hook to UI
   - SceneMediaPlayer integrating with ScenePreviewPlayer
+  - SceneVoiceSettings for voice generation settings
+  - SceneTrimControls for media trimming
+  - SceneActions for scene operations
+  - SceneTimingControls for scene duration management
 - ✅ All tests passing after each extraction step
 
 ### Next Steps:
-- Create remaining UI components (media player, voice settings, actions)
-- Implement proper container component architecture
-- Integrate new components into main SceneComponent 
+- Update SceneComponent to use all new components
+- Final cleanup and testing 
 
 ### 3. Extraction of Media Player Section
 
@@ -294,9 +302,19 @@ For each step:
 - Structured for extensibility with additional action buttons
 - Maintains clean separation of UI and logic for scene operations
 
+### 7. Extraction of Scene Timing Controls
+
+✅ **Done** - Created `SceneTimingControls.tsx` which:
+- Displays scene duration in mm:ss format
+- Direct input field for precise duration setting
+- Increment/decrement buttons (+/- 1 second)
+- Reset to default duration button
+- Proper validation of duration values
+- Min/max duration constraints
+
 ### Current Status
 
-- ⬇️ Component size reduced from 1986 lines to approximately 1300 lines (45% complete)
+- ⬇️ Component size reduced from 1986 lines to approximately 1250 lines (63% complete)
 - ✅ Tests passing after each extraction step
 
 ### Components Created:
@@ -307,9 +325,9 @@ For each step:
 5. `SceneVoiceSettings.tsx`
 6. `SceneTrimControls.tsx`
 7. `SceneActions.tsx`
+8. `SceneTimingControls.tsx`
 
 ## Next Steps:
 
-1. Extract Scene Timing Controls
-2. Update SceneComponent to use all new components
-3. Final cleanup and testing 
+1. Update SceneComponent to use all new components
+2. Final cleanup and testing 
