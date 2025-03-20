@@ -10,10 +10,11 @@ import { cleanPostText, getWordCount } from '@/utils/scene/event-handlers';
 import { GripVertical } from 'lucide-react';
 import { SceneActions } from './SceneActions';
 import { SceneVoiceSettings } from './SceneVoiceSettings';
-import { getAvailableVoices, generateVoice, persistVoiceAudio } from '@/lib/api-client';
+import { generateVoice, persistVoiceAudio } from '@/lib/api-client';
 import { Voice, VoiceSettings, GenerateVoiceResponse, SaveAudioRequest, SaveAudioResponse } from '@/lib/api-types';
 import { useAudioContext } from '@/contexts/AudioContext';
 import { fetchStoredAudio, cleanupAudioUrl } from '@/utils/scene/audio-utils';
+import { useVoiceContext } from '@/contexts/VoiceContext';
 
 /**
  * Props for the SceneContainer component
@@ -94,6 +95,7 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
 }) => {
   const { currentProject, updateSceneText, updateSceneAudio } = useProject();
   const { audioState, setAudioPlaying, setAudioVolume } = useAudioContext();
+  const { voices } = useVoiceContext();
   
   // Add state for view mode
   const [isCompactView, setIsCompactView] = useState(true);

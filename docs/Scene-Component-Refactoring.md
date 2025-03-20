@@ -7,9 +7,13 @@ This document outlines the step-by-step approach to refactoring the Scene compon
 ## Testing Strategy
 
 - Run Playwright tests after each step to ensure no regression
-- Use `cd web/frontend && npm test` to run tests
+- Run tests from the host machine, not from Docker containers:
+  ```bash
+  cd web/frontend && NEXT_PUBLIC_API_URL=http://localhost:8000 NEXT_PUBLIC_MOCK_AUDIO=true npm test
+  ```
 - If tests fail, revert changes and troubleshoot before proceeding
 - Document any test failures and their resolutions
+- Note: Running tests inside Docker containers may cause connectivity issues between services
 
 ## Refactoring Steps
 

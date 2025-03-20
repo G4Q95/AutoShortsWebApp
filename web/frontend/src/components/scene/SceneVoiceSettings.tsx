@@ -4,7 +4,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { Settings as SettingsIcon, X as XIcon } from 'lucide-react';
-import { getAvailableVoices } from '@/lib/api-client';
+import { useVoiceContext } from '@/contexts/VoiceContext';
 
 interface VoiceOption {
   voice_id: string;
@@ -79,6 +79,9 @@ const SceneVoiceSettingsComponent: React.FC<SceneVoiceSettingsProps> = ({
   onSettingsChange,
   onGenerateClick
 }) => {
+  // Use the voice context instead of local state for voices
+  const { voices, isLoading: loadingVoices } = useVoiceContext();
+  
   // Extract settings with defaults
   const stability = voiceSettings.stability ?? 0.5;
   const similarityBoost = voiceSettings.similarity_boost ?? 0.75;
@@ -86,37 +89,16 @@ const SceneVoiceSettingsComponent: React.FC<SceneVoiceSettingsProps> = ({
   const speakerBoost = voiceSettings.speaker_boost ?? false;
   const speed = voiceSettings.speed ?? 1.0;
   
-  // State for voice selection
-  const [voices, setVoices] = useState<VoiceOption[]>([]);
-  const [loadingVoices, setLoadingVoices] = useState<boolean>(false);
-  
   // State for settings panel
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Load available voices on component mount
+  // Set default voice if none selected
   useEffect(() => {
-    const fetchVoices = async () => {
-      setLoadingVoices(true);
-      try {
-        const response = await getAvailableVoices();
-        if (response.data && response.data.voices) {
-          setVoices(response.data.voices);
-          
-          // If no voice is selected and we have voices, select the first one
-          if (!voiceId && response.data.voices.length > 0) {
-            onVoiceChange(response.data.voices[0].voice_id);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading voices:', error);
-      } finally {
-        setLoadingVoices(false);
-      }
-    };
-    
-    fetchVoices();
-  }, [voiceId, onVoiceChange]);
+    if (!voiceId && voices.length > 0) {
+      onVoiceChange(voices[0].voice_id);
+    }
+  }, [voiceId, voices, onVoiceChange]);
   
   // Handle setting changes
   const handleSettingChange = (setting: keyof VoiceSettings, value: number | boolean) => {

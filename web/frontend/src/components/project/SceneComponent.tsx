@@ -24,7 +24,7 @@ import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
 import { useProject } from './ProjectProvider';
-import { getAvailableVoices, generateVoice, persistVoiceAudio, getStoredAudio } from '@/lib/api-client';
+import { getStoredAudio, generateVoice, persistVoiceAudio } from '@/lib/api-client';
 import SceneAudioControls from '../audio/SceneAudioControls';
 import ScenePreviewPlayer from '../preview/ScenePreviewPlayer';
 // Import utility functions
@@ -54,6 +54,8 @@ import {
   handleRemoveScene,
   createRetryHandler
 } from '@/utils/scene/event-handlers';
+// Import VoiceContext
+import { useVoiceContext } from '@/contexts/VoiceContext';
 
 /**
  * Props for the SceneComponent
@@ -153,8 +155,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   
   // Voice generation states
   const [voiceId, setVoiceId] = useState<string>(scene.voice_settings?.voice_id || "");
-  const [voices, setVoices] = useState<any[]>([]);
-  const [loadingVoices, setLoadingVoices] = useState(false);
+  const { voices: voiceContextVoices, isLoading: loadingVoices } = useVoiceContext();
   const [audioSrc, setAudioSrc] = useState<string | null>(
     // Prioritize persistentUrl if available, fall back to local audio_url
     scene.audio?.persistentUrl || scene.audio?.audio_url || null
@@ -353,37 +354,13 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
 
   // Fetch voices when component mounts
   useEffect(() => {
-    if (voices.length === 0 && !loadingVoices) {
-      fetchVoices();
-      
-      // Ensure text is updated
-      setText(cleanPostText(scene.text));
+    if (!voiceId && voiceContextVoices.length > 0) {
+      setVoiceId(voiceContextVoices[0].voice_id);
     }
-  }, [scene.text, voices.length, loadingVoices]);
-
-  const fetchVoices = async () => {
-    setLoadingVoices(true);
-    setAudioError(null);
-    try {
-      const response = await getAvailableVoices();
-      
-      if (response.error) {
-        setAudioError(`Error fetching voices: ${response.error.message}`);
-        setVoices([]);
-      } else {
-        setVoices(response.data.voices);
-        // Only set voice ID if it's not already set from scene.voice_settings
-        if (response.data.voices.length > 0 && !voiceId) {
-          setVoiceId(response.data.voices[0].voice_id);
-        }
-      }
-    } catch (err) {
-      setAudioError(`Error fetching voices: ${err instanceof Error ? err.message : String(err)}`);
-      setVoices([]);
-    } finally {
-      setLoadingVoices(false);
-    }
-  };
+    
+    // Ensure text is updated
+    setText(cleanPostText(scene.text));
+  }, [scene.text, voiceId, voiceContextVoices]);
 
   const handleGenerateVoice = async () => {
     // Special handling for mock/testing mode
@@ -1443,13 +1420,13 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                     value={voiceId}
                     onChange={(e) => setVoiceId(e.target.value)}
                     className="text-xs py-0.5 px-1 border border-gray-300 rounded w-full mt-0.5 mb-0.5"
-                    disabled={generatingAudio || voices.length === 0}
+                    disabled={generatingAudio || voiceContextVoices.length === 0}
                     data-testid="voice-selector"
                   >
-                    {voices.length === 0 ? (
+                    {voiceContextVoices.length === 0 ? (
                       <option>Loading voices...</option>
                     ) : (
-                      voices.map((voice) => (
+                      voiceContextVoices.map((voice) => (
                         <option key={voice.voice_id} value={voice.voice_id}>
                           {voice.name}
                         </option>

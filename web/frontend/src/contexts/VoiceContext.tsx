@@ -1,27 +1,31 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { getAvailableVoices } from '@/lib/api-client';
 
 /**
  * Interface describing a voice option
- * @property id - Unique identifier for the voice
- * @property name - Display name of the voice
  */
-interface Voice {
-  id: string;
+interface VoiceOption {
+  voice_id: string;
   name: string;
+  category?: string;
+  description?: string | null;
+  preview_url?: string;
+  labels?: Record<string, string>;
 }
 
 /**
  * Interface describing the VoiceContext API
- * @property voices - Array of available voice options
- * @property selectedVoice - Currently selected voice ID
- * @property setSelectedVoice - Function to update the selected voice
  */
 interface VoiceContextType {
-  voices: Voice[];
-  selectedVoice: string;
-  setSelectedVoice: (voiceId: string) => void;
+  voices: VoiceOption[];
+  isLoading: boolean;
+  error: string | null;
+  selectedVoiceId: string;
+  setSelectedVoiceId: (voiceId: string) => void;
+  refreshVoices: () => Promise<void>;
+  lastFetchTime: number | null;
 }
 
 /**
@@ -30,9 +34,16 @@ interface VoiceContextType {
  */
 const VoiceContext = createContext<VoiceContextType>({
   voices: [],
-  selectedVoice: '',
-  setSelectedVoice: () => {}
+  isLoading: false,
+  error: null,
+  selectedVoiceId: '',
+  setSelectedVoiceId: () => {},
+  refreshVoices: async () => {},
+  lastFetchTime: null
 });
+
+// Cache time in milliseconds (5 minutes)
+const CACHE_TIME = 5 * 60 * 1000;
 
 /**
  * VoiceProvider component that wraps the application and provides voice selection state.
@@ -41,39 +52,61 @@ const VoiceContext = createContext<VoiceContextType>({
  * @param children - React children to be wrapped by the provider
  */
 export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Sample voices - in a real app, these would come from an API
-  const [voices, setVoices] = useState<Voice[]>([
-    { id: 'aria', name: 'Aria' },
-    { id: 'daniel', name: 'Daniel' },
-    { id: 'sarah', name: 'Sarah' },
-    { id: 'james', name: 'James' }
-  ]);
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
+  const [lastFetchTime, setLastFetchTime] = useState<number | null>(null);
   
-  const [selectedVoice, setSelectedVoice] = useState<string>('aria');
+  // Fetch voices from API on initial load
+  useEffect(() => {
+    fetchVoices();
+  }, []);
+  
+  // Function to fetch voices from the API
+  const fetchVoices = async () => {
+    // Skip if we're already loading or if data was fetched recently
+    if (isLoading || (lastFetchTime && Date.now() - lastFetchTime < CACHE_TIME && voices.length > 0)) {
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await getAvailableVoices();
+      
+      if (response.error) {
+        setError(`Error fetching voices: ${response.error.message}`);
+      } else if (response.data && response.data.voices) {
+        setVoices(response.data.voices);
+        setLastFetchTime(Date.now());
+        
+        // Set default voice if none selected
+        if (response.data.voices.length > 0 && !selectedVoiceId) {
+          setSelectedVoiceId(response.data.voices[0].voice_id);
+        }
+      }
+    } catch (err) {
+      setError(`Error fetching voices: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  /**
-   * In a production implementation, we would fetch voices from an API endpoint.
-   * This commented code shows how that might be implemented.
-   */
-  // useEffect(() => {
-  //   const fetchVoices = async () => {
-  //     try {
-  //       const response = await fetch('/api/voices');
-  //       const data = await response.json();
-  //       setVoices(data.voices);
-  //       if (data.voices.length > 0 && !selectedVoice) {
-  //         setSelectedVoice(data.voices[0].id);
-  //       }
-  //     } catch (error) {
-  //       console.error('Error fetching voices:', error);
-  //     }
-  //   };
-  //   
-  //   fetchVoices();
-  // }, []);
+  // Expose the context value
+  const contextValue: VoiceContextType = {
+    voices,
+    isLoading,
+    error,
+    selectedVoiceId,
+    setSelectedVoiceId,
+    refreshVoices: fetchVoices,
+    lastFetchTime
+  };
 
   return (
-    <VoiceContext.Provider value={{ voices, selectedVoice, setSelectedVoice }}>
+    <VoiceContext.Provider value={contextValue}>
       {children}
     </VoiceContext.Provider>
   );
@@ -83,8 +116,8 @@ export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
  * Custom hook to access the VoiceContext.
  * Use this hook to access and update voice selection state.
  * 
- * @returns VoiceContextType with voices array, selected voice, and method to update selection
+ * @returns VoiceContextType with voices array, loading state, selected voice, and methods
  * @example
- * const { voices, selectedVoice, setSelectedVoice } = useVoiceContext();
+ * const { voices, isLoading, selectedVoiceId, setSelectedVoiceId } = useVoiceContext();
  */
 export const useVoiceContext = () => useContext(VoiceContext); 
