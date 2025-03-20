@@ -10,6 +10,8 @@ export { SceneVoiceSettings } from './SceneVoiceSettings';
 export { SceneTrimControls } from './SceneTrimControls';
 export { SceneActions } from './SceneActions';
 export { SceneTimingControls } from './SceneTimingControls';
+export { SceneContainer } from './SceneContainer';
+export { VoiceControls } from './VoiceControls';
 // Future exports will be added here as components are created
 // export { SceneTrimControls } from './SceneTrimControls';
 // export { SceneActions } from './SceneActions';

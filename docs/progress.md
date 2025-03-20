@@ -235,19 +235,24 @@ The current focus is on improving code stability, API connectivity, and refactor
   - Cleaning up empty or stub test files
   - Removing deprecated scripts
   
-- 🔄 Scene Component Refactoring (Phase 1 - 20% Complete):
+- 🔄 Scene Component Refactoring (Phase 1 - 37% Complete):
   - ✅ Created initial component structure plan
-  - ✅ Extracted 8 core components from SceneComponent
-  - ✅ Created basic SceneContainer component
+  - ✅ Extracted utility functions to scene-utils.ts
+  - ✅ Extracted event handlers to dedicated files
+  - ✅ Created custom hooks for media, audio, and API interactions
+  - ✅ Implemented basic UI components:
+    - SceneHeader
+    - SceneTextContent
+    - SceneMediaContainer
+    - SceneAudioControls
+  - ✅ Fixed linter errors in ProjectProvider to ensure proper action types
   - 🔄 Currently implementing gradual component migration:
     - Building container structure first
     - Testing each change thoroughly
     - Maintaining backward compatibility
   - Next steps:
-    - Move media player section to container
-    - Migrate text content section
-    - Transfer voice controls
-    - Update documentation
+    - Update SceneComponent to utilize the new components
+    - Complete final cleanup and testing
   
 - 🔄 Implementing end-to-end video processing pipeline:
   - Setting up backend FFMPEG integration for video segment creation
@@ -604,7 +609,12 @@ Current progress by component area:
 - Scene Management: 85% complete
 - Media Player: 85% complete
 - Audio Controls: 80% complete
-- SceneComponent Refactoring: 30% complete
+- SceneComponent Refactoring: 37% complete
+  - ✅ Cabinet Structure Implementation:
+    - SceneAudioControls piece complete with full functionality
+    - Scene Removal UI piece complete with animations
+    - Drag-and-Drop Reordering piece fully functional
+    - Scene Header with Number piece complete
   - ✅ Extracted pure utility functions to scene-utils.ts
   - ✅ Extracted event handlers to dedicated files by domain:
     - UI event handlers for view toggle, info display, scene removal
@@ -614,10 +624,11 @@ Current progress by component area:
     - Created useSceneMedia hook for media state management
     - Created useSceneAudio hook for audio and voice generation
     - Created useSceneApi hook for API interactions and error handling
-    - Fixed Reddit source information display issue in text content
-    - All tests continue to pass after each refactoring step
-  - ⏱️ Additional hook planned for Edit functionality
-  - ⏱️ UI component extraction scheduled next
+  - 🔄 Next Steps:
+    - Connect all cabinet pieces in SceneContainer
+    - Update main SceneComponent to use new structure
+    - Run comprehensive testing
+    - Update component documentation
 
 ### Backend Services
 - Content Extraction: 95% complete
