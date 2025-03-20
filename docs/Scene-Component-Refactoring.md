@@ -274,9 +274,20 @@ For each step:
 - Includes Generate/Regenerate voice button with loading state
 - Maintains all original functionality with clean separation of concerns
 
+### 5. Extraction of Trim Controls Section
+
+✅ **Done** - Created `SceneTrimControls.tsx` which:
+- Provides an interface for adjusting media start and end points
+- Implements draggable trim handles on a timeline
+- Displays time markers and duration information
+- Includes a trim mode toggle for enhanced editing
+- Shows current playback position when connected to media player
+- Maintains consistent formatting for time display
+- Provides clean separation of trim functionality from media playback
+
 ### Current Status
 
-- ⬇️ Component size reduced from 1986 lines to approximately 1300 lines (35% complete)
+- ⬇️ Component size reduced from 1986 lines to approximately 1300 lines (40% complete)
 - ✅ Tests passing after each extraction step
 
 ### Components Created:
@@ -285,6 +296,7 @@ For each step:
 3. `SceneTextEditor.tsx`
 4. `SceneMediaPlayer.tsx`
 5. `SceneVoiceSettings.tsx`
+6. `SceneTrimControls.tsx`
 
 ## Next Steps:
 

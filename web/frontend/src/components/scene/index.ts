@@ -7,6 +7,7 @@ export { SceneTextContent } from './SceneTextContent';
 export { SceneTextEditor } from './SceneTextEditor';
 export { SceneMediaPlayer } from './SceneMediaPlayer';
 export { SceneVoiceSettings } from './SceneVoiceSettings';
+export { SceneTrimControls } from './SceneTrimControls';
 // Future exports will be added here as components are created
 // export { SceneTrimControls } from './SceneTrimControls';
 // export { SceneActions } from './SceneActions';
