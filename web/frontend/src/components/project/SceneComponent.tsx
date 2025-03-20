@@ -27,7 +27,7 @@ import { useProject } from './ProjectProvider';
 import { getAvailableVoices, generateVoice, persistVoiceAudio, getStoredAudio } from '@/lib/api-client';
 import SceneAudioControls from '../audio/SceneAudioControls';
 import ScenePreviewPlayer from '../preview/ScenePreviewPlayer';
-// Import our new utility functions
+// Import utility functions
 import { 
   formatDuration, 
   getSceneContainerClassName, 
@@ -35,49 +35,25 @@ import {
   determineMediaType,
   constructStorageUrl
 } from '@/utils/scene';
-
-/**
- * Utility function to clean post text by removing "Post by u/Username:" prefix
- * @param text - The text to clean
- * @returns The cleaned text without the username prefix
- */
-const cleanPostText = (text: string): string => {
-  return text.replace(/^Post by u\/[^:]+:\s*/i, '');
-};
-
-/**
- * Helper function to convert base64 to Blob
- * @param base64 - Base64 encoded string
- * @param contentType - MIME type of the content
- * @returns Blob representation of the base64 data
- */
-const base64ToBlob = (base64: string, contentType: string = 'audio/mp3'): Blob => {
-  try {
-    const byteCharacters = atob(base64);
-    const byteArrays = [];
-    
-    for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-      const slice = byteCharacters.slice(offset, offset + 512);
-      
-      const byteNumbers = new Array(slice.length);
-      for (let i = 0; i < slice.length; i++) {
-        byteNumbers[i] = slice.charCodeAt(i);
-      }
-      
-      const byteArray = new Uint8Array(byteNumbers);
-      byteArrays.push(byteArray);
-    }
-    
-    return new Blob(byteArrays, { type: contentType });
-  } catch (err) {
-    console.error('Error converting base64 to blob:', err);
-    // Fallback method
-    return new Blob(
-      [Uint8Array.from(atob(base64), c => c.charCodeAt(0))],
-      { type: contentType }
-    );
-  }
-};
+// Import event handlers
+import {
+  base64ToBlob,
+  createAudioBlobUrl,
+  togglePlayPause,
+  handleVolumeChange,
+  handlePlaybackSpeedChange,
+  formatTimeDisplay,
+  downloadAudio,
+  cleanPostText,
+  getWordCount,
+  calculateSpeakingDuration,
+  createSaveTextHandler,
+  createTextChangeHandler,
+  createToggleViewModeHandler,
+  createToggleInfoHandler,
+  handleRemoveScene,
+  createRetryHandler
+} from '@/utils/scene/event-handlers';
 
 /**
  * Props for the SceneComponent
@@ -218,16 +194,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const [showInfo, setShowInfo] = useState<boolean>(false);
 
   // Toggle view mode function
-  const toggleViewMode = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsCompactView(!isCompactView);
-  };
+  const toggleViewMode = createToggleViewModeHandler(setIsCompactView);
   
   // Toggle info section
-  const toggleInfo = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowInfo(!showInfo);
-  };
+  const toggleInfo = createToggleInfoHandler(setShowInfo);
   
   // Utility function to count words in a string
   const getWordCount = (text: string): number => {
@@ -628,116 +598,44 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     };
   }, [audioSrc, scene.audio]);
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
-  };
+  // Text editing handlers
+  const handleTextChange = createTextChangeHandler(setText);
+
+  const saveTextHandler = createSaveTextHandler(
+    scene.id,
+    text,
+    scene.text,
+    updateSceneText,
+    onSceneReorder,
+    index,
+    setIsEditing
+  );
 
   const handleTextBlur = () => {
     // Auto-save on blur (clicking away)
-    saveText();
+    saveTextHandler();
   };
 
-  const saveText = () => {
-    // Only save if text has changed
-    if (text !== cleanPostText(scene.text)) {
-      // Update the scene text in the project provider
-      updateSceneText(scene.id, text);
-      
-      // Trigger a reorder (save) of the project
-      onSceneReorder(scene.id, index);
-    }
-    setIsEditing(false);
-  };
+  const handleRetryLoad = createRetryHandler(
+    scene.id,
+    scene.url,
+    setIsRetrying,
+    onSceneReorder,
+    index
+  );
 
-  const handleRetry = async () => {
-    if (!scene.url) return;
-
-    setIsRetrying(true);
-    try {
-      await onSceneReorder(scene.id, index);
-    } catch (error) {
-      console.error('Failed to retry loading content:', error);
-    } finally {
-      setIsRetrying(false);
-    }
-  };
-
-  const handleRemoveScene = useCallback(() => {
-    if (isRemoving || isRemovedRef.current) {
-      console.log(`Already removing scene ${scene.id}, ignoring duplicate request`);
-      return;
-    }
-    
-    try {
-      console.log(`Initiating removal for scene: ${scene.id}`);
-      setIsRemoving(true);
-      setFadeOut(true);
-      
-      // Start UI removal animation
-      const sceneElement = document.getElementById(`scene-${scene.id}`);
-      if (sceneElement) {
-        sceneElement.style.transition = 'opacity 0.5s ease-out';
-        sceneElement.style.opacity = '0.5';
-      }
-      
-      // Call the actual removal function
-      onSceneRemove(scene.id);
-      
-      // Set a backup timeout to forcibly remove component from UI
-      removingTimeoutRef.current = setTimeout(() => {
-        console.log(`Scene ${scene.id} removal timeout reached, forcing UI update`);
-        setManuallyRemoving(true);
-        isRemovedRef.current = true;
-        
-        // Fully hide the element
-        if (sceneElement) {
-          sceneElement.style.opacity = '0';
-          sceneElement.style.height = '0';
-          sceneElement.style.margin = '0';
-          sceneElement.style.padding = '0';
-          sceneElement.style.overflow = 'hidden';
-        }
-        
-        // Check if component is still mounted after 3 seconds
-        const checkMountTimeout = setTimeout(() => {
-          const stillExists = document.getElementById(`scene-${scene.id}`);
-          if (stillExists) {
-            console.warn(`Scene ${scene.id} still in DOM after forced removal, resetting state`);
-            setManuallyRemoving(false);
-            setIsRemoving(false);
-            setFadeOut(false);
-            isRemovedRef.current = false;
-            
-            // Restore visibility
-            if (stillExists) {
-              stillExists.style.opacity = '1';
-              stillExists.style.height = '';
-              stillExists.style.margin = '';
-              stillExists.style.padding = '';
-              stillExists.style.overflow = '';
-            }
-          }
-        }, 3000);
-
-        // Clean up the check mount timeout
-        return () => clearTimeout(checkMountTimeout);
-      }, 2000);
-    } catch (error) {
-      console.error(`Error initiating scene removal for ${scene.id}:`, error);
-      setIsRemoving(false);
-      setFadeOut(false);
-    }
+  const handleRemoveSceneWithAnimation = useCallback(() => {
+    handleRemoveScene(
+      scene.id,
+      isRemoving,
+      isRemovedRef,
+      setIsRemoving,
+      setFadeOut,
+      setManuallyRemoving,
+      removingTimeoutRef,
+      onSceneRemove
+    );
   }, [scene.id, isRemoving, onSceneRemove]);
-
-  // Clean up timeouts on unmount
-  useEffect(() => {
-    return () => {
-      if (removingTimeoutRef.current) {
-        clearTimeout(removingTimeoutRef.current);
-        removingTimeoutRef.current = null;
-      }
-    };
-  }, []);
 
   // Function to render loading state
   const renderLoadingState = () => {
@@ -767,7 +665,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             error={scene.error || 'Failed to load content'}
             type="extraction"
             showRetry={!!scene.url}
-            onRetry={handleRetry}
+            onRetry={handleRetryLoad}
           />
         </div>
         <div className="p-4 border-t border-gray-200">
@@ -1157,25 +1055,14 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     };
   }, [audioRef.current]);
 
-  // Updated audio play/pause handler
-  const togglePlayPause = () => {
-    if (audioRef.current) {
-      if (audioRef.current.paused) {
-        audioRef.current.play().catch(e => console.error("Error playing audio:", e));
-        setIsPlaying(true);
-      } else {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
-    }
+  // Updated audio play/pause handler - replace with imported function
+  const handlePlayPauseToggle = () => {
+    togglePlayPause(audioRef.current, setIsPlaying);
   };
 
-  // Handle volume change
-  const handleVolumeChange = (newVolume: number) => {
-    setVolume(newVolume);
-    if (audioRef.current) {
-      audioRef.current.volume = newVolume;
-    }
+  // Handle volume change - replace with imported function
+  const handleVolumeChangeEvent = (newVolume: number) => {
+    handleVolumeChange(audioRef.current, newVolume, setVolume);
   };
 
   // Remove the custom volume slider styles
@@ -1270,23 +1157,16 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     };
   }, [showVolumeSlider]);
 
-  // Handle playback speed change
-  const handlePlaybackSpeedChange = (newSpeed: number) => {
+  // Update playback speed using the imported function
+  const handlePlaybackSpeedUpdate = (newSpeed: number) => {
     setPlaybackSpeed(newSpeed);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = newSpeed;
-    }
+    handlePlaybackSpeedChange(audioRef.current, newSpeed);
   };
-  
-  // Download audio
-  const handleDownloadAudio = () => {
+
+  // Use the imported download function
+  const handleDownloadAudioFile = () => {
     if (audioSrc) {
-      const a = document.createElement('a');
-      a.href = audioSrc;
-      a.download = `audio_${scene.id}.mp3`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      downloadAudio(audioSrc, `audio-${scene.id}.mp3`);
     }
   };
 
@@ -1534,7 +1414,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                     onGenerateClick={handleGenerateVoice}
                     onRegenerateClick={handleGenerateVoice}
                     onVoiceChange={(voice) => setVoiceId(voice)}
-                    onRateChange={handlePlaybackSpeedChange}
+                    onRateChange={handlePlaybackSpeedUpdate}
                   />
                 </div>
               ) : (
@@ -1601,7 +1481,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             <div className="flex items-center">
             {scene.error && scene.url && (
               <button
-                onClick={handleRetry}
+                onClick={handleRetryLoad}
                 disabled={isRetrying}
                 className="p-1 text-blue-600 hover:bg-blue-50 rounded-sm flex items-center text-xs"
                 aria-label="Retry loading content"
@@ -1670,7 +1550,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                             {/* Left side - play button and time */}
                             <div className="flex items-center">
                               <button 
-                                onClick={togglePlayPause}
+                                onClick={handlePlayPauseToggle}
                                 className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
                                 style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                                 data-testid="audio-play-button"
@@ -1705,7 +1585,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                                 step="0.01"
                                 value={volume}
                                 className="volume-slider w-full h-2"
-                                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                                onChange={(e) => handleVolumeChangeEvent(parseFloat(e.target.value))}
                                 data-testid="audio-slider"
                               />
                             </div>
@@ -1742,7 +1622,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 </div>
             )}
             <button
-              onClick={handleRemoveScene}
+              onClick={handleRemoveSceneWithAnimation}
               disabled={isRemoving}
               className={`flex-shrink-0 w-10 py-2.5 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
               aria-label="Remove scene"
@@ -1794,7 +1674,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                     value={playbackSpeed} 
                     onChange={(e) => {
                       e.stopPropagation();
-                      handlePlaybackSpeedChange(parseFloat(e.target.value));
+                      handlePlaybackSpeedUpdate(parseFloat(e.target.value));
                     }}
                     className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                     onMouseDown={(e) => e.stopPropagation()}
@@ -1807,7 +1687,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 
                 <div className="pt-2 border-t border-gray-200">
                   <button
-                    onClick={handleDownloadAudio}
+                    onClick={handleDownloadAudioFile}
                     disabled={!audioSrc}
                     className={`w-full py-2 rounded-md flex items-center justify-center space-x-2 ${
                       audioSrc ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
