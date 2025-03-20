@@ -10,10 +10,12 @@
 export const cleanPostText = (text: string): string => {
   if (!text) return '';
   
-  // Remove common Reddit artifacts
+  // Remove common Reddit artifacts and source information
   const cleaned = text
     .replace(/\[removed\]/g, '')
     .replace(/\[deleted\]/g, '')
+    // Remove "Post by u/username: " prefix that's added by the backend
+    .replace(/^Post by u\/[^:]+:\s*/i, '')
     .trim();
   
   return cleaned;
