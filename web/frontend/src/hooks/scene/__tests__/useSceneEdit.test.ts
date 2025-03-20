@@ -5,7 +5,7 @@ import { getWordCount } from '@/utils/scene/event-handlers/text-handlers';
 
 // Mock text handlers
 jest.mock('@/utils/scene/event-handlers/text-handlers', () => ({
-  getWordCount: jest.fn((text: string) => text.split(/\s+/).filter((word: string) => word.length > 0).length)
+  getWordCount: jest.fn((text) => text.split(/\s+/).filter((word) => word.length > 0).length)
 }));
 
 describe('useSceneEdit', () => {

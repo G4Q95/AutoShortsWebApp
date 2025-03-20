@@ -102,11 +102,12 @@ This document outlines the step-by-step approach to refactoring the Scene compon
    - Added comprehensive tests
    - Validated core functionality
 
-9. **Extract edit-related logic into custom hook**
-   - Create `useSceneEdit.ts` hook
-   - Move editing state and related functions
-   - Update imports and references
-   - Test thoroughly
+9. **Extract edit-related logic into custom hook** ✅
+   - Created `useSceneEdit.ts` hook
+   - Moved editing state and related functions 
+   - Implemented text editing, saving, and canceling functionality
+   - Added keyboard shortcuts (Ctrl+Enter to save, Escape to cancel)
+   - Test implementation matches expected behavior in tests
 
 10. **Extract API-related logic into custom hook** ✅
     - Created `useSceneApi.ts` hook
@@ -119,14 +120,16 @@ This document outlines the step-by-step approach to refactoring the Scene compon
 
 ### Phase 4: Extract Sub-Components
 
-11. **Create components directory**
+11. **Create components directory** ✅
     - Set up `components/scene` directory structure
-    - Create index file for component exports
+    - Created index file for component exports
 
-12. **Extract header section**
-    - Create `SceneHeader.tsx` component
-    - Move header JSX and related state/props
-    - Test thoroughly
+12. **Extract header section** ✅
+    - Created `SceneHeader.tsx` component
+    - Implemented scene number display and controls 
+    - Added view mode toggle (compact/expanded)
+    - Added info section toggle
+    - Ensured proper data-testid attributes for testing
 
 13. **Extract media player section**
     - Create `SceneMediaPlayer.tsx` component
@@ -138,10 +141,14 @@ This document outlines the step-by-step approach to refactoring the Scene compon
     - Move trim controls JSX and related state/props
     - Test thoroughly
 
-15. **Extract text content section**
-    - Create `SceneTextContent.tsx` component
-    - Move text content JSX and related state/props
-    - Test thoroughly
+15. **Extract text content section** ✅
+    - Created `SceneTextContent.tsx` component
+    - Implemented text display with word count
+    - Added text expansion for long content
+    - Implemented in-place editing with textarea
+    - Added save/cancel buttons and keyboard shortcuts
+    - Ensured proper focus management
+    - Maintained full functionality of text editing
 
 16. **Extract voice settings section**
     - Create `SceneVoiceSettings.tsx` component
@@ -212,6 +219,7 @@ For each step:
 - Component initial size: 1986 lines
 - Current size after refactoring: ~1386 lines
 - Reduction: ~600 lines (30% complete)
+- New components created: 3 (SceneHeader, SceneTextContent, SceneTextEditor)
 
 ### Completed Steps:
 - ✅ Pure utility functions extracted to scene-utils.ts
@@ -223,12 +231,17 @@ For each step:
   - useSceneMedia for media state and operations
   - useSceneAudio for voice generation and audio playback
   - useSceneApi for API interactions and error handling
+  - useSceneEdit for text editing functionality
 - ✅ Text handling improvements:
   - Enhanced `cleanPostText` function to remove "Post by u/username: " prefix from text
   - Fixed issue with source information being displayed in the editable text area
+- ✅ Basic UI components implemented:
+  - SceneHeader with view mode and info toggles
+  - SceneTextContent with editing capabilities
+  - SceneTextEditor connecting hook to UI
 - ✅ All tests passing after each extraction step
 
 ### Next Steps:
-- Complete remaining custom hook (useSceneEdit)
-- Create dedicated components for UI sections
-- Implement proper container component architecture 
+- Create remaining UI components (media player, voice settings, actions)
+- Implement proper container component architecture
+- Integrate new components into main SceneComponent 
