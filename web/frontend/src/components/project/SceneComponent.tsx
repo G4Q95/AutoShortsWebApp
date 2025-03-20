@@ -27,6 +27,14 @@ import { useProject } from './ProjectProvider';
 import { getAvailableVoices, generateVoice, persistVoiceAudio, getStoredAudio } from '@/lib/api-client';
 import SceneAudioControls from '../audio/SceneAudioControls';
 import ScenePreviewPlayer from '../preview/ScenePreviewPlayer';
+// Import our new utility functions
+import { 
+  formatDuration, 
+  getSceneContainerClassName, 
+  calculateMediaHeight,
+  determineMediaType,
+  constructStorageUrl
+} from '@/utils/scene';
 
 /**
  * Utility function to clean post text by removing "Post by u/Username:" prefix
@@ -1037,27 +1045,32 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         const durationDisplay = document.getElementById(`duration-display-${scene.id}`);
         
         if (timeDisplay) {
-          timeDisplay.textContent = formatTime(currentTime);
+          timeDisplay.textContent = formatDuration(currentTime);
         }
         
-        if (durationDisplay && !isNaN(duration)) {
-          durationDisplay.textContent = formatTime(duration);
+        if (durationDisplay) {
+          durationDisplay.textContent = formatDuration(duration);
         }
       }
     };
     
-    if (audioRef.current && audioSrc) {
-      audioRef.current.addEventListener('timeupdate', updateTimeDisplay);
-      audioRef.current.addEventListener('loadedmetadata', updateTimeDisplay);
+    const audioElement = audioRef.current;
+    
+    if (audioElement) {
+      audioElement.addEventListener('timeupdate', updateTimeDisplay);
+      audioElement.addEventListener('loadedmetadata', updateTimeDisplay);
+      
+      // Initial update
+      updateTimeDisplay();
     }
     
     return () => {
-      if (audioRef.current) {
-        audioRef.current.removeEventListener('timeupdate', updateTimeDisplay);
-        audioRef.current.removeEventListener('loadedmetadata', updateTimeDisplay);
+      if (audioElement) {
+        audioElement.removeEventListener('timeupdate', updateTimeDisplay);
+        audioElement.removeEventListener('loadedmetadata', updateTimeDisplay);
       }
     };
-  }, [audioRef, audioSrc, scene.id]);
+  }, [scene.id]);
 
   // Simplified CSS classes for flip animation
   useEffect(() => {
@@ -1457,7 +1470,11 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   return !manuallyRemoving ? (
     <div
       id={`scene-${scene.id}`}
-      className={`scene-component relative mb-4 bg-white rounded-md border ${fadeOut ? 'opacity-50' : 'opacity-100'} transition-opacity duration-500 shadow-sm`}
+      className={`${getSceneContainerClassName(
+        isFullWidth, 
+        !isDragging && scene.id === currentProject?.id, 
+        isEditing
+      )} ${fadeOut ? 'opacity-50' : 'opacity-100'}`}
       style={{
         maxWidth: '100%',
         minHeight: '200px'
@@ -1667,13 +1684,13 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                               <div className="text-xs whitespace-nowrap font-semibold">
                                 <span id={`time-display-${scene.id}`}>
                                   {audioRef.current ? 
-                                    formatTime(audioRef.current.currentTime || 0) : 
+                                    formatDuration(audioRef.current.currentTime || 0) : 
                                     "0:00"}
                                 </span>
                                 <span className="mx-0.5">/</span>
                                 <span id={`duration-display-${scene.id}`}>
                                   {audioRef.current ? 
-                                    formatTime(audioRef.current.duration || 0) : 
+                                    formatDuration(audioRef.current.duration || 0) : 
                                     "0:00"}
                                 </span>
                               </div>

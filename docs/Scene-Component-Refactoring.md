@@ -15,23 +15,52 @@ This document outlines the step-by-step approach to refactoring the Scene compon
 
 ### Phase 1: Preparation
 
-1. **Create baseline test results**
+1. **Create baseline test results** ✅
    - Run full test suite to document current behavior
    - Save screenshots of current UI for visual comparison
+   - Observed key component states:
+     - Before audio generation: Scene displays media, text, and "Generate Voiceover" button
+     - After audio generation: Scene shows audio player controls with play/pause, progress bar, and timestamps
+     - Full-screen mode: Expanded view of media with controls overlay
+   - All tests currently passing, confirming stable baseline
 
-2. **Code analysis**
-   - Identify major feature sections within Scene component
-   - Map state dependencies between features
-   - Identify shared utility functions
-   - Document prop flow
+2. **Code analysis** ✅
+   - Identified major feature sections within Scene component:
+     - Media player section: Video/image display with controls
+     - Text content section: Reddit post title and optional text editing
+     - Voice settings section: Voice selection and audio generation
+     - Scene controls: Delete, drag reordering
+     - Audio player: Controls for generated audio
+   - Mapped state dependencies between features:
+     - Media state: isLoading, mediaType, mediaUrl, aspectRatio
+     - Audio state: audioFile, isGenerating, playerState, volume
+     - Edit state: isEditing, originalText, editedText
+     - API state: loadingState, errorState, lastResponse
+   - Identified shared utility functions:
+     - Format duration functions
+     - Media type detection
+     - URL processing utilities
+     - Audio state management helpers
+   - Documented prop flow:
+     - Scene receives: sceneId, index, mediaContent, onDelete, onGenerateVoice
+     - Passes to preview player: mediaUrl, mediaType, aspectRatio
+     - Passes to audio controls: audioFile, voiceId, onGenerateAudio
+   - Component size assessment:
+     - Total lines: 1986 lines
+     - Primary sections:
+       - State declarations: ~200 lines
+       - Event handlers: ~500 lines
+       - Effect hooks: ~300 lines
+       - Render functions: ~700 lines
+       - Utility functions: ~200 lines
 
-3. **Create refactoring branches**
-   - Create feature branch for each major refactoring phase
-   - Set up fallback points for each step
+3. **Create refactoring branches** ✅
+   - Created feature branch `scene-refactor-utils` for utility functions extraction
+   - Set up commits as fallback points for each step
 
 ### Phase 2: Extract Utility Functions
 
-4. **Create utility file for pure functions**
+4. **Create utility file for pure functions** 🔄
    - Create `scene-utils.ts` file
    - Move pure utility functions that don't depend on component state
    - Run tests after each function extraction
