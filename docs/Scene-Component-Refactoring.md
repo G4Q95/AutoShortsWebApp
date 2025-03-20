@@ -285,9 +285,18 @@ For each step:
 - Maintains consistent formatting for time display
 - Provides clean separation of trim functionality from media playback
 
+### 6. Extraction of Scene Actions Section
+
+✅ **Done** - Created `SceneActions.tsx` which:
+- Provides scene action buttons like delete
+- Handles proper styling and accessibility attributes
+- Includes loading state indication during scene removal
+- Structured for extensibility with additional action buttons
+- Maintains clean separation of UI and logic for scene operations
+
 ### Current Status
 
-- ⬇️ Component size reduced from 1986 lines to approximately 1300 lines (40% complete)
+- ⬇️ Component size reduced from 1986 lines to approximately 1300 lines (45% complete)
 - ✅ Tests passing after each extraction step
 
 ### Components Created:
@@ -297,10 +306,10 @@ For each step:
 4. `SceneMediaPlayer.tsx`
 5. `SceneVoiceSettings.tsx`
 6. `SceneTrimControls.tsx`
+7. `SceneActions.tsx`
 
 ## Next Steps:
 
-1. Extract Scene Actions (Add Scene, Delete Scene, Duplicate, etc.)
-2. Extract Scene Timing Controls
-3. Update SceneComponent to use all new components
-4. Final cleanup and testing 
+1. Extract Scene Timing Controls
+2. Update SceneComponent to use all new components
+3. Final cleanup and testing 
