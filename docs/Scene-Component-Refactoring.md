@@ -71,10 +71,17 @@ This document outlines the step-by-step approach to refactoring the Scene compon
    - All tests continue to pass after utility extraction
    - Committed changes to the `scene-refactor-utils` branch
 
-5. **Extract event handlers into utility functions**
-   - Group related event handlers
-   - Extract and test one group at a time
-   - Ensure proper parameter passing
+5. **Extract event handlers into utility functions** ✅
+   - Created dedicated directory structure for event handlers: `utils/scene/event-handlers/`
+   - Extracted and organized handlers by functional domain:
+     - `ui-handlers.ts`: View mode toggle, info display toggle, scene removal with animation, retry loading
+     - `audio-handlers.ts`: Audio blob conversion, playback control, volume management, speed control
+     - `text-handlers.ts`: Text editing, content saving, word counting
+   - Added unified export through `index.ts` for better organization
+   - Updated SceneComponent to use the extracted handlers
+   - Fixed type annotations for proper TypeScript compliance
+   - All tests continue to pass after event handler extraction
+   - Component reduced by ~200 lines after extraction
 
 ### Phase 3: Extract Custom Hooks
 
@@ -194,3 +201,23 @@ For each step:
 - Scene component reduced to under 300 lines
 - Clear separation of concerns across new components
 - Improved code readability and maintainability 
+
+## Progress Summary
+
+### Current Status:
+- Component initial size: 1986 lines
+- Current size after refactoring: ~1786 lines
+- Reduction: ~200 lines (10% complete)
+
+### Completed Steps:
+- ✅ Pure utility functions extracted to scene-utils.ts
+- ✅ Event handlers extracted to dedicated files:
+  - UI event handlers (view toggle, info display, scene removal)
+  - Audio handling (blob conversion, playback, volume, speed)
+  - Text management (editing, saving, word counting)
+- ✅ All tests passing after each extraction step
+
+### Next Steps:
+- Extract state management to custom hooks
+- Create dedicated components for UI sections
+- Implement proper container component architecture 
