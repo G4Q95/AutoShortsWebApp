@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Scene } from '../project/ProjectProvider';
 import { useProject } from '../project/ProjectProvider';
 import { getSceneContainerClassName } from '@/utils/scene';
 import { SceneMediaPlayer } from './SceneMediaPlayer';
 import { SceneTextContent } from './SceneTextContent';
 import { SceneAudioControls } from '../audio/SceneAudioControls';
+import { SceneHeader } from './SceneHeader';
 import { cleanPostText, getWordCount } from '@/utils/scene/event-handlers';
 import { GripVertical } from 'lucide-react';
+import { SceneActions } from './SceneActions';
+import { SceneVoiceSettings } from './SceneVoiceSettings';
 
 /**
  * Props for the SceneContainer component
@@ -40,6 +43,8 @@ interface SceneContainerProps {
   useNewAudioControls?: boolean;
   /** Children components */
   children?: React.ReactNode;
+  /** Callback to delete a scene */
+  onDelete: () => void;
 }
 
 /**
@@ -60,12 +65,16 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
   isFullWidth = false,
   customStyles = {},
   useNewAudioControls = false,
-  children
+  children,
+  onDelete
 }) => {
   const { currentProject, updateSceneText, updateSceneAudio } = useProject();
   
   // Add state for view mode
   const [isCompactView, setIsCompactView] = useState(true);
+  
+  // Add state for info section
+  const [showInfo, setShowInfo] = useState(false);
   
   // Add state for text editing
   const [isEditing, setIsEditing] = useState(false);
@@ -78,9 +87,24 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
   // Add confirmation state for scene removal
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Add state for voice settings
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [voiceSettings, setVoiceSettings] = useState({
+    stability: 0.5,
+    similarity_boost: 0.75,
+    style: 0.5,
+    speaker_boost: true,
+    speed: 1.0
+  });
+
   // Handle view mode toggle
   const handleViewModeToggle = () => {
     setIsCompactView(!isCompactView);
+  };
+
+  // Handle info toggle
+  const handleToggleInfo = () => {
+    setShowInfo(prev => !prev);
   };
 
   // Text content handlers
@@ -187,6 +211,15 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
     }
   };
 
+  const handleToggleVoiceSettings = () => {
+    setShowVoiceSettings(prev => !prev);
+  };
+
+  const handleVoiceSettingsChange = (settings: Partial<typeof voiceSettings>) => {
+    setVoiceSettings(prev => ({ ...prev, ...settings }));
+    // TODO: In the future, we might want to save these settings to the backend
+  };
+
   return (
     <div
       id={`scene-${scene.id}`}
@@ -201,25 +234,14 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Scene Header with Number and Drag Handle */}
-      <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
-        <div className="flex items-center gap-2">
-          <div 
-            data-testid={`scene-number-${index + 1}`}
-            className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium"
-          >
-            {index + 1}
-          </div>
-          <button
-            className="p-1 text-gray-500 hover:text-gray-700 cursor-grab active:cursor-grabbing"
-            data-testid="drag-handle"
-            title="Drag to reorder"
-            aria-label="Drag to reorder scene"
-          >
-            <GripVertical className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      {/* Scene Header with Number and Controls */}
+      <SceneHeader
+        index={index}
+        isCompactView={isCompactView}
+        showInfo={showInfo}
+        onToggleViewMode={handleViewModeToggle}
+        onToggleInfo={handleToggleInfo}
+      />
 
       <div className="flex flex-col h-full">
         {/* Media section wrapper */}
@@ -243,6 +265,19 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
           />
         </div>
 
+        {/* Show info section if enabled */}
+        {showInfo && (
+          <div className="px-2 pt-1 text-xs text-gray-500 border-t border-gray-100">
+            <p>Source: {scene.source ? `${scene.source.platform || 'Unknown'} ${scene.source.author ? `by ${scene.source.author}` : ''}` : 'Unknown'}</p>
+            {scene.media && (
+              <p>Media: {scene.media.type} - {scene.media.url.substring(0, 50)}...</p>
+            )}
+            {scene.audio && (
+              <p>Audio: {scene.audio.persistentUrl || scene.audio.audio_url || 'None'}</p>
+            )}
+          </div>
+        )}
+
         {/* Text content section */}
         <div className="p-2" data-testid="scene-text-section">
           <SceneTextContent
@@ -263,14 +298,97 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
         
         {/* Audio controls section */}
         <div className="border-t border-gray-200" data-testid="scene-audio-section">
-          <SceneAudioControls
-            sceneId={scene.id}
-            audioSource={scene.audio?.persistentUrl || scene.audio?.audio_url}
-            isGeneratingAudio={isGeneratingAudio}
-            onGenerateClick={handleGenerateVoice}
-            onRegenerateClick={handleGenerateVoice}
-            onVoiceChange={handleVoiceChange}
-          />
+          <div data-testid="original-audio-controls">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-medium text-gray-700">Voice Narration</div>
+              <button 
+                className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center" 
+                aria-label="Voice settings"
+                onClick={handleToggleVoiceSettings}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="lucide lucide-settings h-3 w-3 mr-0.5"
+                >
+                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span>Settings</span>
+              </button>
+            </div>
+            
+            {/* Voice settings modal (displayed conditionally) */}
+            {showVoiceSettings && (
+              <SceneVoiceSettings
+                voiceId={scene.voice_settings?.voice_id || '9BWtsMINqrJLrRacOk9x'}
+                voiceSettings={voiceSettings}
+                isGenerating={isGeneratingAudio}
+                audioError={null}
+                onVoiceChange={handleVoiceChange}
+                onSettingsChange={handleVoiceSettingsChange}
+                onGenerateClick={handleGenerateVoice}
+              />
+            )}
+            
+            {/* Voice selector dropdown */}
+            {!showVoiceSettings && (
+              <select
+                className="text-xs py-0.5 px-1 border border-gray-300 rounded w-full mt-0.5 mb-0.5"
+                value={scene.voice_settings?.voice_id || '9BWtsMINqrJLrRacOk9x'}
+                onChange={(e) => handleVoiceChange(e.target.value)}
+                data-testid="voice-selector"
+              >
+                <option value="9BWtsMINqrJLrRacOk9x">Aria</option>
+                <option value="CwhRBWXzGAHq8TQ4Fs17">Roger</option>
+                <option value="EXAVITQu4vr4xnSDxMaL">Sarah</option>
+                <option value="FGY2WhTYpPnrIDTdsKH5">Laura</option>
+                <option value="IKne3meq5aSn9XLyUdCD">Charlie</option>
+                <option value="JBFqnCBsd6RMkjVDRZzb">George</option>
+                <option value="N2lVS1w4EtoT3dr4eOWO">Callum</option>
+                <option value="SAz9YHcvj6GT2YYXdXww">River</option>
+                <option value="TX3LPaxmHKxFdv7VOQHJ">Liam</option>
+                <option value="XB0fDUnXU5powFXDhCwa">Charlotte</option>
+                <option value="Xb7hH8MSUJpSbSDYk0k2">Alice</option>
+                <option value="XrExE9yKIg1WjnnlVkGX">Matilda</option>
+                <option value="bIHbv24MWmeRgasZH58o">Will</option>
+                <option value="cgSgspJ2msm6clMCkdW9">Jessica</option>
+                <option value="cjVigY5qzO86Huf0OWal">Eric</option>
+                <option value="iP95p4xoKVk53GoZ742B">Chris</option>
+                <option value="nPczCjzI2devNBz1zQrb">Brian</option>
+                <option value="onwK4e9ZLuTAKqWW03F9">Daniel</option>
+                <option value="pFZP5JQG7iQjIQuC4Bku">Lily</option>
+                <option value="pqHfZKP75CvOlQylNhV4">Bill</option>
+                <option value="2ThAKyuZyXACCyKT2Uks">Lloyd</option>
+                <option value="KRzS7KO2TLlh1BRPgHnB">Dave - Male Deep Voice - for Media and AI</option>
+                <option value="NYC9WEgkq1u4jiqBseQ9">Russell - Dramatic British TV</option>
+                <option value="OHzg7CJflKQVgTfGO2FE">Michael - Deep, Resonant, Confident</option>
+                <option value="YHSgh4k0SYcUeBa80k3j">Valentino</option>
+                <option value="ZF6FPAbjXT4488VcRRnw">Amelia</option>
+                <option value="c7R3SZn5vgoVpwrGa9W0">Marcus - authoritative and deep</option>
+                <option value="i2TMQs8AnTGWix92bxez">Tom - trailer narrator</option>
+                <option value="lxYfHSkYm1EzQzGhdbfc">Jessica - A VO Professional; now cloned!</option>
+                <option value="pVnrL6sighQX7hVz89cp">Soothing Narrator</option>
+                <option value="uju3wxzG5OhpWcoi3SMy">Michael C. Vincent</option>
+              </select>
+            )}
+            
+            <div className="audio-container hidden" data-testid="audio-container">
+              <audio 
+                src={scene.audio?.persistentUrl || scene.audio?.audio_url || ''}
+                className="w-full h-7"
+                data-testid="audio-element"
+                preload="metadata"
+              />
+            </div>
+          </div>
         </div>
         
         {/* Scene Actions Section */}
@@ -319,6 +437,7 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
         
         {children}
       </div>
+      <SceneActions onDelete={onDelete} />
     </div>
   );
 }; 

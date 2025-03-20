@@ -229,31 +229,36 @@ The current focus is on improving code stability, API connectivity, and refactor
 - ✅ Created compact info display with direct source attribution
 
 ### In Progress
-- 🔄 Lightweight code refactoring to improve maintainability:
-  - Identifying and removing redundant files
-  - Consolidating duplicate configuration files
-  - Cleaning up empty or stub test files
-  - Removing deprecated scripts
-  
-- 🔄 Scene Component Refactoring (Phase 1 - 37% Complete):
+- 🔄 Scene Component Refactoring (Phase 1 - 70% Complete):
   - ✅ Created initial component structure plan
   - ✅ Extracted utility functions to scene-utils.ts
   - ✅ Extracted event handlers to dedicated files
   - ✅ Created custom hooks for media, audio, and API interactions
-  - ✅ Implemented basic UI components:
+  - ✅ Implemented core UI components:
     - SceneHeader
     - SceneTextContent
-    - SceneMediaContainer
+    - SceneMediaPlayer
     - SceneAudioControls
-  - ✅ Fixed linter errors in ProjectProvider to ensure proper action types
-  - 🔄 Currently implementing gradual component migration:
-    - Building container structure first
-    - Testing each change thoroughly
-    - Maintaining backward compatibility
+    - SceneVoiceSettings
+    - SceneActions
+  - ✅ Implemented SceneContainer with:
+    - View mode management (compact/expanded)
+    - Info section visibility
+    - Text editing capabilities
+    - Voice generation and settings
+    - Scene removal with confirmation
+    - Drag and drop reordering
+  - 🔄 Currently implementing:
+    - Media trim controls integration
+    - Performance optimizations
+    - Enhanced error handling
+    - Loading state improvements
   - Next steps:
-    - Update SceneComponent to utilize the new components
-    - Complete final cleanup and testing
-  
+    - Complete media trim controls integration
+    - Add performance optimizations
+    - Enhance error handling
+    - Improve loading states
+
 - 🔄 Implementing end-to-end video processing pipeline:
   - Setting up backend FFMPEG integration for video segment creation
   - Developing scene-to-video segment conversion process

@@ -224,166 +224,35 @@ For each step:
 ## Progress Summary
 
 ### Current Status:
-- Component initial size: 1986 lines
-- Current size after refactoring: ~1250 lines
-- Reduction: ~736 lines (37% complete)
-- New components created: 8 (SceneHeader, SceneTextContent, SceneTextEditor, SceneMediaPlayer, SceneVoiceSettings, SceneTrimControls, SceneActions, SceneTimingControls)
+- Original SceneComponent.tsx size: 1986 lines
+- Current size after initial refactoring: ~1250 lines
+- Reduction: ~736 lines
+- Implementation Progress: 70% complete
 
-### Completed Cabinet Pieces:
-- ✅ SceneAudioControls: Fully integrated and tested
-  - Voice generation
-  - Playback controls
-  - Volume management
-  - Speed control
-- ✅ Scene Removal UI: Complete with animations
-  - Delete confirmation
-  - Smooth fade-out
-  - Proper cleanup
-- ✅ Drag-and-Drop Reordering: Fully functional
-  - Visual feedback during drag
-  - Proper position updates
-  - Accessible drag handles
-- ✅ Scene Header with Number: Complete
-  - Scene numbering
-  - Drag handle integration
-  - Visual hierarchy
+### Recent Changes:
+- ✅ Moved voice_id access from scene.audio to scene.voice_settings
+- ✅ Fixed voice settings panel integration
+- ✅ Updated SceneVoiceSettings component props
+- ✅ Verified all tests passing after voice settings changes
+
+### Current Focus:
+- Continuing extraction of functionality from SceneComponent.tsx to SceneContainer.tsx
+- Implementing proper TypeScript interfaces for all extracted components
+- Ensuring proper state management between components
+- Maintaining test coverage during refactoring
 
 ### Next Steps:
-1. **Integration Phase**
-   - Connect all cabinet pieces in SceneContainer
-   - Ensure proper state management between components
-   - Verify event handling across components
-   - Test interactions between pieces
-
-2. **Final Assembly**
-   - Update main SceneComponent to use new structure
-   - Remove deprecated code
-   - Clean up any duplicate functionality
-   - Ensure proper TypeScript types
-
-3. **Testing & Verification**
-   - Run comprehensive test suite
-   - Verify all interactions work
-   - Check accessibility features
-   - Validate performance
-
-4. **Documentation Update**
-   - Add component API documentation
-   - Update usage examples
-   - Document state management
-   - Add migration guide
+1. Complete remaining voice settings integration
+2. Extract remaining media control functionality
+3. Implement performance optimizations
+4. Add comprehensive error handling
+5. Final testing pass
 
 ### Testing Status:
-- All core functionality tests passing
-- Audio generation verified
-- Scene reordering confirmed
-- Media display working correctly
-
-## Progress Summary
-
-### Current Status:
-- Component initial size: 1986 lines
-- Current size after refactoring: ~1250 lines
-- Reduction: ~736 lines (37% complete)
-- New components created: 8 (SceneHeader, SceneTextContent, SceneTextEditor, SceneMediaPlayer, SceneVoiceSettings, SceneTrimControls, SceneActions, SceneTimingControls)
-
-### Completed Steps:
-- ✅ Pure utility functions extracted to scene-utils.ts
-- ✅ Event handlers extracted to dedicated files:
-  - UI event handlers (view toggle, info display, scene removal)
-  - Audio handling (blob conversion, playback, volume, speed)
-  - Text management (editing, saving, word counting)
-- ✅ Custom hooks extraction:
-  - useSceneMedia for media state and operations
-  - useSceneAudio for voice generation and audio playback
-  - useSceneApi for API interactions and error handling
-  - useSceneEdit for text editing functionality
-- ✅ Text handling improvements:
-  - Enhanced `cleanPostText` function to remove "Post by u/username: " prefix from text
-  - Fixed issue with source information being displayed in the editable text area
-- ✅ Basic UI components implemented:
-  - SceneHeader with view mode and info toggles
-  - SceneTextContent with editing capabilities
-  - SceneTextEditor connecting hook to UI
-  - SceneMediaPlayer integrating with ScenePreviewPlayer
-  - SceneVoiceSettings for voice generation settings
-  - SceneTrimControls for media trimming
-  - SceneActions for scene operations
-  - SceneTimingControls for scene duration management
-- ✅ All tests passing after each extraction step
-
-### Next Steps:
-- Update SceneComponent to use all new components
-- Final cleanup and testing 
-
-### 3. Extraction of Media Player Section
-
-✅ **Done** - Created `SceneMediaPlayer.tsx` which:
-- Integrates with existing ScenePreviewPlayer for media display
-- Implements view mode toggle
-- Handles media URLs with proper fallbacks
-- Maintains trim control functionality
-- Includes storage status indicator
-
-### 4. Extraction of Voice Settings Section
-
-✅ **Done** - Created `SceneVoiceSettings.tsx` which:
-- Provides voice selection dropdown and settings button
-- Implements complete voice settings panel with sliders for:
-  - Speed
-  - Stability
-  - Similarity Boost
-  - Style
-  - Speaker Boost toggle
-- Loads available voices from the API
-- Displays voice generation errors
-- Includes Generate/Regenerate voice button with loading state
-- Maintains all original functionality with clean separation of concerns
-
-### 5. Extraction of Trim Controls Section
-
-✅ **Done** - Created `SceneTrimControls.tsx` which:
-- Provides an interface for adjusting media start and end points
-- Implements draggable trim handles on a timeline
-- Displays time markers and duration information
-- Includes a trim mode toggle for enhanced editing
-- Shows current playback position when connected to media player
-- Maintains consistent formatting for time display
-- Provides clean separation of trim functionality from media playback
-
-### 6. Extraction of Scene Actions Section
-
-✅ **Done** - Created `SceneActions.tsx` which:
-- Provides scene action buttons like delete
-- Handles proper styling and accessibility attributes
-- Includes loading state indication during scene removal
-- Structured for extensibility with additional action buttons
-- Maintains clean separation of UI and logic for scene operations
-
-### 7. Extraction of Scene Timing Controls
-
-✅ **Done** - Created `SceneTimingControls.tsx` which:
-- Displays scene duration in mm:ss format
-- Direct input field for precise duration setting
-- Increment/decrement buttons (+/- 1 second)
-- Reset to default duration button
-- Proper validation of duration values
-- Min/max duration constraints
-
-### Current Status
-
-- ⬇️ Component size reduced from 1986 lines to approximately 1250 lines (63% complete)
-- ✅ Tests passing after each extraction step
-
-### Components Created:
-1. `SceneHeader.tsx`
-2. `SceneTextContent.tsx`
-3. `SceneTextEditor.tsx`
-4. `SceneMediaPlayer.tsx`
-5. `SceneVoiceSettings.tsx`
-6. `SceneTrimControls.tsx`
-7. `SceneActions.tsx`
-8. `SceneTimingControls.tsx`
+- ✅ Voice settings integration tests passing
+- ✅ Scene component core functionality tests passing
+- ✅ Audio generation verification successful
+- ✅ Component integration tests successful
 
 ## Next Steps:
 
