@@ -131,10 +131,13 @@ This document outlines the step-by-step approach to refactoring the Scene compon
     - Added info section toggle
     - Ensured proper data-testid attributes for testing
 
-13. **Extract media player section**
-    - Create `SceneMediaPlayer.tsx` component
-    - Move media player JSX and related state/props
-    - Test thoroughly
+13. **Extract media player section** ✅
+    - Created `SceneMediaPlayer.tsx` component
+    - Integrated with existing ScenePreviewPlayer for media display
+    - Implemented view mode toggle
+    - Added proper media URL handling with fallbacks
+    - Maintained trim control functionality
+    - Added storage status indicator
 
 14. **Extract trim controls section**
     - Create `SceneTrimControls.tsx` component
@@ -219,7 +222,7 @@ For each step:
 - Component initial size: 1986 lines
 - Current size after refactoring: ~1386 lines
 - Reduction: ~600 lines (30% complete)
-- New components created: 3 (SceneHeader, SceneTextContent, SceneTextEditor)
+- New components created: 4 (SceneHeader, SceneTextContent, SceneTextEditor, SceneMediaPlayer)
 
 ### Completed Steps:
 - ✅ Pure utility functions extracted to scene-utils.ts
@@ -239,6 +242,7 @@ For each step:
   - SceneHeader with view mode and info toggles
   - SceneTextContent with editing capabilities
   - SceneTextEditor connecting hook to UI
+  - SceneMediaPlayer integrating with ScenePreviewPlayer
 - ✅ All tests passing after each extraction step
 
 ### Next Steps:
