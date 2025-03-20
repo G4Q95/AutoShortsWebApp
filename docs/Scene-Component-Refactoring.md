@@ -58,12 +58,18 @@ This document outlines the step-by-step approach to refactoring the Scene compon
    - Created feature branch `scene-refactor-utils` for utility functions extraction
    - Set up commits as fallback points for each step
 
-### Phase 2: Extract Utility Functions
+### Phase 2: Extract Utility Functions and Hooks
 
-4. **Create utility file for pure functions** 🔄
-   - Create `scene-utils.ts` file
-   - Move pure utility functions that don't depend on component state
-   - Run tests after each function extraction
+4. **Create utility file for pure functions** ✅
+   - Created `scene-utils.ts` file in `web/frontend/src/utils/scene/`
+   - Extracted the following pure functions:
+     - `formatDuration`: Formats time duration in seconds to MM:SS format
+     - `determineMediaType`: Determines media type (image, video, unknown) from URL
+     - `getSceneContainerClassName`: Generates className for scene container based on state
+     - `calculateMediaHeight`: Calculates appropriate media height based on container width
+     - `constructStorageUrl`: Creates URL for R2 storage based on project and scene IDs
+   - All tests continue to pass after utility extraction
+   - Committed changes to the `scene-refactor-utils` branch
 
 5. **Extract event handlers into utility functions**
    - Group related event handlers
