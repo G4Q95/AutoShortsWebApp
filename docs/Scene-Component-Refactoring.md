@@ -108,11 +108,14 @@ This document outlines the step-by-step approach to refactoring the Scene compon
    - Update imports and references
    - Test thoroughly
 
-10. **Extract API-related logic into custom hook**
-    - Create `useSceneApi.ts` hook
-    - Move API calls and related state
-    - Update imports and references
-    - Test thoroughly
+10. **Extract API-related logic into custom hook** ✅
+    - Created `useSceneApi.ts` hook
+    - Moved API calls and related state
+    - Implemented error handling for API operations
+    - Added `saveSceneUpdate` and `clearApiError` functions
+    - Connected to proper API endpoints
+    - All tests passing after implementation
+    - Fixed issue with Reddit source information display in text content by enhancing the `cleanPostText` function
 
 ### Phase 4: Extract Sub-Components
 
@@ -207,8 +210,8 @@ For each step:
 
 ### Current Status:
 - Component initial size: 1986 lines
-- Current size after refactoring: ~1486 lines
-- Reduction: ~500 lines (25% complete)
+- Current size after refactoring: ~1386 lines
+- Reduction: ~600 lines (30% complete)
 
 ### Completed Steps:
 - ✅ Pure utility functions extracted to scene-utils.ts
@@ -219,9 +222,13 @@ For each step:
 - ✅ Custom hooks extraction:
   - useSceneMedia for media state and operations
   - useSceneAudio for voice generation and audio playback
+  - useSceneApi for API interactions and error handling
+- ✅ Text handling improvements:
+  - Enhanced `cleanPostText` function to remove "Post by u/username: " prefix from text
+  - Fixed issue with source information being displayed in the editable text area
 - ✅ All tests passing after each extraction step
 
 ### Next Steps:
-- Complete remaining custom hooks (useSceneEdit, useSceneApi)
+- Complete remaining custom hook (useSceneEdit)
 - Create dedicated components for UI sections
 - Implement proper container component architecture 

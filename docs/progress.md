@@ -590,7 +590,7 @@ Current progress by component area:
 - Scene Management: 85% complete
 - Media Player: 85% complete
 - Audio Controls: 80% complete
-- SceneComponent Refactoring: 25% complete
+- SceneComponent Refactoring: 30% complete
   - ✅ Extracted pure utility functions to scene-utils.ts
   - ✅ Extracted event handlers to dedicated files by domain:
     - UI event handlers for view toggle, info display, scene removal
@@ -599,8 +599,10 @@ Current progress by component area:
   - ✅ Custom hooks extraction in progress:
     - Created useSceneMedia hook for media state management
     - Created useSceneAudio hook for audio and voice generation
-    - Unit tests added for all custom hooks
-  - ⏱️ Additional hooks planned for Edit and API functionality
+    - Created useSceneApi hook for API interactions and error handling
+    - Fixed Reddit source information display issue in text content
+    - All tests continue to pass after each refactoring step
+  - ⏱️ Additional hook planned for Edit functionality
   - ⏱️ UI component extraction scheduled next
 
 ### Backend Services
