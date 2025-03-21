@@ -691,6 +691,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             audioUrl={audioSrc}
             className="w-full"
             onMediaTrimChange={handleTrimChange}
+            initialCompactView={isCompactView}
           />
         );
       } catch (error) {
