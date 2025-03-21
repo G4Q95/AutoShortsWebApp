@@ -25,76 +25,106 @@ import { selectors, waitForWithFallbacks } from './utils/selectors';
  */
 test.describe('Audio Generation', () => {
   
-  // Configure retries for flaky tests
-  test.describe.configure({ retries: 2 });
+  // Configure fewer retries to avoid excessive wait times
+  test.describe.configure({ retries: 1 });
   
-  // Add console error logging
+  // Add console logging to capture detailed test info
   test.beforeEach(async ({ page }) => {
+    // Console error logging
     page.on('console', msg => {
       if (msg.type() === 'error') {
-        console.log('Browser console error:', msg.text());
+        console.log(`Browser console error: ${msg.text()}`);
       }
     });
+    
+    // Network error logging
+    page.on('requestfailed', request => {
+      console.log(`Request failed: ${request.url()}, reason: ${request.failure()?.errorText}`);
+    });
   });
-  
-  // Add global timeout for all tests
-  test.slow();
   
   test('Audio generation and playback', async ({ page }) => {
     console.log('Starting audio generation test...');
     
+    // Set default timeout to 10 seconds (increased from 7)
+    page.setDefaultTimeout(10000);
+    
     // Check if we're using mock audio
     const useMockAudio = process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true';
-    console.log('Test environment:', {
-      mockAudioEnabled: useMockAudio,
-      testingMode: process.env.NEXT_PUBLIC_TESTING_MODE
-    });
+    console.log(`Test environment: Mock audio=${useMockAudio}, Testing mode=${process.env.NEXT_PUBLIC_TESTING_MODE}`);
     
     // Set up mock audio if needed
     if (useMockAudio) {
       await setupMockAudio(page);
+      console.log('Mock audio setup complete');
       
-      // Set up route interception for mock mode
-      await page.route('**/voice/generate', route => {
-        console.log('****************************');
-        console.log('TEST: Voice API call intercepted!');
-        console.log('Route URL:', route.request().url());
-        console.log('Method:', route.request().method());
-        console.log('****************************');
-        route.continue(); // Allow the request to proceed
-      });
+      // Take screenshot to verify initial state
+      await page.screenshot({ path: './test-results/initial-state.png' });
     }
 
-    // Create a project for testing
-    const projectNameAudio = TEST_PROJECT_NAME + ' Audio ' + Date.now().toString().slice(-4);
-    await createProject(page, projectNameAudio);
-    console.log('Created new project for audio test:', projectNameAudio);
-    
-    // Add a scene
-    await addScene(page, TEST_REDDIT_PHOTO_URL);
-    console.log('Added scene with test URL');
-    
-    // Wait for scene to load
-    const sceneLoaded = await page.waitForSelector(BLUE_NUMBER_SELECTOR, { timeout: SCENE_MEDIA_TIMEOUT });
-    expect(sceneLoaded).toBeTruthy();
-    console.log('Scene loaded successfully');
-    
-    // Generate voice for the scene
-    await generateVoiceForScene(page, 0);
-    
-    // Verify audio was generated
-    const hasAudio = await verifyAudioGeneration(page, 0);
-    expect(hasAudio).toBeTruthy();
-    console.log('Audio generation verified successfully');
-    
-    // Play the audio
-    await playSceneAudio(page, 0);
-    console.log('Audio playback attempted');
-    
-    // Wait a moment to ensure audio starts playing
-    await page.waitForTimeout(1000);
-    
-    // Test passed if we get here without errors
-    console.log('Audio generation test completed successfully');
+    try {
+      // Create a project for testing with a unique name
+      const projectNameAudio = `${TEST_PROJECT_NAME}-Audio-${Date.now().toString().slice(-4)}`;
+      await createProject(page, projectNameAudio);
+      console.log(`Created project: ${projectNameAudio}`);
+      
+      // Add a scene with our test URL
+      await addScene(page, TEST_REDDIT_PHOTO_URL);
+      console.log('Added scene with test URL');
+      
+      // Wait for scene to load with longer timeout
+      console.log('Waiting for scene card to appear...');
+      const sceneLoaded = await page.waitForSelector(BLUE_NUMBER_SELECTOR, { 
+        timeout: 10000  // Increased to 10 seconds
+      });
+      expect(sceneLoaded).toBeTruthy();
+      console.log('Scene card loaded successfully');
+      
+      // Now wait specifically for media content to be visible
+      console.log('Waiting for media content to load...');
+      await page.waitForSelector(MEDIA_SELECTOR, { 
+        timeout: 10000,
+        state: 'visible'
+      });
+      console.log('Media content loaded successfully');
+      
+      // Add an explicit delay to ensure all content is fully loaded
+      console.log('Waiting additional time for all content to stabilize...');
+      await page.waitForTimeout(2000);
+      
+      // Take screenshot of loaded scene
+      await page.screenshot({ path: './test-results/scene-loaded.png' });
+      
+      // Generate voice for the scene
+      await generateVoiceForScene(page, 0);
+      console.log('Voice generation started');
+      
+      // Take longer time to verify audio generation (max 10 seconds)
+      let hasAudio = false;
+      for (let i = 0; i < 10; i++) {
+        hasAudio = await verifyAudioGeneration(page, 0);
+        if (hasAudio) break;
+        console.log(`Audio check attempt ${i+1}: Not found yet, waiting...`);
+        await page.waitForTimeout(1000);
+      }
+      
+      // Take screenshot of generation result
+      await page.screenshot({ path: './test-results/after-generation.png' });
+      
+      expect(hasAudio).toBeTruthy();
+      console.log('Audio generation verified');
+      
+      // Play the audio (no need to wait for long duration)
+      await playSceneAudio(page, 0);
+      console.log('Audio playback started');
+      
+      // Test passed if we get here
+      console.log('Audio generation test passed');
+    } catch (error) {
+      // Take error screenshot
+      await page.screenshot({ path: './test-results/test-failure.png' });
+      console.error('Test failed:', error);
+      throw error;
+    }
   });
 }); 

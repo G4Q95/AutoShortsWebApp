@@ -12,6 +12,7 @@ export { SceneActions } from './SceneActions';
 export { SceneTimingControls } from './SceneTimingControls';
 export { SceneContainer } from './SceneContainer';
 export { VoiceControls } from './VoiceControls';
+export { default as SceneVideoPlayerWrapper } from './SceneVideoPlayerWrapper';
 // Future exports will be added here as components are created
 // export { SceneTrimControls } from './SceneTrimControls';
 // export { SceneActions } from './SceneActions';
