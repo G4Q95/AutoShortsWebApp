@@ -41,6 +41,8 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   onMediaTrimChange,
   initialCompactView = true
 }) => {
+  console.log(`[SceneVideoPlayerWrapper] Rendering for scene: ${scene.id} with compact view: ${initialCompactView}`);
+
   // Media state
   const [isCompactView, setIsCompactView] = useState<boolean>(initialCompactView);
   

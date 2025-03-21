@@ -681,6 +681,12 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       }
     };
 
+    // Log feature flag status
+    console.log(`[FEATURE-FLAG] Scene ${scene.id} - NEXT_PUBLIC_USE_NEW_VIDEO_PLAYER:`, 
+      process.env.NEXT_PUBLIC_USE_NEW_VIDEO_PLAYER, 
+      "useNewVideoPlayer:", useNewVideoPlayer,
+      "currentProject?.id:", currentProject?.id);
+
     // Only use new component if feature flag is enabled AND we have all required props
     if (useNewVideoPlayer && currentProject?.id) {
       try {

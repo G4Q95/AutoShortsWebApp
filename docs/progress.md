@@ -237,7 +237,7 @@ The current focus is on improving code stability, API connectivity, and refactor
 - ✅ Created compact info display with direct source attribution
 
 ### In Progress
-- 🔄 Scene Component Refactoring (Phase 1 - 85% Complete):
+- 🔄 Scene Component Refactoring (Phase 1 - 90% Complete):
   - ✅ Created initial component structure plan
   - ✅ Extracted utility functions to scene-utils.ts
   - ✅ Extracted event handlers to dedicated files
@@ -248,24 +248,17 @@ The current focus is on improving code stability, API connectivity, and refactor
     - SceneMediaPlayer
     - SceneAudioControls
     - SceneVoiceSettings
-    - SceneActions
-  - ✅ Implemented SceneContainer with:
-    - View mode management (compact/expanded)
-    - Info section visibility
-    - Text editing capabilities
-    - Voice generation and settings
-    - Scene removal with confirmation
-    - Drag and drop reordering
-  - ✅ Type safety improvements:
-    - Fixed proper typing in handleGenerateVoice function
-    - Removed 'as any' type assertions
-    - Fixed component prop interfaces
-    - Implemented proper API response handling
-  - ✅ Performance optimizations:
-    - Implemented React.memo for SceneTextContent with custom comparison function
-    - Implemented React.memo for SceneMediaPlayer with custom comparison function
-    - Implemented React.memo for SceneVoiceSettings with custom comparison function
-    - Verified optimizations with full test suite (all tests passing)
+  - ✅ Successfully extracted VideoPlayer functionality:
+    - Created SceneVideoPlayerWrapper as a bridge component
+    - Implemented feature flag for safe rollout (NEXT_PUBLIC_USE_NEW_VIDEO_PLAYER)
+    - Added comprehensive error handling and fallback mechanism
+    - Migrated all media rendering and URL transformation logic
+    - Verified implementation with all tests passing
+    - Enabled feature flag in production environment
+  - 🔄 Next components for extraction:
+    - TextEditor component (in progress)
+    - AudioPlayer component (planned)
+    - SceneControls component (planned)
   - 🔄 Currently implementing:
     - Final integration with SceneComponent
     - Last documentation updates
