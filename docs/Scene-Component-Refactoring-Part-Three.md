@@ -41,7 +41,7 @@ These challenges highlight why a more carefully planned approach is necessary fo
 ## Four-Component Approach
 
 We will refactor the Scene component into four distinct functional components, acknowledging their interconnected nature:
-
+ 
 ### 1. SceneCard
 - **Purpose**: Container component that manages overall layout and core functionality
 - **Responsibilities**:
@@ -272,3 +272,35 @@ This understanding of data flow and dependencies will help us avoid the pitfalls
    - Implement the component with all required functionality
    - Test in isolation with mock data
    - Integrate with feature flag for in-app testing
+
+## Preserving Existing Component Structure
+
+An important principle in this refactoring is to maintain the separation of existing components while extracting functionality from the main SceneComponent file. This means:
+
+1. **No Component Consolidation**
+   - Existing components like SceneMediaPlayer, ScenePreviewPlayer, and scene trimming code will remain separate
+   - We're extracting code from SceneComponent but not merging any existing components
+
+2. **Extraction Strategy**
+   - Create a wrapper component (e.g., SceneVideoPlayerWrapper) to serve as a bridge
+   - Extract video-related state, functions, and JSX from SceneComponent
+   - The wrapper will maintain the interface with existing components
+
+3. **Component Hierarchy**
+   ```
+   SceneComponent.tsx
+     ↓ (uses)
+     SceneVideoPlayerWrapper.tsx (NEW)
+       ↓ (uses)
+       SceneMediaPlayer.tsx (EXISTING)
+         ↓ (uses)
+         ScenePreviewPlayer.tsx (EXISTING)
+   ```
+
+4. **What Will Be Extracted**
+   - The `renderMedia()` function from SceneComponent
+   - Video player state variables (isCompactView, etc.)
+   - Video-related event handlers (handleTrimChange, etc.)
+   - View mode toggle functionality
+   
+This approach allows us to reduce the size and complexity of SceneComponent while preserving the existing architecture and component relationships. It creates a clear boundary between the scene card management and the video player functionality.
