@@ -280,15 +280,100 @@ The component is designed to be a drop-in replacement for the video rendering po
 
 All 10 Playwright tests pass successfully with the new implementation. The feature flag is now enabled in the production environment and the SceneVideoPlayerWrapper component is being used for all video rendering in the application.
 
+## Parent-Controlled Expansion Implementation
+
+To address the expansion functionality issues after the initial refactoring, we've implemented a parent-controlled expansion pattern:
+
+### Problem Identified
+
+After the initial extraction of the video player functionality into separate components, the expansion feature (which allows the video player to expand and take up more space in the scene card) stopped working correctly. The issue stemmed from:
+
+1. Multiple components controlling their own dimensions independently
+2. Conflict between inline styles in parent and child components
+3. Direct DOM manipulation not synchronizing across component boundaries
+
+### Solution Implemented
+
+We implemented a cleaner state-based approach:
+
+1. **Single Source of Truth**:
+   - Added dedicated `isVideoExpanded` state in the SceneComponent parent
+   - Created a bidirectional communication pattern between parent and child components
+
+2. **Request-Based Communication Pattern**:
+   - Child components "request" expansion from the parent using callbacks
+   - Parent manages the state and updates layout dimensions accordingly
+   - Child components respond to parent-controlled state rather than managing it independently
+
+3. **Coordinated Style Application**:
+   - Parent container controls the overall dimensions (height and maxHeight)
+   - Child components adapt to the parent container's dimensions
+   - Eliminated conflicting style manipulations
+
+### Key Implementation Details
+
+```tsx
+// In SceneComponent.tsx (parent)
+const [isVideoExpanded, setIsVideoExpanded] = useState<boolean>(false);
+
+// Handler for video expansion requests
+const handleVideoExpansionRequest = (shouldExpand: boolean) => {
+  setIsVideoExpanded(shouldExpand);
+  setIsCompactView(!shouldExpand); // Update related state
+};
+
+// In media container
+<div 
+  className="media-container" 
+  style={{
+    height: isVideoExpanded ? 'auto' : '190px',
+    minHeight: isVideoExpanded ? '300px' : '190px',
+    maxHeight: isVideoExpanded ? '500px' : '190px',
+    transition: 'all 0.3s ease-in-out'
+  }}
+>
+  <SceneVideoPlayerWrapper
+    // Pass both current state and request handler
+    isExpanded={isVideoExpanded}
+    onExpansionRequest={handleVideoExpansionRequest}
+    // Other props...
+  />
+</div>
+```
+
+```tsx
+// In SceneVideoPlayerWrapper (bridge component)
+// Props include both state and request handler
+const handleViewModeToggle = () => {
+  if (onExpansionRequest) {
+    // Request expansion from parent
+    onExpansionRequest(!isExpanded);
+  } else {
+    // Fallback to local behavior if parent doesn't control
+    // ...
+  }
+};
+```
+
+```tsx
+// In SceneMediaPlayer (innermost component)
+// Only apply direct DOM manipulation when not parent-controlled
+if (!isParentControlled && containerRef.current) {
+  // Direct DOM manipulation here
+}
+```
+
+This pattern ensures clean state management while maintaining the UX functionality of the original implementation. The video player now expands and collapses correctly while preserving the composition of independently developed components.
+
 ## Next Steps
 
-With the video player functionality successfully extracted, the next components to refactor are:
+With the video player functionality successfully extracted and expansion issues resolved, the next components to refactor are:
 
 1. **Text Editor**: Extract text editing and display functionality
 2. **Audio Player**: Extract audio playback functionality
 3. **Scene Controls**: Extract action buttons and control functionality
 
-Each extraction will follow the same pattern with feature flags for safe rollout.
+Each extraction will follow the same pattern with feature flags for safe rollout and parent-controlled state for coordinated behavior.
 
 ## Progress Update - May 2024
 
@@ -302,6 +387,7 @@ As of mid-May 2024, we've successfully completed the first phase of the Scene Co
 - ✅ Ensured compatibility with existing media components
 - ✅ Verified implementation with all tests passing
 - ✅ Enabled the feature flag in production
+- ✅ Implemented parent-controlled expansion for coordinated behavior
 
 ### Impact Analysis
 

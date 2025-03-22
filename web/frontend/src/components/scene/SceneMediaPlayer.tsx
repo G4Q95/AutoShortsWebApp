@@ -53,6 +53,12 @@ interface SceneMediaPlayerProps {
    * Additional class names
    */
   className?: string;
+
+  /**
+   * Whether the component is controlled by its parent
+   * When true, avoid direct DOM manipulation
+   */
+  isParentControlled?: boolean;
 }
 
 /**
@@ -67,14 +73,16 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   isCompactView,
   onToggleViewMode,
   onTrimChange,
-  className = ''
+  className = '',
+  isParentControlled = false
 }) => {
   // Ref for container element to allow direct DOM manipulation
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Effect to update container height on view mode change
   useEffect(() => {
-    if (containerRef.current) {
+    // Only manipulate DOM directly if not parent-controlled
+    if (!isParentControlled && containerRef.current) {
       const container = containerRef.current;
       if (isCompactView) {
         container.style.height = '190px';
@@ -86,7 +94,7 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
         container.style.minHeight = '300px';
       }
     }
-  }, [isCompactView]);
+  }, [isCompactView, isParentControlled]);
 
   // If no media is available, show a placeholder
   if (!media) {
@@ -128,11 +136,11 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   
   // Create enhanced toggle handler to update DOM directly
   const handleToggleView = () => {
-    // Call the provided toggle function
+    // Always call the provided toggle function
     onToggleViewMode();
     
-    // Direct DOM manipulation to ensure immediate visual feedback
-    if (containerRef.current) {
+    // Only apply direct DOM manipulation if not parent-controlled
+    if (!isParentControlled && containerRef.current) {
       const container = containerRef.current;
       const currentCompact = isCompactView;
       
@@ -177,7 +185,7 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
       className={`relative w-full bg-black rounded-t-lg ${className}`}
       style={{ 
         height: isCompactView ? '190px' : 'auto',
-        minHeight: '190px',
+        minHeight: isCompactView ? '190px' : '300px',
         maxHeight: isCompactView ? '190px' : '500px',
         overflow: 'hidden',
         transition: 'all 0.3s ease-in-out'

@@ -27,6 +27,10 @@ interface SceneVideoPlayerWrapperProps {
   onMediaTrimChange?: (start: number, end: number) => void;
   /** Optional override for compact view state */
   initialCompactView?: boolean;
+  /** Whether the video is expanded (controlled by parent) */
+  isExpanded?: boolean;
+  /** Callback to request expansion from parent */
+  onExpansionRequest?: (shouldExpand: boolean) => void;
 }
 
 /**
@@ -39,21 +43,43 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   audioUrl,
   className = '',
   onMediaTrimChange,
-  initialCompactView = true
+  initialCompactView = true,
+  isExpanded = false,
+  onExpansionRequest
 }) => {
-  console.log(`[SceneVideoPlayerWrapper] Rendering for scene: ${scene.id} with compact view: ${initialCompactView}`);
+  console.log(`[SceneVideoPlayerWrapper] Rendering for scene: ${scene.id} with compact view: ${initialCompactView}, expansion: ${isExpanded}`);
 
-  // Media state
-  const [isCompactView, setIsCompactView] = useState<boolean>(initialCompactView);
+  // Media state - use local state as fallback if parent doesn't control expansion
+  const [localCompactView, setLocalCompactView] = useState<boolean>(initialCompactView);
   
-  // Update local state when the prop changes
+  // Use either parent-controlled expansion state or local state
+  const isCompactView = onExpansionRequest ? !isExpanded : localCompactView;
+  
+  // Update local state when the prop changes (for fallback mode)
   useEffect(() => {
-    setIsCompactView(initialCompactView);
-    console.log(`[SceneVideoPlayerWrapper] Updating compact view from prop: ${initialCompactView}`);
-  }, [initialCompactView]);
+    if (!onExpansionRequest) {
+      setLocalCompactView(initialCompactView);
+      console.log(`[SceneVideoPlayerWrapper] Updating compact view from prop: ${initialCompactView}`);
+    }
+  }, [initialCompactView, onExpansionRequest]);
   
-  // Create toggle handler with proper event stopping
-  const toggleViewMode = createToggleViewModeHandler(setIsCompactView);
+  // Create toggle handler that uses expansion request if available
+  const toggleViewMode = useCallback((e: MouseEvent) => {
+    e.stopPropagation();
+    
+    if (onExpansionRequest) {
+      // Use parent-controlled expansion
+      onExpansionRequest(!isExpanded);
+      console.log(`[SceneVideoPlayerWrapper] Requesting expansion change to: ${!isExpanded}`);
+    } else {
+      // Fallback to local state
+      setLocalCompactView(prev => {
+        const newState = !prev;
+        console.log(`[SceneVideoPlayerWrapper] Toggling local view state from ${prev} to ${newState}`);
+        return newState;
+      });
+    }
+  }, [isExpanded, onExpansionRequest]);
   
   // Handle trim changes with proper validation
   const handleTrimChange = useCallback((start: number, end: number) => {
@@ -107,10 +133,16 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   
   // Create a wrapper for the toggle function to match the expected signature
   const handleViewModeToggle = () => {
-    const mockEvent = {} as MouseEvent;
-    toggleViewMode(mockEvent);
-    // Log state change for debugging
-    console.log(`[SceneVideoPlayerWrapper] Toggled view mode for scene: ${scene.id}, new state: ${!isCompactView}`);
+    if (onExpansionRequest) {
+      // Use parent-controlled expansion
+      onExpansionRequest(!isExpanded);
+      console.log(`[SceneVideoPlayerWrapper] Requesting expansion via button: ${!isExpanded}`);
+    } else {
+      // Fallback to local toggle
+      const mockEvent = {} as MouseEvent;
+      toggleViewMode(mockEvent);
+      console.log(`[SceneVideoPlayerWrapper] Toggled view mode for scene: ${scene.id}, new state: ${!isCompactView}`);
+    }
   };
   
   return (
@@ -123,6 +155,7 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
       onToggleViewMode={handleViewModeToggle}
       onTrimChange={handleTrimChange}
       className={className}
+      isParentControlled={!!onExpansionRequest}
     />
   );
 };

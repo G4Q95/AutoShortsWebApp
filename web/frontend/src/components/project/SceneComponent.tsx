@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { useProject } from './ProjectProvider';
 import { Scene } from './ProjectTypes';
 import {
@@ -187,17 +187,27 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   // Add state for view mode
   const [isCompactView, setIsCompactView] = useState<boolean>(true);
   
+  // Add new state specifically for video expansion
+  const [isVideoExpanded, setIsVideoExpanded] = useState<boolean>(false);
+
   // Add state for info section visibility
   const [showInfo, setShowInfo] = useState<boolean>(false);
 
   // Toggle view mode function
   const toggleViewMode = createToggleViewModeHandler(setIsCompactView);
   
+  // Handler for video expansion requests
+  const handleVideoExpansionRequest = (shouldExpand: boolean) => {
+    console.log(`[SceneComponent] Video expansion request: ${shouldExpand}`);
+    setIsVideoExpanded(shouldExpand);
+    // Also update general view mode for consistency
+    setIsCompactView(!shouldExpand);
+  };
+  
   // Toggle info section
   const toggleInfo = createToggleInfoHandler(setShowInfo);
   
   // Feature flag with testing fallback
-  // This ensures tests can run with the original implementation
   const useNewVideoPlayer = 
     process.env.NEXT_PUBLIC_USE_NEW_VIDEO_PLAYER === 'true' && 
     process.env.NEXT_PUBLIC_TESTING_MODE !== 'true';
@@ -690,6 +700,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         className="w-full"
         onMediaTrimChange={handleTrimChange}
         initialCompactView={isCompactView}
+        isExpanded={isVideoExpanded}
+        onExpansionRequest={handleVideoExpansionRequest}
       />
     );
   };
@@ -1268,16 +1280,11 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     }
   }, [scene.isStoringMedia]);
 
-  // Find and modify the getMediaStyle function to ensure videos fill the container properly
-  const getMediaStyle = (): React.CSSProperties => {
-    return {
-      width: '100%',
-      height: '100%',
-      objectFit: 'cover', // Change from 'contain' to 'cover' to fill the space
-      objectPosition: 'center',
-      maxHeight: isCompactView ? '190px' : '500px'
-    };
-  };
+  const useMockAudio = useMemo(() => {
+    return (window.USE_MOCK_AUDIO === true || 
+           process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' ||
+           process.env.NEXT_PUBLIC_TESTING_MODE === 'true');
+  }, []);
 
   return !manuallyRemoving ? (
     <div
@@ -1295,10 +1302,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       data-scene-id={scene.id}
     >
       {/* Hidden test-only audio element for more reliable test detection */}
-      {typeof window !== 'undefined' && 
-        (window.USE_MOCK_AUDIO === true || 
-         process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' ||
-         process.env.NEXT_PUBLIC_TESTING_MODE === 'true') && audioSrc && (
+      {useMockAudio && audioSrc && (
         <audio 
           controls 
           src={audioSrc} 
@@ -1326,9 +1330,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
           <div 
             className="media-container" 
             style={{
-              height: isCompactView ? '190px' : 'auto',
-              minHeight: isCompactView ? '190px' : '300px',
-              maxHeight: isCompactView ? '190px' : '500px',
+              height: isVideoExpanded ? 'auto' : '190px',
+              minHeight: isVideoExpanded ? '300px' : '190px',
+              maxHeight: isVideoExpanded ? '500px' : '190px',
               transition: 'all 0.3s ease-in-out'
             }} 
             data-testid="scene-media"
