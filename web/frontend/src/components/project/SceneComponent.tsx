@@ -28,6 +28,7 @@ import { getStoredAudio, generateVoice, persistVoiceAudio } from '@/lib/api-clie
 import SceneAudioControls from '../audio/SceneAudioControls';
 import ScenePreviewPlayer from '../preview/ScenePreviewPlayer';
 import SceneVideoPlayerWrapper from '../scene/SceneVideoPlayerWrapper';
+import { SceneVoiceControlsWrapper } from '../voice';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
 
 // Import all scene utilities from the centralized export
@@ -210,6 +211,11 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   // Feature flag with testing fallback
   const useNewVideoPlayer = 
     process.env.NEXT_PUBLIC_USE_NEW_VIDEO_PLAYER === 'true' && 
+    process.env.NEXT_PUBLIC_TESTING_MODE !== 'true';
+  
+  // Feature flag for new audio controls
+  const useNewVoiceControls = 
+    process.env.NEXT_PUBLIC_USE_NEW_AUDIO_CONTROLS === 'true' && 
     process.env.NEXT_PUBLIC_TESTING_MODE !== 'true';
   
   // Utility function to count words in a string
@@ -1349,7 +1355,36 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             
             {/* Voice generation controls with top padding */}
             <div className="pt-0.5 border-t border-gray-200" data-testid="scene-audio-section">
-              {useNewControls ? (
+              {useNewVoiceControls ? (
+                // New component (extracted)
+                <div data-testid="new-voice-controls">
+                  <SceneVoiceControlsWrapper 
+                    sceneId={scene.id}
+                    text={text}
+                    audioSource={audioSrc}
+                    voiceSettings={{
+                      voice_id: voiceId,
+                      stability,
+                      similarity_boost: similarityBoost,
+                      style,
+                      speaker_boost: speakerBoost,
+                      speed
+                    }}
+                    isGeneratingAudio={generatingAudio}
+                    audioError={audioError}
+                    onGenerateClick={handleGenerateVoice}
+                    onVoiceIdChange={setVoiceId}
+                    onVoiceSettingsChange={(settings) => {
+                      if (settings.stability !== undefined) setStability(settings.stability);
+                      if (settings.similarity_boost !== undefined) setSimilarityBoost(settings.similarity_boost);
+                      if (settings.style !== undefined) setStyle(settings.style);
+                      if (settings.speaker_boost !== undefined) setSpeakerBoost(settings.speaker_boost);
+                      if (settings.speed !== undefined) setSpeed(settings.speed);
+                    }}
+                    onPlaybackRateChange={handlePlaybackSpeedUpdate}
+                  />
+                </div>
+              ) : useNewControls ? (
                 // New component (extracted)
                 <div data-testid="new-audio-controls">
                   <SceneAudioControls 
