@@ -109,17 +109,18 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   
   return (
     <div 
-      className={`relative w-full bg-black rounded-t-lg overflow-hidden ${className}`}
+      className={`relative w-full bg-black rounded-t-lg ${className}`}
       style={{ 
-        height: isCompactView ? '190px' : 'auto', 
-        minHeight: '190px',
-        maxHeight: isCompactView ? '190px' : '480px',
-        transition: 'max-height 0.3s ease-in-out'
+        height: isCompactView ? '190px' : 'auto',
+        minHeight: isCompactView ? '190px' : '300px',
+        maxHeight: isCompactView ? '190px' : 'none',
+        overflow: 'hidden',
+        transition: 'all 0.3s ease-in-out'
       }}
       data-testid="scene-media"
     >
       {/* Center the content in compact view */}
-      <div className="flex items-center justify-center w-full h-full">
+      <div className={`flex items-center justify-center w-full h-full ${!isCompactView ? 'overflow-visible' : ''}`}>
         {finalMediaUrl && (
           <ScenePreviewPlayer
             projectId={projectId}

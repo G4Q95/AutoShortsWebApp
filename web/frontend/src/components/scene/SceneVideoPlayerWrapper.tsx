@@ -103,6 +103,8 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   const handleViewModeToggle = () => {
     const mockEvent = {} as MouseEvent;
     toggleViewMode(mockEvent);
+    // Log state change for debugging
+    console.log(`[SceneVideoPlayerWrapper] Toggled view mode for scene: ${scene.id}, new state: ${!isCompactView}`);
   };
   
   return (

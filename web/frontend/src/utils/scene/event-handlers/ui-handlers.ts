@@ -11,8 +11,15 @@ export const createToggleViewModeHandler = (
   setIsCompactView: React.Dispatch<React.SetStateAction<boolean>>
 ): (e: React.MouseEvent) => void => {
   return (e: React.MouseEvent) => {
+    // Stop propagation to prevent triggering parent elements
     e.stopPropagation();
-    setIsCompactView(prev => !prev);
+    
+    // Toggle compact view state
+    setIsCompactView(prev => {
+      const newState = !prev;
+      console.log(`[toggle-view-mode] Toggling view state from ${prev} to ${newState}`);
+      return newState;
+    });
   };
 };
 
