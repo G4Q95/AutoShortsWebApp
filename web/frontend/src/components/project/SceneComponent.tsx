@@ -22,11 +22,9 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
-import { transformRedditVideoUrl } from '@/lib/media-utils';
 import { useProject } from './ProjectProvider';
 import { getStoredAudio, generateVoice, persistVoiceAudio } from '@/lib/api-client';
 import SceneAudioControls from '../audio/SceneAudioControls';
-import ScenePreviewPlayer from '../preview/ScenePreviewPlayer';
 import SceneVideoPlayerWrapper from '../scene/SceneVideoPlayerWrapper';
 // Import utility functions
 import { 
@@ -189,23 +187,17 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const volumeButtonRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Add state for view mode
-  const [isCompactView, setIsCompactView] = useState<boolean>(true);
+  // State for compact/expanded view
+  const [isCompactView, setIsCompactView] = useState(false);
   
   // Add state for info section visibility
   const [showInfo, setShowInfo] = useState<boolean>(false);
 
   // Toggle view mode function
-  const toggleViewMode = createToggleViewModeHandler(setIsCompactView);
+  const toggleViewMode = () => setIsCompactView(prev => !prev);
   
   // Toggle info section
   const toggleInfo = createToggleInfoHandler(setShowInfo);
-  
-  // Feature flag with testing fallback
-  // This ensures tests can run with the original implementation
-  const useNewVideoPlayer = 
-    process.env.NEXT_PUBLIC_USE_NEW_VIDEO_PLAYER === 'true' && 
-    process.env.NEXT_PUBLIC_TESTING_MODE !== 'true';
   
   // Utility function to count words in a string
   const getWordCount = (text: string): number => {
@@ -340,8 +332,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     
     // Clean up blob URL when component unmounts
     return () => {
-      if (audioSrc && audioSrc.startsWith('blob:')) {
-        console.log(`SceneComponent ${scene.id}: Cleaning up blob URL`);
+      if (audioSrc && !scene.audio?.audio_url) {
         URL.revokeObjectURL(audioSrc);
       }
     };
@@ -681,87 +672,15 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       }
     };
 
-    // Only use new component if feature flag is enabled AND we have all required props
-    if (useNewVideoPlayer && currentProject?.id) {
-      try {
-        return (
-          <SceneVideoPlayerWrapper
-            scene={scene}
-            projectId={currentProject.id}
-            audioUrl={audioSrc}
-            className="w-full"
-            onMediaTrimChange={handleTrimChange}
-          />
-        );
-      } catch (error) {
-        console.error("Error rendering new video player:", error);
-        // Fall back to original implementation if new component fails
-      }
-    }
-
-    // Original media rendering code
-    const mediaUrl = scene.media.storageKey
-      ? constructStorageUrl(scene.media.storageKey, currentProject?.id || '', scene.id)
-      : scene.media.url;
-
-    // Default trim values
-    const trimStart = scene.media.trim?.start || 0;
-    const trimEnd = scene.media.trim?.end || 0;
-    
-    // Diagnostic logging for media URLs
-    console.log(`[MEDIA-RENDER] Scene ${scene.id} media info:`, {
-      originalUrl: scene.media.url,
-      storedUrl: scene.media.storedUrl,
-      storageKey: scene.media.storageKey, 
-      isStorageBacked: scene.media.isStorageBacked,
-      urlUsed: mediaUrl,
-      fromStorage: !!scene.media.storedUrl && mediaUrl === scene.media.storedUrl
-    });
-    
-    // Use ScenePreviewPlayer for all media types
+    // Use the SceneVideoPlayerWrapper component
     return (
-      <div className="relative w-full bg-black rounded-t-lg overflow-hidden" 
-           style={{ height: isCompactView ? '190px' : 'auto', minHeight: '190px' }}>
-        {/* Center the content in compact view */}
-        <div className="flex items-center justify-center w-full h-full">
-          <ScenePreviewPlayer
-            projectId={currentProject?.id || ''}
-            sceneId={scene.id}
-            mediaUrl={scene.media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
-            audioUrl={audioSrc || undefined}
-            mediaType={scene.media.type}
-            trim={{ start: trimStart, end: trimEnd }}
-            onTrimChange={handleTrimChange}
-            className="rounded-t-lg"
-            isCompactView={isCompactView}
-          />
-        </div>
-        
-        {/* View mode toggle button */}
-        <button 
-          className="absolute top-2 right-2 p-1 bg-gray-800 bg-opacity-60 rounded text-white z-10 hover:bg-opacity-80 transition-colors"
-          onClick={toggleViewMode}
-          title={isCompactView ? "Expand view" : "Compact view"}
-          aria-label={isCompactView ? "Expand view" : "Compact view"}
-          data-testid="view-mode-toggle"
-        >
-          {isCompactView ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <polyline points="9 21 3 21 3 15"></polyline>
-              <line x1="21" y1="3" x2="14" y2="10"></line>
-              <line x1="3" y1="21" x2="10" y2="14"></line>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="4 14 10 14 10 20"></polyline>
-              <polyline points="20 10 14 10 14 4"></polyline>
-              <line x1="14" y1="10" x2="21" y2="3"></line>
-              <line x1="3" y1="21" x2="10" y2="14"></line>
-            </svg>
-          )}
-        </button>
-      </div>
+      <SceneVideoPlayerWrapper
+        scene={scene}
+        projectId={currentProject?.id || ''}
+        audioUrl={audioSrc}
+        className="w-full"
+        onMediaTrimChange={handleTrimChange}
+      />
     );
   };
 
@@ -1350,6 +1269,12 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     };
   };
 
+  // Function to switch voices
+  const switchVoice = (voice: string) => {
+    setVoiceId(voice);
+    setShowSettings(false);
+  };
+
   return !manuallyRemoving ? (
     <div
       id={`scene-${scene.id}`}
@@ -1416,7 +1341,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                     isGeneratingAudio={generatingAudio}
                     onGenerateClick={handleGenerateVoice}
                     onRegenerateClick={handleGenerateVoice}
-                    onVoiceChange={(voice) => setVoiceId(voice)}
+                    onVoiceChange={switchVoice}
                     onRateChange={handlePlaybackSpeedUpdate}
                   />
                 </div>

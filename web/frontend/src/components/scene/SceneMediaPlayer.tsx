@@ -139,11 +139,7 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
       </button>
       
       {/* Loading indicator for media storage */}
-      {media.isStorageBacked === false && (
-        <div className="absolute bottom-0 left-0 right-0 bg-blue-500 h-1">
-          <div className="bg-blue-700 h-full transition-all" style={{ width: `${0}%` }}></div>
-        </div>
-      )}
+      {/* Removed the blue progress bar as requested */}
     </div>
   );
 };
