@@ -237,7 +237,7 @@ The current focus is on improving code stability, API connectivity, and refactor
 - ✅ Created compact info display with direct source attribution
 
 ### In Progress
-- 🔄 Scene Component Refactoring (Phase 1 - 90% Complete):
+- 🔄 Scene Component Refactoring (Phase 2 - 60% Complete):
   - ✅ Created initial component structure plan
   - ✅ Extracted utility functions to scene-utils.ts
   - ✅ Extracted event handlers to dedicated files
@@ -255,17 +255,23 @@ The current focus is on improving code stability, API connectivity, and refactor
     - Migrated all media rendering and URL transformation logic
     - Verified implementation with all tests passing
     - Enabled feature flag in production environment
-  - 🔄 Next components for extraction:
-    - TextEditor component (in progress)
-    - AudioPlayer component (planned)
-    - SceneControls component (planned)
+    - Initial refactoring reduced SceneComponent from ~1890 to ~1815 lines
+  - 🔄 Next refactoring targets identified:
+    - Text editing/display functionality (~150+ lines)
+    - Audio controls and voice generation (~200+ lines)
+    - Settings panel (~150+ lines)
+    - Error/loading states (~50 lines)
+    - Event handlers (~100+ lines)
   - 🔄 Currently implementing:
     - Final integration with SceneComponent
     - Last documentation updates
   - Next steps:
-    - Update main SceneComponent to use SceneContainer
+    - Extract text editor functionality into dedicated component
+    - Create separate audio control and voice generation components
+    - Move settings panel to standalone component
+    - Refactor error/loading states into reusable patterns
+    - Update main SceneComponent to use all extracted components
     - Final cleanup and performance verification
-    - Prepare for production release
 
 - 🔄 Implementing end-to-end video processing pipeline:
   - Setting up backend FFMPEG integration for video segment creation

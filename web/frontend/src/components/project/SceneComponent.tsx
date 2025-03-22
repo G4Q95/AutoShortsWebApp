@@ -52,7 +52,6 @@ import {
 
 // Import VoiceContext
 import { useVoiceContext } from '@/contexts/VoiceContext';
-import { useScene } from './SceneContext';
 
 /**
  * Props for the SceneComponent
@@ -676,94 +675,22 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       }
     };
 
-    // Log feature flag status
+    // Log feature flag status for debugging
     console.log(`[FEATURE-FLAG] Scene ${scene.id} - NEXT_PUBLIC_USE_NEW_VIDEO_PLAYER:`, 
       process.env.NEXT_PUBLIC_USE_NEW_VIDEO_PLAYER, 
       "useNewVideoPlayer:", useNewVideoPlayer,
       "currentProject?.id:", currentProject?.id);
 
-    // Only use new component if feature flag is enabled AND we have all required props
-    if (useNewVideoPlayer && currentProject?.id) {
-      try {
-        return (
-          <SceneVideoPlayerWrapper
-            scene={scene}
-            projectId={currentProject.id}
-            audioUrl={audioSrc}
-            className="w-full"
-            onMediaTrimChange={handleTrimChange}
-            initialCompactView={isCompactView}
-          />
-        );
-      } catch (error) {
-        console.error("Error rendering new video player:", error);
-        // Fall back to original implementation if new component fails
-      }
-    }
-
-    // Original media rendering code
-    const mediaUrl = scene.media.storageKey
-      ? constructStorageUrl(scene.media.storageKey, currentProject?.id || '', scene.id)
-      : scene.media.url;
-
-    // Default trim values
-    const trimStart = scene.media.trim?.start || 0;
-    const trimEnd = scene.media.trim?.end || 0;
-    
-    // Diagnostic logging for media URLs
-    console.log(`[MEDIA-RENDER] Scene ${scene.id} media info:`, {
-      originalUrl: scene.media.url,
-      storedUrl: scene.media.storedUrl,
-      storageKey: scene.media.storageKey, 
-      isStorageBacked: scene.media.isStorageBacked,
-      urlUsed: mediaUrl,
-      fromStorage: !!scene.media.storedUrl && mediaUrl === scene.media.storedUrl
-    });
-    
-    // Use ScenePreviewPlayer for all media types
+    // Return the SceneVideoPlayerWrapper component
     return (
-      <div className="relative w-full bg-black rounded-t-lg overflow-hidden" 
-           style={{ height: isCompactView ? '190px' : 'auto', minHeight: '190px' }}>
-        {/* Center the content in compact view */}
-        <div className="flex items-center justify-center w-full h-full">
-          <ScenePreviewPlayer
-            projectId={currentProject?.id || ''}
-            sceneId={scene.id}
-            mediaUrl={scene.media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
-            audioUrl={audioSrc || undefined}
-            mediaType={scene.media.type}
-            trim={{ start: trimStart, end: trimEnd }}
-            onTrimChange={handleTrimChange}
-            className="rounded-t-lg"
-            isCompactView={isCompactView}
-          />
-        </div>
-        
-        {/* View mode toggle button */}
-        <button 
-          className="absolute top-2 right-2 p-1 bg-gray-800 bg-opacity-60 rounded text-white z-10 hover:bg-opacity-80 transition-colors"
-          onClick={toggleViewMode}
-          title={isCompactView ? "Expand view" : "Compact view"}
-          aria-label={isCompactView ? "Expand view" : "Compact view"}
-          data-testid="view-mode-toggle"
-        >
-          {isCompactView ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <polyline points="9 21 3 21 3 15"></polyline>
-              <line x1="21" y1="3" x2="14" y2="10"></line>
-              <line x1="3" y1="21" x2="10" y2="14"></line>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="4 14 10 14 10 20"></polyline>
-              <polyline points="20 10 14 10 14 4"></polyline>
-              <line x1="14" y1="10" x2="21" y2="3"></line>
-              <line x1="3" y1="21" x2="10" y2="14"></line>
-            </svg>
-          )}
-        </button>
-      </div>
+      <SceneVideoPlayerWrapper
+        scene={scene}
+        projectId={currentProject?.id || ''}
+        audioUrl={audioSrc}
+        className="w-full"
+        onMediaTrimChange={handleTrimChange}
+        initialCompactView={isCompactView}
+      />
     );
   };
 
