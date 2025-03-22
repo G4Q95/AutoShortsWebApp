@@ -2,7 +2,7 @@
  * SceneMediaPlayer component
  * Wrapper around ScenePreviewPlayer for scene media display with view mode toggle
  */
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import ScenePreviewPlayer from '@/components/preview/ScenePreviewPlayer';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
 
@@ -69,6 +69,25 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   onTrimChange,
   className = ''
 }) => {
+  // Ref for container element to allow direct DOM manipulation
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Effect to update container height on view mode change
+  useEffect(() => {
+    if (containerRef.current) {
+      const container = containerRef.current;
+      if (isCompactView) {
+        container.style.height = '190px';
+        container.style.maxHeight = '190px';
+      } else {
+        container.style.height = 'auto';
+        container.style.maxHeight = '500px';
+        // Ensure minimum height in expanded mode
+        container.style.minHeight = '300px';
+      }
+    }
+  }, [isCompactView]);
+
   // If no media is available, show a placeholder
   if (!media) {
     return (
@@ -107,13 +126,42 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   // Use stored URL if available, otherwise use the (potentially transformed) URL
   const finalMediaUrl = media?.storedUrl || mediaUrl;
   
+  // Create enhanced toggle handler to update DOM directly
+  const handleToggleView = () => {
+    // Call the provided toggle function
+    onToggleViewMode();
+    
+    // Direct DOM manipulation to ensure immediate visual feedback
+    if (containerRef.current) {
+      const container = containerRef.current;
+      const currentCompact = container.style.maxHeight === '190px';
+      
+      if (currentCompact) {
+        // Expanding
+        console.log('Expanding video player directly via DOM...');
+        container.style.transition = 'all 0.3s ease-in-out';
+        container.style.maxHeight = '500px';
+        container.style.height = 'auto';
+        container.style.minHeight = '300px';
+      } else {
+        // Collapsing
+        console.log('Collapsing video player directly via DOM...');
+        container.style.transition = 'all 0.3s ease-in-out';
+        container.style.maxHeight = '190px';
+        container.style.height = '190px';
+        container.style.minHeight = '190px';
+      }
+    }
+  };
+  
   return (
     <div 
+      ref={containerRef}
       className={`relative w-full bg-black rounded-t-lg ${className}`}
       style={{ 
         height: isCompactView ? '190px' : 'auto',
-        minHeight: isCompactView ? '190px' : '300px',
-        maxHeight: isCompactView ? '190px' : 'none',
+        minHeight: '190px',
+        maxHeight: isCompactView ? '190px' : '500px',
         overflow: 'hidden',
         transition: 'all 0.3s ease-in-out'
       }}
@@ -139,7 +187,7 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
       {/* View mode toggle button */}
       <button 
         className="absolute top-2 right-2 p-1 bg-gray-800 bg-opacity-60 rounded text-white z-10 hover:bg-opacity-80 transition-colors"
-        onClick={onToggleViewMode}
+        onClick={handleToggleView}
         title={isCompactView ? "Expand view" : "Compact view"}
         aria-label={isCompactView ? "Expand view" : "Compact view"}
         data-testid="view-mode-toggle"
