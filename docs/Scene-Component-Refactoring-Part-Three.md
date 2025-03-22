@@ -280,100 +280,100 @@ The component is designed to be a drop-in replacement for the video rendering po
 
 All 10 Playwright tests pass successfully with the new implementation. The feature flag is now enabled in the production environment and the SceneVideoPlayerWrapper component is being used for all video rendering in the application.
 
-## Parent-Controlled Expansion Implementation
+## Video Player Expansion Implementation
 
-To address the expansion functionality issues after the initial refactoring, we've implemented a parent-controlled expansion pattern:
+The implementation of the video player expansion functionality required careful coordination between parent and child components. The original approach had issues with conflicting style manipulations and state management:
 
-### Problem Identified
-
-After the initial extraction of the video player functionality into separate components, the expansion feature (which allows the video player to expand and take up more space in the scene card) stopped working correctly. The issue stemmed from:
-
-1. Multiple components controlling their own dimensions independently
-2. Conflict between inline styles in parent and child components
-3. Direct DOM manipulation not synchronizing across component boundaries
+### Problem Statement
+- After the initial refactoring to extract the video player functionality, the expansion feature broke
+- Multiple components were trying to control height/dimensions independently
+- Height styles were being applied at different levels, causing conflicts
+- No clear communication pattern for expansion state between components
 
 ### Solution Implemented
-
-We implemented a cleaner state-based approach:
-
-1. **Single Source of Truth**:
-   - Added dedicated `isVideoExpanded` state in the SceneComponent parent
-   - Created a bidirectional communication pattern between parent and child components
-
-2. **Request-Based Communication Pattern**:
-   - Child components "request" expansion from the parent using callbacks
-   - Parent manages the state and updates layout dimensions accordingly
-   - Child components respond to parent-controlled state rather than managing it independently
-
-3. **Coordinated Style Application**:
-   - Parent container controls the overall dimensions (height and maxHeight)
-   - Child components adapt to the parent container's dimensions
-   - Eliminated conflicting style manipulations
-
+- **Parent-Controlled Expansion Pattern**: Implemented a pattern where the parent component (SceneComponent) is the source of truth for expansion state
+- **Bidirectional Communication Flow**:
+  - Parent component passes down `expanded` state and an `onRequestExpand` callback
+  - Child components request expansion through the callback instead of directly setting their own state
+  - Parent makes the final decision on whether to allow expansion
+  
 ### Key Implementation Details
 
-```tsx
-// In SceneComponent.tsx (parent)
-const [isVideoExpanded, setIsVideoExpanded] = useState<boolean>(false);
+1. **SceneComponent (Parent)**
+   - Holds the master `expanded` state
+   - Provides `handleExpand` method to handle expansion requests
+   - Passes expansion state and callback to children
+   - Coordinates dimensions and layout changes for the entire scene
 
-// Handler for video expansion requests
-const handleVideoExpansionRequest = (shouldExpand: boolean) => {
-  setIsVideoExpanded(shouldExpand);
-  setIsCompactView(!shouldExpand); // Update related state
-};
+2. **SceneVideoPlayerWrapper (Bridge)**
+   - Acts as a communication bridge between SceneComponent and SceneMediaPlayer
+   - Forwards expansion state and callbacks without modifying them
+   - Maintains proper props interface for both parent and child
 
-// In media container
-<div 
-  className="media-container" 
-  style={{
-    height: isVideoExpanded ? 'auto' : '190px',
-    minHeight: isVideoExpanded ? '300px' : '190px',
-    maxHeight: isVideoExpanded ? '500px' : '190px',
-    transition: 'all 0.3s ease-in-out'
-  }}
->
-  <SceneVideoPlayerWrapper
-    // Pass both current state and request handler
-    isExpanded={isVideoExpanded}
-    onExpansionRequest={handleVideoExpansionRequest}
-    // Other props...
-  />
-</div>
-```
+3. **SceneMediaPlayer (Child)**
+   - Requests expansion through parent callback (`onRequestExpand`)
+   - Renders appropriate UI based on received expansion state
+   - No longer manipulates its own dimensions directly
+   - Uses CSS classes instead of inline styles for expansion effects
 
-```tsx
-// In SceneVideoPlayerWrapper (bridge component)
-// Props include both state and request handler
-const handleViewModeToggle = () => {
-  if (onExpansionRequest) {
-    // Request expansion from parent
-    onExpansionRequest(!isExpanded);
-  } else {
-    // Fallback to local behavior if parent doesn't control
-    // ...
-  }
-};
-```
+4. **Benefits of the New Approach**
+   - Clear ownership of expansion state (parent component)
+   - Elimination of conflicting style manipulations
+   - Consistent expansion behavior across different media types
+   - Improved maintainability through separation of concerns
+   - Better control over scene dimensions and layout during expansion
 
-```tsx
-// In SceneMediaPlayer (innermost component)
-// Only apply direct DOM manipulation when not parent-controlled
-if (!isParentControlled && containerRef.current) {
-  // Direct DOM manipulation here
-}
-```
+This approach follows React's recommended pattern of lifting state up to a common ancestor, which reduces conflicts and improves component coordination. The parent-controlled pattern also allows for future enhancements like keyboard shortcuts or external controls for expansion.
 
-This pattern ensures clean state management while maintaining the UX functionality of the original implementation. The video player now expands and collapses correctly while preserving the composition of independently developed components.
+## Next Steps in Refactoring
 
-## Next Steps
+The next phase of refactoring will focus on:
 
-With the video player functionality successfully extracted and expansion issues resolved, the next components to refactor are:
+1. **Text Editing/Display Functionality** (~150+ lines)
+   - Extract text display and editing to a dedicated component
+   - Move text formatting and processing utilities to appropriate utility files
+   - Create clear boundaries between display, editing, and saving operations
 
-1. **Text Editor**: Extract text editing and display functionality
-2. **Audio Player**: Extract audio playback functionality
-3. **Scene Controls**: Extract action buttons and control functionality
+2. **Audio Controls and Voice Generation** (~200+ lines)
+   - Consolidate audio and voice-related functionality
+   - Create a dedicated component for voice settings and generation
+   - Establish clear interfaces for audio state management
 
-Each extraction will follow the same pattern with feature flags for safe rollout and parent-controlled state for coordinated behavior.
+3. **Settings Panel** (~150+ lines)
+   - Extract settings UI to a standalone component
+   - Create a clean API for settings updates and persistence
+   - Simplify the interaction between settings and affected functionality
+
+4. **Error/Loading States** (~50 lines)
+   - Create consistent patterns for error and loading state management
+   - Extract error handling to reusable patterns
+
+5. **Event Handlers** (~100+ lines)
+   - Consolidate related event handlers
+   - Create higher-level abstractions for common user interactions
+
+### Implementation Approach
+
+For each target area, we will follow this process:
+
+1. Create a new component in the appropriate directory
+2. Extract the relevant functionality from SceneComponent
+3. Establish clear props and callback interfaces
+4. Update SceneComponent to use the new component
+5. Verify functionality with manual testing and automated tests
+6. Refine and address any integration issues
+7. Update documentation to reflect the new structure
+
+### Timeline
+
+The estimated timeline for completing the next phase of refactoring is 3-4 weeks:
+
+- Week 1: Text editing/display component extraction
+- Week 2: Audio controls and voice generation component extraction
+- Week 3: Settings panel and error/loading states extraction
+- Week 4: Final integration, testing, and documentation
+
+By the end of this process, we aim to reduce the SceneComponent to under 500 lines of code, with each extracted component having clear, single responsibilities.
 
 ## Progress Update - May 2024
 
@@ -388,6 +388,11 @@ As of mid-May 2024, we've successfully completed the first phase of the Scene Co
 - ✅ Verified implementation with all tests passing
 - ✅ Enabled the feature flag in production
 - ✅ Implemented parent-controlled expansion for coordinated behavior
+  - Created parent-to-child state flow for video expansion
+  - Added expansion request mechanism from child to parent
+  - Modified SceneMediaPlayer to conditionally respect parent control
+  - Ensured backwards compatibility with existing implementations
+  - Verified expanded mode works correctly without component conflicts
 
 ### Impact Analysis
 
