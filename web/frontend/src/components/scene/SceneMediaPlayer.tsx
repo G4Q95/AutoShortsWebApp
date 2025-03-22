@@ -110,7 +110,12 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   return (
     <div 
       className={`relative w-full bg-black rounded-t-lg overflow-hidden ${className}`}
-      style={{ height: isCompactView ? '190px' : 'auto', minHeight: '190px' }}
+      style={{ 
+        height: isCompactView ? '190px' : 'auto', 
+        minHeight: '190px',
+        maxHeight: isCompactView ? '190px' : '480px',
+        transition: 'max-height 0.3s ease-in-out'
+      }}
       data-testid="scene-media"
     >
       {/* Center the content in compact view */}
@@ -154,13 +159,6 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
           </svg>
         )}
       </button>
-      
-      {/* Loading indicator for media storage */}
-      {media.isStorageBacked === false && (
-        <div className="absolute bottom-0 left-0 right-0 bg-blue-500 h-1">
-          <div className="bg-blue-700 h-full transition-all" style={{ width: `${0}%` }}></div>
-        </div>
-      )}
     </div>
   );
 };
