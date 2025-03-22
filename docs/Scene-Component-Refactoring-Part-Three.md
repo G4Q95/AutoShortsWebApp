@@ -530,3 +530,55 @@ After a thorough analysis of the code, we've identified the following key compon
 - Week 4: Final refinements, documentation updates, and production deployment
 
 By completing this extraction, we'll take a significant step toward our goal of reducing the SceneComponent to under 500 lines while maintaining all existing functionality with the exact same user experience.
+
+### Voice Controls Extraction Implementation
+
+The extraction of the Eleven Labs voice generation and audio playback functionality has been successfully implemented with the following approach:
+
+1. **Bridge Component Implementation**
+   - Created `SceneVoiceControlsWrapper` component to serve as a compatibility layer
+   - Maintained all existing functionality while isolating voice-related UI code
+   - Ensured identical styling and behavior to the original implementation
+
+2. **Feature Flag Implementation**
+   - Added `NEXT_PUBLIC_USE_NEW_VOICE_CONTROLS` environment variable to conditionally enable new component
+   - Modified SceneComponent to check for this flag and render the appropriate UI
+   - Maintained backward compatibility with existing functionality
+
+3. **State Management**
+   - Kept all state variables and handlers in SceneComponent for backward compatibility
+   - Passed necessary state and callbacks to the wrapper component via props
+   - Ensured perfect state synchronization between components
+
+4. **Conditional Rendering**
+   - Implemented conditional rendering in SceneComponent to prevent duplicate UI
+   - When feature flag is enabled, original voice UI is not rendered
+   - Wrapper component handles all voice-related UI rendering
+
+### Testing Results
+
+Comprehensive testing confirms that all functionality works correctly with the new implementation:
+
+- ✅ All 10 Playwright tests pass successfully
+- ✅ Voice selection dropdown works correctly
+- ✅ Generate voiceover button functions properly
+- ✅ Audio player controls operate as expected
+- ✅ Perfect visual match between old and new implementations
+
+This extraction represents another significant step toward our refactoring goals. The voice controls functionality is now properly isolated while maintaining complete compatibility with the rest of the application.
+
+### Impact Analysis
+
+While the SceneComponent still maintains all state variables and handlers for backward compatibility, the UI portion of the voice controls has been successfully extracted. This sets the stage for future refactoring of the state management once all UI components are extracted.
+
+## Text Editor Extraction Plan
+
+Our next target for extraction is the text editing functionality. This component is responsible for:
+
+1. Text content display
+2. Text editing interface
+3. Text expansion/collapse controls
+4. Save/cancel controls for text edits
+5. Word counting
+
+Following the same pattern as our previous extractions, we'll create a wrapper component that acts as a bridge between SceneComponent and the specialized text editing functionality.
