@@ -29,6 +29,21 @@ import SceneVideoPlayerWrapper from '../scene/SceneVideoPlayerWrapper';
 import SceneVoiceControlsWrapper from '../scene/SceneVoiceControlsWrapper';
 import { SceneMediaPlayer } from '../scene/SceneMediaPlayer';
 import { SceneTextEditor } from '../scene/SceneTextEditor';
+
+// Import extracted functions
+import {
+  useTextLogic,
+  renderTextContent,
+  useVoiceLogic,
+  renderVoiceControls,
+  useSceneUI,
+  renderSceneHeader,
+  renderSceneInfo,
+  useMediaLogic,
+  renderMediaSection,
+  MediaType
+} from './scene-functions';
+
 // Import utility functions
 import { 
   formatDuration, 
