@@ -403,52 +403,130 @@ The initial refactoring has reduced the SceneComponent from approximately 1890 l
 3. **Improved Maintainability**: Media-related changes can be made in a single location
 4. **Enhanced Testability**: Media functionality can be tested independently
 
-### Next Refactoring Targets
+## Eleven Labs Voice Controls Extraction Plan
 
-Based on the initial success and analysis of the remaining code, we've identified the following high-priority targets for the next phase of refactoring:
+Following the successful extraction of the video player, our next priority is to extract the Eleven Labs voice generation and audio playback functionality. This component is responsible for:
 
-1. **Text Editing/Display Functionality** (~150+ lines)
-   - Extract text display and editing to a dedicated component
-   - Move text formatting and processing utilities to appropriate utility files
-   - Create clear boundaries between display, editing, and saving operations
+1. Voice selection dropdown
+2. Generate voiceover button
+3. Audio player controls
+4. Voice settings panel
+5. Progress indicators
+6. Playback speed controls
 
-2. **Audio Controls and Voice Generation** (~200+ lines)
-   - Consolidate audio and voice-related functionality
-   - Create a dedicated component for voice settings and generation
-   - Establish clear interfaces for audio state management
+### Audio Component Structure
 
-3. **Settings Panel** (~150+ lines)
-   - Extract settings UI to a standalone component
-   - Create a clean API for settings updates and persistence
-   - Simplify the interaction between settings and affected functionality
+After a thorough analysis of the code, we've identified the following key components to extract:
 
-4. **Error/Loading States** (~50 lines)
-   - Create consistent patterns for error and loading state management
-   - Extract error handling to reusable patterns
+```
+┌───────────────────────────────────────────────┐
+│           SceneVoiceControlsWrapper           │
+│ (Bridge component for compatibility & state)  │
+├───────────────────────────────────────────────┤
+│                                               │
+│               Voice Selection                 │
+│        (Dropdown of available voices)         │
+│                                               │
+├───────────────────────────────────────────────┤
+│                                               │
+│            Generate/Audio Controls            │
+│  (Flippable container with generate button    │
+│   that flips to reveal audio controls)        │
+│                                               │
+├───────────────────────────────────────────────┤
+│                                               │
+│              Settings Panel                   │
+│  (Modal panel for voice generation settings)  │
+│                                               │
+└───────────────────────────────────────────────┘
+```
 
-5. **Event Handlers** (~100+ lines)
-   - Consolidate related event handlers
-   - Create higher-level abstractions for common user interactions
+### Extraction Strategy
 
-### Implementation Approach
+1. **Bridge Component Pattern**
+   - Create a `SceneVoiceControlsWrapper` that acts as a compatibility layer between the SceneComponent and the specialized voice/audio components
+   - This wrapper will handle state management and coordinate between components
 
-For each target area, we will follow this process:
+2. **Feature Flag for Safe Transition**
+   - Implement `NEXT_PUBLIC_USE_NEW_AUDIO_CONTROLS` to toggle between old and new implementations
+   - Allow for gradual rollout and testing without breaking existing functionality
 
-1. Create a new component in the appropriate directory
-2. Extract the relevant functionality from SceneComponent
-3. Establish clear props and callback interfaces
-4. Update SceneComponent to use the new component
-5. Verify functionality with manual testing and automated tests
-6. Refine and address any integration issues
-7. Update documentation to reflect the new structure
+3. **Exact Styling and Positioning**
+   - Maintain identical CSS classes, inline styles, and dimensions
+   - Ensure the component visually matches the original implementation perfectly
+
+4. **State Sharing Through Props and Callbacks**
+   - Pass all necessary state from SceneComponent to the wrapper
+   - Define clear callback interfaces for state updates and user actions
+   - Handle voice settings changes within the wrapper but communicate back to SceneComponent
+
+### Implementation Plan
+
+1. **Create the Bridge Component**
+   ```tsx
+   // SceneVoiceControlsWrapper.tsx
+   export const SceneVoiceControlsWrapper = ({
+     sceneId,
+     text,
+     audioSource,
+     voiceSettings,
+     isGeneratingAudio,
+     onGenerateClick,
+     onVoiceChange,
+     onSettingsChange,
+     // Other necessary props
+   }) => {
+     // Local component state goes here
+     
+     return (
+       <div className="voice-controls-wrapper">
+         {/* Component implementation */}
+       </div>
+     );
+   };
+   ```
+
+2. **Reuse Existing Audio Components**
+   - Leverage the existing `SceneAudioControls`, `AudioPlayerControls`, etc.
+   - Extend them as needed to match the full functionality
+   - Make sure all sub-components maintain the exact same appearance and behavior
+
+3. **Create Missing Components**
+   - Implement any missing pieces like the voice settings panel
+   - Create specialized components for any functionality not yet extracted
+
+4. **Manage Text Integration**
+   - Pass text content as a prop to the wrapper component
+   - Use callbacks for audio generation to maintain coordination with text content
+   - Keep the text editing and voice generation synchronized
+
+### Testing Approach
+
+1. **Shadow Implementation Testing**
+   - Run both implementations side by side with different feature flag values
+   - Compare appearance and behavior to ensure perfect matching
+
+2. **Component Unit Tests**
+   - Add specific tests for the new wrapper component
+   - Verify all functionality works as expected
+
+3. **Integration Testing**
+   - Test the entire scene card with the new component integrated
+   - Ensure all interactions between components work correctly
+
+### Expected Benefits
+
+1. **Reduced Component Size**: The SceneComponent will be significantly smaller and more focused
+2. **Improved Maintainability**: Voice generation logic will be isolated in dedicated components
+3. **Better Testability**: Audio functionality can be tested independently
+4. **Enhanced Readability**: Code will be organized by logical function rather than mixed together
+5. **Easier Feature Development**: New audio features can be added without modifying SceneComponent
 
 ### Timeline
 
-The estimated timeline for completing the next phase of refactoring is 3-4 weeks:
+- Week 1: Create and test the `SceneVoiceControlsWrapper` basic structure
+- Week 2: Implement voice settings panel and voice selection
+- Week 3: Complete audio controls integration and testing
+- Week 4: Final refinements, documentation updates, and production deployment
 
-- Week 1: Text editing/display component extraction
-- Week 2: Audio controls and voice generation component extraction
-- Week 3: Settings panel and error/loading states extraction
-- Week 4: Final integration, testing, and documentation
-
-By the end of this process, we aim to reduce the SceneComponent to under 500 lines of code, with each extracted component having clear, single responsibilities.
+By completing this extraction, we'll take a significant step toward our goal of reducing the SceneComponent to under 500 lines while maintaining all existing functionality with the exact same user experience.
