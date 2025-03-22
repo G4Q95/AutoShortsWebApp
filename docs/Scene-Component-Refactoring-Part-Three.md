@@ -2,6 +2,8 @@
 
 ## Current Structure
 
+do not commit without me saying
+
 The Scene component has grown to almost 2000 lines of code, making it difficult to maintain, extend, and debug. It currently handles multiple responsibilities:
 
 - Media display and controls

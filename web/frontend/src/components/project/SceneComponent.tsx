@@ -26,6 +26,9 @@ import { useProject } from './ProjectProvider';
 import { getStoredAudio, generateVoice, persistVoiceAudio } from '@/lib/api-client';
 import SceneAudioControls from '../audio/SceneAudioControls';
 import SceneVideoPlayerWrapper from '../scene/SceneVideoPlayerWrapper';
+import SceneVoiceControlsWrapper from '../scene/SceneVoiceControlsWrapper';
+import { SceneMediaPlayer } from '../scene/SceneMediaPlayer';
+import { SceneTextEditor } from '../scene/SceneTextEditor';
 // Import utility functions
 import { 
   formatDuration, 
@@ -1335,14 +1338,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
               {useNewControls ? (
                 // New component (extracted)
                 <div data-testid="new-audio-controls">
-                  <SceneAudioControls 
-                    sceneId={scene.id}
-                    audioSource={audioSrc || undefined}
-                    isGeneratingAudio={generatingAudio}
-                    onGenerateClick={handleGenerateVoice}
-                    onRegenerateClick={handleGenerateVoice}
-                    onVoiceChange={switchVoice}
-                    onRateChange={handlePlaybackSpeedUpdate}
+                  <SceneVoiceControlsWrapper
+                    scene={scene}
+                    className="mt-4"
                   />
                 </div>
               ) : (
