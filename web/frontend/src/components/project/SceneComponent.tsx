@@ -1323,7 +1323,16 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       ) : (
         <div className="flex flex-col h-full">
           {/* Media section - fixed or dynamic height based on view mode */}
-          <div className={isCompactView ? "h-[190px]" : ""} data-testid="scene-media">
+          <div 
+            className="media-container" 
+            style={{
+              height: isCompactView ? '190px' : 'auto',
+              minHeight: isCompactView ? '190px' : '300px',
+              maxHeight: isCompactView ? '190px' : '500px',
+              transition: 'all 0.3s ease-in-out'
+            }} 
+            data-testid="scene-media"
+          >
             {renderMedia()}
           </div>
 

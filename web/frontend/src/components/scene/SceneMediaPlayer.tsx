@@ -134,15 +134,24 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
     // Direct DOM manipulation to ensure immediate visual feedback
     if (containerRef.current) {
       const container = containerRef.current;
-      const currentCompact = container.style.maxHeight === '190px';
+      const currentCompact = isCompactView;
       
       if (currentCompact) {
         // Expanding
         console.log('Expanding video player directly via DOM...');
         container.style.transition = 'all 0.3s ease-in-out';
         container.style.maxHeight = '500px';
-        container.style.height = 'auto';
+        container.style.height = '400px'; // Set an explicit height for immediate visual feedback
         container.style.minHeight = '300px';
+        
+        // Also modify parent containers if possible
+        const mediaContainer = container.closest('.media-container');
+        if (mediaContainer instanceof HTMLElement) {
+          console.log('Found parent media container, expanding...');
+          mediaContainer.style.height = 'auto';
+          mediaContainer.style.maxHeight = '500px';
+          mediaContainer.style.minHeight = '300px';
+        }
       } else {
         // Collapsing
         console.log('Collapsing video player directly via DOM...');
@@ -150,6 +159,14 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
         container.style.maxHeight = '190px';
         container.style.height = '190px';
         container.style.minHeight = '190px';
+        
+        // Also modify parent containers if possible
+        const mediaContainer = container.closest('.media-container');
+        if (mediaContainer instanceof HTMLElement) {
+          console.log('Found parent media container, collapsing...');
+          mediaContainer.style.height = '190px';
+          mediaContainer.style.maxHeight = '190px';
+        }
       }
     }
   };

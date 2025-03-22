@@ -46,6 +46,12 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   // Media state
   const [isCompactView, setIsCompactView] = useState<boolean>(initialCompactView);
   
+  // Update local state when the prop changes
+  useEffect(() => {
+    setIsCompactView(initialCompactView);
+    console.log(`[SceneVideoPlayerWrapper] Updating compact view from prop: ${initialCompactView}`);
+  }, [initialCompactView]);
+  
   // Create toggle handler with proper event stopping
   const toggleViewMode = createToggleViewModeHandler(setIsCompactView);
   
