@@ -10,7 +10,7 @@
 import React, { useState, useCallback, useEffect, MouseEvent } from 'react';
 import { SceneMediaPlayer } from './SceneMediaPlayer';
 import { Scene } from '@/components/project/ProjectProvider';
-import { constructStorageUrl } from '@/utils/scene';
+import { constructStorageUrl } from '@/utils/scene/scene-utils';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
 import { createToggleViewModeHandler } from '@/utils/scene/event-handlers/ui-handlers';
 

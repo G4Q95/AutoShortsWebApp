@@ -79,7 +79,19 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   }
 
   // Prioritize the stored URL if available
-  const mediaUrl = media.storedUrl || media.url;
+  const mediaUrl = React.useMemo(() => {
+    if (!media?.url) return null;
+
+    // Transform Reddit video URLs to use our proxy to avoid CORS issues
+    if (media.type === 'video' && media.url.includes('v.redd.it')) {
+      console.log('Processing Reddit video:', media.url);
+      const transformedUrl = transformRedditVideoUrl(media.url);
+      console.log('Transformed video URL:', transformedUrl);
+      return transformedUrl;
+    }
+
+    return media.url;
+  }, [media?.url, media?.type]);
   
   // Default trim values
   const trimStart = media.trim?.start || 0;
@@ -92,6 +104,9 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
     }
   };
   
+  // Use stored URL if available, otherwise use the (potentially transformed) URL
+  const finalMediaUrl = media?.storedUrl || mediaUrl;
+  
   return (
     <div 
       className={`relative w-full bg-black rounded-t-lg overflow-hidden ${className}`}
@@ -100,17 +115,19 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
     >
       {/* Center the content in compact view */}
       <div className="flex items-center justify-center w-full h-full">
-        <ScenePreviewPlayer
-          projectId={projectId}
-          sceneId={sceneId}
-          mediaUrl={media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
-          audioUrl={audioUrl || undefined}
-          mediaType={media.type}
-          trim={{ start: trimStart, end: trimEnd }}
-          onTrimChange={handleTrimChange}
-          className="rounded-t-lg"
-          isCompactView={isCompactView}
-        />
+        {finalMediaUrl && (
+          <ScenePreviewPlayer
+            projectId={projectId}
+            sceneId={sceneId}
+            mediaUrl={finalMediaUrl}
+            audioUrl={audioUrl || undefined}
+            mediaType={media.type}
+            trim={{ start: trimStart, end: trimEnd }}
+            onTrimChange={handleTrimChange}
+            className="rounded-t-lg"
+            isCompactView={isCompactView}
+          />
+        )}
       </div>
       
       {/* View mode toggle button */}

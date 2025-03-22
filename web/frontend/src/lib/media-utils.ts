@@ -78,29 +78,43 @@ export const extractMediaDimensions = (metadata: any) => {
 };
 
 /**
- * Transforms a Reddit video URL to work with our proxy to solve CORS issues.
- * Handles CORS and audio track issues with v.redd.it URLs.
- * 
- * @param url - The original video URL from Reddit
- * @returns The transformed URL that can be played in the browser
+ * Transforms a Reddit video URL to a more reliable format
+ * @param url Original video URL
+ * @returns Transformed URL that works better with the video player
  */
-export const transformRedditVideoUrl = (url: string): string => {
-  if (!url) return '';
-
-  // Check if it's a Reddit video URL
-  if (url.includes('v.redd.it')) {
-    // Use browser API URL for client-side rendering
-    const isBrowser = typeof window !== 'undefined';
-    const apiUrl = isBrowser
-      ? (process.env.NEXT_PUBLIC_BROWSER_API_URL || 'http://localhost:8000')
-      : (process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000');
-    
-    console.log('Using proxy API URL:', apiUrl);
-    return `${apiUrl}/api/v1/content/proxy/reddit-video?url=${encodeURIComponent(url)}`;
+export function transformRedditVideoUrl(url: string): string {
+  console.log('Original URL:', url);
+  
+  // Check if it's a Reddit video
+  if (!url || !url.includes('v.redd.it')) {
+    console.log('Not a Reddit video URL:', url);
+    return url;
   }
 
-  return url;
-};
+  // Extract the video ID
+  const videoIdMatch = url.match(/v\.redd\.it\/([^/?]+)/);
+  if (!videoIdMatch || !videoIdMatch[1]) {
+    console.log('No video ID match found in URL:', url);
+    return url;
+  }
+
+  const videoId = videoIdMatch[1];
+  console.log('Extracted video ID:', videoId);
+  
+  // For client-side rendering, use the proxy API to avoid CORS issues
+  if (typeof window !== 'undefined') {
+    const apiUrl = process.env.NEXT_PUBLIC_BROWSER_API_URL || 'http://localhost:8000';
+    const proxyUrl = `${apiUrl}/api/v1/content/proxy/reddit-video?url=${encodeURIComponent(url)}`;
+    console.log('Using client-side proxy URL:', proxyUrl);
+    return proxyUrl;
+  }
+  
+  // For server-side rendering
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const proxyUrl = `${apiUrl}/api/v1/content/proxy/reddit-video?url=${encodeURIComponent(url)}`;
+  console.log('Using server-side proxy URL:', proxyUrl);
+  return proxyUrl;
+}
 
 /**
  * Stores scene media content to R2 storage for better reliability and persistence.

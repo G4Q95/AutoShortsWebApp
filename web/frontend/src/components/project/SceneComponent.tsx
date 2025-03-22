@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { Scene } from './ProjectProvider';
+import { useProject } from './ProjectProvider';
+import { Scene } from './ProjectTypes';
 import {
   Trash2 as TrashIcon,
   Edit as EditIcon,
@@ -18,45 +19,40 @@ import {
   RotateCw as RegenerateIcon,
   MoreVertical as MoreVerticalIcon,
   Download as DownloadIcon,
-  Mic as MicIcon
+  Mic as MicIcon,
+  Info as InfoIcon
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
-import { transformRedditVideoUrl } from '@/lib/media-utils';
-import { useProject } from './ProjectProvider';
 import { getStoredAudio, generateVoice, persistVoiceAudio } from '@/lib/api-client';
 import SceneAudioControls from '../audio/SceneAudioControls';
 import ScenePreviewPlayer from '../preview/ScenePreviewPlayer';
 import SceneVideoPlayerWrapper from '../scene/SceneVideoPlayerWrapper';
-// Import utility functions
-import { 
-  formatDuration, 
-  getSceneContainerClassName, 
-  calculateMediaHeight,
-  determineMediaType,
-  constructStorageUrl
-} from '@/utils/scene';
-// Import event handlers
+import { transformRedditVideoUrl } from '@/lib/media-utils';
+
+// Import all scene utilities from the centralized export
 import {
-  base64ToBlob,
-  createAudioBlobUrl,
-  togglePlayPause,
-  handleVolumeChange,
-  handlePlaybackSpeedChange,
-  formatTimeDisplay,
-  downloadAudio,
   cleanPostText,
-  getWordCount,
-  calculateSpeakingDuration,
-  createSaveTextHandler,
+  base64ToBlob,
   createTextChangeHandler,
+  createSaveTextHandler,
   createToggleViewModeHandler,
   createToggleInfoHandler,
   handleRemoveScene,
-  createRetryHandler
-} from '@/utils/scene/event-handlers';
+  createRetryHandler,
+  togglePlayPause,
+  handleVolumeChange,
+  handlePlaybackSpeedChange,
+  downloadAudio,
+  getSceneContainerClassName,
+  formatDuration,
+  constructStorageUrl,
+  determineMediaType
+} from '@/utils/scene';
+
 // Import VoiceContext
 import { useVoiceContext } from '@/contexts/VoiceContext';
+import { useScene } from './SceneContext';
 
 /**
  * Props for the SceneComponent
@@ -340,8 +336,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     
     // Clean up blob URL when component unmounts
     return () => {
-      if (audioSrc && audioSrc.startsWith('blob:')) {
-        console.log(`SceneComponent ${scene.id}: Cleaning up blob URL`);
+      if (audioSrc && !scene.audio?.audio_url) {
         URL.revokeObjectURL(audioSrc);
       }
     };

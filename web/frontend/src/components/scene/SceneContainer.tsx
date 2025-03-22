@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Scene } from '../project/ProjectProvider';
 import { useProject } from '../project/ProjectProvider';
-import { getSceneContainerClassName } from '@/utils/scene';
+import { getSceneContainerClassName } from '@/utils/scene/scene-utils';
 import { SceneMediaPlayer } from './SceneMediaPlayer';
 import { SceneTextContent } from './SceneTextContent';
 import { SceneAudioControls } from '../audio/SceneAudioControls';

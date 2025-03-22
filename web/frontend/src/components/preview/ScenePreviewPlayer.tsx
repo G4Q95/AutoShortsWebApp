@@ -472,6 +472,7 @@ const ScenePreviewPlayer = ({
             className="w-auto h-auto object-contain"
             playsInline
             muted={isMuted}
+            crossOrigin="anonymous"
             data-testid="video-element"
             style={getMediaStyle()}
           />
