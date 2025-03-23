@@ -629,7 +629,7 @@ Current progress by component area:
 - Scene Management: 85% complete
 - Media Player: 85% complete
 - Audio Controls: 80% complete
-- SceneComponent Refactoring: 37% complete
+- SceneComponent Refactoring: 50% complete
   - ✅ Cabinet Structure Implementation:
     - SceneAudioControls piece complete with full functionality
     - Scene Removal UI piece complete with animations
@@ -650,6 +650,12 @@ Current progress by component area:
     - Added optimized rendering for SceneMediaPlayer 
     - Added optimized rendering for SceneVoiceSettings
     - Verified optimizations with E2E tests (all tests passing)
+  - ✅ Code Splitting Without Component Extraction:
+    - Successfully migrated to using SceneVideoPlayerWrapper in SceneComponent
+    - Replaced legacy renderMediaSection with modern video player implementation
+    - Added proper labeling to distinguish old and new implementations
+    - Implemented media trimming support with trim point updates
+    - Preserved existing event handling patterns for consistency
   - 🔄 Next Steps:
     - Connect all cabinet pieces in SceneContainer
     - Update main SceneComponent to use new structure

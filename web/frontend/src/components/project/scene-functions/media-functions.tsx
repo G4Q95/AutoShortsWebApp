@@ -28,16 +28,18 @@ export function useMediaLogic(
 ) {
   // Media state
   const [mediaType, setMediaType] = useState<MediaType>(
-    scene.gallery?.images?.length ? MediaType.Gallery :
-    scene.image?.url ? MediaType.Image :
-    scene.video?.url ? MediaType.Video :
+    scene.media?.type === 'gallery' ? MediaType.Gallery :
+    scene.media?.type === 'image' ? MediaType.Image :
+    scene.media?.type === 'video' ? MediaType.Video :
     MediaType.None
   );
   const [mediaUrl, setMediaUrl] = useState<string | null>(
-    scene.image?.url || scene.video?.url || null
+    scene.media?.url || null
   );
   const [galleryImages, setGalleryImages] = useState<Array<{url: string, alt?: string}>>(
-    scene.gallery?.images || []
+    scene.media?.type === 'gallery' && scene.media.url ? 
+      [{ url: scene.media.url, alt: 'Gallery image' }] : 
+      []
   );
   const [activeGalleryIndex, setActiveGalleryIndex] = useState(0);
   const [showMediaControls, setShowMediaControls] = useState(false);
@@ -45,20 +47,22 @@ export function useMediaLogic(
   
   // Update media type when scene changes
   useEffect(() => {
-    if (scene.gallery?.images?.length) {
+    if (scene.media?.type === 'gallery') {
       setMediaType(MediaType.Gallery);
-      setGalleryImages(scene.gallery.images);
-    } else if (scene.image?.url) {
+      if (scene.media.url) {
+        setGalleryImages([{ url: scene.media.url, alt: 'Gallery image' }]);
+      }
+    } else if (scene.media?.type === 'image') {
       setMediaType(MediaType.Image);
-      setMediaUrl(scene.image.url);
-    } else if (scene.video?.url) {
+      setMediaUrl(scene.media.url);
+    } else if (scene.media?.type === 'video') {
       setMediaType(MediaType.Video);
-      setMediaUrl(scene.video.url);
+      setMediaUrl(scene.media.url);
     } else {
       setMediaType(MediaType.None);
       setMediaUrl(null);
     }
-  }, [scene.image, scene.video, scene.gallery]);
+  }, [scene.media]);
   
   // Toggle media controls visibility
   const toggleMediaControls = useCallback(() => {
@@ -98,10 +102,15 @@ export function useMediaLogic(
       setGalleryImages(newGalleryImages);
       setActiveGalleryIndex(0);
       
-      // Update scene with new gallery images
+      // Update scene with new gallery - use the first image as the main URL
       updateSceneMedia(scene.id, {
-        gallery: {
-          images: newGalleryImages
+        media: {
+          type: 'gallery',
+          url: newGalleryImages[0].url,
+          thumbnailUrl: newGalleryImages[0].url,
+          width: 800,
+          height: 600,
+          contentType: 'image/jpeg'
         }
       });
       
@@ -122,14 +131,14 @@ export function useMediaLogic(
       
       // Update scene with new image
       updateSceneMedia(scene.id, {
-        image: {
+        media: {
+          type: 'image',
           url: objectUrl,
-          blob: file,
-          alt: file.name
-        },
-        // Clear other media types
-        video: null,
-        gallery: null
+          thumbnailUrl: objectUrl,
+          width: 800,
+          height: 600,
+          contentType: 'image/jpeg'
+        }
       });
     } else if (isVideo) {
       setMediaType(MediaType.Video);
@@ -137,14 +146,14 @@ export function useMediaLogic(
       
       // Update scene with new video
       updateSceneMedia(scene.id, {
-        video: {
+        media: {
+          type: 'video',
           url: objectUrl,
-          blob: file,
-          alt: file.name
-        },
-        // Clear other media types
-        image: null,
-        gallery: null
+          thumbnailUrl: objectUrl,
+          width: 800,
+          height: 600,
+          contentType: 'video/mp4'
+        }
       });
     }
   }, [mediaType, scene.id, updateSceneMedia]);
@@ -160,9 +169,7 @@ export function useMediaLogic(
     
     // Update scene to remove all media
     updateSceneMedia(scene.id, {
-      image: null,
-      video: null,
-      gallery: null
+      media: null
     });
   }, [mediaType, scene.id, updateSceneMedia]);
   
@@ -194,6 +201,39 @@ export function useMediaLogic(
     };
   }, [mediaUrl, galleryImages]);
   
+  // Add sample media for testing
+  const addSampleMedia = useCallback(() => {
+    // Sample image URLs for testing
+    const sampleImages = [
+      'https://source.unsplash.com/random/800x600/?nature',
+      'https://source.unsplash.com/random/800x600/?city',
+      'https://source.unsplash.com/random/800x600/?animals',
+      'https://source.unsplash.com/random/800x600/?technology',
+      'https://source.unsplash.com/random/800x600/?food'
+    ];
+    
+    // Select a random image
+    const randomIndex = Math.floor(Math.random() * sampleImages.length);
+    const imageUrl = sampleImages[randomIndex];
+    
+    setMediaType(MediaType.Image);
+    setMediaUrl(imageUrl);
+    
+    // Update scene with new image
+    updateSceneMedia(scene.id, {
+      media: {
+        type: 'image',
+        url: imageUrl,
+        thumbnailUrl: imageUrl,
+        width: 800,
+        height: 600,
+        contentType: 'image/jpeg'
+      }
+    });
+    
+    console.log(`Added sample image to scene ${scene.id}: ${imageUrl}`);
+  }, [scene.id, updateSceneMedia]);
+  
   return {
     mediaType,
     setMediaType,
@@ -211,7 +251,8 @@ export function useMediaLogic(
     handleFileChange,
     handleRemoveMedia,
     goToNextImage,
-    goToPrevImage
+    goToPrevImage,
+    addSampleMedia
   };
 }
 
@@ -234,7 +275,8 @@ export function renderMediaSection(mediaState: ReturnType<typeof useMediaLogic>)
     handleFileChange,
     handleRemoveMedia,
     goToNextImage,
-    goToPrevImage
+    goToPrevImage,
+    addSampleMedia
   } = mediaState;
 
   return (
@@ -260,7 +302,17 @@ export function renderMediaSection(mediaState: ReturnType<typeof useMediaLogic>)
           <div className="h-full w-full flex flex-col items-center justify-center">
             <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
             <p className="text-gray-500 text-sm">No media</p>
-            <p className="text-gray-400 text-xs">Click to add media</p>
+            <p className="text-gray-400 text-xs mb-4">Click to add media</p>
+            <button 
+              className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-2 rounded-lg shadow-md transition-colors duration-200 transform hover:scale-105"
+              onClick={(e) => {
+                e.stopPropagation();
+                addSampleMedia();
+              }}
+              data-testid="add-sample-media-button"
+            >
+              Add Sample Image
+            </button>
           </div>
         )}
         
