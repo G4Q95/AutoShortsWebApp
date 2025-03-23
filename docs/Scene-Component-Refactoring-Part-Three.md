@@ -2,6 +2,8 @@
 
 ## Current Structure
 
+do not commit without me saying
+
 The Scene component has grown to almost 2000 lines of code, making it difficult to maintain, extend, and debug. It currently handles multiple responsibilities:
 
 - Media display and controls
@@ -38,7 +40,142 @@ Our previous refactoring attempt (documented in Scene-Component-Refactoring-Part
 
 These challenges highlight why a more carefully planned approach is necessary for the current refactoring effort.
 
-## Four-Component Approach
+## Revised Approach: Code Splitting Without Component Extraction
+
+After multiple attempts at component extraction that broke functionality, we're adopting a radically different approach. Instead of breaking the SceneComponent into separate React components, we'll keep the component intact while organizing the code into logical modules.
+
+### Key Principles
+
+1. **Preserve Component Structure**: Maintain the SceneComponent as a single component to preserve the exact DOM structure and styling
+2. **Extract Functions Only**: Move related functions, state hooks, and render methods to separate files
+3. **No Component Boundaries**: Avoid creating new React component boundaries that could affect event propagation or styling
+4. **Zero Impact on UI**: Ensure the refactoring has absolutely no visual or behavioral impact
+
+### Implementation Structure
+
+```
+src/
+  components/
+    project/
+      SceneComponent.tsx  (remains as the main component)
+      scene-functions/
+        voice-functions.ts  (voice-related logic and rendering)
+        text-functions.ts   (text editing logic and rendering)
+        media-functions.ts  (media player logic and rendering)
+        container-functions.ts (scene card container logic)
+```
+
+### Example Implementation
+
+```tsx
+// SceneComponent.tsx - Remains the single component
+import { 
+  useVoiceLogic, 
+  renderVoiceControls 
+} from './scene-functions/voice-functions';
+
+import {
+  useTextEditing,
+  renderTextContent
+} from './scene-functions/text-functions';
+
+export const SceneComponent = ({ /* props */ }) => {
+  // Core component state remains here
+  
+  // Import logic as hooks
+  const voiceState = useVoiceLogic(scene);
+  const textState = useTextEditing(scene);
+  
+  return (
+    <div className="scene-card">
+      {/* Original JSX structure preserved exactly */}
+      <div className="text-section">
+        {renderTextContent(textState)}
+      </div>
+      <div className="voice-section">
+        {renderVoiceControls(voiceState)}
+      </div>
+    </div>
+  );
+};
+
+// voice-functions.ts
+export function useVoiceLogic(scene) {
+  // Voice-related state
+  const [voiceId, setVoiceId] = useState<string>(scene.voice_settings?.voice_id || "");
+  const [audioSrc, setAudioSrc] = useState<string | null>(
+    scene.audio?.persistentUrl || scene.audio?.audio_url || null
+  );
+  // Voice-related handlers
+  const handleGenerateVoice = async () => { /* implementation */ };
+  
+  return {
+    voiceId, setVoiceId,
+    audioSrc,
+    handleGenerateVoice,
+    // Other state and handlers
+  };
+}
+
+export function renderVoiceControls(voiceState) {
+  // Return JSX for voice controls using the provided state
+  return (
+    <div className="voice-controls">
+      {/* Voice control JSX */}
+    </div>
+  );
+}
+```
+
+### Benefits of This Approach
+
+1. **Zero Risk to Functionality**: The component remains whole with exact same DOM structure and event flow
+2. **Better Organization**: Code is logically grouped in separate files for better maintainability
+3. **No Prop Drilling**: No need to pass state through complex prop chains
+4. **Simplified Testing**: No changes to UI structure means no risk of visual regression
+5. **Migration Path**: This approach sets the foundation for potential future component extraction
+
+### Implementation Strategy
+
+1. **Extract Function Groups**: Identify logical function groupings:
+   - Voice generation and controls
+   - Text editing and display
+   - Media player and controls
+   - Container and layout management
+
+2. **Extract One Group at a Time**:
+   - Start with the most self-contained group (likely voice or text functions)
+   - Move functions, then integrate them back with imports
+   - Test thoroughly after each group extraction
+
+3. **Code Review Focus**:
+   - Ensure all function dependencies are properly imported
+   - Verify no duplicate state is created
+   - Check for any changes to component behavior
+
+### Success Metrics
+
+- No visual changes to the scene card
+- No changes to component functionality
+- Reduced file sizes and improved readability
+- Preserved event handling and state management
+- Passing test suite without modifications
+
+### Current Implementation Status (May 2024)
+
+We are adopting this new approach after traditional component extraction has repeatedly broken functionality. The next steps are:
+
+1. Create the scene-functions directory structure
+2. Extract voice-related functions first
+3. Extract text-editing functions next
+4. Extract media-related functions last
+5. Ensure all tests pass with no behavioral changes
+
+## Previous Approach (For Reference)
+
+Our previous four-component approach is documented below for reference. This approach has been superseded by the code splitting without component extraction strategy.
+
+### Four-Component Approach (Previous Plan)
 
 We will refactor the Scene component into four distinct functional components, acknowledging their interconnected nature:
  
@@ -232,353 +369,118 @@ To handle these interconnections effectively, we'll use a combination of:
 
 This understanding of data flow and dependencies will help us avoid the pitfalls of the previous refactoring attempt.
 
-## Current Implementation Status
+## Implementation Plan for VideoPlayer Component
 
-- ✅ Created `SceneVideoPlayerWrapper.tsx` component as initial scaffold
-- ✅ Added component to scene index exports
-- ✅ Updated initial implementation with proper props
-- ✅ Imported into SceneComponent.tsx
-- ✅ Added conditional rendering with feature flag
-- ✅ Updated tests to ensure compatibility
-- ✅ Completed implementation with all necessary functions and state
-- ✅ Enabled feature flag in .env.local
-- ✅ All tests passing successfully with the new implementation
-- ✅ Code fully committed to the repository
-
-## VideoPlayer Extraction Implementation
-
-The extraction of the video player functionality from the SceneComponent has now been completed and deployed to production. The implementation follows these key approaches:
-
-1. **Bridge Pattern**: The `SceneVideoPlayerWrapper` acts as a bridge between the `SceneComponent` and existing media components like `SceneMediaPlayer` and `ScenePreviewPlayer`.
-
-2. **State Isolation**: Video-related state and handlers have been moved to the wrapper component, including:
-   - View mode toggling (compact/expanded)
-   - Media URL transformation and handling
-   - Trim control functionality
-
-3. **Feature Flag**: Implementation uses the `NEXT_PUBLIC_USE_NEW_VIDEO_PLAYER` environment variable to toggle between old and new implementations, with a fallback mechanism.
-
-4. **Test Compatibility**: Special handling was added to ensure tests continue to work with the original implementation when needed.
-
-### Key Files
-
-1. **SceneVideoPlayerWrapper.tsx**: The new component that encapsulates video player functionality
-2. **SceneComponent.tsx**: Updated to use the wrapper component when the feature flag is enabled
-3. **.env.local**: Updated to enable the feature flag after successful testing
-
-### Implementation Details
-
-The wrapper component handles:
-- Media URL construction and transformation
-- View mode toggling (compact/expanded)
-- Error handling and fallback mechanisms
-- Proper prop passing to child components
-
-The component is designed to be a drop-in replacement for the video rendering portion of SceneComponent, making the transition seamless for users.
-
-### Testing Results
-
-All 10 Playwright tests pass successfully with the new implementation. The feature flag is now enabled in the production environment and the SceneVideoPlayerWrapper component is being used for all video rendering in the application.
-
-## Video Player Expansion Implementation
-
-The implementation of the video player expansion functionality required careful coordination between parent and child components. The original approach had issues with conflicting style manipulations and state management:
-
-### Problem Statement
-- After the initial refactoring to extract the video player functionality, the expansion feature broke
-- Multiple components were trying to control height/dimensions independently
-- Height styles were being applied at different levels, causing conflicts
-- No clear communication pattern for expansion state between components
-
-### Solution Implemented
-- **Parent-Controlled Expansion Pattern**: Implemented a pattern where the parent component (SceneComponent) is the source of truth for expansion state
-- **Bidirectional Communication Flow**:
-  - Parent component passes down `expanded` state and an `onRequestExpand` callback
-  - Child components request expansion through the callback instead of directly setting their own state
-  - Parent makes the final decision on whether to allow expansion
-  
-### Key Implementation Details
-
-1. **SceneComponent (Parent)**
-   - Holds the master `expanded` state
-   - Provides `handleExpand` method to handle expansion requests
-   - Passes expansion state and callback to children
-   - Coordinates dimensions and layout changes for the entire scene
-
-2. **SceneVideoPlayerWrapper (Bridge)**
-   - Acts as a communication bridge between SceneComponent and SceneMediaPlayer
-   - Forwards expansion state and callbacks without modifying them
-   - Maintains proper props interface for both parent and child
-
-3. **SceneMediaPlayer (Child)**
-   - Requests expansion through parent callback (`onRequestExpand`)
-   - Renders appropriate UI based on received expansion state
-   - No longer manipulates its own dimensions directly
-   - Uses CSS classes instead of inline styles for expansion effects
-
-4. **Benefits of the New Approach**
-   - Clear ownership of expansion state (parent component)
-   - Elimination of conflicting style manipulations
-   - Consistent expansion behavior across different media types
-   - Improved maintainability through separation of concerns
-   - Better control over scene dimensions and layout during expansion
-
-This approach follows React's recommended pattern of lifting state up to a common ancestor, which reduces conflicts and improves component coordination. The parent-controlled pattern also allows for future enhancements like keyboard shortcuts or external controls for expansion.
-
-## Next Steps in Refactoring
-
-The next phase of refactoring will focus on:
-
-1. **Text Editing/Display Functionality** (~150+ lines)
-   - Extract text display and editing to a dedicated component
-   - Move text formatting and processing utilities to appropriate utility files
-   - Create clear boundaries between display, editing, and saving operations
-
-2. **Audio Controls and Voice Generation** (~200+ lines)
-   - Consolidate audio and voice-related functionality
-   - Create a dedicated component for voice settings and generation
-   - Establish clear interfaces for audio state management
-
-3. **Settings Panel** (~150+ lines)
-   - Extract settings UI to a standalone component
-   - Create a clean API for settings updates and persistence
-   - Simplify the interaction between settings and affected functionality
-
-4. **Error/Loading States** (~50 lines)
-   - Create consistent patterns for error and loading state management
-   - Extract error handling to reusable patterns
-
-5. **Event Handlers** (~100+ lines)
-   - Consolidate related event handlers
-   - Create higher-level abstractions for common user interactions
-
-### Implementation Approach
-
-For each target area, we will follow this process:
-
-1. Create a new component in the appropriate directory
-2. Extract the relevant functionality from SceneComponent
-3. Establish clear props and callback interfaces
-4. Update SceneComponent to use the new component
-5. Verify functionality with manual testing and automated tests
-6. Refine and address any integration issues
-7. Update documentation to reflect the new structure
-
-### Timeline
-
-The estimated timeline for completing the next phase of refactoring is 3-4 weeks:
-
-- Week 1: Text editing/display component extraction
-- Week 2: Audio controls and voice generation component extraction
-- Week 3: Settings panel and error/loading states extraction
-- Week 4: Final integration, testing, and documentation
-
-By the end of this process, we aim to reduce the SceneComponent to under 500 lines of code, with each extracted component having clear, single responsibilities.
-
-## Progress Update - May 2024
-
-### Current Status
-
-As of mid-May 2024, we've successfully completed the first phase of the Scene Component refactoring by extracting the video player functionality:
-
-- ✅ Created `SceneVideoPlayerWrapper` as a bridge component between SceneComponent and media-specific components
-- ✅ Implemented proper media URL transformation and handling
-- ✅ Added error handling and fallback mechanisms
-- ✅ Ensured compatibility with existing media components
-- ✅ Verified implementation with all tests passing
-- ✅ Enabled the feature flag in production
-- ✅ Implemented parent-controlled expansion for coordinated behavior
-  - Created parent-to-child state flow for video expansion
-  - Added expansion request mechanism from child to parent
-  - Modified SceneMediaPlayer to conditionally respect parent control
-  - Ensured backwards compatibility with existing implementations
-  - Verified expanded mode works correctly without component conflicts
-
-### Impact Analysis
-
-The initial refactoring has reduced the SceneComponent from approximately 1890 lines to around 1815 lines. While the line count reduction (~60 lines) is modest, this represents an important architectural improvement:
-
-1. **Clear Separation of Concerns**: Video rendering is now handled by a dedicated component
-2. **Reduced Cognitive Load**: SceneComponent no longer needs to manage media rendering details
-3. **Improved Maintainability**: Media-related changes can be made in a single location
-4. **Enhanced Testability**: Media functionality can be tested independently
-
-## Eleven Labs Voice Controls Extraction Plan
-
-Following the successful extraction of the video player, our next priority is to extract the Eleven Labs voice generation and audio playback functionality. This component is responsible for:
-
-1. Voice selection dropdown
-2. Generate voiceover button
-3. Audio player controls
-4. Voice settings panel
-5. Progress indicators
-6. Playback speed controls
-
-### Audio Component Structure
-
-After a thorough analysis of the code, we've identified the following key components to extract:
-
-```
-┌───────────────────────────────────────────────┐
-│           SceneVoiceControlsWrapper           │
-│ (Bridge component for compatibility & state)  │
-├───────────────────────────────────────────────┤
-│                                               │
-│               Voice Selection                 │
-│        (Dropdown of available voices)         │
-│                                               │
-├───────────────────────────────────────────────┤
-│                                               │
-│            Generate/Audio Controls            │
-│  (Flippable container with generate button    │
-│   that flips to reveal audio controls)        │
-│                                               │
-├───────────────────────────────────────────────┤
-│                                               │
-│              Settings Panel                   │
-│  (Modal panel for voice generation settings)  │
-│                                               │
-└───────────────────────────────────────────────┘
-```
-
-### Extraction Strategy
-
-1. **Bridge Component Pattern**
-   - Create a `SceneVoiceControlsWrapper` that acts as a compatibility layer between the SceneComponent and the specialized voice/audio components
-   - This wrapper will handle state management and coordinate between components
-
-2. **Feature Flag for Safe Transition**
-   - Implement `NEXT_PUBLIC_USE_NEW_AUDIO_CONTROLS` to toggle between old and new implementations
-   - Allow for gradual rollout and testing without breaking existing functionality
-
-3. **Exact Styling and Positioning**
-   - Maintain identical CSS classes, inline styles, and dimensions
-   - Ensure the component visually matches the original implementation perfectly
-
-4. **State Sharing Through Props and Callbacks**
-   - Pass all necessary state from SceneComponent to the wrapper
-   - Define clear callback interfaces for state updates and user actions
-   - Handle voice settings changes within the wrapper but communicate back to SceneComponent
-
-### Implementation Plan
-
-1. **Create the Bridge Component**
+1. **Identify Related State Variables**
    ```tsx
-   // SceneVoiceControlsWrapper.tsx
-   export const SceneVoiceControlsWrapper = ({
-     sceneId,
-     text,
-     audioSource,
-     voiceSettings,
-     isGeneratingAudio,
-     onGenerateClick,
-     onVoiceChange,
-     onSettingsChange,
-     // Other necessary props
-   }) => {
-     // Local component state goes here
-     
-     return (
-       <div className="voice-controls-wrapper">
-         {/* Component implementation */}
-       </div>
-     );
-   };
+   const [mediaUrl, setMediaUrl] = useState("");
+   const [mediaType, setMediaType] = useState("unknown");
+   const [isPlaying, setIsPlaying] = useState(false);
+   const [duration, setDuration] = useState(0);
+   const [currentTime, setCurrentTime] = useState(0);
+   const [isFullscreen, setIsFullscreen] = useState(false);
+   // etc.
    ```
 
-2. **Reuse Existing Audio Components**
-   - Leverage the existing `SceneAudioControls`, `AudioPlayerControls`, etc.
-   - Extend them as needed to match the full functionality
-   - Make sure all sub-components maintain the exact same appearance and behavior
+2. **Extract Related Functions**
+   ```tsx
+   const handlePlay = () => { /* ... */ };
+   const handlePause = () => { /* ... */ };
+   const handleSeek = (time) => { /* ... */ };
+   const toggleFullscreen = () => { /* ... */ };
+   // etc.
+   ```
 
-3. **Create Missing Components**
-   - Implement any missing pieces like the voice settings panel
-   - Create specialized components for any functionality not yet extracted
+3. **Define Component Interface**
+   ```tsx
+   interface VideoPlayerProps {
+     mediaUrl: string;
+     mediaType: string;
+     onPlay: () => void;
+     onPause: () => void;
+     onTimeUpdate: (time: number) => void;
+     onDurationChange: (duration: number) => void;
+     onEnded: () => void;
+     // etc.
+   }
+   ```
 
-4. **Manage Text Integration**
-   - Pass text content as a prop to the wrapper component
-   - Use callbacks for audio generation to maintain coordination with text content
-   - Keep the text editing and voice generation synchronized
+4. **Create and Test Component**
+   - Implement the component with all required functionality
+   - Test in isolation with mock data
+   - Integrate with feature flag for in-app testing
 
-### Testing Approach
+## Preserving Existing Component Structure
 
-1. **Shadow Implementation Testing**
-   - Run both implementations side by side with different feature flag values
-   - Compare appearance and behavior to ensure perfect matching
+An important principle in this refactoring is to maintain the separation of existing components while extracting functionality from the main SceneComponent file. This means:
 
-2. **Component Unit Tests**
-   - Add specific tests for the new wrapper component
-   - Verify all functionality works as expected
+1. **No Component Consolidation**
+   - Existing components like SceneMediaPlayer, ScenePreviewPlayer, and scene trimming code will remain separate
+   - We're extracting code from SceneComponent but not merging any existing components
 
-3. **Integration Testing**
-   - Test the entire scene card with the new component integrated
-   - Ensure all interactions between components work correctly
+2. **Extraction Strategy**
+   - Create a wrapper component (e.g., SceneVideoPlayerWrapper) to serve as a bridge
+   - Extract video-related state, functions, and JSX from SceneComponent
+   - The wrapper will maintain the interface with existing components
 
-### Expected Benefits
+3. **Component Hierarchy**
+   ```
+   SceneComponent.tsx
+     ↓ (uses)
+     SceneVideoPlayerWrapper.tsx (NEW)
+       ↓ (uses)
+       SceneMediaPlayer.tsx (EXISTING)
+         ↓ (uses)
+         ScenePreviewPlayer.tsx (EXISTING)
+   ```
 
-1. **Reduced Component Size**: The SceneComponent will be significantly smaller and more focused
-2. **Improved Maintainability**: Voice generation logic will be isolated in dedicated components
-3. **Better Testability**: Audio functionality can be tested independently
-4. **Enhanced Readability**: Code will be organized by logical function rather than mixed together
-5. **Easier Feature Development**: New audio features can be added without modifying SceneComponent
+4. **What Will Be Extracted**
+   - The `renderMedia()` function from SceneComponent
+   - Video player state variables (isCompactView, etc.)
+   - Video-related event handlers (handleTrimChange, etc.)
+   - View mode toggle functionality
+   
+This approach allows us to reduce the size and complexity of SceneComponent while preserving the existing architecture and component relationships. It creates a clear boundary between the scene card management and the video player functionality.
 
-### Timeline
+## Current Implementation Status
 
-- Week 1: Create and test the `SceneVoiceControlsWrapper` basic structure
-- Week 2: Implement voice settings panel and voice selection
-- Week 3: Complete audio controls integration and testing
-- Week 4: Final refinements, documentation updates, and production deployment
+### Progress to Date (May 2024)
 
-By completing this extraction, we'll take a significant step toward our goal of reducing the SceneComponent to under 500 lines while maintaining all existing functionality with the exact same user experience.
+We have evaluated previous refactoring attempts and are shifting to the "Code Splitting Without Component Extraction" approach as it provides better safety and stability.
 
-### Voice Controls Extraction Implementation
+#### Completed Tasks:
+- ✅ Created a detailed refactoring plan with clear understanding of previous failures
+- ✅ Identified all major function groups within SceneComponent
+- ✅ Successfully extracted the VideoPlayer functionality in previous iterations
+- ✅ Identified a new approach that minimizes risk of breaking functionality
+- ✅ Successfully implemented SceneVideoPlayerWrapper in SceneComponent
+  - Replaced legacy renderMediaSection with modern video player implementation
+  - Added clear commenting to distinguish between old and new implementations
+  - Implemented media trimming support with proper event handling
+  - Maintained compatibility with existing state management patterns
 
-The extraction of the Eleven Labs voice generation and audio playback functionality has been successfully implemented with the following approach:
+#### Next Steps:
+1. Continue extracting voice-related functions
+2. Extract text-editing functions next
+3. Complete remaining media-related functions extraction
+4. Ensure all tests pass with no behavioral changes
 
-1. **Bridge Component Implementation**
-   - Created `SceneVoiceControlsWrapper` component to serve as a compatibility layer
-   - Maintained all existing functionality while isolating voice-related UI code
-   - Ensured identical styling and behavior to the original implementation
+### Implementation Challenges
 
-2. **Feature Flag Implementation**
-   - Added `NEXT_PUBLIC_USE_NEW_VOICE_CONTROLS` environment variable to conditionally enable new component
-   - Modified SceneComponent to check for this flag and render the appropriate UI
-   - Maintained backward compatibility with existing functionality
+The main challenges for the new approach are:
 
-3. **State Management**
-   - Kept all state variables and handlers in SceneComponent for backward compatibility
-   - Passed necessary state and callbacks to the wrapper component via props
-   - Ensured perfect state synchronization between components
+1. **Function Dependencies**: Ensuring extracted functions have access to all dependencies
+2. **State Management**: Avoiding duplicate state variables or inconsistent state updates
+3. **Code Organization**: Creating logical boundaries between function groups
+4. **Maintaining Context**: Preserving the component context for all extracted functions
 
-4. **Conditional Rendering**
-   - Implemented conditional rendering in SceneComponent to prevent duplicate UI
-   - When feature flag is enabled, original voice UI is not rendered
-   - Wrapper component handles all voice-related UI rendering
+### Validation Strategy
 
-### Testing Results
+To ensure our refactoring doesn't break existing functionality:
 
-Comprehensive testing confirms that all functionality works correctly with the new implementation:
+1. We will test after each function extraction
+2. No visual or behavioral changes should be observable
+3. All existing tests must pass without modification
+4. The resulting code should be more maintainable and easier to understand
 
-- ✅ All 10 Playwright tests pass successfully
-- ✅ Voice selection dropdown works correctly
-- ✅ Generate voiceover button functions properly
-- ✅ Audio player controls operate as expected
-- ✅ Perfect visual match between old and new implementations
-
-This extraction represents another significant step toward our refactoring goals. The voice controls functionality is now properly isolated while maintaining complete compatibility with the rest of the application.
-
-### Impact Analysis
-
-While the SceneComponent still maintains all state variables and handlers for backward compatibility, the UI portion of the voice controls has been successfully extracted. This sets the stage for future refactoring of the state management once all UI components are extracted.
-
-## Text Editor Extraction Plan
-
-Our next target for extraction is the text editing functionality. This component is responsible for:
-
-1. Text content display
-2. Text editing interface
-3. Text expansion/collapse controls
-4. Save/cancel controls for text edits
-5. Word counting
-
-Following the same pattern as our previous extractions, we'll create a wrapper component that acts as a bridge between SceneComponent and the specialized text editing functionality.
+This new approach is expected to significantly improve code maintainability while avoiding the integration issues that plagued previous refactoring attempts.
