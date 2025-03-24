@@ -456,6 +456,15 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                                 step="0.01"
                                 value={voiceState.volume}
                                 className="volume-slider w-full h-2"
+                                style={{
+                                  width: "120%",
+                                  accentColor: "white",
+                                  WebkitAppearance: "none",
+                                  appearance: "none",
+                                  height: "4px",
+                                  background: "rgba(255, 255, 255, 0.3)",
+                                  borderRadius: "2px",
+                                }}
                                 onChange={(e) => voiceState.handleVolumeChange(e)}
                                 data-testid="audio-slider"
                               />

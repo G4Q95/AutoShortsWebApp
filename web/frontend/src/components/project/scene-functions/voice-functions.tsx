@@ -502,191 +502,63 @@ export function renderVoiceControls(
     setVoiceId,
     voiceContextVoices,
     audioSrc,
-    audioRef,
     generatingAudio,
     audioError,
+    audioRef,
     showSettings,
     setShowSettings,
-    settingsButtonRef,
-    isPlaying,
-    handlePlayPauseToggle,
-    handleGenerateVoice,
-    handleDownloadAudio,
-    volume,
-    showVolumeSlider,
-    handleVolumeChange,
-    toggleVolumeSlider
+    settingsButtonRef
   } = voiceState;
 
   return (
-    <div className="pt-0.5 border-t border-gray-200" data-testid="scene-audio-section">
-      {useNewControls ? (
-        // New component (extracted)
-        <div data-testid="new-audio-controls">
-          <SceneVoiceControlsWrapper
-            scene={scene}
-            className="mt-4"
-          />
-        </div>
-      ) : (
-        // Original implementation (inline)
-        <div data-testid="original-audio-controls">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-medium text-gray-700">Voice Narration</div>
-              <button
-              ref={settingsButtonRef}
-              onClick={() => setShowSettings(!showSettings)}
-              className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center"
-              aria-label="Voice settings"
-            >
-              <SettingsIcon className="h-3 w-3 mr-0.5" />
-              <span>Settings</span>
-              </button>
-          </div>
-          
-          {audioError && (
-            <div className="mb-0.5 text-xs text-red-600 bg-red-50 p-0.5 rounded">
-              {audioError}
-            </div>
-          )}
-          
-          <select
-            value={voiceId}
-            onChange={(e) => setVoiceId(e.target.value)}
-            className="text-xs py-0.5 px-1 border border-gray-300 rounded w-full mt-0.5 mb-0.5"
-            disabled={generatingAudio || voiceContextVoices.length === 0}
-            data-testid="voice-selector"
-          >
-            {voiceContextVoices.length === 0 ? (
-              <option>Loading voices...</option>
-            ) : (
-              voiceContextVoices.map((voice) => (
-                <option key={voice.voice_id} value={voice.voice_id}>
-                  {voice.name}
-                </option>
-              ))
-            )}
-          </select>
-          
-          {/* We're hiding the audio player div completely, but keeping it for test mode */}
-          <div 
-            className="audio-container hidden"
-            data-testid="audio-container">
-            <audio 
-              ref={audioRef} 
-              controls={false}
-              src={audioSrc || ''} 
-              className="w-full h-7" 
-              data-testid="audio-element" 
-              preload="metadata"
-            />
-          </div>
+    <div className="pt-0.5" data-testid="scene-audio-section">
+      {audioError && (
+        <div className="mb-0.5 text-xs text-red-600 bg-red-50 p-0.5 rounded">
+          {audioError}
         </div>
       )}
 
-      {/* Controls for audio playback that are not part of the new control */}
-      {!useNewControls && audioSrc && (
-        <div
-          className="back absolute inset-0 flex-grow px-2 py-2 bg-green-600 text-white text-sm rounded-bl-md flex items-center justify-between"
-          style={{
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-            transform: 'rotateX(180deg)',
-            zIndex: audioSrc ? '2' : '0',
-            right: '0', // Ensure right edge alignment
-            width: '100%', // Full width
-            paddingRight: '0.75rem', // Add extra right padding to create space from trash button
-            borderRight: 'none' // Ensure no border on right side
-          }}
+      {/* Voice selector with label and settings button */}
+      <div className="flex items-center justify-between mt-0.5 mb-0.5">
+        {/* Label */}
+        <div className="text-xs font-medium text-gray-700">Voice</div>
+        
+        {/* Voice selector dropdown */}
+        <select
+          value={voiceId}
+          onChange={(e) => setVoiceId(e.target.value)}
+          className="text-xs py-0.5 px-1 border border-gray-300 rounded mx-1 flex-grow max-w-[70%]"
+          disabled={generatingAudio || voiceContextVoices.length === 0}
+          data-testid="voice-selector"
         >
-          {/* Audio Control Section - all controls in a single row with flex */}
-          <div className="flex items-center w-full justify-between">
-            {/* Left side - play button and time */}
-            <div className="flex items-center">
-              <button 
-                onClick={handlePlayPauseToggle}
-                className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
-                data-testid="play-pause-button"
-                aria-label={isPlaying ? "Pause" : "Play"}
-              >
-                {isPlaying ? (
-                  <PauseIcon className="h-3.5 w-3.5" />
-                ) : (
-                  <PlayIcon className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
-            
-            {/* Center - audio progress bar (placeholder) */}
-            <div className="flex-grow mx-1 relative">
-              {/* We're replacing the audio element with a simple bar for now */}
-              <div className="h-1.5 bg-green-300 rounded-full w-full"></div>
-            </div>
-            
-            {/* Right side - volume, speed, and download */}
-            <div className="flex items-center space-x-1">
-              {/* Volume control */}
-              <div className="relative">
-                <button
-                  onClick={toggleVolumeSlider}
-                  className="text-white hover:bg-green-700 p-0.5 rounded-full"
-                  aria-label="Volume"
-                >
-                  <Volume2Icon className="h-3.5 w-3.5" />
-                </button>
-                
-                {showVolumeSlider && (
-                  <div className="absolute bottom-full left-0 mb-1 p-2 bg-green-700 rounded shadow z-10 w-24">
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value={volume}
-                      onChange={handleVolumeChange}
-                      className="w-full"
-                    />
-                  </div>
-                )}
-              </div>
-              
-              {/* Download button */}
-              <button
-                onClick={handleDownloadAudio}
-                className="text-white hover:bg-green-700 p-0.5 rounded-full"
-                aria-label="Download audio"
-              >
-                <DownloadIcon className="h-3.5 w-3.5" />
-              </button>
-              
-              {/* Regenerate button */}
-              <button
-                onClick={() => handleGenerateVoice(text)}
-                className="text-white hover:bg-green-700 p-0.5 rounded-full"
-                aria-label="Regenerate audio"
-                disabled={generatingAudio}
-              >
-                <RegenerateIcon className={`h-3.5 w-3.5 ${generatingAudio ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          {voiceContextVoices.length === 0 ? (
+            <option>Loading voices...</option>
+          ) : (
+            voiceContextVoices.map((voice) => (
+              <option key={voice.voice_id} value={voice.voice_id}>
+                {voice.name}
+              </option>
+            ))
+          )}
+        </select>
+        
+        {/* Settings button */}
+        <button
+          ref={settingsButtonRef}
+          onClick={() => setShowSettings(!showSettings)}
+          className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center"
+          aria-label="Voice settings"
+        >
+          <SettingsIcon className="h-3 w-3" />
+        </button>
+      </div>
 
-      {/* Generate button if no audio exists yet */}
-      {!scene.audio && !useNewControls && (
-        <div className="relative w-full" style={{ width: '100%', height: '100%' }}>
-          <button
-            className={`w-full generate-button front absolute inset-0 flex-grow px-3 py-2.5 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm ${process.env.NEXT_PUBLIC_TESTING_MODE === 'true' || process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' || (typeof window !== 'undefined' && window.USE_MOCK_AUDIO) ? 'test-mode-button' : ''}`}
-            data-testid="generate-voice-button"
-            disabled={generatingAudio && !(process.env.NEXT_PUBLIC_TESTING_MODE === 'true' || process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' || (typeof window !== 'undefined' && window.USE_MOCK_AUDIO))}
-            onClick={() => handleGenerateVoice(text)}
-          >
-            <MicIcon className="h-4 w-4 mr-2" />
-            Generate Voiceover
-          </button>
-        </div>
-      )}
+      {/* Audio element - hidden but needed for playback */}
+      <audio
+        ref={audioRef}
+        src={audioSrc || undefined}
+        style={{ display: 'none' }}
+      />
     </div>
   );
 } 

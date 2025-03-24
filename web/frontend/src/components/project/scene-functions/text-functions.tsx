@@ -31,11 +31,15 @@ export function useTextLogic(
   const [isEditing, setIsEditing] = useState(false);
   const [wordCount, setWordCount] = useState<number>(getWordCount(scene.text || ''));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [showInfoPopup, setShowInfoPopup] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // Update local text state when scene text changes
   useEffect(() => {
-    setText(scene.text || '');
-    setWordCount(getWordCount(scene.text || ''));
+    // Clean post text to remove "Post by u/..." prefix
+    const cleanedText = scene.text ? cleanPostText(scene.text) : '';
+    setText(cleanedText);
+    setWordCount(getWordCount(cleanedText));
   }, [scene.text]);
   
   // Automatically resize textarea to fit content
@@ -49,6 +53,7 @@ export function useTextLogic(
   // Enable editing mode and focus on textarea
   const handleTextClick = useCallback(() => {
     setIsEditing(true);
+    setIsExpanded(true);
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
@@ -66,9 +71,17 @@ export function useTextLogic(
   }, []);
   
   // Save text content when user is done editing
-  const handleTextBlur = useCallback(() => {
+  const handleTextBlur = useCallback((e: React.FocusEvent<Element>) => {
+    // Don't collapse if clicking inside the textarea or on the info button
+    if (e.relatedTarget && 
+        (e.currentTarget.contains(e.relatedTarget as Node) || 
+        (e.relatedTarget as HTMLElement).getAttribute('data-testid') === 'info-button')) {
+      return;
+    }
+    
     setIsEditing(false);
-    if (text !== scene.text) {
+    setIsExpanded(false);
+    if (text !== cleanPostText(scene.text)) {
       updateSceneText(scene.id, text);
     }
   }, [text, scene.id, scene.text, updateSceneText]);
@@ -81,6 +94,37 @@ export function useTextLogic(
       }
     }
   }, []);
+  
+  // Toggle info popup visibility
+  const toggleInfoPopup = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowInfoPopup(!showInfoPopup);
+  }, [showInfoPopup]);
+  
+  // Clean Reddit post text by removing common artifacts
+  const cleanPostText = (text: string): string => {
+    if (!text) return '';
+    
+    // Remove common Reddit artifacts and source information
+    const cleaned = text
+      .replace(/\[removed\]/g, '')
+      .replace(/\[deleted\]/g, '')
+      // Remove "Post by u/username: " prefix
+      .replace(/^Post by u\/[^:]+:\s*/i, '')
+      .trim();
+    
+    return cleaned;
+  };
+
+  // Add handleClickOutside function for expanded text overlay
+  const handleClickOutside = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsEditing(false);
+    setIsExpanded(false);
+    if (text !== cleanPostText(scene.text)) {
+      updateSceneText(scene.id, text);
+    }
+  }, [text, scene.id, scene.text, updateSceneText]);
 
   return {
     text,
@@ -92,7 +136,13 @@ export function useTextLogic(
     handleTextClick,
     handleTextChange,
     handleTextBlur,
-    handleKeyDown
+    handleKeyDown,
+    showInfoPopup,
+    setShowInfoPopup,
+    toggleInfoPopup,
+    isExpanded,
+    setIsExpanded,
+    handleClickOutside
   };
 }
 
@@ -115,44 +165,179 @@ export function renderTextContent(
     handleTextClick,
     handleTextChange,
     handleTextBlur,
-    handleKeyDown
+    handleKeyDown,
+    showInfoPopup,
+    toggleInfoPopup,
+    isExpanded,
+    handleClickOutside
   } = textState;
 
+  // Extract the subreddit name from the URL if available
+  const getSubredditInfo = () => {
+    if (!scene.url) return { subreddit: '', title: '', author: '' };
+    
+    try {
+      const url = new URL(scene.url);
+      if (url.hostname.includes('reddit.com')) {
+        const pathParts = url.pathname.split('/');
+        const subredditIndex = pathParts.findIndex(part => part === 'r');
+        if (subredditIndex >= 0 && pathParts.length > subredditIndex + 1) {
+          // Try to extract author name from the original text if available
+          const authorMatch = scene.text?.match(/^Post by u\/([^:]+):/i);
+          const author = authorMatch ? authorMatch[1] : '';
+          
+          return { 
+            subreddit: pathParts[subredditIndex + 1],
+            title: '',
+            author
+          };
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing URL:', e);
+    }
+    
+    return { subreddit: '', title: '', author: '' };
+  };
+  
+  const { subreddit, author } = getSubredditInfo();
+
   return (
-    <div className="mt-1 text-sm flex flex-col flex-grow overflow-hidden">
-      <div 
-        className="flex-grow overflow-auto" 
-        style={{ minHeight: '50px' }}
-        data-testid="scene-text-container"
+    <div className="mt-1 text-sm relative" style={{ height: '4.5em' }}>
+      {/* Info button - using letter "I" instead of eye icon */}
+      <button
+        className="absolute top-0 right-0 w-3 h-3 bg-white border border-blue-500 rounded-full flex items-center justify-center z-10"
+        onClick={toggleInfoPopup}
+        aria-label="Show post information"
+        data-testid="info-button"
+        style={{ padding: '1px' }}
       >
-        {isEditing ? (
-          <textarea
-            ref={textareaRef}
-            className="w-full h-full min-h-[50px] p-0.5 text-sm resize-none font-normal border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            value={text}
-            onChange={handleTextChange}
-            onBlur={handleTextBlur}
-            onKeyDown={handleKeyDown}
-            data-testid="scene-text-textarea"
-            placeholder="Enter text content for this scene..."
-            autoFocus
-          />
-        ) : (
-          <div
-            className="w-full h-full p-0.5 text-sm text-gray-800 whitespace-pre-wrap cursor-text"
-            onClick={handleTextClick}
-            data-testid="scene-text-display"
+        <span className="text-[8px] font-bold text-blue-500 leading-none">I</span>
+      </button>
+      
+      {/* Info popup - with higher z-index to appear over everything */}
+      {showInfoPopup && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleInfoPopup(e);
+          }}
+        >
+          <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+          <div 
+            className="relative bg-white border border-gray-200 rounded-md shadow-lg p-3 text-xs max-w-xs w-full"
+            onClick={(e) => e.stopPropagation()}
           >
-            {text || (
-              <span className="text-gray-400 italic">
-                Enter text content for this scene...
-              </span>
+            {author && (
+              <div className="mb-2">
+                <span className="font-semibold">Posted by:</span> u/{author}
+              </div>
             )}
+            
+            {subreddit && (
+              <div className="mb-2">
+                <span className="font-semibold">Subreddit:</span> r/{subreddit}
+              </div>
+            )}
+            
+            {scene.url && (
+              <div>
+                <span className="font-semibold">URL:</span>
+                <a 
+                  href={scene.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline break-all block mt-1"
+                >
+                  {scene.url}
+                </a>
+              </div>
+            )}
+            
+            <button 
+              className="mt-3 px-2 py-1 bg-blue-500 text-white rounded text-xs w-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleInfoPopup(e);
+              }}
+            >
+              Close
+            </button>
           </div>
+        </div>
+      )}
+      
+      {/* Fixed height container for text with exactly 3 lines visible */}
+      <div className="h-full w-full">
+        {/* Normal (collapsed) text display - always exactly 3 lines */}
+        <div 
+          className={`w-full h-full p-0.5 line-clamp-3 overflow-hidden cursor-text ${!isExpanded ? 'block' : 'hidden'}`}
+          onClick={handleTextClick}
+          data-testid="scene-text-display-collapsed"
+        >
+          {text || (
+            <span className="text-gray-400 italic">
+              Enter text content for this scene...
+            </span>
+          )}
+        </div>
+        
+        {/* Expanded text area that pops out */}
+        {isExpanded && (
+          <>
+            {/* Overlay to capture clicks outside */}
+            <div 
+              className="fixed inset-0 z-20" 
+              onClick={handleClickOutside}
+            ></div>
+            
+            {/* Expanded text container */}
+            <div 
+              className="absolute z-30 bg-white overflow-auto"
+              style={{
+                top: '0',
+                left: '0',
+                right: '0',
+                bottom: '-70px', // Extend to bottom of scene card
+                border: '1px solid #e5e7eb',
+                borderRadius: '0 0 8px 8px', // Rounded corners at the bottom
+                boxShadow: '0 1px 2px rgba(0,0,0,0.08)', // Lighter, less blurry shadow
+                backfaceVisibility: 'hidden', // Helps with text sharpness
+                WebkitFontSmoothing: 'antialiased', // Improves text rendering
+                MozOsxFontSmoothing: 'grayscale' // Improves text rendering in Firefox
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {isEditing ? (
+                <textarea
+                  ref={textareaRef}
+                  className="w-full p-0.5 text-sm resize-none font-normal border-none focus:outline-none focus:ring-0 rounded-b-lg"
+                  style={{ minHeight: '100%' }}
+                  value={text}
+                  onChange={handleTextChange}
+                  onBlur={handleTextBlur}
+                  onKeyDown={handleKeyDown}
+                  data-testid="scene-text-textarea"
+                  placeholder="Enter text content for this scene..."
+                  autoFocus
+                />
+              ) : (
+                <div
+                  className="w-full h-full p-0.5 text-sm text-gray-800 whitespace-pre-wrap cursor-text rounded-b-lg"
+                  onClick={handleTextClick}
+                  data-testid="scene-text-display-expanded"
+                >
+                  {text || (
+                    <span className="text-gray-400 italic">
+                      Enter text content for this scene...
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
         )}
-      </div>
-      <div className="text-xs text-gray-500 text-right mt-0.5">
-        {wordCount} {wordCount === 1 ? 'word' : 'words'}
       </div>
     </div>
   );

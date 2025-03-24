@@ -39,3 +39,24 @@ input::placeholder, textarea::placeholder {
 .dark-mode-compatible-logo {
   filter: none; /* Removed dark mode filter */
 }
+
+/* Volume slider styling */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  cursor: pointer;
+}
