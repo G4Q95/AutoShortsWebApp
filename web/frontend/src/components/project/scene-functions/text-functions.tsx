@@ -46,6 +46,20 @@ export function useTextLogic(
     if (textareaRef.current && isEditing) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      
+      // Check if we need to show scrollbar
+      const container = textareaRef.current.parentElement;
+      if (container) {
+        const textAreaContent = textareaRef.current;
+        const hasOverflow = textAreaContent.scrollHeight > container.clientHeight;
+        container.style.overflowY = hasOverflow ? 'auto' : 'hidden';
+        console.log('Textarea overflow check:', { 
+          textAreaScrollHeight: textAreaContent.scrollHeight, 
+          containerClientHeight: container.clientHeight,
+          hasOverflow,
+          overflowStyle: container.style.overflowY
+        });
+      }
     }
   }, [text, isEditing]);
   
@@ -53,6 +67,27 @@ export function useTextLogic(
   const handleTextClick = useCallback(() => {
     setIsEditing(true);
     setIsExpanded(true);
+    
+    // Add debugging code to check positioning and transforms
+    if (textareaRef.current) {
+      const element = textareaRef.current;
+      const rect = element.getBoundingClientRect();
+      console.log('Text box clicked - Debug positioning:', {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        isInteger: {
+          x: Number.isInteger(rect.x),
+          y: Number.isInteger(rect.y)
+        },
+        computedStyle: {
+          transform: window.getComputedStyle(element).transform,
+          backfaceVisibility: window.getComputedStyle(element).backfaceVisibility
+        }
+      });
+    }
+    
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
@@ -190,7 +225,7 @@ export function renderTextContent(
             
             {/* Expanded text container */}
             <div 
-              className="absolute z-30 bg-white overflow-auto"
+              className="absolute z-30 bg-white text-container-no-scrollbar"
               style={{
                 top: '0',
                 left: '0',
@@ -201,15 +236,92 @@ export function renderTextContent(
                 boxShadow: '0 1px 2px rgba(0,0,0,0.08)', // Lighter, less blurry shadow
                 backfaceVisibility: 'hidden', // Helps with text sharpness
                 WebkitFontSmoothing: 'antialiased', // Improves text rendering
-                MozOsxFontSmoothing: 'grayscale' // Improves text rendering in Firefox
+                MozOsxFontSmoothing: 'grayscale', // Improves text rendering in Firefox
+                transform: 'translate3d(0,0,0)', // Better than translateZ for forcing GPU acceleration
+                willChange: 'transform', // Hint to browser to create a new layer
+                overflowY: 'scroll', // Always provide the scrolling capability
+                scrollbarWidth: 'none', // Hide scrollbar in Firefox
+                msOverflowStyle: 'none', // Hide scrollbar in IE/Edge
               }}
               onClick={(e) => e.stopPropagation()}
+              ref={(el) => {
+                // Add logging to debug the expanded container
+                if (el) {
+                  const rect = el.getBoundingClientRect();
+                  console.log('Expanded text container - Debug:', {
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height,
+                    isInteger: {
+                      x: Number.isInteger(rect.x),
+                      y: Number.isInteger(rect.y),
+                      width: Number.isInteger(rect.width),
+                      height: Number.isInteger(rect.height)
+                    },
+                    style: {
+                      transform: window.getComputedStyle(el).transform,
+                      backfaceVisibility: window.getComputedStyle(el).backfaceVisibility,
+                      fontSmoothing: {
+                        webkit: window.getComputedStyle(el).getPropertyValue('-webkit-font-smoothing'),
+                        moz: window.getComputedStyle(el).getPropertyValue('-moz-osx-font-smoothing')
+                      }
+                    }
+                  });
+
+                  // Force integer pixel dimensions
+                  if (!Number.isInteger(rect.width)) {
+                    el.style.width = `${Math.round(rect.width)}px`;
+                  }
+                  if (!Number.isInteger(rect.height)) {
+                    el.style.height = `${Math.round(rect.height)}px`;
+                  }
+                  
+                  // Check if content needs scrolling and only show scrollbar when needed
+                  setTimeout(() => {
+                    if (el) {
+                      const hasOverflow = el.scrollHeight > el.clientHeight;
+                      
+                      // Show native scrollbar only when needed by applying a negative margin
+                      // This prevents the scrollbar from taking up space when not needed
+                      if (hasOverflow) {
+                        el.style.paddingRight = '0';
+                        el.style.overflowY = 'scroll';
+                      } else {
+                        el.style.paddingRight = '17px'; // Compensate for scrollbar width
+                        el.style.overflowY = 'hidden';
+                      }
+                      
+                      console.log('Text container overflow check:', { 
+                        scrollHeight: el.scrollHeight, 
+                        clientHeight: el.clientHeight,
+                        hasOverflow,
+                        overflowStyle: el.style.overflowY,
+                        paddingRight: el.style.paddingRight
+                      });
+                    }
+                  }, 0);
+                }
+              }}
             >
+              <style jsx global>{`
+                /* Hide scrollbar for Chrome, Safari and Opera */
+                .text-container-no-scrollbar::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
               {isEditing ? (
                 <textarea
                   ref={textareaRef}
                   className="w-full p-0.5 text-sm resize-none font-normal border-none focus:outline-none focus:ring-0 rounded-b-lg"
-                  style={{ minHeight: '100%' }}
+                  style={{ 
+                    minHeight: '100%',
+                    transform: 'translate3d(0,0,0)', // Better GPU acceleration
+                    backfaceVisibility: 'hidden', // Helps with text sharpness
+                    WebkitFontSmoothing: 'antialiased', // Improves text rendering
+                    fontKerning: 'normal', // Improve letter spacing
+                    textRendering: 'optimizeLegibility' // Improve text rendering
+                  }}
                   value={text}
                   onChange={handleTextChange}
                   onBlur={handleTextBlur}
@@ -221,6 +333,13 @@ export function renderTextContent(
               ) : (
                 <div
                   className="w-full h-full p-0.5 text-sm text-gray-800 whitespace-pre-wrap cursor-text rounded-b-lg"
+                  style={{ 
+                    transform: 'translate3d(0,0,0)', // Better GPU acceleration
+                    backfaceVisibility: 'hidden', // Helps with text sharpness
+                    WebkitFontSmoothing: 'antialiased', // Improves text rendering
+                    fontKerning: 'normal', // Improve letter spacing
+                    textRendering: 'optimizeLegibility' // Improve text rendering
+                  }}
                   onClick={handleTextClick}
                   data-testid="scene-text-display-expanded"
                 >

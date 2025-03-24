@@ -492,7 +492,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                                 style={{ width: '18px', height: '18px' }}
                                 data-testid="audio-settings-button"
                               >
-                                <DownloadIcon className="h-3 w-3" />
+                                <MoreVerticalIcon className="h-3 w-3" />
                               </button>
                             </div>
                           </div>

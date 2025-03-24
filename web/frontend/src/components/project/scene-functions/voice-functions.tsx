@@ -606,18 +606,18 @@ export function renderVoiceControls(
             className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center"
             aria-label="Voice settings"
           >
-            <SettingsIcon className="h-3 w-3" />
+            <SettingsIcon className="h-3.5 w-3.5" />
           </button>
 
           {/* Info button */}
           <button
-            className="w-3 h-3 bg-white border border-blue-500 rounded-full flex items-center justify-center"
+            className="w-3.5 h-3.5 bg-white border border-blue-500 rounded-full flex items-center justify-center"
             onClick={toggleInfoPopup}
             aria-label="Show post information"
             data-testid="info-button"
             style={{ padding: '1px' }}
           >
-            <span className="text-[8px] font-bold text-blue-500 leading-none">I</span>
+            <span className="text-[9px] font-bold text-blue-500 leading-none" style={{ fontFamily: 'serif', position: 'relative', top: '0.5px', left: '0', display: 'inline-block', textAlign: 'center', width: '100%' }}>i</span>
           </button>
         </div>
       </div>
