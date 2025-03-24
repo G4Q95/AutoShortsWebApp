@@ -63,17 +63,33 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
   
   // Refs
   const timelineRef = useRef<HTMLDivElement>(null);
+  // Store drag state
+  const dragStateRef = useRef<{
+    handleOffset: number;  // Offset between mouse and handle center
+  }>({ handleOffset: 0 });
   
   // Set up event listeners for trim handle dragging
   useEffect(() => {
+    // Track if we're dragging
+    let isDragging = false;
+    
     const handleMouseMove = (e: MouseEvent) => {
       if (!activeHandle || !timelineRef.current) return;
+      
+      // Mark as dragging on first move
+      isDragging = true;
       
       // Prevent default behaviors
       e.preventDefault();
       
       const rect = timelineRef.current.getBoundingClientRect();
-      let position = (e.clientX - rect.left) / rect.width;
+      
+      // Get exact mouse position relative to timeline boundaries
+      const exactMousePosition = e.clientX - rect.left;
+      
+      // Convert to normalized position (0-1) - exact mouse position
+      let position = exactMousePosition / rect.width;
+      
       // Clamp position to [0, 1]
       position = Math.max(0, Math.min(position, 1));
       const newTime = position * duration;
@@ -87,12 +103,22 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
           onTrimChange(trimStart, newTime);
         }
       } else if (activeHandle === 'position' && onSeek) {
-        // Handle current position indicator drag
+        // Handle current position indicator drag - use exact mouse position
         onSeek(newTime);
       }
     };
     
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: MouseEvent) => {
+      // If we're not actually dragging, treat it as a click
+      if (!isDragging && activeHandle === 'position' && onSeek && timelineRef.current) {
+        const rect = timelineRef.current.getBoundingClientRect();
+        const clickPosition = (e.clientX - rect.left) / rect.width;
+        const newTime = Math.max(0, Math.min(clickPosition, 1)) * duration;
+        onSeek(newTime);
+      }
+      
+      // Reset dragging state
+      isDragging = false;
       setActiveHandle(null);
       document.body.style.cursor = 'default';
     };
@@ -124,7 +150,17 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
     e.stopPropagation();
     
     const rect = timelineRef.current.getBoundingClientRect();
-    const clickPosition = (e.clientX - rect.left) / rect.width;
+    
+    // Get exact mouse position relative to timeline boundaries
+    const exactMousePosition = e.clientX - rect.left;
+    
+    // Convert to normalized position (0-1) - exact mouse position
+    let clickPosition = exactMousePosition / rect.width;
+    
+    // Clamp position to [0, 1]
+    clickPosition = Math.max(0, Math.min(clickPosition, 1));
+    
+    // Calculate time based on exact position
     const newTime = clickPosition * duration;
     
     // Update current time if onSeek is provided
@@ -137,6 +173,8 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
   const handlePositionIndicatorMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    
+    // Set active handle
     setActiveHandle('position');
   };
   
@@ -184,7 +222,7 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
       {/* Timeline with trim controls */}
       <div 
         ref={timelineRef}
-        className="relative h-4 flex items-center cursor-pointer bg-gray-100 rounded-sm"
+        className="relative h-8 flex items-center cursor-pointer bg-gray-100 rounded-sm"
         onClick={handleTimelineClick}
         onMouseDown={(e) => e.stopPropagation()} // Prevent drag from reaching scene container
         data-testid="trim-timeline"
@@ -205,11 +243,11 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
         {/* Current position indicator */}
         {onSeek && (
           <div
-            className="absolute w-2 h-4 bg-white border border-gray-400 rounded-sm cursor-grab z-10"
+            className="absolute w-4 h-6 bg-white border border-gray-400 rounded-sm cursor-grab z-10"
             style={{ 
               left: `${(currentTime / duration) * 100}%`, 
-              marginLeft: "-4px",
-              transform: "translateY(-1px)"
+              transform: "translate(-50%, -1px)",  // Center the indicator on the position
+              boxShadow: "0 1px 2px rgba(0,0,0,0.2)"
             }}
             data-testid="position-indicator"
             onMouseDown={handlePositionIndicatorMouseDown}
@@ -218,11 +256,12 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
         
         {/* Start trim handle - always visible but more prominent when trim mode is active */}
         <div 
-          className={`absolute h-4 w-1 bg-blue-500 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'opacity-100' : 'opacity-70'}`}
+          className={`absolute h-6 w-3 bg-blue-500 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'opacity-100' : 'opacity-70'}`}
           style={{ 
             left: `${(trimStart / duration) * 100}%`,
-            marginLeft: '-2px',
-            top: '0'
+            transform: "translate(-50%, 0)",  // Center the handle on the position exactly
+            top: '0',
+            boxShadow: "0 1px 2px rgba(0,0,0,0.2)"
           }}
           onMouseDown={(e) => handleTrimHandleMouseDown('start', e)}
           data-testid="trim-start-handle"
@@ -236,11 +275,12 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
         
         {/* End trim handle - always visible but more prominent when trim mode is active */}
         <div 
-          className={`absolute h-4 w-1 bg-blue-500 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'opacity-100' : 'opacity-70'}`}
+          className={`absolute h-6 w-3 bg-blue-500 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'opacity-100' : 'opacity-70'}`}
           style={{ 
             left: `${(trimEnd / duration) * 100}%`,
-            marginLeft: '-2px',
-            top: '0'
+            transform: "translate(-50%, 0)",  // Center the handle on the position exactly
+            top: '0',
+            boxShadow: "0 1px 2px rgba(0,0,0,0.2)"
           }}
           onMouseDown={(e) => handleTrimHandleMouseDown('end', e)}
           data-testid="trim-end-handle"

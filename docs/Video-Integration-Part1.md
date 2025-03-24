@@ -1,5 +1,7 @@
 # Video Integration - Part 1: Preview Playback
 
+> **IMPORTANT UPDATE**: This document describes our initial custom implementation approach for video preview and playback. Due to persistent issues with custom timeline scrubber implementation, we have pivoted to using BBC's VideoContext library for a more robust solution. Please refer to [Video-Integration-Part2.md](./Video-Integration-Part2.md) for our current implementation plan.
+
 ## Overview
 
 This document outlines the first phase of the video processing pipeline implementation, focusing on the preview playback functionality. This feature will allow users to preview scenes individually or all scenes sequentially, with proper synchronization between media (images/videos) and generated voiceovers.
@@ -31,6 +33,14 @@ This document outlines the first phase of the video processing pipeline implemen
    - ✅ Implement adaptive media sizing based on content aspect ratio
    - 🔄 Implement sequential playback of all scenes
    - ✅ Add basic play/pause controls
+
+   > **Implementation Note**: The main video player component is `ScenePreviewPlayer.tsx` located in `web/frontend/src/components/preview/`. This component handles media playback, timeline scrubbing, and trim controls. When making modifications to video playback functionality, this is the primary component to update.
+   >
+   > **Component Clarification**: There are two separate timeline scrubber implementations in the codebase:
+   > 1. `ScenePreviewPlayer.tsx` in `components/preview/` - This is the **active** video player used in the scene card UI
+   > 2. `SceneTrimControls.tsx` in `components/scene/` - This is a standalone trim controls component that's currently not being actively used
+   >
+   > When making changes to the video player functionality, always check which component is actually being rendered in the DOM by inspecting the element and looking for data-testid attributes like "position-indicator" and "hover-seek-slider".
 
 3. **Media Trimming**
    - ✅ Add ability to trim the beginning and end of media

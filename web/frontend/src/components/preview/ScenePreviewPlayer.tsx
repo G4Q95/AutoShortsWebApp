@@ -152,18 +152,52 @@ const ScenePreviewPlayer = ({
   
   // Set up event listeners for trim handle dragging
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    // For direct DOM manipulation
+    let scrubberElement: HTMLElement | null = null;
+    let timelineWidth = 0;
+    let timelineLeft = 0;
+    let isDragging = false;
+    
+    const handleMouseDown = (e: MouseEvent) => {
       if (!activeHandle || !timelineRef.current) return;
+      
+      // Get timeline dimensions once at start of drag
+      const rect = timelineRef.current.getBoundingClientRect();
+      timelineWidth = rect.width;
+      timelineLeft = rect.left;
+      
+      // Get the position indicator element for direct manipulation
+      if (activeHandle === 'position') {
+        scrubberElement = document.querySelector('[data-testid="position-indicator"]');
+      } else if (activeHandle === 'start') {
+        scrubberElement = document.querySelector('[data-testid="trim-start-handle"]');
+      } else if (activeHandle === 'end') {
+        scrubberElement = document.querySelector('[data-testid="trim-end-handle"]');
+      }
+      
+      isDragging = true;
+    };
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !timelineRef.current || !scrubberElement) return;
       
       // Prevent default behaviors
       e.preventDefault();
       
-      const rect = timelineRef.current.getBoundingClientRect();
-      let position = (e.clientX - rect.left) / rect.width;
-      // Clamp position to [0, 1]
-      position = Math.max(0, Math.min(position, 1));
-      const newTime = position * duration;
+      // Calculate mouse position relative to timeline
+      let pixelPosition = e.clientX - timelineLeft;
       
+      // Clamp position to timeline boundaries
+      pixelPosition = Math.max(0, Math.min(pixelPosition, timelineWidth));
+      
+      // Directly update the scrubber position using DOM
+      const percentage = (pixelPosition / timelineWidth) * 100;
+      scrubberElement.style.left = `${percentage}%`;
+      
+      // Calculate time value from position
+      const newTime = (pixelPosition / timelineWidth) * duration;
+      
+      // Update appropriate value based on active handle
       if (activeHandle === 'start') {
         if (newTime < trimEnd - 0.5) { // Minimum 0.5s duration
           setTrimStart(newTime);
@@ -191,11 +225,14 @@ const ScenePreviewPlayer = ({
     };
     
     const handleMouseUp = () => {
+      isDragging = false;
+      scrubberElement = null;
       setActiveHandle(null);
       document.body.style.cursor = 'default';
     };
     
     if (activeHandle) {
+      document.addEventListener('mousedown', handleMouseDown);
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       
@@ -205,14 +242,21 @@ const ScenePreviewPlayer = ({
       } else if (activeHandle === 'position') {
         document.body.style.cursor = 'grabbing';
       }
+      
+      // Manually trigger mousedown to initialize
+      handleMouseDown(new MouseEvent('mousedown', {
+        clientX: window.event ? (window.event as MouseEvent).clientX : 0,
+        bubbles: true
+      }));
     }
     
     return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'default';
     };
-  }, [activeHandle, timelineRef, duration, trimStart, trimEnd, onTrimChange, mediaType]);
+  }, [activeHandle, timelineRef, duration, trimStart, trimEnd, onTrimChange, mediaType, currentTime]);
   
   // Handler functions
   const handleAudioMetadata = () => {
@@ -342,6 +386,7 @@ const ScenePreviewPlayer = ({
     }
   };
   
+  // Handler for timeline clicks
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (!timelineRef.current || activeHandle) return;
     
@@ -349,16 +394,23 @@ const ScenePreviewPlayer = ({
     e.stopPropagation();
     
     const rect = timelineRef.current.getBoundingClientRect();
-    const clickPosition = (e.clientX - rect.left) / rect.width;
-    const newTime = clickPosition * duration;
+    
+    // Calculate exact pixel position
+    const exactPixelPosition = e.clientX - rect.left;
+    
+    // Ensure position is within bounds
+    const clampedPosition = Math.max(0, Math.min(exactPixelPosition, rect.width));
+    
+    // Convert to time value
+    const clickTime = (clampedPosition / rect.width) * duration;
     
     // Update current time
-    setCurrentTime(newTime);
+    setCurrentTime(clickTime);
     if (mediaType === 'video' && videoRef.current) {
-      videoRef.current.currentTime = newTime;
+      videoRef.current.currentTime = clickTime;
     }
     if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
+      audioRef.current.currentTime = clickTime;
     }
   };
   
@@ -551,9 +603,14 @@ const ScenePreviewPlayer = ({
                 
                 {/* Current position indicator */}
                 <div
-                  className="absolute w-1.5 h-3 bg-white rounded-full cursor-grab"
-                  style={{ left: `${(currentTime / (duration || 1)) * 100}%`, marginLeft: "-0.75px" }}
                   data-testid="position-indicator"
+                  className="absolute w-1 h-3 bg-white rounded-full cursor-grab"
+                  style={{ 
+                    left: `${(currentTime / (duration || 1)) * 100}%`, 
+                    marginLeft: "-0.5px",
+                    top: '50%',
+                    transform: 'translateY(-50%)'
+                  }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
