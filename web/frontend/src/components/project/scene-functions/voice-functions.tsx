@@ -12,7 +12,8 @@ import {
   PauseIcon, 
   RotateCw as RegenerateIcon,
   Download as DownloadIcon,
-  Volume2 as Volume2Icon
+  Volume2 as Volume2Icon,
+  MessageCircle
 } from 'lucide-react';
 import SceneVoiceControlsWrapper from '../../scene/SceneVoiceControlsWrapper';
 
@@ -66,6 +67,15 @@ export function useVoiceLogic(
   const [volume, setVolume] = useState(1); // 0-1 range
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const volumeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Add state for info popup
+  const [showInfoPopup, setShowInfoPopup] = useState(false);
+  
+  // Add toggle handler for info popup
+  const toggleInfoPopup = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowInfoPopup(!showInfoPopup);
+  }, [showInfoPopup]);
 
   // Helper function to create a Blob URL from audio_base64 data
   const createAudioBlobUrl = useCallback((audioBase64: string, contentType: string): string => {
@@ -478,7 +488,10 @@ export function useVoiceLogic(
     handleDownloadAudio,
     handleVolumeChange,
     toggleVolumeSlider,
-    handlePlaybackSpeedChange
+    handlePlaybackSpeedChange,
+    showInfoPopup,
+    setShowInfoPopup,
+    toggleInfoPopup
   };
 }
 
@@ -507,8 +520,40 @@ export function renderVoiceControls(
     audioRef,
     showSettings,
     setShowSettings,
-    settingsButtonRef
+    settingsButtonRef,
+    showInfoPopup,
+    toggleInfoPopup
   } = voiceState;
+
+  // Extract the subreddit name from the URL if available
+  const getSubredditInfo = () => {
+    if (!scene.url) return { subreddit: '', title: '', author: '' };
+    
+    try {
+      const url = new URL(scene.url);
+      if (url.hostname.includes('reddit.com')) {
+        const pathParts = url.pathname.split('/');
+        const subredditIndex = pathParts.findIndex(part => part === 'r');
+        if (subredditIndex >= 0 && pathParts.length > subredditIndex + 1) {
+          // Try to extract author name from the original text if available
+          const authorMatch = scene.text?.match(/^Post by u\/([^:]+):/i);
+          const author = authorMatch ? authorMatch[1] : '';
+          
+          return { 
+            subreddit: pathParts[subredditIndex + 1],
+            title: '',
+            author
+          };
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing URL:', e);
+    }
+    
+    return { subreddit: '', title: '', author: '' };
+  };
+  
+  const { subreddit, author } = getSubredditInfo();
 
   return (
     <div className="pt-0.5" data-testid="scene-audio-section">
@@ -519,15 +564,25 @@ export function renderVoiceControls(
       )}
 
       {/* Voice selector with label and settings button */}
-      <div className="flex items-center justify-between mt-0.5 mb-0.5">
+      <div className="flex items-center mt-0.5 mb-0.5">
         {/* Label */}
-        <div className="text-xs font-medium text-gray-700">Voice</div>
+        <div className="text-xs font-medium text-gray-700 whitespace-nowrap ml-2 mr-2">
+          <div className="flex flex-col items-center justify-center">
+            <span className="text-[10px] leading-tight">Voice</span>
+            <span className="text-[10px] leading-tight">Narrator</span>
+          </div>
+        </div>
         
         {/* Voice selector dropdown */}
         <select
           value={voiceId}
           onChange={(e) => setVoiceId(e.target.value)}
-          className="text-xs py-0.5 px-1 border border-gray-300 rounded mx-1 flex-grow max-w-[70%]"
+          className="text-xs py-0.5 px-1 border border-gray-300 rounded flex-grow"
+          style={{ 
+            minWidth: 0,
+            width: 'calc(100% - 29px)',
+            marginRight: '3px'
+          }}
           disabled={generatingAudio || voiceContextVoices.length === 0}
           data-testid="voice-selector"
         >
@@ -542,16 +597,94 @@ export function renderVoiceControls(
           )}
         </select>
         
-        {/* Settings button */}
-        <button
-          ref={settingsButtonRef}
-          onClick={() => setShowSettings(!showSettings)}
-          className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center"
-          aria-label="Voice settings"
-        >
-          <SettingsIcon className="h-3 w-3" />
-        </button>
+        {/* Settings and Info buttons */}
+        <div className="flex items-center gap-1">
+          {/* Settings button */}
+          <button
+            ref={settingsButtonRef}
+            onClick={() => setShowSettings(!showSettings)}
+            className="text-xs text-blue-600 hover:text-blue-700 p-0.5 rounded flex items-center"
+            aria-label="Voice settings"
+          >
+            <SettingsIcon className="h-3 w-3" />
+          </button>
+
+          {/* Info button */}
+          <button
+            className="w-3 h-3 bg-white border border-blue-500 rounded-full flex items-center justify-center"
+            onClick={toggleInfoPopup}
+            aria-label="Show post information"
+            data-testid="info-button"
+            style={{ padding: '1px' }}
+          >
+            <span className="text-[8px] font-bold text-blue-500 leading-none">I</span>
+          </button>
+        </div>
       </div>
+
+      {/* Info popup */}
+      {showInfoPopup && (
+        <>
+          {/* Overlay to capture clicks outside */}
+          <div 
+            className="fixed inset-0 z-20" 
+            onClick={toggleInfoPopup}
+          ></div>
+          
+          {/* Info popup container */}
+          <div 
+            className="absolute z-30 bg-white overflow-auto rounded shadow-md"
+            style={{
+              top: '20px',
+              right: '0',
+              width: 'auto',
+              minWidth: '200px',
+              maxWidth: '300px',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+              backfaceVisibility: 'hidden',
+              WebkitFontSmoothing: 'antialiased',
+              MozOsxFontSmoothing: 'grayscale'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3 text-xs">
+              {author && (
+                <div className="mb-2">
+                  <span className="font-semibold">Posted by:</span> u/{author}
+                </div>
+              )}
+              
+              {subreddit && (
+                <div className="mb-2">
+                  <span className="font-semibold">Subreddit:</span> r/{subreddit}
+                </div>
+              )}
+              
+              {scene.url && (
+                <div>
+                  <span className="font-semibold">URL:</span>
+                  <a 
+                    href={scene.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline break-all block mt-1"
+                  >
+                    {scene.url}
+                  </a>
+                </div>
+              )}
+              
+              <button 
+                className="mt-3 px-2 py-1 bg-blue-500 text-white rounded text-xs w-full"
+                onClick={toggleInfoPopup}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Audio element - hidden but needed for playback */}
       <audio

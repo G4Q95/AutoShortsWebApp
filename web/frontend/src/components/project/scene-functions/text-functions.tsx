@@ -31,7 +31,6 @@ export function useTextLogic(
   const [isEditing, setIsEditing] = useState(false);
   const [wordCount, setWordCount] = useState<number>(getWordCount(scene.text || ''));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [showInfoPopup, setShowInfoPopup] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Update local text state when scene text changes
@@ -95,12 +94,6 @@ export function useTextLogic(
     }
   }, []);
   
-  // Toggle info popup visibility
-  const toggleInfoPopup = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowInfoPopup(!showInfoPopup);
-  }, [showInfoPopup]);
-  
   // Clean Reddit post text by removing common artifacts
   const cleanPostText = (text: string): string => {
     if (!text) return '';
@@ -137,9 +130,6 @@ export function useTextLogic(
     handleTextChange,
     handleTextBlur,
     handleKeyDown,
-    showInfoPopup,
-    setShowInfoPopup,
-    toggleInfoPopup,
     isExpanded,
     setIsExpanded,
     handleClickOutside
@@ -166,107 +156,13 @@ export function renderTextContent(
     handleTextChange,
     handleTextBlur,
     handleKeyDown,
-    showInfoPopup,
-    toggleInfoPopup,
     isExpanded,
     handleClickOutside
   } = textState;
 
-  // Extract the subreddit name from the URL if available
-  const getSubredditInfo = () => {
-    if (!scene.url) return { subreddit: '', title: '', author: '' };
-    
-    try {
-      const url = new URL(scene.url);
-      if (url.hostname.includes('reddit.com')) {
-        const pathParts = url.pathname.split('/');
-        const subredditIndex = pathParts.findIndex(part => part === 'r');
-        if (subredditIndex >= 0 && pathParts.length > subredditIndex + 1) {
-          // Try to extract author name from the original text if available
-          const authorMatch = scene.text?.match(/^Post by u\/([^:]+):/i);
-          const author = authorMatch ? authorMatch[1] : '';
-          
-          return { 
-            subreddit: pathParts[subredditIndex + 1],
-            title: '',
-            author
-          };
-        }
-      }
-    } catch (e) {
-      console.error('Error parsing URL:', e);
-    }
-    
-    return { subreddit: '', title: '', author: '' };
-  };
-  
-  const { subreddit, author } = getSubredditInfo();
-
   return (
-    <div className="mt-1 text-sm relative" style={{ height: '4.5em' }}>
-      {/* Info button - using letter "I" instead of eye icon */}
-      <button
-        className="absolute top-0 right-0 w-3 h-3 bg-white border border-blue-500 rounded-full flex items-center justify-center z-10"
-        onClick={toggleInfoPopup}
-        aria-label="Show post information"
-        data-testid="info-button"
-        style={{ padding: '1px' }}
-      >
-        <span className="text-[8px] font-bold text-blue-500 leading-none">I</span>
-      </button>
-      
-      {/* Info popup - with higher z-index to appear over everything */}
-      {showInfoPopup && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleInfoPopup(e);
-          }}
-        >
-          <div className="absolute inset-0 bg-black bg-opacity-30"></div>
-          <div 
-            className="relative bg-white border border-gray-200 rounded-md shadow-lg p-3 text-xs max-w-xs w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {author && (
-              <div className="mb-2">
-                <span className="font-semibold">Posted by:</span> u/{author}
-              </div>
-            )}
-            
-            {subreddit && (
-              <div className="mb-2">
-                <span className="font-semibold">Subreddit:</span> r/{subreddit}
-              </div>
-            )}
-            
-            {scene.url && (
-              <div>
-                <span className="font-semibold">URL:</span>
-                <a 
-                  href={scene.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline break-all block mt-1"
-                >
-                  {scene.url}
-                </a>
-              </div>
-            )}
-            
-            <button 
-              className="mt-3 px-2 py-1 bg-blue-500 text-white rounded text-xs w-full"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleInfoPopup(e);
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+    <div className="mt-1 text-sm relative" style={{ height: '3.6em' }}>
+      {/* Info button and popup removed since they're now in voice controls */}
       
       {/* Fixed height container for text with exactly 3 lines visible */}
       <div className="h-full w-full">

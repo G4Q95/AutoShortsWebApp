@@ -394,7 +394,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                             disabled={voiceState.generatingAudio && !(process.env.NEXT_PUBLIC_TESTING_MODE === 'true' || process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' || (typeof window !== 'undefined' && window.USE_MOCK_AUDIO))}
                             onClick={() => voiceState.handleGenerateVoice(textState.text)}
                           >
-                            <MicIcon className="h-4 w-4 mr-2" />
+                            <MicIcon className="h-4 w-4 mr-3" />
                             Generate Voiceover
                           </button>
                         </div>
