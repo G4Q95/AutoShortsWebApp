@@ -56,6 +56,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   
   // VideoContext state
   const [videoContext, setVideoContext] = useState<any>(null);
@@ -69,6 +70,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [aspectRatio, setAspectRatio] = useState<number>(9/16); // Default to vertical
   const [isVertical, setIsVertical] = useState<boolean>(true);
   
+  // Handle audio separately
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = currentTime;
+      
+      if (isPlaying) {
+        audioRef.current.play().catch(err => console.error("Audio play error:", err));
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isPlaying, currentTime, audioUrl]);
+  
   // Initialize VideoContext with proper null checking
   useEffect(() => {
     // Make sure we're on client side and canvas exists
@@ -77,6 +91,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Import VideoContext dynamically to avoid SSR issues
     const initVideoContext = async () => {
       try {
+        // Clean up existing context if any
+        if (videoContext) {
+          videoContext.reset();
+          videoContext.dispose();
+          setVideoContext(null);
+        }
+        
         // Dynamically import VideoContext
         const VideoContextModule = await import('videocontext');
         const VideoContext = VideoContextModule.default || VideoContextModule;
@@ -102,13 +123,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           throw new Error(`Unsupported media type: ${mediaType}`);
         }
         
-        // Add audio if available
-        let audio: any = null;
-        if (audioUrl) {
-          audio = ctx.audio(audioUrl);
-          audio.start(0);
-          audio.connect(ctx.destination);
-        }
+        // No longer integrating audio with VideoContext
+        // Let the separate audio element handle it
         
         // Set up source timing and connect to output
         source.start(0);
@@ -132,10 +148,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             const ratio = videoWidth / videoHeight;
             setAspectRatio(ratio);
             setIsVertical(ratio < 1);
-          } else if (audio) {
+          } else if (audioRef.current && audioRef.current.duration) {
             // For images with audio, use audio duration
-            setDuration(audio.duration);
-            setTrimEnd(audio.duration);
+            setDuration(audioRef.current.duration);
+            setTrimEnd(audioRef.current.duration);
           } else {
             // Default duration for images without audio
             setDuration(5);
@@ -144,24 +160,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         });
         
         // Set up time update callback
-        ctx.registerTimeUpdateCallback((currentTime: number) => {
-          setCurrentTime(currentTime);
+        ctx.registerTimeUpdateCallback((time: number) => {
+          setCurrentTime(time);
           
           // Auto-pause at trim end
-          if (currentTime >= trimEnd) {
+          if (time >= trimEnd) {
             ctx.pause();
             setIsPlaying(false);
+            if (audioRef.current) {
+              audioRef.current.pause();
+            }
           }
         });
         
         return {
           context: ctx,
-          source,
-          audio
+          source
         };
       } catch (error) {
         console.error('Error initializing VideoContext:', error);
         setIsLoading(false);
+        return null;
       }
     };
     
@@ -176,7 +195,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         }
       });
     };
-  }, [mediaUrl, audioUrl, mediaType]);
+  }, [mediaUrl, mediaType]); // Remove audioUrl from dependencies since we're handling it separately
   
   // Update trim values when props change
   useEffect(() => {
@@ -191,16 +210,30 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Start playback from trim start if at the end
     if (currentTime >= trimEnd) {
       videoContext.currentTime = trimStart;
+      if (audioRef.current) {
+        audioRef.current.currentTime = trimStart;
+      }
     }
     
     videoContext.play();
     setIsPlaying(true);
+    
+    // Play the audio in sync
+    if (audioRef.current) {
+      audioRef.current.currentTime = videoContext.currentTime;
+      audioRef.current.play().catch(err => console.error("Error playing audio:", err));
+    }
   };
   
   const handlePause = () => {
     if (!videoContext) return;
     videoContext.pause();
     setIsPlaying(false);
+    
+    // Pause the audio too
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
   };
   
   // Handle seeked time update
@@ -211,6 +244,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd);
     videoContext.currentTime = clampedTime;
     setCurrentTime(clampedTime);
+    
+    // Update audio position too
+    if (audioRef.current) {
+      audioRef.current.currentTime = clampedTime;
+    }
   };
   
   // Handle timeline click
@@ -342,6 +380,24 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       onDragStart={(e) => e.stopPropagation()}
       draggable={false}
     >
+      {/* Separate audio element for voiceover */}
+      {audioUrl && (
+        <audio 
+          ref={audioRef} 
+          src={audioUrl} 
+          preload="auto"
+          style={{ display: 'none' }}
+          data-testid="audio-element"
+          onLoadedMetadata={() => {
+            // Update duration for images when audio loads
+            if (mediaType === 'image' && audioRef.current) {
+              setDuration(audioRef.current.duration);
+              setTrimEnd(audioRef.current.duration);
+            }
+          }}
+        />
+      )}
+      
       {/* Media Display */}
       <div className="relative bg-black flex items-center justify-center">
         {isLoading && (
