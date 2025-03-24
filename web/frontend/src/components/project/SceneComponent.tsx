@@ -73,6 +73,8 @@ import {
 } from '@/utils/scene/event-handlers';
 // Import VoiceContext
 import { useVoiceContext } from '@/contexts/VoiceContext';
+// Import DnD types for dragHandleProps
+import { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 
 /**
  * Props for the SceneComponent
@@ -105,6 +107,8 @@ interface SceneComponentProps {
   customStyles?: React.CSSProperties;
   /** Feature flag to use the new SceneAudioControls component instead of built-in audio controls */
   useNewAudioControls?: boolean;
+  /** Drag handle props from react-beautiful-dnd */
+  dragHandleProps?: DraggableProvidedDragHandleProps;
 }
 
 /**
@@ -151,7 +155,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   isDragging = false,
   isFullWidth = false,
   customStyles = {},
-  useNewAudioControls = false
+  useNewAudioControls = false,
+  dragHandleProps
 }: SceneComponentProps) {
   // Use new controls for all scenes
   const useNewControls = useNewAudioControls;
@@ -266,6 +271,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       }}
       data-testid="scene-component"
       data-scene-id={scene.id}
+      {...dragHandleProps}
     >
       {/* Hidden test-only audio element for more reliable test detection */}
       {typeof window !== 'undefined' && 
@@ -280,8 +286,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
         />
       )}
       
-      {/* Scene Number Indicator */}
-      <div 
+      {/* Scene Number Badge */}
+      <div
         data-testid={`scene-number-${index + 1}`}
         className="absolute top-2 left-2 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium z-10"
       >
@@ -327,10 +333,22 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             </div>
             
             {/* Voice generation controls with top padding */}
-            <div className="pt-0.5 border-t border-gray-200" data-testid="scene-audio-section">
+            <div 
+              className="pt-0.5 border-t border-gray-200" 
+              data-testid="scene-audio-section"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onDragStart={(e) => e.stopPropagation()}
+              draggable={false}
+            >
               {useNewControls ? (
                 // New component (extracted)
-                <div data-testid="new-audio-controls">
+                <div 
+                  data-testid="new-audio-controls"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  draggable={false}
+                >
                   <SceneVoiceControlsWrapper
                     scene={scene}
                     className="mt-4"
@@ -338,7 +356,12 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 </div>
               ) : (
                 // Original implementation (now rendered using our function)
-                <div data-testid="original-audio-controls">
+                <div 
+                  data-testid="original-audio-controls"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  draggable={false}
+                >
                   {renderVoiceControls(voiceState, scene, textState.text, useNewControls)}
                 </div>
               )}
@@ -346,16 +369,27 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
           </div>
 
           {/* Controls - positioned at bottom without gap */}
-          <div className="border-t border-gray-200 flex justify-between items-stretch">
+          <div 
+            className="border-t border-gray-200 flex justify-between items-stretch"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onDragStart={(e) => e.stopPropagation()}
+            draggable={false}
+          >
             {/* Left side controls */}
             <div className="flex items-center">
             {scene.error && scene.url && (
               <button
-                onClick={handleRetryLoad}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRetryLoad();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
                 disabled={isRetrying}
                 className="p-1 text-blue-600 hover:bg-blue-50 rounded-sm flex items-center text-xs"
                 aria-label="Retry loading content"
                 data-testid="scene-retry-button"
+                draggable={false}
               >
                 <RefreshIcon className={`h-3 w-3 ${isRetrying ? 'animate-spin' : ''}`} />
                 <span className="ml-1">Retry</span>
@@ -364,9 +398,21 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             </div>
             
             {/* Right side controls */}
-            <div className="flex flex-grow" style={{ gap: '0' }}>
+            <div 
+              className="flex flex-grow" 
+              style={{ gap: '0' }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              draggable={false}
+            >
             {!scene.isLoading && !scene.error && (
-                <div className="relative flex-grow flex pr-0" style={{ marginRight: '0', padding: '0', width: 'calc(100% - 40px)' }}>
+                <div 
+                  className="relative flex-grow flex pr-0" 
+                  style={{ marginRight: '0', padding: '0', width: 'calc(100% - 40px)' }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  draggable={false}
+                >
                   {/* This is the flipping container that will rotate */}
                   <div 
                     className={`flip-container flex-grow relative ${voiceState.audioSrc ? 'flipped' : ''}`}
@@ -392,7 +438,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                             className={`w-full generate-button front absolute inset-0 flex-grow px-3 py-2.5 bg-green-600 text-white text-sm font-medium rounded-bl-md flex items-center justify-center transition-colors hover:bg-green-700 disabled:opacity-50 shadow-sm ${process.env.NEXT_PUBLIC_TESTING_MODE === 'true' || process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' || (typeof window !== 'undefined' && window.USE_MOCK_AUDIO) ? 'test-mode-button' : ''}`}
                             data-testid="generate-voice-button"
                             disabled={voiceState.generatingAudio && !(process.env.NEXT_PUBLIC_TESTING_MODE === 'true' || process.env.NEXT_PUBLIC_MOCK_AUDIO === 'true' || (typeof window !== 'undefined' && window.USE_MOCK_AUDIO))}
-                            onClick={() => voiceState.handleGenerateVoice(textState.text)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              voiceState.handleGenerateVoice(textState.text);
+                            }}
                           >
                             <MicIcon className="h-4 w-4 mr-3" />
                             Generate Voiceover
@@ -420,7 +469,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                             {/* Left side - play button and time */}
                             <div className="flex items-center">
                               <button 
-                                onClick={voiceState.handlePlayPauseToggle}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  voiceState.handlePlayPauseToggle();
+                                }}
                                 className="text-white p-0.5 hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 mr-1"
                                 style={{ width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                                 data-testid="audio-play-button"
@@ -465,7 +517,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                                   background: "rgba(255, 255, 255, 0.3)",
                                   borderRadius: "2px",
                                 }}
-                                onChange={(e) => voiceState.handleVolumeChange(e)}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  voiceState.handleVolumeChange(e);
+                                }}
                                 data-testid="audio-slider"
                               />
                             </div>
@@ -473,7 +528,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                             {/* Right side - regenerate and options */}
                             <div className="flex items-center">
                               <button 
-                                onClick={() => voiceState.handleGenerateVoice(textState.text)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  voiceState.handleGenerateVoice(textState.text);
+                                }}
                                 disabled={voiceState.generatingAudio}
                                 className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center mr-1.5"
                                 title="Regenerate voice"
@@ -487,7 +545,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                               <button 
                                 className="text-white hover:bg-green-700 rounded-full bg-green-700 flex-shrink-0 flex items-center justify-center"
                                 title="Audio options"
-                                onClick={() => voiceState.setShowAudioSettings(true)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  voiceState.setShowAudioSettings(true);
+                                }}
                                 ref={voiceState.audioSettingsButtonRef}
                                 style={{ width: '18px', height: '18px' }}
                                 data-testid="audio-settings-button"
@@ -503,7 +564,10 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 </div>
               )}
               <button
-                onClick={handleRemoveScene}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveScene();
+                }}
                 disabled={isRemoving}
                 className={`flex-shrink-0 w-10 py-2.5 bg-red-600 text-white text-sm font-medium rounded-br-md flex items-center justify-center transition-colors hover:bg-red-700 ${isRemoving ? 'opacity-50' : ''} shadow-sm`}
                 aria-label="Remove scene"

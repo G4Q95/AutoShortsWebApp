@@ -5,7 +5,14 @@
  * for adding media sources, effects, and transitions to the video composition.
  */
 
-import VideoContext from 'videocontext';
+// Only import VideoContext on the client side
+let VideoContext;
+if (typeof window !== 'undefined') {
+  // Client-side only
+  VideoContext = require('videocontext');
+  // Handle both default and named exports
+  VideoContext = VideoContext.default || VideoContext;
+}
 
 class VideoContextManager {
   /**
@@ -13,6 +20,9 @@ class VideoContextManager {
    * @param {HTMLCanvasElement} canvas - The canvas element for rendering
    */
   constructor(canvas) {
+    if (!VideoContext) {
+      throw new Error('VideoContext can only be used in browser environment');
+    }
     this.videoContext = new VideoContext(canvas);
     this.sources = new Map();
     this.effects = new Map();

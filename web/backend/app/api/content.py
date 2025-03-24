@@ -1,8 +1,8 @@
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, status, Response
+from fastapi import APIRouter, HTTPException, status, Response, Request
 from fastapi.responses import StreamingResponse, PlainTextResponse
-from pydantic import HttpUrl
+from pydantic import HttpUrl, ValidationError
 import httpx
 import logging
 
@@ -281,3 +281,73 @@ async def test_proxy():
         "proxy_url": proxy_url,
         "instructions": "To test the proxy, use this URL in a video element or navigate to the proxy_url directly."
     }
+
+@router.post("/extract", response_model=ApiResponse[ContentExtractionResponse])
+async def extract_content_post(request: Request):
+    """
+    Extract content from a URL (POST endpoint).
+    Returns a standardized response with the extracted content.
+    """
+    try:
+        body = await request.json()
+        url = body.get("url")
+        if not url:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"message": "URL is required"}
+            )
+            
+        # Convert to HttpUrl for validation
+        url = HttpUrl(url)
+        return await extract_content(url)
+    except ValidationError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "Invalid URL format"}
+        )
+
+@router.get("/proxy/media")
+async def proxy_media(url: str):
+    """
+    Proxy endpoint for media files to avoid CORS issues.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Proxying media from URL: {url}")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            # Set up headers to mimic a browser
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                "Accept": "*/*",
+            }
+            
+            # First try a HEAD request to check content type
+            head_response = await client.head(url, headers=headers)
+            content_type = head_response.headers.get("content-type", "application/octet-stream")
+            
+            # Make the actual request
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            
+            # Set up CORS headers
+            headers = {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Content-Type": content_type,
+            }
+            
+            # Return the streaming response
+            return StreamingResponse(
+                content=response.iter_bytes(),
+                headers=headers,
+                media_type=content_type
+            )
+            
+    except Exception as e:
+        logger.error(f"Error proxying media: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"message": f"Error proxying media: {str(e)}"}
+        )

@@ -63,11 +63,13 @@ const VideoContextPreview: React.FC<VideoContextPreviewProps> = ({
     
     // Create a copy of the hidden canvas to this visible canvas
     const renderFrame = () => {
-      if (state.manager) {
+      if (!state.manager || !state.isReady) return requestAnimationFrame(renderFrame);
+      
+      try {
         const hiddenCanvas = state.manager.videoContext.canvas;
         const ctx = canvas.getContext('2d');
         
-        if (ctx && hiddenCanvas) {
+        if (ctx && hiddenCanvas && hiddenCanvas instanceof HTMLCanvasElement) {
           // Draw the VideoContext output to our visible canvas
           ctx.drawImage(
             hiddenCanvas, 
@@ -75,6 +77,8 @@ const VideoContextPreview: React.FC<VideoContextPreviewProps> = ({
             0, 0, canvas.width, canvas.height
           );
         }
+      } catch (error) {
+        console.error('Error rendering frame:', error);
       }
       
       // Continue the render loop
@@ -88,7 +92,7 @@ const VideoContextPreview: React.FC<VideoContextPreviewProps> = ({
     return () => {
       cancelAnimationFrame(animationFrame);
     };
-  }, [state.manager, dimensions]);
+  }, [state.manager, dimensions, state.isReady]);
   
   // Format time display (MM:SS)
   const formatTime = (timeInSeconds: number): string => {

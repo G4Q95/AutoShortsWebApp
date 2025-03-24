@@ -740,7 +740,6 @@ export default function ProjectWorkspace({
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
-                            {...provided.dragHandleProps}
                             className="h-full"
                           >
                             <SceneComponent
@@ -751,6 +750,7 @@ export default function ProjectWorkspace({
                               onSceneMove={(id, newIndex) => console.log(`Move scene ${id} to position ${newIndex}`)}
                               onSceneReorder={(id, newIndex) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
                               isDragging={snapshot.isDragging}
+                              dragHandleProps={provided.dragHandleProps}
                             />
                           </div>
                         )}

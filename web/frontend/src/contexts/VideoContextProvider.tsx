@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useRef, useState, useEffect } from 'react';
-import VideoContextManager from '../utils/video/videoContextManager';
+import dynamic from 'next/dynamic';
+// Import just the type, not the actual implementation
+import type VideoContextManager from '../utils/video/videoContextManager';
 
 // Define the context type
 interface VideoContextProviderProps {
@@ -35,8 +37,32 @@ interface VideoContextContextValue {
 // Create the context
 const VideoContextContext = createContext<VideoContextContextValue | undefined>(undefined);
 
+// Create an initial state for server-side rendering
+const initialState: VideoContextState = {
+  isReady: false,
+  isPlaying: false,
+  currentTime: 0,
+  duration: 0,
+  manager: null,
+};
+
+// Create empty actions for server-side rendering
+const emptyActions: VideoContextActions = {
+  play: () => {},
+  pause: () => {},
+  seek: () => {},
+  addSource: () => null,
+  removeSource: () => {},
+  setSourceTiming: () => {},
+  addEffect: () => null,
+  removeEffect: () => {},
+  addTransition: () => null,
+  removeTransition: () => {},
+};
+
 // Provider component
 export const VideoContextProvider: React.FC<VideoContextProviderProps> = ({ children }) => {
+  const [isClient, setIsClient] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const managerRef = useRef<VideoContextManager | null>(null);
   
@@ -46,41 +72,56 @@ export const VideoContextProvider: React.FC<VideoContextProviderProps> = ({ chil
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   
-  // Set up the canvas and VideoContextManager
+  // Check if we're on the client side
   useEffect(() => {
-    // Create a canvas element if one doesn't exist
-    if (!canvasRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1080;
-      canvas.height = 1920;
-      canvas.style.display = 'none'; // Hide the canvas initially
-      document.body.appendChild(canvas);
-      canvasRef.current = canvas;
-    }
-    
-    // Initialize the VideoContextManager
-    try {
-      if (canvasRef.current && !managerRef.current) {
-        const manager = new VideoContextManager(canvasRef.current);
-        managerRef.current = manager;
+    setIsClient(true);
+  }, []);
+  
+  // Only set up VideoContext on the client
+  useEffect(() => {
+    if (!isClient) return;
+
+    // Dynamically import VideoContextManager
+    const initializeManager = async () => {
+      try {
+        // Create a canvas element if one doesn't exist
+        if (!canvasRef.current) {
+          const canvas = document.createElement('canvas');
+          canvas.width = 1080;
+          canvas.height = 1920;
+          canvas.style.display = 'none'; // Hide the canvas initially
+          document.body.appendChild(canvas);
+          canvasRef.current = canvas;
+        }
         
-        // Set up event handlers
-        manager.registerEvent('ended', () => {
-          setIsPlaying(false);
-        });
+        // Dynamically import the VideoContextManager
+        const { default: VideoContextManagerModule } = await import('../utils/video/videoContextManager');
         
-        manager.registerEvent('timeupdate', () => {
-          if (manager) {
-            setCurrentTime(manager.getCurrentTime());
-          }
-        });
-        
-        setIsReady(true);
+        // Initialize the VideoContextManager
+        if (canvasRef.current && !managerRef.current) {
+          const manager = new VideoContextManagerModule(canvasRef.current);
+          managerRef.current = manager;
+          
+          // Set up event handlers
+          manager.registerEvent('ended', () => {
+            setIsPlaying(false);
+          });
+          
+          manager.registerEvent('timeupdate', () => {
+            if (manager) {
+              setCurrentTime(manager.getCurrentTime());
+            }
+          });
+          
+          setIsReady(true);
+        }
+      } catch (error) {
+        console.error('Error initializing VideoContextManager:', error);
+        setIsReady(false);
       }
-    } catch (error) {
-      console.error('Error initializing VideoContextManager:', error);
-      setIsReady(false);
-    }
+    };
+    
+    initializeManager();
     
     // Clean up on unmount
     return () => {
@@ -89,17 +130,19 @@ export const VideoContextProvider: React.FC<VideoContextProviderProps> = ({ chil
         managerRef.current = null;
       }
       
-      if (canvasRef.current) {
+      if (canvasRef.current && document.body.contains(canvasRef.current)) {
         document.body.removeChild(canvasRef.current);
         canvasRef.current = null;
       }
       
       setIsReady(false);
     };
-  }, []);
+  }, [isClient]);
   
   // Update duration when manager reports changes
   useEffect(() => {
+    if (!isClient) return;
+    
     if (managerRef.current) {
       const checkDuration = () => {
         const newDuration = managerRef.current?.getDuration() || 0;
@@ -114,7 +157,16 @@ export const VideoContextProvider: React.FC<VideoContextProviderProps> = ({ chil
       
       return () => clearInterval(interval);
     }
-  }, [duration]);
+  }, [duration, isClient]);
+  
+  // If we're on the server, return a default context value
+  if (!isClient) {
+    return (
+      <VideoContextContext.Provider value={{ state: initialState, actions: emptyActions }}>
+        {children}
+      </VideoContextContext.Provider>
+    );
+  }
   
   // Actions for manipulating the VideoContext
   const play = () => {

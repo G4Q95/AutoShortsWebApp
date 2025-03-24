@@ -8,9 +8,15 @@
  */
 
 import React, { useState } from 'react';
-import { VideoContextProvider } from '../contexts/VideoContextProvider';
-import VideoContextEditor from '../components/video/VideoContextEditor';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
+import { VideoContextProvider } from '../contexts/VideoContextProvider';
+
+// Use dynamic import with ssr: false to only load on client side
+const VideoContextEditor = dynamic(
+  () => import('../components/video/VideoContextEditor'),
+  { ssr: false }
+);
 
 // Define Scene type to match VideoContextEditor component
 interface Scene {
@@ -31,7 +37,7 @@ const sampleScenes: Scene[] = [
     id: 'scene1',
     media: {
       type: 'image',
-      url: 'https://picsum.photos/id/237/1080/1920', // Sample image
+      url: '/api/content/proxy/media?url=https://picsum.photos/id/237/1080/1920',
     },
     content: {
       text: 'This is the first scene with a sample image.',
@@ -42,7 +48,7 @@ const sampleScenes: Scene[] = [
     id: 'scene2',
     media: {
       type: 'video',
-      url: 'https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4', // Sample video
+      url: '/api/content/proxy/media?url=https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
     },
     content: {
       text: 'This is the second scene with a sample video.',
@@ -53,7 +59,7 @@ const sampleScenes: Scene[] = [
     id: 'scene3',
     media: {
       type: 'image',
-      url: 'https://picsum.photos/id/1015/1080/1920', // Another sample image
+      url: '/api/content/proxy/media?url=https://picsum.photos/id/1015/1080/1920',
     },
     content: {
       text: 'This is the third scene with another sample image.',
@@ -65,6 +71,68 @@ const sampleScenes: Scene[] = [
 const VideoContextEditorDemo: React.FC = () => {
   const router = useRouter();
   const [scenes, setScenes] = useState<Scene[]>(sampleScenes);
+  const [isClient, setIsClient] = useState(false);
+  const [redditUrl, setRedditUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Check if we're on client side
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
+  // Handle Reddit URL import
+  const handleImportReddit = async () => {
+    if (!redditUrl) return;
+    
+    setIsLoading(true);
+    try {
+      // First, extract the Reddit content
+      const extractResponse = await fetch('/api/content/extract', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: redditUrl }),
+      });
+      
+      if (!extractResponse.ok) {
+        throw new Error('Failed to extract Reddit content');
+      }
+      
+      const extractData = await extractResponse.json();
+      
+      if (!extractData.success || !extractData.data) {
+        throw new Error(extractData.message || 'Failed to extract content');
+      }
+      
+      const { data } = extractData;
+      
+      if (!data.media_url) {
+        throw new Error('No media found in the Reddit post');
+      }
+      
+      // Create a new scene with the proxied media URL
+      const newScene: Scene = {
+        id: `scene${scenes.length + 1}`,
+        media: {
+          type: data.media_type || 'video',
+          url: `/api/content/proxy/media?url=${encodeURIComponent(data.media_url)}`,
+        },
+        content: {
+          text: data.title || '',
+        },
+        duration: 5,
+      };
+      
+      setScenes((prev) => [...prev, newScene]);
+      setRedditUrl('');
+    } catch (error) {
+      console.error('Error importing Reddit content:', error);
+      alert('Failed to import Reddit content. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Handle scene order change
   const handleSceneOrderChange = (updatedScenes: Scene[]) => {
@@ -92,20 +160,43 @@ const VideoContextEditorDemo: React.FC = () => {
           Back
         </button>
         
+        <div className="mt-4 flex gap-4 items-center">
+          <input
+            type="text"
+            value={redditUrl}
+            onChange={(e) => setRedditUrl(e.target.value)}
+            placeholder="Enter Reddit URL..."
+            className="flex-1 p-2 border rounded-md"
+          />
+          <button
+            onClick={handleImportReddit}
+            disabled={isLoading || !redditUrl}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md disabled:opacity-50"
+          >
+            {isLoading ? 'Importing...' : 'Import Reddit URL'}
+          </button>
+        </div>
+        
         <p className="text-gray-600 mt-4">
           This is a demonstration of the VideoContext integration (Phase 2), showing how scenes can be combined
-          and edited on a timeline. The sample scenes include both images and videos.
+          and edited on a timeline. You can import content from Reddit URLs or use the sample scenes below.
         </p>
       </div>
       
       <div className="bg-white rounded-lg shadow-md p-6">
-        <VideoContextProvider>
-          <VideoContextEditor 
-            scenes={scenes}
-            onSceneOrderChange={handleSceneOrderChange}
-            onSceneDurationChange={handleSceneDurationChange}
-          />
-        </VideoContextProvider>
+        {isClient ? (
+          <VideoContextProvider>
+            <VideoContextEditor 
+              scenes={scenes}
+              onSceneOrderChange={handleSceneOrderChange}
+              onSceneDurationChange={handleSceneDurationChange}
+            />
+          </VideoContextProvider>
+        ) : (
+          <div className="flex items-center justify-center p-10 bg-gray-100 rounded">
+            <p className="text-gray-500">Loading editor...</p>
+          </div>
+        )}
       </div>
       
       <div className="mt-8 p-4 bg-gray-100 rounded-md">

@@ -150,6 +150,7 @@ The project is currently in active development with the following components:
 - ✅ Content Extraction (URLs, text, media metadata)
 - ✅ Voice API with robust error handling and validation
 - ✅ Scene Component Refactoring (Code splitting without component extraction)
+- ✅ Video Playback Integration (VideoContext-based player)
 - 🔄 API Modularization & Feature Flag System  
 - 🔄 Video Processing Pipeline (FFMPEG)
 - ⏳ External Media Download Implementation
@@ -157,6 +158,11 @@ The project is currently in active development with the following components:
 - ⏳ Cloud Storage Integration
 
 ### Recent Updates
+- Implemented VideoContext-based player for improved media playback and trimming
+- Created VideoContextScenePreviewPlayer component to replace the original ScenePreviewPlayer
+- Added timeline scrubbing with trim controls for precise media editing
+- Fixed browser drag-and-drop conflicts for better user experience
+- Optimized player for vertical (9:16) media format for short-form content
 - Fixed critical audio persistence issue with voice endpoint mismatch
 - Completed Voice API module with robust error handling
 - Implemented dynamic timeout calculations based on content length

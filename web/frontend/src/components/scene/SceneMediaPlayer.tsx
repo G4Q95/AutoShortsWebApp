@@ -1,10 +1,14 @@
 /**
  * SceneMediaPlayer component
- * Wrapper around ScenePreviewPlayer for scene media display with view mode toggle
+ * Wrapper around media player for scene media display with view mode toggle
+ * Now using VideoContextScenePreviewPlayer for improved timeline scrubbing
  */
 import React from 'react';
-import ScenePreviewPlayer from '@/components/preview/ScenePreviewPlayer';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
+
+// Import both player implementations
+import ScenePreviewPlayer from '@/components/preview/ScenePreviewPlayer';
+import VideoContextScenePreviewPlayer from '@/components/preview/VideoContextScenePreviewPlayer';
 
 interface SceneMediaPlayerProps {
   /**
@@ -53,6 +57,12 @@ interface SceneMediaPlayerProps {
    * Additional class names
    */
   className?: string;
+
+  /**
+   * Flag to enable VideoContext-based player
+   * Set to true to use the VideoContext implementation
+   */
+  useVideoContext?: boolean;
 }
 
 /**
@@ -67,25 +77,30 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   isCompactView,
   onToggleViewMode,
   onTrimChange,
-  className = ''
+  className = '',
+  useVideoContext = true, // Default to using VideoContext player
 }) => {
-  // If no media is available, show a placeholder
   if (!media) {
+    // Render placeholder for empty media
     return (
-      <div className="bg-gray-200 w-full h-40 flex items-center justify-center rounded-t-lg">
-        <p className="text-gray-500">No media available</p>
+      <div 
+        className={`bg-gray-800 rounded-lg flex items-center justify-center w-full h-full ${className}`}
+        style={{ height: isCompactView ? '190px' : 'auto' }}
+        data-testid="scene-media-empty"
+      >
+        <p className="text-gray-400">No media</p>
       </div>
     );
   }
-
-  // Prioritize the stored URL if available
+  
+  // Use the stored URL if available, otherwise the original URL
   const mediaUrl = media.storedUrl || media.url;
   
-  // Default trim values
+  // Use the trim values if available, or default to 0
   const trimStart = media.trim?.start || 0;
   const trimEnd = media.trim?.end || 0;
   
-  // Handle trim change
+  // Handle trim changes
   const handleTrimChange = (start: number, end: number) => {
     if (onTrimChange) {
       onTrimChange(start, end);
@@ -100,46 +115,63 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
     >
       {/* Center the content in compact view */}
       <div className="flex items-center justify-center w-full h-full">
-        <ScenePreviewPlayer
-          projectId={projectId}
-          sceneId={sceneId}
-          mediaUrl={media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
-          audioUrl={audioUrl || undefined}
-          mediaType={media.type}
-          trim={{ start: trimStart, end: trimEnd }}
-          onTrimChange={handleTrimChange}
-          className="rounded-t-lg"
-          isCompactView={isCompactView}
-        />
+        {useVideoContext ? (
+          <VideoContextScenePreviewPlayer
+            projectId={projectId}
+            sceneId={sceneId}
+            mediaUrl={media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
+            audioUrl={audioUrl || undefined}
+            mediaType={media.type}
+            trim={{ start: trimStart, end: trimEnd }}
+            onTrimChange={handleTrimChange}
+            className="rounded-t-lg"
+            isCompactView={isCompactView}
+          />
+        ) : (
+          <ScenePreviewPlayer
+            projectId={projectId}
+            sceneId={sceneId}
+            mediaUrl={media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
+            audioUrl={audioUrl || undefined}
+            mediaType={media.type}
+            trim={{ start: trimStart, end: trimEnd }}
+            onTrimChange={handleTrimChange}
+            className="rounded-t-lg"
+            isCompactView={isCompactView}
+          />
+        )}
       </div>
       
       {/* View mode toggle button */}
-      <button 
-        className="absolute top-2 right-2 p-1 bg-gray-800 bg-opacity-60 rounded text-white z-10 hover:bg-opacity-80 transition-colors"
+      <button
         onClick={onToggleViewMode}
-        title={isCompactView ? "Expand view" : "Compact view"}
-        aria-label={isCompactView ? "Expand view" : "Compact view"}
+        className="absolute top-2 right-2 bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
         data-testid="view-mode-toggle"
       >
-        {isCompactView ? (
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 3 21 3 21 9"></polyline>
-            <polyline points="9 21 3 21 3 15"></polyline>
-            <line x1="21" y1="3" x2="14" y2="10"></line>
-            <line x1="3" y1="21" x2="10" y2="14"></line>
-          </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="4 14 10 14 10 20"></polyline>
-            <polyline points="20 10 14 10 14 4"></polyline>
-            <line x1="14" y1="10" x2="21" y2="3"></line>
-            <line x1="3" y1="21" x2="10" y2="14"></line>
-          </svg>
-        )}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          {isCompactView ? (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
+            />
+          ) : (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4l5 5M4 4v4m0-4h4m11 5l-5-5m5 0v4m0-4h-4M4 16l5-5m-5 5v4m0-4h4m11-5l-5 5m5 0v4m0-4h-4"
+            />
+          )}
+        </svg>
       </button>
-      
-      {/* Loading indicator for media storage */}
-      {/* Removed the blue progress bar as requested */}
     </div>
   );
 };
