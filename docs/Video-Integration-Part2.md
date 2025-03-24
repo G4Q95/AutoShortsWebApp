@@ -56,19 +56,30 @@ During implementation of the custom video player and timeline scrubber in Part 1
 
 ### Phase 2: Feature Integration (2-3 weeks)
 
-1. **Trim Controls**
+1. **Dual View Mode Implementation**
+   - Implement compact view for embedding in scene cards (like current implementation)
+     - Basic playback controls
+     - Simple timeline scrubber
+     - Minimal trim controls
+   - Create expanded view for detailed editing
+     - Larger preview area
+     - Enhanced timeline with more detailed controls
+     - Advanced editing features (transitions, effects)
+     - Expanded trim controls with visual feedback
+
+2. **Trim Controls**
    - Implement trim handles for media
    - Connect to existing trim data model
    - Ensure proper visual feedback
    - Maintain minimum duration constraints
 
-2. **UI Integration**
+3. **UI Integration**
    - Connect player to scene cards
    - Implement expanded/compact views
    - Ensure responsive design
    - Maintain consistent styling with app
 
-3. **Audio Synchronization**
+4. **Audio Synchronization**
    - Integrate ElevenLabs audio with VideoContext
    - Implement audio visualization
    - Ensure proper audio/video sync
@@ -101,12 +112,14 @@ During implementation of the custom video player and timeline scrubber in Part 1
 ```
 components/
   video-editor/
-    VideoContextPlayer.tsx     - Main player component
+    VideoContextPlayer.tsx     - Main player component (with dual view modes)
     VideoContextTimeline.tsx   - Timeline visualization
     VideoContextControls.tsx   - Playback controls
     TrimControls.tsx           - Media trimming UI
     EffectsPanel.tsx           - Effects and transitions UI
     ExportPanel.tsx            - Export options and controls
+    CompactPlayer.tsx          - Focused implementation for scene cards
+    ExpandedEditor.tsx         - Full-featured editor view
   
 utils/
   video-context/
@@ -114,52 +127,57 @@ utils/
     effects.ts                 - Custom effects implementations
     export.ts                  - EDL generation for backend processing
     nodes.ts                   - Custom processing node definitions
+    view-mode.ts               - Handle switching between compact/expanded modes
 ```
 
-### Data Flow
+### Project Integration Strategy
 
-1. Project data → VideoContext adapter → VideoContext sources and nodes
-2. User interactions → Timeline updates → Real-time preview updates
-3. Export request → EDL generation → Backend processing → Final video
+1. **Setup and Installation**
+   - Install VideoContext via npm/yarn: `npm install --save videocontext`
+   - Set up required WebGL canvas contexts
+   - Create wrapper components for React integration
+   - Configure proper event handling for timeline interactions
 
-### Backend Integration
+2. **Dual View Mode Strategy**
+   - Scene Card Integration:
+     - Embed compact player view in existing scene cards
+     - Maintain current UI language and controls
+     - Focus on basic playback and minimal trimming
+   - Expanded Editor:
+     - Create modal or dedicated section for expanded editing
+     - Provide toggle mechanism to switch between views
+     - Reserve advanced features for expanded view only
 
-The VideoContext implementation will connect to the existing backend FFmpeg processing pipeline through a standardized EDL format:
-
-1. Frontend generates an EDL describing all clips, transitions, and effects
-2. Backend parses EDL and converts to appropriate FFmpeg commands
-3. Processed video is stored in Cloudflare R2
-4. URL is returned to frontend for playback and download
-
-## Migration Strategy
-
-### Parallel Development
-
-1. Maintain existing `ScenePreviewPlayer` functionality while developing VideoContext implementation
-2. Create new components with distinct naming to avoid confusion
-3. Implement feature parity before switching
-4. Add toggle for beta testing new implementation
-
-### Gradual Rollout
-
-1. Internal testing with VideoContext implementation
-2. Limited user beta testing
-3. Gather feedback and refine
-4. Full rollout once stable
-
-### Legacy Code Handling
-
-1. Mark existing video player files as deprecated but maintain functionality
-2. Gradually update imports throughout the application
-3. Remove legacy code once new implementation is fully tested and stable
+3. **Feature Feature Priority**
+   - **Essential** (Phase 1): Basic playback, timeline scrubbing, audio sync
+   - **Important** (Phase 2): Trim controls, dual view modes, basic transitions
+   - **Enhancement** (Phase 3): Advanced effects, text animations, export options
 
 ## Next Steps
 
-1. Set up VideoContext development environment
-2. Create proof of concept with basic timeline functionality
-3. Test with existing media types and aspect ratios
-4. Develop core player component
-5. Implement timeline with proper scrubbing behavior
+1. **Initial Setup**
+   - Install VideoContext library: `npm install --save videocontext`
+   - Create basic Canvas component with VideoContext initialization
+   - Set up development environment with hot reloading
+   - Implement basic media loading (focus on vertical video format)
+
+2. **Proof of Concept Testing Criteria**
+   - Timeline scrubber must follow cursor exactly without drift
+   - Media must maintain proper aspect ratio (vertical videos)
+   - Trim handles should accurately modify playback boundaries
+   - Audio must synchronize properly with video content
+   - Component must render correctly in both compact and expanded modes
+
+3. **Performance Evaluation**
+   - Test with multiple media types (images, videos)
+   - Evaluate memory usage during extended editing sessions
+   - Verify smooth playback at different resolutions
+   - Benchmark timeline scrubbing performance
+
+4. **Browser Compatibility Testing**
+   - Verify functionality in Chrome, Firefox, Safari
+   - Test on different devices (desktop, mobile)
+   - Identify and address any WebGL compatibility issues
 
 ## Conclusion
 
