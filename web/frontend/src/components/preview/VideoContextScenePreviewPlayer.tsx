@@ -14,6 +14,28 @@ import { VideoContextProvider } from '@/contexts/VideoContextProvider';
 import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
 import EditHistoryManager, { ActionType } from '@/utils/video/editHistoryManager';
 
+// Add custom styles for smaller range input thumbs
+const smallRangeThumbStyles = `
+  input[type=range].small-thumb::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+  }
+
+  input[type=range].small-thumb::-moz-range-thumb {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    border: none;
+  }
+`;
+
 interface VideoContextScenePreviewPlayerProps {
   projectId: string;
   sceneId: string;
@@ -679,6 +701,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       onDragStart={(e) => e.stopPropagation()}
       draggable={false}
     >
+      {/* Add style tag for custom range styling */}
+      <style>{smallRangeThumbStyles}</style>
+      
       {/* Separate audio element for voiceover */}
       {audioUrl && (
         <audio 
@@ -732,18 +757,18 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         
         {/* Controls container */}
         <div 
-          className={`absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
           data-drag-handle-exclude="true"
           style={{ 
-            minHeight: '36px',
-            padding: '4px 8px 8px 8px',
+            minHeight: '32px',
+            padding: '4px 8px 6px 8px',
             zIndex: 10
           }}
         >
           {/* Trim controls - shown only when trim mode active */}
           {trimActive && (
             <div 
-              className="flex items-center space-x-1 px-1 pb-2 animate-fadeIn"
+              className="flex items-center space-x-1 px-1 pb-1 animate-fadeIn"
               data-drag-handle-exclude="true"
             >
               {/* Trim Start */}
@@ -755,8 +780,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   step="0.01"
                   value={trimStart}
                   onChange={(e) => handleTrimStartChange(parseFloat(e.target.value))}
-                  className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500"
-                  style={{ height: '4px' }}
+                  className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500 small-thumb"
+                  style={{ 
+                    height: '4px',
+                    WebkitAppearance: 'none',
+                    appearance: 'none'
+                  }}
                   data-testid="trim-start-control"
                   data-drag-handle-exclude="true"
                   onMouseDown={(e) => {
@@ -778,8 +807,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   step="0.01"
                   value={getEffectiveTrimEnd()}
                   onChange={(e) => handleTrimEndChange(parseFloat(e.target.value))}
-                  className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500"
-                  style={{ height: '4px' }}
+                  className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500 small-thumb"
+                  style={{ 
+                    height: '4px',
+                    WebkitAppearance: 'none',
+                    appearance: 'none'
+                  }}
                   data-testid="trim-end-control"
                   data-drag-handle-exclude="true"
                   onMouseDown={(e) => {
@@ -809,11 +842,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   handleTimeUpdate(timelineValueToPosition(parseFloat(e.target.value)));
                 }
               }}
-              className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 ${activeHandle ? 'pointer-events-none' : ''}`}
+              className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${activeHandle ? 'pointer-events-none' : ''}`}
               style={{ 
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
-                height: '6px',
+                height: '4px',
                 opacity: activeHandle ? 0.5 : 1,
+                WebkitAppearance: 'none',
+                appearance: 'none'
               }}
               data-testid="timeline-scrubber"
               data-drag-handle-exclude="true"
@@ -826,27 +861,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               onMouseUp={() => setIsDraggingScrubber(false)}
               onMouseLeave={() => setIsDraggingScrubber(false)}
             />
-            
-            {/* Time indicator tooltip */}
-            {isDraggingScrubber && (
-              <div 
-                className="absolute text-[8px] text-white bg-black bg-opacity-75 px-1 py-0.5 rounded pointer-events-none transform -translate-y-full"
-                style={{ 
-                  left: `${positionToTimelineValue(currentTime)}%`,
-                  bottom: '8px',
-                  transform: 'translateX(-50%)',
-                }}
-              >
-                {formatTime(currentTime)}
-              </div>
-            )}
-            
-            {/* Display time if not in compact view */}
-            {!isCompactView && (
-              <span className="absolute right-0 -top-5 text-white text-xs">
-                {formatTime(currentTime)}
-              </span>
-            )}
             
             {/* Show trim brackets based on conditions */}
             {(
@@ -868,7 +882,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   style={{ 
                     left: `calc(${(trimStart / duration) * 100}% - 0.5px)`,
                     top: '-4px',
-                    height: '14px',
+                    height: '12px',
                     transform: 'none',
                     opacity: (trimStart <= 0.01 && !trimActive) ? 0 : 1
                   }}
@@ -880,7 +894,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   style={{ 
                     left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 0.5px)`,
                     top: '-4px',
-                    height: '14px',
+                    height: '12px',
                     transform: 'none',
                     opacity: (getEffectiveTrimEnd() >= duration - 0.01 && !trimActive) ? 0 : 1
                   }}
@@ -900,7 +914,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               className="text-white opacity-70 hover:opacity-100 focus:outline-none"
               data-testid="toggle-lock-button"
               onMouseDown={(e) => e.stopPropagation()}
-              style={{ padding: '2px' }}
+              style={{ padding: '1.5px' }}
             >
               {controlsLocked ? (
                 <LockIcon className="w-3 h-3" />
@@ -910,7 +924,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             </button>
 
             {/* Time display (center) */}
-            <div className="text-white text-[10px] opacity-70 select-none">
+            <div className="text-white text-[9px] opacity-70 select-none">
               {formatTime(currentTime)}
             </div>
             
@@ -923,7 +937,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               className="text-white opacity-70 hover:opacity-100 focus:outline-none"
               data-testid="toggle-trim-button"
               onMouseDown={(e) => e.stopPropagation()}
-              style={{ padding: '2px' }}
+              style={{ padding: '1.5px' }}
             >
               {trimActive ? (
                 <CheckIcon className="w-3 h-3" />
