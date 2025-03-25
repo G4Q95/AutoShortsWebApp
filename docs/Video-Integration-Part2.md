@@ -113,12 +113,31 @@ To address this critical limitation, we're implementing a browser-based editing 
    - These local URLs are used with VideoContext instead of the R2 URLs
    - Object URLs are cleaned up when editing is completed
 
-3. **Smart Save Management:**
-   - Continuous auto-save functionality that preserves editing state
-   - Auto-saves continuously override previous auto-saves in R2 to optimize storage
-   - Comprehensive undo/redo system using command+Z and command+shift+Z
-   - Changes during the session can be reverted with the undo system
-   - Implementation uses a change history stack stored in browser memory
+3. **Smart Action-Based Save Management:**
+   - **Primary Strategy: Action-Based Saving**
+     - Automatically saves after significant actions (trim adjustments, media replacements, effect additions)
+     - Ignores minor actions that don't meaningfully alter the project (playback, temporary selections)
+     - Implements a 3-5 second cooldown to prevent rapid-fire saves during related edits
+     - Groups sequences of related actions into single save operations
+     - Prioritizes user experience by saving in background threads without UI blocking
+   
+   - **Backup Safety Systems:**
+     - Browser-exit detection to trigger save before tab/window closes
+     - Continuous localStorage/IndexedDB backups between R2 writes
+     - Explicit "Save" button for user-initiated saves at critical points
+     - Time-based safety net saves (if no action-based save for 5 minutes)
+   
+   - **Version Management:**
+     - Maintains limited version history (2-3 recent versions with timestamps)
+     - File naming convention includes action identifiers and timestamps 
+       (e.g., `video1_trim_20230615123045.mp4`)
+     - Space-efficient storage using incremental versioning where possible
+   
+   - **User Control:**
+     - User preference for save aggressiveness (high/medium/low frequency)
+     - Session-persistent undo/redo system using command+Z/command+Shift+Z
+     - Ability to restore from previous auto-saved versions within the session
+     - Saving indicator to confirm successful saves
 
 4. **Implementation Components:**
    - `MediaDownloadManager` utility to handle downloading and local URL creation
@@ -236,4 +255,41 @@ The implementation addresses several browser event handling challenges:
 4. Connect to backend:
    - API for final video processing
    - Export quality options
-   - Progress tracking 
+   - Progress tracking
+
+## Future Scalability: From Browser-Based to Streaming
+
+While our current browser-based approach works well for short-form content (under 3 minutes), we've identified a path for future scalability to handle longer videos (10+ minutes) based on industry patterns.
+
+### Current Approach vs. Streaming Approach
+
+| Feature | Current Browser-Based Approach | Future Streaming Approach |
+|---------|--------------------------------|---------------------------|
+| Implementation | Download entire video to browser | Load video in segments/chunks |
+| Memory Usage | Higher (full video in memory) | Lower (only active segments) |
+| Initial Load Time | Longer upfront load | Faster initial load |
+| Scrubbing Performance | Very responsive once loaded | Small delay when accessing new segments |
+| Complexity | Simpler implementation | More complex media serving |
+| Scalability | Works well for shorts (<3 min) | Handles any length content |
+| R2 Compatibility | Uses local URLs to solve issues | Direct streaming potentially viable |
+
+### Modular Design for Future Migration
+
+To facilitate an eventual transition to a streaming approach (similar to platforms like Pictory), we're implementing:
+
+1. **Abstracted Media Interface**
+   - Creating a `MediaProvider` interface that encapsulates media source behavior
+   - Current implementation: `LocalMediaProvider` (browser-download based)
+   - Future implementation: `StreamingMediaProvider` (chunk-based)
+
+2. **Backend Preparation**
+   - Developing media endpoints that support both full file and partial content requests
+   - Implementing proper HTTP Range header support in our R2 integration
+   - Exploring segmented storage options for larger files
+
+3. **Progressive Enhancement**
+   - Implement thumbnail and proxy generation for timeline navigation
+   - Add intelligence to pre-load adjacent segments during editing
+   - Create hybrid approaches that combine aspects of both methods
+
+This forward-looking design ensures our current implementation meets immediate needs while setting the foundation for handling longer-form content in the future without a major rewrite. 

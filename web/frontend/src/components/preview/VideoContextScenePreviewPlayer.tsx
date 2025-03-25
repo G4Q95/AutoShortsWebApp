@@ -4,11 +4,15 @@
  * This component is a replacement for ScenePreviewPlayer, using VideoContext for
  * more accurate timeline scrubbing and playback. It maintains the same interface
  * as ScenePreviewPlayer for easy integration with the existing scene card UI.
+ * 
+ * Enhanced with local media downloads for improved seeking and scrubbing.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PlayIcon, PauseIcon, LockIcon, UnlockIcon } from 'lucide-react';
 import { VideoContextProvider } from '@/contexts/VideoContextProvider';
+import MediaDownloadManager from '@/utils/video/mediaDownloadManager';
+import EditHistoryManager, { ActionType } from '@/utils/video/editHistoryManager';
 
 interface VideoContextScenePreviewPlayerProps {
   projectId: string;
@@ -70,6 +74,65 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [aspectRatio, setAspectRatio] = useState<number>(9/16); // Default to vertical
   const [isVertical, setIsVertical] = useState<boolean>(true);
   
+  // Add state for local media
+  const [localMediaUrl, setLocalMediaUrl] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  
+  // Get singletons for media and edit history management
+  const mediaManager = useRef(MediaDownloadManager.getInstance());
+  const historyManager = useRef(EditHistoryManager.getInstance());
+
+  // Function to get local media URL
+  const getLocalMedia = useCallback(async () => {
+    if (!mediaUrl) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Check if we already have the media downloaded
+      if (mediaManager.current.isMediaDownloaded(mediaUrl, sceneId)) {
+        const cachedUrl = mediaManager.current.getObjectUrl(mediaUrl, sceneId);
+        if (cachedUrl) {
+          setLocalMediaUrl(cachedUrl);
+          setDownloadProgress(1);
+          return;
+        }
+      }
+      
+      // Download progress callback
+      const onProgress = (progress: number) => {
+        setDownloadProgress(progress);
+      };
+      
+      // Download the media
+      const objectUrl = await mediaManager.current.downloadMedia(
+        mediaUrl,
+        sceneId,
+        projectId,
+        mediaType,
+        { onProgress }
+      );
+      
+      setLocalMediaUrl(objectUrl);
+    } catch (error) {
+      console.error('Error downloading media:', error);
+      // Fall back to direct URL if download fails
+      setLocalMediaUrl(null);
+    }
+  }, [mediaUrl, sceneId, projectId, mediaType]);
+  
+  // Initialize media download when component mounts
+  useEffect(() => {
+    getLocalMedia();
+    
+    // Clean up function to release object URL
+    return () => {
+      if (localMediaUrl && mediaUrl) {
+        mediaManager.current.releaseMedia(mediaUrl, sceneId);
+      }
+    };
+  }, [mediaUrl, getLocalMedia]);
+  
   // Handle audio separately
   useEffect(() => {
     if (audioRef.current) {
@@ -85,8 +148,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Initialize VideoContext with proper null checking
   useEffect(() => {
-    // Make sure we're on client side and canvas exists
-    if (typeof window === 'undefined' || !canvasRef.current) return;
+    // Don't initialize until we have local media URL
+    if (typeof window === 'undefined' || !canvasRef.current || !localMediaUrl) return;
     
     // Import VideoContext dynamically to avoid SSR issues
     const initVideoContext = async () => {
@@ -113,18 +176,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         const ctx = new VideoContext(canvas);
         setVideoContext(ctx);
         
-        // Create source node
+        // Create source node (using local media URL)
         let source;
         if (mediaType === 'video') {
-          source = ctx.video(mediaUrl);
+          source = ctx.video(localMediaUrl);
         } else if (mediaType === 'image') {
-          source = ctx.image(mediaUrl);
+          source = ctx.image(localMediaUrl);
         } else {
           throw new Error(`Unsupported media type: ${mediaType}`);
         }
-        
-        // No longer integrating audio with VideoContext
-        // Let the separate audio element handle it
         
         // Set up source timing and connect to output
         source.start(0);
@@ -195,7 +255,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         }
       });
     };
-  }, [mediaUrl, mediaType]); // Remove audioUrl from dependencies since we're handling it separately
+  }, [localMediaUrl, mediaType]); // Only re-run when localMediaUrl changes
   
   // Update trim values when props change
   useEffect(() => {
@@ -251,121 +311,121 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   };
   
-  // Handle timeline click
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current || !videoContext) return;
+  // Handle trim range changes
+  const handleTrimStartChange = (value: number) => {
+    // Create previous values for undo/redo
+    const prevStart = trimStart;
+    const prevEnd = trimEnd;
     
-    const rect = timelineRef.current.getBoundingClientRect();
-    const clickPosition = e.clientX - rect.left;
-    const percentClicked = clickPosition / rect.width;
-    const newTime = trimStart + percentClicked * (trimEnd - trimStart);
+    // Update the values
+    const newStart = Math.min(value, trimEnd - 0.1);
+    setTrimStart(newStart);
     
-    handleTimeUpdate(newTime);
-  };
-  
-  // Handle trim start/end change
-  const handleTrimChange = useCallback((type: 'start' | 'end', value: number) => {
-    if (type === 'start') {
-      const newStart = Math.max(0, Math.min(value, trimEnd - 0.5));
-      setTrimStart(newStart);
-      if (onTrimChange) {
-        onTrimChange(newStart, trimEnd);
-      }
-    } else {
-      const newEnd = Math.max(trimStart + 0.5, Math.min(value, duration));
-      setTrimEnd(newEnd);
-      if (onTrimChange) {
-        onTrimChange(trimStart, newEnd);
-      }
+    // Notify parent if callback exists
+    if (onTrimChange) {
+      onTrimChange(newStart, trimEnd);
     }
-  }, [trimStart, trimEnd, duration, onTrimChange]);
-  
-  // Toggle controls lock
-  const toggleControlsLock = () => {
-    setControlsLocked(!controlsLocked);
+    
+    // Add to edit history
+    historyManager.current.addAction(
+      ActionType.MEDIA,
+      `Change trim start to ${newStart.toFixed(2)}`,
+      () => {
+        // Undo function
+        setTrimStart(prevStart);
+        if (onTrimChange) onTrimChange(prevStart, prevEnd);
+      },
+      () => {
+        // Redo function
+        setTrimStart(newStart);
+        if (onTrimChange) onTrimChange(newStart, prevEnd);
+      },
+      { sceneId, mediaType, trimType: 'start' }
+    );
   };
   
-  // Toggle trim mode
-  const toggleTrimMode = () => {
-    setTrimActive(!trimActive);
-    // Auto-lock controls when trim mode is active
-    if (!trimActive && !controlsLocked) {
-      setControlsLocked(true);
+  const handleTrimEndChange = (value: number) => {
+    // Create previous values for undo/redo
+    const prevStart = trimStart;
+    const prevEnd = trimEnd;
+    
+    // Update the values
+    const newEnd = Math.max(value, trimStart + 0.1);
+    setTrimEnd(newEnd);
+    
+    // Notify parent if callback exists
+    if (onTrimChange) {
+      onTrimChange(trimStart, newEnd);
     }
+    
+    // Add to edit history
+    historyManager.current.addAction(
+      ActionType.MEDIA,
+      `Change trim end to ${newEnd.toFixed(2)}`,
+      () => {
+        // Undo function
+        setTrimEnd(prevEnd);
+        if (onTrimChange) onTrimChange(prevStart, prevEnd);
+      },
+      () => {
+        // Redo function
+        setTrimEnd(newEnd);
+        if (onTrimChange) onTrimChange(prevStart, newEnd);
+      },
+      { sceneId, mediaType, trimType: 'end' }
+    );
   };
   
-  // Helper function to format time
-  const formatTime = (timeInSeconds: number): string => {
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.floor(timeInSeconds % 60);
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  // Utility function to format time
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // Modify the getMediaStyle function for better aspect ratio handling
-  const getMediaStyle = (): React.CSSProperties => {
-    // For vertical media (9:16 aspect ratio for shorts)
-    if (isVertical) {
+  // Get style for the video display based on aspect ratio
+  const getMediaStyle = () => {
+    // Video is wider than it is tall (landscape)
+    if (aspectRatio > 1) {
       return {
         width: isCompactView ? 'auto' : '100%',
-        height: isCompactView ? '100%' : 'auto',
-        maxHeight: isCompactView ? '190px' : '400px',
-        maxWidth: isCompactView ? '110px' : '225px', // Control width for vertical videos
-        margin: 'auto',
-        display: 'block'
+        height: isCompactView ? '110px' : 'auto',
+        objectFit: 'contain' as const,
       };
     }
     
-    // For horizontal media
+    // Video is taller than it is wide (portrait)
     return {
-      width: '100%',
+      width: isCompactView ? '110px' : '100%',
       height: 'auto',
-      maxHeight: isCompactView ? '190px' : '400px',
-      margin: 'auto',
-      display: 'block'
+      objectFit: 'contain' as const,
     };
   };
   
-  // Calculate current time position in percent
-  const getCurrentTimePercent = () => {
-    if (trimEnd === trimStart) return 0;
-    const percent = ((currentTime - trimStart) / (trimEnd - trimStart)) * 100;
-    return Math.max(0, Math.min(100, percent));
+  // Function to convert range input value to timeline position
+  const timelineValueToPosition = (value: number): number => {
+    return (value / 100) * (trimEnd - trimStart) + trimStart;
   };
   
-  // Determine if controls should be visible
-  const shouldShowControls = isHovering || controlsLocked;
+  // Function to convert timeline position to range input value
+  const positionToTimelineValue = (position: number): number => {
+    return ((position - trimStart) / (trimEnd - trimStart)) * 100;
+  };
   
-  // Handle trim handles drag behavior
-  useEffect(() => {
-    if (!activeHandle || !trimActive) return;
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      
-      const rect = containerRef.current.getBoundingClientRect();
-      const timelineWidth = rect.width;
-      const position = (e.clientX - rect.left) / timelineWidth;
-      const timePosition = Math.max(0, Math.min(position * duration, duration));
-      
-      if (activeHandle === 'start') {
-        handleTrimChange('start', timePosition);
-      } else if (activeHandle === 'end') {
-        handleTrimChange('end', timePosition);
-      }
-    };
-    
-    const handleMouseUp = () => {
-      setActiveHandle(null);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [activeHandle, trimActive, duration, handleTrimChange]);
+  // Render loading state
+  if (isLoading && !localMediaUrl) {
+    return (
+      <div className={`flex flex-col items-center justify-center bg-gray-900 rounded-lg overflow-hidden ${className}`}
+           style={{ height: isCompactView ? '110px' : '200px', width: isCompactView ? '110px' : '100%' }}>
+        <div className="flex flex-col items-center justify-center text-white">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+          <div className="text-xs">
+            {downloadProgress > 0 ? `${Math.round(downloadProgress * 100)}%` : 'Loading...'}
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div 
@@ -433,145 +493,110 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         
         {/* Hoverable controls - Smaller size */}
         <div 
-          className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${shouldShowControls ? 'opacity-100' : 'opacity-0'}`}
-          style={{ pointerEvents: shouldShowControls ? 'auto' : 'none' }}
-          data-testid="hover-controls"
+          className={`absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-100'}`}
           data-drag-handle-exclude="true"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          onDragStart={(e) => e.stopPropagation()}
-          draggable={false}
+          style={{ 
+            minHeight: '36px',
+            padding: '8px 8px 12px 8px',
+            zIndex: 10
+          }}
         >
-          {/* Timeline scrubber with trim controls - reduced size */}
-          <div className="p-1 bg-black bg-opacity-50" onMouseDown={(e) => e.stopPropagation()}>
-            {/* Time indicator - smaller text */}
-            <div className="flex justify-between text-white text-[8px] mb-0.5">
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
-            
-            {/* Timeline - using native range input like the volume slider */}
-            <div 
-              className="relative" 
-              onMouseDown={(e) => e.stopPropagation()}
-              onDragStart={(e) => e.preventDefault()} 
-              draggable={false}
+          {/* Timeline scrubber */}
+          <div className="flex items-center px-1 py-0.5 mb-1">
+            <input
+              ref={timelineRef}
+              type="range"
+              min="0"
+              max="100"
+              value={positionToTimelineValue(currentTime)}
+              onChange={(e) => handleTimeUpdate(timelineValueToPosition(parseFloat(e.target.value)))}
+              className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700"
+              style={{ 
+                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
+                height: isCompactView ? '6px' : '8px',
+              }}
+              data-testid="timeline-scrubber"
               data-drag-handle-exclude="true"
-            >
-              {/* Native range input for timeline scrubbing */}
-              <input 
-                ref={timelineRef}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            
+            {!isCompactView && (
+              <span className="text-white text-xs ml-1 w-8 text-right">
+                {formatTime(currentTime)}
+              </span>
+            )}
+          </div>
+          
+          {/* Trim controls - always show for better visibility */}
+          <div 
+            className="flex items-center space-x-1 px-1 pb-1"
+            data-drag-handle-exclude="true"
+          >
+            {/* Trim Start */}
+            <div className="flex-1">
+              <input
                 type="range"
                 min="0"
-                max={duration || 1}
+                max={duration}
                 step="0.01"
-                value={currentTime}
-                className="w-full h-2"
-                style={{
-                  WebkitAppearance: "none",
-                  appearance: "none",
-                  height: "8px",
-                  background: "rgba(55, 65, 81, 1)",
-                  borderRadius: "4px",
-                  outline: "none",
-                  cursor: "pointer"
-                }}
-                onChange={(e) => {
+                value={trimStart}
+                onChange={(e) => handleTrimStartChange(parseFloat(e.target.value))}
+                className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500"
+                style={{ height: isCompactView ? '4px' : '6px' }}
+                data-testid="trim-start-control"
+                data-drag-handle-exclude="true"
+                onMouseDown={(e) => {
                   e.stopPropagation();
-                  handleTimeUpdate(parseFloat(e.target.value));
+                  setActiveHandle('start');
+                  setTrimActive(true);
                 }}
-                data-testid="timeline-scrubber"
+                onMouseUp={() => {
+                  setActiveHandle(null);
+                  setTrimActive(false);
+                }}
               />
-              
-              {/* Trim controls overlay - only shown in trim mode */}
-              {trimActive && (
-                <div className="absolute top-0 left-0 right-0 h-2" data-drag-handle-exclude="true">
-                  {/* Trim area highlight */}
-                  <div 
-                    className="absolute h-full bg-blue-600 opacity-30"
-                    style={{ 
-                      left: `${(trimStart / duration) * 100}%`, 
-                      width: `${((trimEnd - trimStart) / duration) * 100}%` 
-                    }}
-                    data-testid="trim-area"
-                  ></div>
-                  
-                  {/* Start trim handle - using range input position only */}
-                  <div className="absolute h-full" style={{ left: `${(trimStart / duration) * 100}%`, width: "8px", transform: "translateX(-4px)" }}>
-                    <input 
-                      type="range"
-                      min="0"
-                      max={duration}
-                      step="0.01"
-                      value={trimStart}
-                      className="absolute h-full opacity-0 cursor-ew-resize z-20"
-                      style={{ 
-                        width: "8px",
-                        WebkitAppearance: "none",
-                        appearance: "none"
-                      }}
-                      onChange={(e) => {
-                        // Only used for drag cancellation - actual value change handled in mouse handlers
-                        e.stopPropagation();
-                      }}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        setActiveHandle('start');
-                      }}
-                      data-testid="trim-start-handle"
-                    />
-                    {/* Visual indicator */}
-                    <div 
-                      className="absolute h-full w-1 bg-white opacity-80 pointer-events-none" 
-                      style={{ left: "50%", transform: "translateX(-50%)" }}
-                    ></div>
-                  </div>
-                  
-                  {/* End trim handle - using range input position only */}
-                  <div className="absolute h-full" style={{ left: `${(trimEnd / duration) * 100}%`, width: "8px", transform: "translateX(-4px)" }}>
-                    <input 
-                      type="range"
-                      min="0"
-                      max={duration}
-                      step="0.01"
-                      value={trimEnd}
-                      className="absolute h-full opacity-0 cursor-ew-resize z-20"
-                      style={{ 
-                        width: "8px",
-                        WebkitAppearance: "none",
-                        appearance: "none"
-                      }}
-                      onChange={(e) => {
-                        // Only used for drag cancellation - actual value change handled in mouse handlers
-                        e.stopPropagation();
-                      }}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        setActiveHandle('end');
-                      }}
-                      data-testid="trim-end-handle"
-                    />
-                    {/* Visual indicator */}
-                    <div 
-                      className="absolute h-full w-1 bg-white opacity-80 pointer-events-none" 
-                      style={{ left: "50%", transform: "translateX(-50%)" }}
-                    ></div>
-                  </div>
-                </div>
-              )}
             </div>
             
-            {/* Control buttons - Smaller size */}
-            <div className="flex justify-end mt-0.5">
-              {/* Trim mode toggle - simpler */}
-              <button
-                onClick={toggleTrimMode}
-                className={`text-white text-[8px] py-0.5 px-1 rounded ${trimActive ? 'bg-blue-600' : 'bg-gray-600'}`}
-                data-testid="trim-toggle"
+            {/* Toggle Lock Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlsLocked(!controlsLocked);
+              }}
+              className="text-white opacity-70 hover:opacity-100 focus:outline-none"
+              data-testid="toggle-lock-button"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {controlsLocked ? (
+                <LockIcon className={`${isCompactView ? 'w-3 h-3' : 'w-4 h-4'}`} />
+              ) : (
+                <UnlockIcon className={`${isCompactView ? 'w-3 h-3' : 'w-4 h-4'}`} />
+              )}
+            </button>
+            
+            {/* Trim End */}
+            <div className="flex-1">
+              <input
+                type="range"
+                min="0"
+                max={duration}
+                step="0.01"
+                value={trimEnd}
+                onChange={(e) => handleTrimEndChange(parseFloat(e.target.value))}
+                className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500"
+                style={{ height: isCompactView ? '4px' : '6px' }}
+                data-testid="trim-end-control"
                 data-drag-handle-exclude="true"
-              >
-                {trimActive ? 'Done' : 'Trim'}
-              </button>
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  setActiveHandle('end');
+                  setTrimActive(true);
+                }}
+                onMouseUp={() => {
+                  setActiveHandle(null);
+                  setTrimActive(false);
+                }}
+              />
             </div>
           </div>
         </div>

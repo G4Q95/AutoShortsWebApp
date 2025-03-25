@@ -95,6 +95,15 @@ These are supplementary ideas that could enhance the application but haven't bee
   - Hybrid cloud/client processing model
   - WebRTC for real-time collaboration
 
+- Advanced Video Delivery Systems
+  - Chunked video streaming for long-form content (10+ minutes)
+  - Media segmentation with adaptive quality
+  - HTTP range request optimization for R2 content
+  - Thumbnail-based timeline navigation for efficient browsing
+  - Pre-loading strategies for adjacent content segments
+  - Abstracted media interface for seamless provider switching
+  - Hybrid approaches combining browser caching and streaming
+
 ## How to Use This Document
 
 - **Project Ideas**: Represent core concepts that align with the project vision
