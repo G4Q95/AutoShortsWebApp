@@ -380,19 +380,19 @@ export default function ContentTestPage() {
                     {new Date(enhancedErrorDetails.timestamp).toLocaleTimeString()}
                   </p>
                 )}
-                {enhancedErrorDetails.context && (
+                {enhancedErrorDetails.details && (
                   <div className="mb-1">
-                    <span className="font-semibold">Context:</span>
+                    <span className="font-semibold">Details:</span>
                     <pre className="text-xs mt-1 bg-red-50 p-2 rounded">
-                      {JSON.stringify(enhancedErrorDetails.context, null, 2)}
+                      {JSON.stringify(enhancedErrorDetails.details, null, 2)}
                     </pre>
                   </div>
                 )}
-                {enhancedErrorDetails.apiError && (
+                {enhancedErrorDetails.originalError && (
                   <div className="mb-1">
-                    <span className="font-semibold">API Error:</span>
+                    <span className="font-semibold">Original Error:</span>
                     <pre className="text-xs mt-1 bg-red-50 p-2 rounded">
-                      {JSON.stringify(enhancedErrorDetails.apiError, null, 2)}
+                      {enhancedErrorDetails.originalError.message}
                     </pre>
                   </div>
                 )}

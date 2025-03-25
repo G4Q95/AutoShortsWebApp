@@ -2,20 +2,13 @@
  * SceneMediaPlayer component
  * Wrapper around media player for scene media display with view mode toggle
  * Now using VideoContextScenePreviewPlayer for improved timeline scrubbing
- * Enhanced with local media downloads for better performance
  */
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
 
 // Import both player implementations
 import ScenePreviewPlayer from '@/components/preview/ScenePreviewPlayer';
 import VideoContextScenePreviewPlayer from '@/components/preview/VideoContextScenePreviewPlayer';
-import MediaDownloadManager from '@/utils/video/mediaDownloadManager';
-import ProjectStorageManager from '@/utils/video/projectStorageManager';
-
-// Initialize managers
-const mediaManager = MediaDownloadManager.getInstance();
-const storageManager = ProjectStorageManager.getInstance();
 
 interface SceneMediaPlayerProps {
   /**
@@ -61,11 +54,6 @@ interface SceneMediaPlayerProps {
   onTrimChange?: (start: number, end: number) => void;
   
   /**
-   * Handler to update scene media after storage
-   */
-  onMediaStored?: (mediaData: Partial<SceneMediaPlayerProps['media']>) => void;
-  
-  /**
    * Additional class names
    */
   className?: string;
@@ -89,53 +77,9 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   isCompactView,
   onToggleViewMode,
   onTrimChange,
-  onMediaStored,
   className = '',
   useVideoContext = true, // Default to using VideoContext player
 }) => {
-  // Track media storage status
-  const [isStoringMedia, setIsStoringMedia] = useState<boolean>(false);
-  
-  // Effect to ensure media is stored in R2 with proper structure
-  useEffect(() => {
-    const storeMedia = async () => {
-      if (!media || !media.url || media.isStorageBacked || isStoringMedia) {
-        return;
-      }
-      
-      try {
-        setIsStoringMedia(true);
-        
-        // Store media using the project storage manager
-        const updatedMediaData = await storageManager.storeSceneMedia({
-          id: sceneId,
-          url: '',
-          text: '',
-          source: { platform: 'internal' },
-          createdAt: Date.now(),
-          media: {
-            type: media.type,
-            url: media.url,
-            trim: media.trim
-          }
-        }, projectId);
-        
-        // Update parent component with storage information
-        if (updatedMediaData?.media && onMediaStored) {
-          onMediaStored(updatedMediaData.media as any);
-        }
-        
-        setIsStoringMedia(false);
-      } catch (error) {
-        console.error('Error storing media:', error);
-        setIsStoringMedia(false);
-      }
-    };
-    
-    // Start media storage process
-    storeMedia();
-  }, [media, projectId, sceneId, onMediaStored, isStoringMedia]);
-
   if (!media) {
     // Render placeholder for empty media
     return (
@@ -175,7 +119,7 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
           <VideoContextScenePreviewPlayer
             projectId={projectId}
             sceneId={sceneId}
-            mediaUrl={media.type === 'video' ? transformRedditVideoUrl(mediaUrl) : mediaUrl}
+            mediaUrl={mediaUrl}
             audioUrl={audioUrl || undefined}
             mediaType={media.type}
             trim={{ start: trimStart, end: trimEnd }}
@@ -197,13 +141,6 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
           />
         )}
       </div>
-      
-      {/* Media storage indicator */}
-      {isStoringMedia && (
-        <div className="absolute top-2 left-2 bg-black bg-opacity-50 rounded-full px-2 py-1 text-white text-xs">
-          Storing...
-        </div>
-      )}
       
       {/* View mode toggle button */}
       <button

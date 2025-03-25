@@ -11,7 +11,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PlayIcon, PauseIcon, LockIcon, UnlockIcon, ScissorsIcon, CheckIcon } from 'lucide-react';
 import { VideoContextProvider } from '@/contexts/VideoContextProvider';
-import MediaDownloadManager from '@/utils/video/mediaDownloadManager';
+import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
 import EditHistoryManager, { ActionType } from '@/utils/video/editHistoryManager';
 
 interface VideoContextScenePreviewPlayerProps {
@@ -46,6 +46,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   className = '',
   isCompactView = true,
 }) => {
+  console.log(`[VideoContext] Component rendering for scene ${sceneId} with media URL: ${mediaUrl}`);
+  
   // State for player
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -88,22 +90,34 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     try {
       setIsLoading(true);
+      console.warn(`[VideoContext] Starting media download process for scene ${sceneId}`);
+      console.warn(`[VideoContext] Media URL: ${mediaUrl}`);
+      console.warn(`[VideoContext] Media type: ${mediaType}`);
       
       // Check if we already have the media downloaded
       if (mediaManager.current.isMediaDownloaded(mediaUrl, sceneId)) {
         const cachedUrl = mediaManager.current.getObjectUrl(mediaUrl, sceneId);
         if (cachedUrl) {
+          console.warn(`[VideoContext] Using cached media URL for scene ${sceneId}`);
+          console.warn(`[VideoContext] Cached URL: ${cachedUrl}`);
           setLocalMediaUrl(cachedUrl);
           setDownloadProgress(1);
+          setIsLoading(false);
           return;
+        } else {
+          console.warn(`[VideoContext] Cache check returned true but no URL found for scene ${sceneId}`);
         }
+      } else {
+        console.warn(`[VideoContext] No cached media found for scene ${sceneId}, starting download`);
       }
       
       // Download progress callback
       const onProgress = (progress: number) => {
         setDownloadProgress(progress);
+        console.warn(`[VideoContext] Download progress for scene ${sceneId}: ${Math.round(progress * 100)}%`);
       };
       
+      console.warn(`[VideoContext] Initiating download for scene ${sceneId}`);
       // Download the media
       const objectUrl = await mediaManager.current.downloadMedia(
         mediaUrl,
@@ -113,11 +127,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         { onProgress }
       );
       
+      console.warn(`[VideoContext] Download successful for scene ${sceneId}`);
+      console.warn(`[VideoContext] Local URL: ${objectUrl}`);
       setLocalMediaUrl(objectUrl);
+      setIsLoading(false);
     } catch (error) {
-      console.error('Error downloading media:', error);
+      console.error(`[VideoContext] Error downloading media for scene ${sceneId}:`, error);
       // Fall back to direct URL if download fails
+      console.warn(`[VideoContext] Download failed for scene ${sceneId}, falling back to original URL: ${mediaUrl}`);
       setLocalMediaUrl(null);
+      setIsLoading(false);
     }
   }, [mediaUrl, sceneId, projectId, mediaType]);
   
@@ -302,6 +321,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Keep time within trim boundaries
     const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd);
+    console.warn(`[VideoContext] Scrubbing to time: ${clampedTime.toFixed(2)}`);
     videoContext.currentTime = clampedTime;
     setCurrentTime(clampedTime);
     
