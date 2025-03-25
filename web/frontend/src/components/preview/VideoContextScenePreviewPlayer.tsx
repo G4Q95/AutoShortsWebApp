@@ -856,28 +856,41 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               </span>
             )}
             
-            {/* Always show trim brackets if trim has been set */}
-            {(trimManuallySet || trimStart > 0 || getEffectiveTrimEnd() < duration) && (
+            {/* Show trim brackets based on conditions */}
+            {(
+              // Show in edit mode regardless of position
+              trimActive || 
+              // When not in edit mode, only show if not at extreme positions
+              (
+                trimManuallySet && 
+                // Don't show left bracket at extreme left unless in edit mode
+                (trimStart > 0.01 || trimActive) && 
+                // Don't show right bracket at extreme right unless in edit mode
+                (getEffectiveTrimEnd() < duration - 0.01 || trimActive)
+              )
+            ) && (
               <>
-                {/* Left trim bracket */}
+                {/* Left trim bracket - only visible if not at start or in edit mode */}
                 <div 
-                  className="absolute w-0.5 bg-blue-400"
+                  className="absolute w-0.5 bg-blue-400 rounded-full"
                   style={{ 
                     left: `calc(${(trimStart / duration) * 100}% - 0.5px)`,
-                    top: '-7px',
-                    height: '20px',
-                    transform: 'none'
+                    top: '-4px',
+                    height: '14px',
+                    transform: 'none',
+                    opacity: (trimStart <= 0.01 && !trimActive) ? 0 : 1
                   }}
                 />
                 
-                {/* Right trim bracket */}
+                {/* Right trim bracket - only visible if not at end or in edit mode */}
                 <div 
-                  className="absolute w-0.5 bg-blue-400"
+                  className="absolute w-0.5 bg-blue-400 rounded-full"
                   style={{ 
                     left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 0.5px)`,
-                    top: '-7px',
-                    height: '20px',
-                    transform: 'none'
+                    top: '-4px',
+                    height: '14px',
+                    transform: 'none',
+                    opacity: (getEffectiveTrimEnd() >= duration - 0.01 && !trimActive) ? 0 : 1
                   }}
                 />
               </>
