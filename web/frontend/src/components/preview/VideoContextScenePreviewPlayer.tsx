@@ -563,96 +563,29 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return value;
   };
   
-  // Handle trim range changes
-  const handleTrimStartChange = (value: number) => {
-    // Create previous values for undo/redo
-    const prevStart = trimStart;
-    const prevEnd = trimEnd;
-    
-    // Update the values
-    const newStart = Math.min(value, trimEnd - 0.1);
-    
-    console.log("[VideoContext] Changing trim start", {
-      prevStart,
-      newStart,
-      trimEnd
-    });
-    
-    setTrimStart(newStart);
-    setTrimManuallySet(true);
-    
-    // Show preview frame at the trim position
-    if (videoContext && !isPlaying) {
-      videoContext.currentTime = newStart;
+  // Get the effective trim end for display purposes
+  const getEffectiveTrimEnd = () => {
+    // If we have a user-set value, use it
+    if (userTrimEndRef.current !== null) {
+      console.log(`[VideoContext] Using userTrimEndRef value: ${userTrimEndRef.current}`);
+      return userTrimEndRef.current;
     }
     
-    // Notify parent if callback exists
-    if (onTrimChange) {
-      onTrimChange(newStart, trimEnd);
+    // If trimEnd from state is valid (not zero), use it
+    if (trimEnd > 0) {
+      console.log(`[VideoContext] Using trimEnd state value: ${trimEnd}`);
+      return trimEnd;
     }
     
-    // Add to edit history
-    historyManager.current.addAction(
-      ActionType.TRIM_CHANGE,
-      sceneId,
-      projectId,
-      { mediaType, trimType: 'start', prevStart, newStart },
-      async () => {
-        // Undo function
-        setTrimStart(prevStart);
-        if (onTrimChange) onTrimChange(prevStart, prevEnd);
-      }
-    );
-  };
-  
-  const handleTrimEndChange = (value: number) => {
-    // Create previous values for undo/redo
-    const prevStart = trimStart;
-    const prevEnd = trimEnd;
-    
-    // Update the values
-    const newEnd = Math.max(value, trimStart + 0.1);
-    
-    console.log("[VideoContext] Changing trim end", {
-      prevEnd,
-      newEnd,
-      trimStart,
-      "prop trimEnd": trim.end,
-      "before userTrimEnd": userTrimEndRef.current
-    });
-    
-    // Update both the state and the ref
-    setTrimEnd(newEnd);
-    userTrimEndRef.current = newEnd;
-    setTrimManuallySet(true);
-    
-    // Show preview frame at the trim position
-    if (videoContext && !isPlaying) {
-      videoContext.currentTime = newEnd;
+    // If duration is known, use that
+    if (duration > 0) {
+      console.log(`[VideoContext] Using duration value: ${duration}`);
+      return duration;
     }
     
-    console.log("[VideoContext] After changing trim end", {
-      "new trimEnd": newEnd, 
-      "new userTrimEnd": userTrimEndRef.current
-    });
-    
-    // Notify parent if callback exists
-    if (onTrimChange) {
-      onTrimChange(trimStart, newEnd);
-    }
-    
-    // Add to edit history
-    historyManager.current.addAction(
-      ActionType.TRIM_CHANGE,
-      sceneId,
-      projectId,
-      { mediaType, trimType: 'end', prevEnd, newEnd },
-      async () => {
-        // Undo function
-        setTrimEnd(prevEnd);
-        if (onTrimChange) onTrimChange(prevStart, prevEnd);
-      }
-    );
+    // Fallback to a reasonable default (10 seconds)
+    console.log(`[VideoContext] Using default 10 seconds value`);
+    return 10;
   };
   
   // Utility function to format time
@@ -681,29 +614,59 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
   };
   
-  // Get the effective trim end for display purposes
-  const getEffectiveTrimEnd = () => {
-    // If we have a user-set value, use it
-    if (userTrimEndRef.current !== null) {
-      console.log(`[VideoContext] Using userTrimEndRef value: ${userTrimEndRef.current}`);
-      return userTrimEndRef.current;
-    }
+  // Add functions to handle direct bracket dragging
+  const handleBracketDragStart = (bracketType: 'start' | 'end', e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setActiveHandle(bracketType);
     
-    // If trimEnd from state is valid (not zero), use it
-    if (trimEnd > 0) {
-      console.log(`[VideoContext] Using trimEnd state value: ${trimEnd}`);
-      return trimEnd;
+    // Store original playback position
+    if (videoContext) {
+      setOriginalPlaybackTime(videoContext.currentTime);
     }
+
+    // Setup bracket dragging logic
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.stopPropagation();
+      moveEvent.preventDefault();
+      
+      if (!containerRef.current) return;
+      
+      const rect = containerRef.current.getBoundingClientRect();
+      const relativeX = moveEvent.clientX - rect.left;
+      const percentPosition = Math.max(0, Math.min(100, (relativeX / rect.width) * 100));
+      const newTime = (percentPosition / 100) * duration;
+      
+      if (bracketType === 'start') {
+        const newStart = Math.min(newTime, trimEnd - 0.1);
+        setTrimStart(newStart);
+        if (onTrimChange) onTrimChange(newStart, trimEnd);
+      } else {
+        const newEnd = Math.max(newTime, trimStart + 0.1);
+        setTrimEnd(newEnd);
+        userTrimEndRef.current = newEnd;
+        if (onTrimChange) onTrimChange(trimStart, newEnd);
+      }
+      
+      setTrimManuallySet(true);
+    };
     
-    // If duration is known, use that
-    if (duration > 0) {
-      console.log(`[VideoContext] Using duration value: ${duration}`);
-      return duration;
-    }
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      upEvent.stopPropagation();
+      
+      document.removeEventListener('mousemove', handleMouseMove, { capture: true });
+      document.removeEventListener('mouseup', handleMouseUp, { capture: true });
+      setActiveHandle(null);
+      
+      // Restore original playback position when done dragging
+      if (videoContext && !isPlaying) {
+        videoContext.currentTime = originalPlaybackTime;
+        setCurrentTime(originalPlaybackTime);
+      }
+    };
     
-    // Fallback to a reasonable default (10 seconds)
-    console.log(`[VideoContext] Using default 10 seconds value`);
-    return 10;
+    document.addEventListener('mousemove', handleMouseMove, { capture: true });
+    document.addEventListener('mouseup', handleMouseUp, { capture: true });
   };
   
   // Render loading state
@@ -810,88 +773,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             zIndex: 10
           }}
         >
-          {/* Trim controls - shown only when trim mode active */}
-          {trimActive && (
-            <div 
-              className="flex items-center space-x-1 px-1 pb-1 animate-fadeIn"
-              data-drag-handle-exclude="true"
-            >
-              {/* Trim Start */}
-              <div className="flex-1">
-                <input
-                  type="range"
-                  min="0"
-                  max={duration}
-                  step="0.01"
-                  value={trimStart}
-                  onChange={(e) => handleTrimStartChange(parseFloat(e.target.value))}
-                  className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500 small-thumb"
-                  style={{ 
-                    height: '4px',
-                    WebkitAppearance: 'none',
-                    appearance: 'none'
-                  }}
-                  data-testid="trim-start-control"
-                  data-drag-handle-exclude="true"
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setActiveHandle('start');
-                    // Store original playback position
-                    if (videoContext) {
-                      setOriginalPlaybackTime(videoContext.currentTime);
-                    }
-                  }}
-                  onMouseUp={() => {
-                    setActiveHandle(null);
-                    // Restore original playback position when done dragging
-                    if (videoContext && !isPlaying) {
-                      videoContext.currentTime = originalPlaybackTime;
-                      setCurrentTime(originalPlaybackTime);
-                    }
-                  }}
-                />
-              </div>
-              
-              {/* Trim End */}
-              <div className="flex-1">
-                <input
-                  type="range"
-                  min="0"
-                  max={duration}
-                  step="0.01"
-                  value={getEffectiveTrimEnd()}
-                  onChange={(e) => handleTrimEndChange(parseFloat(e.target.value))}
-                  className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500 small-thumb"
-                  style={{ 
-                    height: '4px',
-                    WebkitAppearance: 'none',
-                    appearance: 'none'
-                  }}
-                  data-testid="trim-end-control"
-                  data-drag-handle-exclude="true"
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setActiveHandle('end');
-                    // Store original playback position
-                    if (videoContext) {
-                      setOriginalPlaybackTime(videoContext.currentTime);
-                    }
-                  }}
-                  onMouseUp={() => {
-                    setActiveHandle(null);
-                    // Restore original playback position when done dragging
-                    if (videoContext && !isPlaying) {
-                      videoContext.currentTime = originalPlaybackTime;
-                      setCurrentTime(originalPlaybackTime);
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          )}
-          
           {/* Main timeline scrubber */}
-          <div className="flex items-center px-1 mb-1 relative">
+          <div className="flex items-center px-1 mb-1 relative" data-drag-handle-exclude="true">
             {/* Timeline scrubber */}
             <input
               ref={timelineRef}
@@ -900,8 +783,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               max="100"
               value={positionToTimelineValue(currentTime)}
               onChange={(e) => {
-                // Only allow timeline scrubbing when not adjusting trim handles
-                if (!activeHandle) {
+                // Only allow timeline scrubbing when not in trim mode
+                if (!trimActive) {
                   const inputValue = parseFloat(e.target.value);
                   const newTime = timelineValueToPosition(inputValue);
                   console.log(`[VideoContext] Scrubber input: value=${inputValue}%, time=${newTime}s, duration=${duration}s`);
@@ -914,11 +797,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   handleTimeUpdate(newTime);
                 }
               }}
-              className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${activeHandle ? 'pointer-events-none' : ''}`}
+              className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${trimActive ? 'pointer-events-none' : ''}`}
               style={{ 
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
                 height: '4px',
-                opacity: activeHandle ? 0.5 : 1,
+                opacity: trimActive ? 0.4 : 1, // Make the scrubber translucent when in trim mode
                 WebkitAppearance: 'none',
                 appearance: 'none'
               }}
@@ -926,7 +809,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               data-drag-handle-exclude="true"
               onMouseDown={(e) => {
                 e.stopPropagation();
-                if (!activeHandle) {
+                if (!trimActive) {
                   setIsDraggingScrubber(true);
                 }
               }}
@@ -934,49 +817,48 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               onMouseLeave={() => setIsDraggingScrubber(false)}
             />
             
-            {/* Show trim brackets based on conditions */}
-            {(
-              // Show in edit mode regardless of position
-              trimActive || 
-              // When not in edit mode, only show if not at extreme positions
-              (
-                trimManuallySet && 
-                // Don't show left bracket at extreme left unless in edit mode
-                (trimStart > 0.01 || trimActive) && 
-                // Don't show right bracket at extreme right unless in edit mode
-                (getEffectiveTrimEnd() < duration - 0.01 || trimActive)
-              )
-            ) && (
-              <>
-                {/* Left trim bracket - only visible if not at start or in edit mode */}
-                <div 
-                  className="absolute w-0.5 bg-blue-400 rounded-full"
-                  style={{ 
-                    left: `calc(${(trimStart / duration) * 100}% - 0.5px)`,
-                    top: '-4px',
-                    height: '12px',
-                    transform: 'none',
-                    opacity: (trimStart <= 0.01 && !trimActive) ? 0 : 1
-                  }}
-                />
-                
-                {/* Right trim bracket - only visible if not at end or in edit mode */}
-                <div 
-                  className="absolute w-0.5 bg-blue-400 rounded-full"
-                  style={{ 
-                    left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 0.5px)`,
-                    top: '-4px',
-                    height: '12px',
-                    transform: 'none',
-                    opacity: (getEffectiveTrimEnd() >= duration - 0.01 && !trimActive) ? 0 : 1
-                  }}
-                />
-              </>
-            )}
+            {/* Trim brackets */}
+            <>
+              {/* Left trim bracket */}
+              <div 
+                className={`absolute w-1 bg-blue-400 rounded-full cursor-ew-resize ${trimActive ? 'hover:bg-blue-300' : ''}`}
+                style={{ 
+                  left: `calc(${(trimStart / duration) * 100}% - 1px)`,
+                  top: '-6px',
+                  height: trimActive ? '16px' : '12px',
+                  transform: 'none',
+                  opacity: trimActive ? 1 : (trimStart <= 0.01 ? 0 : 0.6),
+                  transition: 'height 0.2s ease, opacity 0.2s ease',
+                  pointerEvents: trimActive ? 'auto' : 'none',
+                  zIndex: 20
+                }}
+                onMouseDown={trimActive ? (e) => handleBracketDragStart('start', e) : undefined}
+                data-testid="trim-start-bracket"
+                data-drag-handle-exclude="true"
+              />
+              
+              {/* Right trim bracket */}
+              <div 
+                className={`absolute w-1 bg-blue-400 rounded-full cursor-ew-resize ${trimActive ? 'hover:bg-blue-300' : ''}`}
+                style={{ 
+                  left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 1px)`,
+                  top: '-6px',
+                  height: trimActive ? '16px' : '12px',
+                  transform: 'none',
+                  opacity: trimActive ? 1 : (getEffectiveTrimEnd() >= duration - 0.01 ? 0 : 0.6),
+                  transition: 'height 0.2s ease, opacity 0.2s ease',
+                  pointerEvents: trimActive ? 'auto' : 'none',
+                  zIndex: 20
+                }}
+                onMouseDown={trimActive ? (e) => handleBracketDragStart('end', e) : undefined}
+                data-testid="trim-end-bracket"
+                data-drag-handle-exclude="true"
+              />
+            </>
           </div>
           
           {/* Control buttons row */}
-          <div className="flex justify-between items-center px-1">
+          <div className="flex justify-between items-center px-1" data-drag-handle-exclude="true">
             {/* Lock button (left side) */}
             <button
               onClick={(e) => {
