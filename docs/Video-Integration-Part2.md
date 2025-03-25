@@ -86,15 +86,75 @@ Pending tasks:
 - Connect with scene generation workflow
 - Add export functionality
 
+### Phase 3: Browser-based Editing Solution (In Progress)
+
+A significant challenge was discovered when trying to use VideoContext with videos hosted on Cloudflare R2: attempting to scrub through the timeline causes the video to reset to the beginning rather than jumping to the requested position.
+
+**Problem Assessment:**
+- VideoContext fails to properly handle seeking with R2-hosted videos
+- The issue appears related to how R2 serves video content and how VideoContext processes byte range requests
+- Multiple technical approaches were attempted with limited success
+
+**Solution: Browser-Local Editing Approach**
+
+To address this critical limitation, we're implementing a browser-based editing solution:
+
+1. **Optimized Project Storage Structure:**
+   - Media files are organized in R2 using project-specific folders
+   - Each user's content is stored in dedicated directories
+   - File naming conventions ensure unique identification and versioning
+
+2. **Streamlined Download-First Workflow:**
+   - When media is added to a project, it's immediately saved to both:
+     - Cloudflare R2 (permanent storage in project folders)
+     - Browser memory (temporary editing cache)
+   - This parallel process eliminates waiting time before editing can begin
+   - Local object URLs (`URL.createObjectURL()`) are created from downloaded blobs
+   - These local URLs are used with VideoContext instead of the R2 URLs
+   - Object URLs are cleaned up when editing is completed
+
+3. **Smart Save Management:**
+   - Continuous auto-save functionality that preserves editing state
+   - Auto-saves continuously override previous auto-saves in R2 to optimize storage
+   - Comprehensive undo/redo system using command+Z and command+shift+Z
+   - Changes during the session can be reverted with the undo system
+   - Implementation uses a change history stack stored in browser memory
+
+4. **Implementation Components:**
+   - `MediaDownloadManager` utility to handle downloading and local URL creation
+   - `EditHistoryManager` to track changes and enable undo/redo functionality
+   - Enhanced `VideoContextScenePreviewPlayer` to use local URLs
+   - Background auto-save worker to handle save operations without UI blocking
+   - Progress indicators for media operations
+
+5. **Technical Benefits:**
+   - Zero additional storage costs (uses browser memory for editing)
+   - Elimination of seeking/scrubbing issues
+   - Reduced overall bandwidth usage compared to continuous streaming
+   - Improved editing responsiveness with no network latency
+   - Organized storage structure for better project management
+
+Implementation tasks:
+- Create the MediaDownloadManager utility with parallel download capability
+- Build EditHistoryManager with undo/redo stack
+- Implement project-based folder structure in R2 storage
+- Add auto-save functionality with configurable intervals
+- Modify VideoContext initialization to use local URLs
+- Add download progress indicators to the UI
+- Implement cleanup to prevent memory leaks
+- Test with various media types and sizes
+
+This approach provides a balance between editing performance and storage costs, while solving the critical R2 compatibility issue that prevented effective media trimming and editing.
+
 ### Roadmap for Future Phases
 
-Phase 3: Advanced Features
+Phase 4: Advanced Features
 - Enhanced timeline UI with draggable scenes
 - Visual effects library integration
 - Text overlay capabilities
 - Advanced transitions
 
-Phase 4: Export Integration
+Phase 5: Export Integration
 - Connect to backend for final video processing
 - Add quality/format selection
 - Implement progress tracking for exports

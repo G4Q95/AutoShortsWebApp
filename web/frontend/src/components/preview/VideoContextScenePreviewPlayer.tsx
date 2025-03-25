@@ -148,17 +148,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             const ratio = videoWidth / videoHeight;
             setAspectRatio(ratio);
             setIsVertical(ratio < 1);
-            
-            // Important: Seek to the first frame to display a thumbnail
-            // This ensures a frame is shown even before play is pressed
-            ctx.currentTime = 0;
-            // Trigger a single frame render to show the first frame
-            ctx.play();
-            setTimeout(() => {
-              if (ctx && !isPlaying) {
-                ctx.pause();
-              }
-            }, 50); // Short timeout to ensure the frame renders
           } else if (audioRef.current && audioRef.current.duration) {
             // For images with audio, use audio duration
             setDuration(audioRef.current.duration);
