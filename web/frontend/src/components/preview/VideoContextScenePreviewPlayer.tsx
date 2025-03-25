@@ -85,6 +85,30 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const mediaManager = useRef(MediaDownloadManager.getInstance());
   const historyManager = useRef(EditHistoryManager.getInstance());
 
+  // Add ref for animation frame
+  const animationFrameRef = useRef<number>();
+
+  // Add time update loop
+  useEffect(() => {
+    const updateTime = () => {
+      if (videoContext && isPlaying) {
+        const time = videoContext.currentTime;
+        setCurrentTime(time);
+        animationFrameRef.current = requestAnimationFrame(updateTime);
+      }
+    };
+
+    if (isPlaying) {
+      animationFrameRef.current = requestAnimationFrame(updateTime);
+    }
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [isPlaying, videoContext]);
+
   // Function to get local media URL
   const getLocalMedia = useCallback(async () => {
     if (!mediaUrl) return;
@@ -241,7 +265,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         
         // Set up time update callback
         ctx.registerTimeUpdateCallback((time: number) => {
+          console.warn(`[VideoContext] Time update: ${time.toFixed(2)}`);
+          
+          // Ensure we're updating state with the latest time
           setCurrentTime(time);
+          
+          // Request an animation frame to ensure smooth updates
+          requestAnimationFrame(() => {
+            setCurrentTime(time);
+          });
           
           // Auto-pause at trim end
           if (time >= trimEnd) {
@@ -309,6 +341,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (!videoContext) return;
     videoContext.pause();
     setIsPlaying(false);
+    
+    // Cancel animation frame on pause
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
     
     // Pause the audio too
     if (audioRef.current) {
