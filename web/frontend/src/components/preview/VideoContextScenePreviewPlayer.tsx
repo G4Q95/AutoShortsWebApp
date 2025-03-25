@@ -775,7 +775,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           )}
         </button>
         
-        {/* Controls container */}
+        {/* Separate background element with larger height to cover controls */}
+        <div 
+          className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
+          style={{ 
+            height: trimActive ? '50px' : '40px', // Now 10px taller when trim is active (was 8px)
+            bottom: trimActive ? '0px' : '0px', // Same position
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            zIndex: 9, // Behind the controls
+            transition: 'height 0.2s ease' // Smooth transition for height change
+          }}
+        />
+        
+        {/* Controls container - now with transparent background */}
         <div 
           className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
           data-drag-handle-exclude="true"
@@ -940,7 +952,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                 e.stopPropagation();
                 setControlsLocked(!controlsLocked);
               }}
-              className="text-white opacity-70 hover:opacity-100 focus:outline-none"
+              className="text-white hover:opacity-100 focus:outline-none"
               data-testid="toggle-lock-button"
               onMouseDown={(e) => e.stopPropagation()}
               style={{ padding: '1.5px' }}
@@ -953,7 +965,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             </button>
 
             {/* Time display (center) */}
-            <div className="text-white text-[9px] opacity-70 select-none">
+            <div className="text-white text-[9px] select-none">
               {formatTime(currentTime)}
             </div>
             
@@ -963,7 +975,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                 e.stopPropagation();
                 setTrimActive(!trimActive);
               }}
-              className="text-white opacity-70 hover:opacity-100 focus:outline-none"
+              className="text-white hover:opacity-100 focus:outline-none"
               data-testid="toggle-trim-button"
               onMouseDown={(e) => e.stopPropagation()}
               style={{ padding: '1.5px' }}
