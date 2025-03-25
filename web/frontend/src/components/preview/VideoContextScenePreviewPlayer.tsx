@@ -859,26 +859,35 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             {/* Trim indicators when trim mode is active */}
             {trimActive && (
               <>
+                {/* Left trim bracket */}
                 <div 
-                  className="absolute h-6 w-1 bg-blue-400 rounded-sm"
+                  className="absolute w-0.5 bg-blue-400"
                   style={{ 
-                    left: `calc(${(trimStart / duration) * 100}% - 1px)`,
-                    top: '-4px'
+                    left: `calc(${(trimStart / duration) * 100}% - 0.5px)`,
+                    top: '-7px',
+                    height: '20px',
+                    transform: 'none'
                   }}
                 />
+                
+                {/* Right trim bracket */}
                 <div 
-                  className="absolute h-6 w-1 bg-blue-400 rounded-sm"
+                  className="absolute w-0.5 bg-blue-400"
                   style={{ 
-                    left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 1px)`,
-                    top: '-4px'
+                    left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 0.5px)`,
+                    top: '-7px',
+                    height: '20px',
+                    transform: 'none'
                   }}
                 />
+                
+                {/* Trim region highlight */}
                 <div 
-                  className="absolute h-2 bg-blue-400 bg-opacity-30"
+                  className="absolute h-1.5 bg-blue-400 bg-opacity-30"
                   style={{ 
                     left: `${(trimStart / duration) * 100}%`,
                     width: `${((getEffectiveTrimEnd() - trimStart) / duration) * 100}%`,
-                    top: '0px'
+                    top: '2px'
                   }}
                 />
               </>
