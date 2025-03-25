@@ -88,12 +88,28 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add ref for animation frame
   const animationFrameRef = useRef<number>();
 
-  // Add time update loop
+  // Add time update loop with trim boundaries
   useEffect(() => {
     const updateTime = () => {
       if (videoContext && isPlaying) {
         const time = videoContext.currentTime;
-        setCurrentTime(time);
+        
+        // Check if we've reached the trim end
+        if (time >= trimEnd) {
+          handlePause();
+          videoContext.currentTime = trimStart;
+          setCurrentTime(trimStart);
+          return;
+        }
+        
+        // Check if we're before trim start
+        if (time < trimStart) {
+          videoContext.currentTime = trimStart;
+          setCurrentTime(trimStart);
+        } else {
+          setCurrentTime(time);
+        }
+        
         animationFrameRef.current = requestAnimationFrame(updateTime);
       }
     };
@@ -107,7 +123,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPlaying, videoContext]);
+  }, [isPlaying, videoContext, trimStart, trimEnd]);
 
   // Function to get local media URL
   const getLocalMedia = useCallback(async () => {
@@ -315,16 +331,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setTrimEnd(trim.end || duration);
   }, [trim.start, trim.end, duration]);
   
-  // Handle play/pause
+  // Handle play/pause with trim boundaries
   const handlePlay = () => {
     if (!videoContext) return;
     
-    // Start playback from trim start if at the end
-    if (currentTime >= trimEnd) {
+    // If current time is outside trim bounds, reset to trim start
+    if (currentTime < trimStart || currentTime >= trimEnd) {
       videoContext.currentTime = trimStart;
-      if (audioRef.current) {
-        audioRef.current.currentTime = trimStart;
-      }
+      setCurrentTime(trimStart);
     }
     
     videoContext.play();
@@ -367,6 +381,24 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (audioRef.current) {
       audioRef.current.currentTime = clampedTime;
     }
+  };
+  
+  // Function to convert range input value to timeline position
+  const timelineValueToPosition = (value: number): number => {
+    // When trim handles are being dragged, maintain current position
+    if (activeHandle) {
+      return currentTime;
+    }
+    return (value / 100) * duration;
+  };
+  
+  // Function to convert timeline position to range input value
+  const positionToTimelineValue = (position: number): number => {
+    // When trim handles are being dragged, maintain current position
+    if (activeHandle) {
+      return (currentTime / duration) * 100;
+    }
+    return (position / duration) * 100;
   };
   
   // Handle trim range changes
@@ -458,16 +490,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       height: 'auto',
       objectFit: 'contain' as const,
     };
-  };
-  
-  // Function to convert range input value to timeline position
-  const timelineValueToPosition = (value: number): number => {
-    return (value / 100) * (trimEnd - trimStart) + trimStart;
-  };
-  
-  // Function to convert timeline position to range input value
-  const positionToTimelineValue = (position: number): number => {
-    return ((position - trimStart) / (trimEnd - trimStart)) * 100;
   };
   
   // Render loading state
@@ -622,17 +644,25 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               min="0"
               max="100"
               value={positionToTimelineValue(currentTime)}
-              onChange={(e) => handleTimeUpdate(timelineValueToPosition(parseFloat(e.target.value)))}
-              className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700"
+              onChange={(e) => {
+                // Only allow timeline scrubbing when not adjusting trim handles
+                if (!activeHandle) {
+                  handleTimeUpdate(timelineValueToPosition(parseFloat(e.target.value)));
+                }
+              }}
+              className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 ${activeHandle ? 'pointer-events-none' : ''}`}
               style={{ 
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
                 height: '6px',
+                opacity: activeHandle ? 0.5 : 1,
               }}
               data-testid="timeline-scrubber"
               data-drag-handle-exclude="true"
               onMouseDown={(e) => {
                 e.stopPropagation();
-                setIsDraggingScrubber(true);
+                if (!activeHandle) {
+                  setIsDraggingScrubber(true);
+                }
               }}
               onMouseUp={() => setIsDraggingScrubber(false)}
               onMouseLeave={() => setIsDraggingScrubber(false)}
