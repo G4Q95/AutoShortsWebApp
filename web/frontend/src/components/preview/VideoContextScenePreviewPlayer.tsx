@@ -89,7 +89,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const historyManager = useRef(EditHistoryManager.getInstance());
 
   // Add ref for animation frame
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
 
   // Add ref to store the user's manually set trim end value - initialize to null
   const userTrimEndRef = useRef<number | null>(null);
@@ -547,19 +547,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Add to edit history
     historyManager.current.addAction(
-      ActionType.MEDIA,
-      `Change trim start to ${newStart.toFixed(2)}`,
-      () => {
+      ActionType.TRIM_CHANGE,
+      sceneId,
+      projectId,
+      { mediaType, trimType: 'start', prevStart, newStart },
+      async () => {
         // Undo function
         setTrimStart(prevStart);
         if (onTrimChange) onTrimChange(prevStart, prevEnd);
-      },
-      () => {
-        // Redo function
-        setTrimStart(newStart);
-        if (onTrimChange) onTrimChange(newStart, prevEnd);
-      },
-      { sceneId, mediaType, trimType: 'start' }
+      }
     );
   };
   
@@ -596,19 +592,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Add to edit history
     historyManager.current.addAction(
-      ActionType.MEDIA,
-      `Change trim end to ${newEnd.toFixed(2)}`,
-      () => {
+      ActionType.TRIM_CHANGE,
+      sceneId,
+      projectId,
+      { mediaType, trimType: 'end', prevEnd, newEnd },
+      async () => {
         // Undo function
         setTrimEnd(prevEnd);
         if (onTrimChange) onTrimChange(prevStart, prevEnd);
-      },
-      () => {
-        // Redo function
-        setTrimEnd(newEnd);
-        if (onTrimChange) onTrimChange(prevStart, newEnd);
-      },
-      { sceneId, mediaType, trimType: 'end' }
+      }
     );
   };
   
