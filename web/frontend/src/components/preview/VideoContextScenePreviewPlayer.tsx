@@ -51,6 +51,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // State for player
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isDraggingScrubber, setIsDraggingScrubber] = useState<boolean>(false);
   
   // State for hover and trim controls
   const [isHovering, setIsHovering] = useState<boolean>(false);
@@ -592,8 +593,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               }}
               data-testid="timeline-scrubber"
               data-drag-handle-exclude="true"
-              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                setIsDraggingScrubber(true);
+              }}
+              onMouseUp={() => setIsDraggingScrubber(false)}
+              onMouseLeave={() => setIsDraggingScrubber(false)}
             />
+            
+            {/* Time indicator tooltip */}
+            {isDraggingScrubber && (
+              <div 
+                className="absolute text-[8px] text-white bg-black bg-opacity-75 px-1 py-0.5 rounded pointer-events-none transform -translate-y-full"
+                style={{ 
+                  left: `${positionToTimelineValue(currentTime)}%`,
+                  bottom: '8px',
+                  transform: 'translateX(-50%)',
+                }}
+              >
+                {formatTime(currentTime)}
+              </div>
+            )}
             
             {/* Display time if not in compact view */}
             {!isCompactView && (
@@ -650,6 +670,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                 <UnlockIcon className="w-3 h-3" />
               )}
             </button>
+
+            {/* Time display (center) */}
+            <div className="text-white text-[10px] opacity-70 select-none">
+              {formatTime(currentTime)}
+            </div>
             
             {/* Scissor/Save button (right side) */}
             <button
