@@ -966,7 +966,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
             {/* Time display (center) - updated to show current/total time */}
             <div className="text-white text-[9px] select-none">
-              {formatTime(currentTime)} / {trimActive ? formatTime(getEffectiveTrimEnd() - trimStart) : formatTime(duration)}
+              {activeHandle === 'start' 
+                ? `${formatTime(trimStart)} / ${trimActive ? formatTime(getEffectiveTrimEnd() - trimStart) : formatTime(duration)}`
+                : activeHandle === 'end'
+                  ? `${formatTime(getEffectiveTrimEnd())} / ${trimActive ? formatTime(getEffectiveTrimEnd() - trimStart) : formatTime(duration)}`
+                  : `${formatTime(currentTime)} / ${trimActive ? formatTime(getEffectiveTrimEnd() - trimStart) : formatTime(duration)}`
+              }
             </div>
             
             {/* Scissor/Save button (right side) */}
