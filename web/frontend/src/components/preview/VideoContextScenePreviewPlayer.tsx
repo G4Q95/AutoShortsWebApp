@@ -964,9 +964,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               )}
             </button>
 
-            {/* Time display (center) */}
+            {/* Time display (center) - updated to show current/total time */}
             <div className="text-white text-[9px] select-none">
-              {formatTime(currentTime)}
+              {formatTime(currentTime)} / {trimActive ? formatTime(getEffectiveTrimEnd() - trimStart) : formatTime(duration)}
             </div>
             
             {/* Scissor/Save button (right side) */}
