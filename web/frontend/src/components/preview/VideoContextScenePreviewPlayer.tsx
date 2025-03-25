@@ -59,6 +59,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [trimActive, setTrimActive] = useState<boolean>(false);
   const [activeHandle, setActiveHandle] = useState<'start' | 'end' | null>(null);
   
+  // Add state to track if trim was manually set
+  const [trimManuallySet, setTrimManuallySet] = useState<boolean>(false);
+  
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,7 +73,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [duration, setDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [trimStart, setTrimStart] = useState<number>(trim.start);
-  const [trimEnd, setTrimEnd] = useState<number>(trim.end || 0);
+  const [trimEnd, setTrimEnd] = useState<number>(trim.end || 10);
   const [isReady, setIsReady] = useState<boolean>(false);
   
   // Add state to track media aspect ratio
@@ -88,17 +91,42 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add ref for animation frame
   const animationFrameRef = useRef<number>();
 
+  // Add ref to store the user's manually set trim end value - initialize to null
+  const userTrimEndRef = useRef<number | null>(null);
+
   // Add time update loop with trim boundaries
   useEffect(() => {
     const updateTime = () => {
       if (videoContext && isPlaying) {
         const time = videoContext.currentTime;
         
+        // Get the actual trim end to use
+        const actualTrimEnd = userTrimEndRef.current !== null ? userTrimEndRef.current : trimEnd;
+        
+        // Add detailed logging for debugging trim reset issue
+        console.log("[VideoContext] Auto-pause check", { 
+          time, 
+          trimEnd, 
+          trimStart,
+          "userTrimEnd": userTrimEndRef.current,
+          "trim.end": trim.end, 
+          "will-reset": time >= actualTrimEnd 
+        });
+        
         // Check if we've reached the trim end
-        if (time >= trimEnd) {
+        if (time >= actualTrimEnd) {
           handlePause();
           videoContext.currentTime = trimStart;
           setCurrentTime(trimStart);
+          
+          // Log after pause is triggered
+          console.log("[VideoContext] After pause", { 
+            currentTime: videoContext.currentTime, 
+            trimEnd, 
+            "userTrimEnd": userTrimEndRef.current,
+            "trim.end": trim.end 
+          });
+          
           return;
         }
         
@@ -123,7 +151,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPlaying, videoContext, trimStart, trimEnd]);
+  }, [isPlaying, videoContext, trimStart, trimEnd, trim.end]);
 
   // Function to get local media URL
   const getLocalMedia = useCallback(async () => {
@@ -259,8 +287,26 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           if (mediaType === 'video') {
             // Handle HTMLVideoElement specifically for type safety
             const videoElement = source.element as HTMLVideoElement;
+            
+            console.log("[VideoContext] Video loaded", {
+              duration: videoElement.duration,
+              currentTrimEnd: trimEnd,
+              currentUserTrimEnd: userTrimEndRef.current
+            });
+            
+            // Set the duration
             setDuration(videoElement.duration);
-            setTrimEnd(videoElement.duration);
+            
+            // Always ensure trimEnd is set to the full duration initially if not set
+            if (trimEnd <= 0 || trimEnd > videoElement.duration) {
+              setTrimEnd(videoElement.duration);
+            }
+            
+            // Initialize userTrimEnd if not already set
+            if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
+              userTrimEndRef.current = videoElement.duration;
+              console.log("[VideoContext] Setting initial userTrimEnd to", videoElement.duration);
+            }
             
             // Set aspect ratio from video dimensions
             const videoWidth = videoElement.videoWidth;
@@ -270,12 +316,40 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             setIsVertical(ratio < 1);
           } else if (audioRef.current && audioRef.current.duration) {
             // For images with audio, use audio duration
+            console.log("[VideoContext] Audio loaded", {
+              duration: audioRef.current.duration,
+              currentTrimEnd: trimEnd,
+              currentUserTrimEnd: userTrimEndRef.current
+            });
+            
+            // Set the duration
             setDuration(audioRef.current.duration);
-            setTrimEnd(audioRef.current.duration);
+            
+            // Always ensure trimEnd is set to the full duration initially if not set
+            if (trimEnd <= 0 || trimEnd > audioRef.current.duration) {
+              setTrimEnd(audioRef.current.duration);
+            }
+            
+            // Initialize userTrimEnd if not already set
+            if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
+              userTrimEndRef.current = audioRef.current.duration;
+              console.log("[VideoContext] Setting initial userTrimEnd to", audioRef.current.duration);
+            }
           } else {
             // Default duration for images without audio
+            console.log("[VideoContext] Setting default duration");
+            
+            // Set the duration
             setDuration(5);
+            
+            // Always ensure trimEnd is set to the full duration initially
             setTrimEnd(5);
+            
+            // Initialize userTrimEnd if not already set
+            if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
+              userTrimEndRef.current = 5;
+              console.log("[VideoContext] Setting initial userTrimEnd to", 5);
+            }
           }
         });
         
@@ -325,11 +399,41 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
   }, [localMediaUrl, mediaType]); // Only re-run when localMediaUrl changes
   
-  // Update trim values when props change
+  // Update trim values when props change - but only for trimStart
   useEffect(() => {
+    console.log("[VideoContext] Updating trim from props", { 
+      "old trimStart": trimStart,
+      "old trimEnd": trimEnd,
+      "userTrimEnd": userTrimEndRef.current,
+      "new trimStart": trim.start,
+      "new trimEnd": trim.end,
+      "duration": duration,
+      "has duration": duration > 0,
+      "trimManuallySet": trimManuallySet 
+    });
+    
+    // Always update trimStart from props
     setTrimStart(trim.start);
-    setTrimEnd(trim.end || duration);
-  }, [trim.start, trim.end, duration]);
+    
+    // For trimEnd, we need special handling:
+    // 1. If trim.end is explicitly set to a positive value, use it
+    // 2. If userTrimEnd is not set and we have duration, use duration
+    // 3. If already set manually, don't override unless trim.end is explicitly set
+    if (trim.end > 0) {
+      // If explicitly set in props, always update
+      setTrimEnd(trim.end);
+      userTrimEndRef.current = trim.end;
+      console.log("[VideoContext] Using explicit trim.end from props:", trim.end);
+    } else if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
+      // If user hasn't set a value and we have duration, use that
+      if (duration > 0) {
+        setTrimEnd(duration);
+        userTrimEndRef.current = duration;
+        console.log("[VideoContext] No trim.end from props, using duration:", duration);
+      }
+    }
+    // If user manually set it, don't override with zero or undefined
+  }, [trim.start, trim.end, duration, trimManuallySet]);
   
   // Handle play/pause with trim boundaries
   const handlePlay = () => {
@@ -340,6 +444,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       videoContext.currentTime = trimStart;
       setCurrentTime(trimStart);
     }
+    
+    // Log trim values before playing
+    console.log("[VideoContext] Before play", {
+      videoTime: videoContext.currentTime,
+      trimStart,
+      trimEnd,
+      "trim.end": trim.end
+    });
     
     videoContext.play();
     setIsPlaying(true);
@@ -353,6 +465,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   const handlePause = () => {
     if (!videoContext) return;
+    
+    console.log("[VideoContext] Pausing playback", {
+      currentTime: videoContext.currentTime,
+      trimStart,
+      trimEnd,
+      "trim.end": trim.end,
+      trimManuallySet
+    });
+    
     videoContext.pause();
     setIsPlaying(false);
     
@@ -409,7 +530,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Update the values
     const newStart = Math.min(value, trimEnd - 0.1);
+    
+    console.log("[VideoContext] Changing trim start", {
+      prevStart,
+      newStart,
+      trimEnd
+    });
+    
     setTrimStart(newStart);
+    setTrimManuallySet(true);
     
     // Notify parent if callback exists
     if (onTrimChange) {
@@ -441,7 +570,24 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Update the values
     const newEnd = Math.max(value, trimStart + 0.1);
+    
+    console.log("[VideoContext] Changing trim end", {
+      prevEnd,
+      newEnd,
+      trimStart,
+      "prop trimEnd": trim.end,
+      "before userTrimEnd": userTrimEndRef.current
+    });
+    
+    // Update both the state and the ref
     setTrimEnd(newEnd);
+    userTrimEndRef.current = newEnd;
+    setTrimManuallySet(true);
+    
+    console.log("[VideoContext] After changing trim end", {
+      "new trimEnd": newEnd, 
+      "new userTrimEnd": userTrimEndRef.current
+    });
     
     // Notify parent if callback exists
     if (onTrimChange) {
@@ -490,6 +636,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       height: 'auto',
       objectFit: 'contain' as const,
     };
+  };
+  
+  // Get the effective trim end for display purposes
+  const getEffectiveTrimEnd = () => {
+    // If we have a user-set value, use it
+    if (userTrimEndRef.current !== null) {
+      return userTrimEndRef.current;
+    }
+    
+    // If trimEnd from state is valid (not zero), use it
+    if (trimEnd > 0) {
+      return trimEnd;
+    }
+    
+    // If duration is known, use that
+    if (duration > 0) {
+      return duration;
+    }
+    
+    // Fallback to a reasonable default (10 seconds)
+    return 10;
   };
   
   // Render loading state
@@ -617,7 +784,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   min="0"
                   max={duration}
                   step="0.01"
-                  value={trimEnd}
+                  value={getEffectiveTrimEnd()}
                   onChange={(e) => handleTrimEndChange(parseFloat(e.target.value))}
                   className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500"
                   style={{ height: '4px' }}
@@ -702,7 +869,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                 <div 
                   className="absolute h-6 w-1 bg-blue-400 rounded-sm"
                   style={{ 
-                    left: `calc(${(trimEnd / duration) * 100}% - 1px)`,
+                    left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 1px)`,
                     top: '-4px'
                   }}
                 />
@@ -710,7 +877,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   className="absolute h-2 bg-blue-400 bg-opacity-30"
                   style={{ 
                     left: `${(trimStart / duration) * 100}%`,
-                    width: `${((trimEnd - trimStart) / duration) * 100}%`,
+                    width: `${((getEffectiveTrimEnd() - trimStart) / duration) * 100}%`,
                     top: '0px'
                   }}
                 />
