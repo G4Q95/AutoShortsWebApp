@@ -856,8 +856,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               </span>
             )}
             
-            {/* Trim indicators when trim mode is active */}
-            {trimActive && (
+            {/* Always show trim brackets if trim has been set */}
+            {(trimManuallySet || trimStart > 0 || getEffectiveTrimEnd() < duration) && (
               <>
                 {/* Left trim bracket */}
                 <div 
@@ -878,16 +878,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                     top: '-7px',
                     height: '20px',
                     transform: 'none'
-                  }}
-                />
-                
-                {/* Trim region highlight */}
-                <div 
-                  className="absolute h-1.5 bg-blue-400 bg-opacity-30"
-                  style={{ 
-                    left: `${(trimStart / duration) * 100}%`,
-                    width: `${((getEffectiveTrimEnd() - trimStart) / duration) * 100}%`,
-                    top: '2px'
                   }}
                 />
               </>
