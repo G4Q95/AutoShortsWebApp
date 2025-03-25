@@ -732,7 +732,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         
         {/* Controls container */}
         <div 
-          className={`absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-100'}`}
+          className={`absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
           data-drag-handle-exclude="true"
           style={{ 
             minHeight: '36px',
