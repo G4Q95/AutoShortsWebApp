@@ -69,6 +69,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   isCompactView = true,
 }) => {
   console.log(`[VideoContext] Component rendering for scene ${sceneId} with media URL: ${mediaUrl}`);
+  console.log(`[VideoContext] Initial trim values:`, trim);
   
   // State for player
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -95,7 +96,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [duration, setDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [trimStart, setTrimStart] = useState<number>(trim.start);
-  const [trimEnd, setTrimEnd] = useState<number>(trim.end || 10);
+  const [trimEnd, setTrimEnd] = useState<number>(trim.end || 0);
+  console.log(`[VideoContext] Initial state values: trimStart=${trimStart}, trimEnd=${trimEnd}, duration=${duration}`);
   const [isReady, setIsReady] = useState<boolean>(false);
   
   // Add state to track media aspect ratio
@@ -132,7 +134,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           trimStart,
           "userTrimEnd": userTrimEndRef.current,
           "trim.end": trim.end, 
-          "will-reset": time >= actualTrimEnd 
+          "will-reset": time >= actualTrimEnd,
+          "duration": duration
         });
         
         // Check if we've reached the trim end
@@ -312,20 +315,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             
             console.log("[VideoContext] Video loaded", {
               duration: videoElement.duration,
+              durationDataType: typeof videoElement.duration,
               currentTrimEnd: trimEnd,
-              currentUserTrimEnd: userTrimEndRef.current
+              currentUserTrimEnd: userTrimEndRef.current,
+              isNaN: isNaN(videoElement.duration),
+              isFinite: isFinite(videoElement.duration)
             });
             
             // Set the duration
             setDuration(videoElement.duration);
             
-            // Always ensure trimEnd is set to the full duration initially if not set
-            if (trimEnd <= 0 || trimEnd > videoElement.duration) {
+            // Log values for debugging
+            console.log(`[VideoContext] Video Duration: ${videoElement.duration}, trim.end: ${trim.end}, trimEnd: ${trimEnd}`);
+            
+            // Always ensure trimEnd is set to the full duration if not set or is the default 10 seconds
+            if (trimEnd <= 0 || trimEnd === 10) {
               setTrimEnd(videoElement.duration);
+              console.log(`[VideoContext] Updated trimEnd to full duration: ${videoElement.duration}`);
             }
             
-            // Initialize userTrimEnd if not already set
-            if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
+            // Initialize userTrimEnd if not already set or is currently set to 10 seconds
+            if (userTrimEndRef.current === null || userTrimEndRef.current <= 0 || userTrimEndRef.current === 10) {
               userTrimEndRef.current = videoElement.duration;
               console.log("[VideoContext] Setting initial userTrimEnd to", videoElement.duration);
             }
@@ -431,7 +441,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       "new trimEnd": trim.end,
       "duration": duration,
       "has duration": duration > 0,
-      "trimManuallySet": trimManuallySet 
+      "trimManuallySet": trimManuallySet,
+      "actual data type of trim.end": typeof trim.end,
+      "value of trim.end": trim.end
     });
     
     // Always update trimStart from props
@@ -516,7 +528,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Keep time within trim boundaries
     const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd);
-    console.warn(`[VideoContext] Scrubbing to time: ${clampedTime.toFixed(2)}`);
+    console.log(`[VideoContext] Scrubbing time update: requested=${newTime}, clamped=${clampedTime}, limits=[${trimStart}, ${trimEnd}], duration=${duration}`);
     videoContext.currentTime = clampedTime;
     setCurrentTime(clampedTime);
     
@@ -532,7 +544,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (activeHandle) {
       return currentTime;
     }
-    return (value / 100) * duration;
+    const position = (value / 100) * duration;
+    console.log(`[VideoContext] Timeline value ${value}% -> position ${position}s (duration: ${duration}s)`);
+    return position;
   };
   
   // Function to convert timeline position to range input value
@@ -541,7 +555,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (activeHandle) {
       return (currentTime / duration) * 100;
     }
-    return (position / duration) * 100;
+    const value = (position / duration) * 100;
+    console.log(`[VideoContext] Position ${position}s -> timeline value ${value}% (duration: ${duration}s)`);
+    return value;
   };
   
   // Handle trim range changes
@@ -656,20 +672,24 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const getEffectiveTrimEnd = () => {
     // If we have a user-set value, use it
     if (userTrimEndRef.current !== null) {
+      console.log(`[VideoContext] Using userTrimEndRef value: ${userTrimEndRef.current}`);
       return userTrimEndRef.current;
     }
     
     // If trimEnd from state is valid (not zero), use it
     if (trimEnd > 0) {
+      console.log(`[VideoContext] Using trimEnd state value: ${trimEnd}`);
       return trimEnd;
     }
     
     // If duration is known, use that
     if (duration > 0) {
+      console.log(`[VideoContext] Using duration value: ${duration}`);
       return duration;
     }
     
     // Fallback to a reasonable default (10 seconds)
+    console.log(`[VideoContext] Using default 10 seconds value`);
     return 10;
   };
   
@@ -839,7 +859,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               onChange={(e) => {
                 // Only allow timeline scrubbing when not adjusting trim handles
                 if (!activeHandle) {
-                  handleTimeUpdate(timelineValueToPosition(parseFloat(e.target.value)));
+                  const inputValue = parseFloat(e.target.value);
+                  const newTime = timelineValueToPosition(inputValue);
+                  console.log(`[VideoContext] Scrubber input: value=${inputValue}%, time=${newTime}s, duration=${duration}s`);
+                  
+                  // Check if trying to go beyond 10s limit
+                  if (newTime > 10) {
+                    console.warn(`[VideoContext] Attempting to scrub beyond 10s: ${newTime}s`);
+                  }
+                  
+                  handleTimeUpdate(newTime);
                 }
               }}
               className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${activeHandle ? 'pointer-events-none' : ''}`}
