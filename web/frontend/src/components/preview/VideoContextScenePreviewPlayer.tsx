@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { PlayIcon, PauseIcon, LockIcon, UnlockIcon } from 'lucide-react';
+import { PlayIcon, PauseIcon, LockIcon, UnlockIcon, ScissorsIcon, CheckIcon } from 'lucide-react';
 import { VideoContextProvider } from '@/contexts/VideoContextProvider';
 import MediaDownloadManager from '@/utils/video/mediaDownloadManager';
 import EditHistoryManager, { ActionType } from '@/utils/video/editHistoryManager';
@@ -491,18 +491,73 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           )}
         </button>
         
-        {/* Hoverable controls - Smaller size */}
+        {/* Controls container */}
         <div 
           className={`absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-100'}`}
           data-drag-handle-exclude="true"
           style={{ 
             minHeight: '36px',
-            padding: '8px 8px 12px 8px',
+            padding: '4px 8px 8px 8px',
             zIndex: 10
           }}
         >
-          {/* Timeline scrubber */}
-          <div className="flex items-center px-1 py-0.5 mb-1">
+          {/* Trim controls - shown only when trim mode active */}
+          {trimActive && (
+            <div 
+              className="flex items-center space-x-1 px-1 pb-2 animate-fadeIn"
+              data-drag-handle-exclude="true"
+            >
+              {/* Trim Start */}
+              <div className="flex-1">
+                <input
+                  type="range"
+                  min="0"
+                  max={duration}
+                  step="0.01"
+                  value={trimStart}
+                  onChange={(e) => handleTrimStartChange(parseFloat(e.target.value))}
+                  className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500"
+                  style={{ height: '4px' }}
+                  data-testid="trim-start-control"
+                  data-drag-handle-exclude="true"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setActiveHandle('start');
+                  }}
+                  onMouseUp={() => {
+                    setActiveHandle(null);
+                  }}
+                />
+              </div>
+              
+              {/* Trim End */}
+              <div className="flex-1">
+                <input
+                  type="range"
+                  min="0"
+                  max={duration}
+                  step="0.01"
+                  value={trimEnd}
+                  onChange={(e) => handleTrimEndChange(parseFloat(e.target.value))}
+                  className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500"
+                  style={{ height: '4px' }}
+                  data-testid="trim-end-control"
+                  data-drag-handle-exclude="true"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setActiveHandle('end');
+                  }}
+                  onMouseUp={() => {
+                    setActiveHandle(null);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* Main timeline scrubber */}
+          <div className="flex items-center px-1 mb-1 relative">
+            {/* Timeline scrubber */}
             <input
               ref={timelineRef}
               type="range"
@@ -513,51 +568,52 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700"
               style={{ 
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
-                height: isCompactView ? '6px' : '8px',
+                height: '6px',
               }}
               data-testid="timeline-scrubber"
               data-drag-handle-exclude="true"
               onMouseDown={(e) => e.stopPropagation()}
             />
             
+            {/* Display time if not in compact view */}
             {!isCompactView && (
-              <span className="text-white text-xs ml-1 w-8 text-right">
+              <span className="absolute right-0 -top-5 text-white text-xs">
                 {formatTime(currentTime)}
               </span>
             )}
+            
+            {/* Trim indicators when trim mode is active */}
+            {trimActive && (
+              <>
+                <div 
+                  className="absolute h-6 w-1 bg-blue-400 rounded-sm"
+                  style={{ 
+                    left: `calc(${(trimStart / duration) * 100}% - 1px)`,
+                    top: '-4px'
+                  }}
+                />
+                <div 
+                  className="absolute h-6 w-1 bg-blue-400 rounded-sm"
+                  style={{ 
+                    left: `calc(${(trimEnd / duration) * 100}% - 1px)`,
+                    top: '-4px'
+                  }}
+                />
+                <div 
+                  className="absolute h-2 bg-blue-400 bg-opacity-30"
+                  style={{ 
+                    left: `${(trimStart / duration) * 100}%`,
+                    width: `${((trimEnd - trimStart) / duration) * 100}%`,
+                    top: '0px'
+                  }}
+                />
+              </>
+            )}
           </div>
           
-          {/* Trim controls - always show for better visibility */}
-          <div 
-            className="flex items-center space-x-1 px-1 pb-1"
-            data-drag-handle-exclude="true"
-          >
-            {/* Trim Start */}
-            <div className="flex-1">
-              <input
-                type="range"
-                min="0"
-                max={duration}
-                step="0.01"
-                value={trimStart}
-                onChange={(e) => handleTrimStartChange(parseFloat(e.target.value))}
-                className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500"
-                style={{ height: isCompactView ? '4px' : '6px' }}
-                data-testid="trim-start-control"
-                data-drag-handle-exclude="true"
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  setActiveHandle('start');
-                  setTrimActive(true);
-                }}
-                onMouseUp={() => {
-                  setActiveHandle(null);
-                  setTrimActive(false);
-                }}
-              />
-            </div>
-            
-            {/* Toggle Lock Button */}
+          {/* Control buttons row */}
+          <div className="flex justify-between items-center px-1">
+            {/* Lock button (left side) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -566,38 +622,32 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               className="text-white opacity-70 hover:opacity-100 focus:outline-none"
               data-testid="toggle-lock-button"
               onMouseDown={(e) => e.stopPropagation()}
+              style={{ padding: '2px' }}
             >
               {controlsLocked ? (
-                <LockIcon className={`${isCompactView ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                <LockIcon className="w-3 h-3" />
               ) : (
-                <UnlockIcon className={`${isCompactView ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                <UnlockIcon className="w-3 h-3" />
               )}
             </button>
             
-            {/* Trim End */}
-            <div className="flex-1">
-              <input
-                type="range"
-                min="0"
-                max={duration}
-                step="0.01"
-                value={trimEnd}
-                onChange={(e) => handleTrimEndChange(parseFloat(e.target.value))}
-                className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-blue-300 accent-blue-500"
-                style={{ height: isCompactView ? '4px' : '6px' }}
-                data-testid="trim-end-control"
-                data-drag-handle-exclude="true"
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  setActiveHandle('end');
-                  setTrimActive(true);
-                }}
-                onMouseUp={() => {
-                  setActiveHandle(null);
-                  setTrimActive(false);
-                }}
-              />
-            </div>
+            {/* Scissor/Save button (right side) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setTrimActive(!trimActive);
+              }}
+              className="text-white opacity-70 hover:opacity-100 focus:outline-none"
+              data-testid="toggle-trim-button"
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ padding: '2px' }}
+            >
+              {trimActive ? (
+                <CheckIcon className="w-3 h-3" />
+              ) : (
+                <ScissorsIcon className="w-3 h-3" />
+              )}
+            </button>
           </div>
         </div>
       </div>
