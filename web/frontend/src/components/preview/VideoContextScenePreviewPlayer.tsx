@@ -85,6 +85,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add state to track if trim was manually set
   const [trimManuallySet, setTrimManuallySet] = useState<boolean>(false);
   
+  // Add state for original playback position
+  const [originalPlaybackTime, setOriginalPlaybackTime] = useState<number>(0);
+  
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -578,6 +581,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setTrimStart(newStart);
     setTrimManuallySet(true);
     
+    // Show preview frame at the trim position
+    if (videoContext && !isPlaying) {
+      videoContext.currentTime = newStart;
+    }
+    
     // Notify parent if callback exists
     if (onTrimChange) {
       onTrimChange(newStart, trimEnd);
@@ -617,6 +625,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setTrimEnd(newEnd);
     userTrimEndRef.current = newEnd;
     setTrimManuallySet(true);
+    
+    // Show preview frame at the trim position
+    if (videoContext && !isPlaying) {
+      videoContext.currentTime = newEnd;
+    }
     
     console.log("[VideoContext] After changing trim end", {
       "new trimEnd": newEnd, 
@@ -823,9 +836,18 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     setActiveHandle('start');
+                    // Store original playback position
+                    if (videoContext) {
+                      setOriginalPlaybackTime(videoContext.currentTime);
+                    }
                   }}
                   onMouseUp={() => {
                     setActiveHandle(null);
+                    // Restore original playback position when done dragging
+                    if (videoContext && !isPlaying) {
+                      videoContext.currentTime = originalPlaybackTime;
+                      setCurrentTime(originalPlaybackTime);
+                    }
                   }}
                 />
               </div>
@@ -850,9 +872,18 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     setActiveHandle('end');
+                    // Store original playback position
+                    if (videoContext) {
+                      setOriginalPlaybackTime(videoContext.currentTime);
+                    }
                   }}
                   onMouseUp={() => {
                     setActiveHandle(null);
+                    // Restore original playback position when done dragging
+                    if (videoContext && !isPlaying) {
+                      videoContext.currentTime = originalPlaybackTime;
+                      setCurrentTime(originalPlaybackTime);
+                    }
                   }}
                 />
               </div>
