@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
+import { Maximize, Minimize } from 'lucide-react';
 
 // Import both player implementations
 import ScenePreviewPlayer from '@/components/preview/ScenePreviewPlayer';
@@ -148,29 +149,11 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
         className="absolute top-2 right-2 bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
         data-testid="view-mode-toggle"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          {isCompactView ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
-            />
-          ) : (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4l5 5M4 4v4m0-4h4m11 5l-5-5m5 0v4m0-4h-4M4 16l5-5m-5 5v4m0-4h4m11-5l-5 5m5 0v4m0-4h-4"
-            />
-          )}
-        </svg>
+        {isCompactView ? (
+          <Maximize className="h-4 w-4" />
+        ) : (
+          <Minimize className="h-4 w-4" />
+        )}
       </button>
     </div>
   );
