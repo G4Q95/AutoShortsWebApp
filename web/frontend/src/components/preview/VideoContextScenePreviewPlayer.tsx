@@ -616,16 +616,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Add functions to handle direct bracket dragging
   const handleBracketDragStart = (bracketType: 'start' | 'end', e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setActiveHandle(bracketType);
-    
-    // Store original playback position
-    if (videoContext) {
-      setOriginalPlaybackTime(videoContext.currentTime);
-    }
-
-    // Setup bracket dragging logic
+    // This function is kept for compatibility with existing code but is now triggered by onMouseDown handlers
     const handleMouseMove = (moveEvent: MouseEvent) => {
       moveEvent.stopPropagation();
       moveEvent.preventDefault();
@@ -819,41 +810,133 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             
             {/* Trim brackets */}
             <>
-              {/* Left trim bracket */}
+              {/* Left trim bracket - Converted to use HTML range input */}
               <div 
-                className={`absolute w-1 bg-blue-400 rounded-full cursor-ew-resize ${trimActive ? 'hover:bg-blue-300' : ''}`}
+                className="absolute"
                 style={{ 
-                  left: `calc(${(trimStart / duration) * 100}% - 1px)`,
+                  left: `calc(${(trimStart / duration) * 100}% - 4px)`,
                   top: '-6px',
-                  height: trimActive ? '16px' : '12px',
-                  transform: 'none',
+                  height: '16px',
+                  width: '8px',
+                  zIndex: 20,
+                  pointerEvents: trimActive ? 'auto' : 'none',
                   opacity: trimActive ? 1 : (trimStart <= 0.01 ? 0 : 0.6),
-                  transition: 'height 0.2s ease, opacity 0.2s ease',
-                  pointerEvents: trimActive ? 'auto' : 'none',
-                  zIndex: 20
+                  transition: 'opacity 0.2s ease'
                 }}
-                onMouseDown={trimActive ? (e) => handleBracketDragStart('start', e) : undefined}
+                data-drag-handle-exclude="true"
                 data-testid="trim-start-bracket"
-                data-drag-handle-exclude="true"
-              />
+              >
+                {/* Visual indicator (non-interactive) */}
+                <div 
+                  className={`absolute w-1 bg-blue-400 rounded-full ${trimActive ? 'hover:bg-blue-300' : ''}`}
+                  style={{ 
+                    left: '3.5px',
+                    height: trimActive ? '16px' : '12px',
+                    pointerEvents: 'none',
+                    transition: 'height 0.2s ease',
+                  }}
+                  data-testid="trim-start-bracket-visual"
+                />
+                
+                {/* Interactive range input */}
+                {trimActive && (
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={(trimStart / duration) * 100}
+                    className="h-full opacity-0 cursor-ew-resize"
+                    style={{
+                      width: '8px',
+                      position: 'absolute',
+                      appearance: 'none',
+                      WebkitAppearance: 'none',
+                      zIndex: 25
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setActiveHandle('start');
+                      // Store original playback position
+                      if (videoContext) {
+                        setOriginalPlaybackTime(videoContext.currentTime);
+                      }
+                      // Call the bracket drag start handler to enable dragging
+                      handleBracketDragStart('start', e);
+                    }}
+                    onChange={(e) => {
+                      // This doesn't actually set the value, just prevents default handling
+                      e.stopPropagation();
+                    }}
+                    data-testid="trim-start-range"
+                    data-drag-handle-exclude="true"
+                  />
+                )}
+              </div>
               
-              {/* Right trim bracket */}
+              {/* Right trim bracket - Converted to use HTML range input */}
               <div 
-                className={`absolute w-1 bg-blue-400 rounded-full cursor-ew-resize ${trimActive ? 'hover:bg-blue-300' : ''}`}
+                className="absolute"
                 style={{ 
-                  left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 1px)`,
+                  left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 4px)`,
                   top: '-6px',
-                  height: trimActive ? '16px' : '12px',
-                  transform: 'none',
-                  opacity: trimActive ? 1 : (getEffectiveTrimEnd() >= duration - 0.01 ? 0 : 0.6),
-                  transition: 'height 0.2s ease, opacity 0.2s ease',
+                  height: '16px',
+                  width: '8px',
+                  zIndex: 20,
                   pointerEvents: trimActive ? 'auto' : 'none',
-                  zIndex: 20
+                  opacity: trimActive ? 1 : (getEffectiveTrimEnd() >= duration - 0.01 ? 0 : 0.6),
+                  transition: 'opacity 0.2s ease'
                 }}
-                onMouseDown={trimActive ? (e) => handleBracketDragStart('end', e) : undefined}
-                data-testid="trim-end-bracket"
                 data-drag-handle-exclude="true"
-              />
+                data-testid="trim-end-bracket"
+              >
+                {/* Visual indicator (non-interactive) */}
+                <div 
+                  className={`absolute w-1 bg-blue-400 rounded-full ${trimActive ? 'hover:bg-blue-300' : ''}`}
+                  style={{ 
+                    left: '3.5px',
+                    height: trimActive ? '16px' : '12px',
+                    pointerEvents: 'none',
+                    transition: 'height 0.2s ease',
+                  }}
+                  data-testid="trim-end-bracket-visual"
+                />
+                
+                {/* Interactive range input */}
+                {trimActive && (
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={(getEffectiveTrimEnd() / duration) * 100}
+                    className="h-full opacity-0 cursor-ew-resize"
+                    style={{
+                      width: '8px',
+                      position: 'absolute',
+                      appearance: 'none',
+                      WebkitAppearance: 'none',
+                      zIndex: 25
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setActiveHandle('end');
+                      // Store original playback position
+                      if (videoContext) {
+                        setOriginalPlaybackTime(videoContext.currentTime);
+                      }
+                      // Call the bracket drag start handler to enable dragging
+                      handleBracketDragStart('end', e);
+                    }}
+                    onChange={(e) => {
+                      // This doesn't actually set the value, just prevents default handling
+                      e.stopPropagation();
+                    }}
+                    data-testid="trim-end-range"
+                    data-drag-handle-exclude="true"
+                  />
+                )}
+              </div>
             </>
           </div>
           
