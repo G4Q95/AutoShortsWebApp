@@ -1,6 +1,9 @@
-import { ProjectProvider } from '@/contexts/ProjectContext';
+'use client';
+
+import React from 'react';
+import { ProjectProvider } from '@/components/project/ProjectProvider';
 import { Suspense } from 'react';
-import ProjectWorkspace from '@/components/ProjectWorkspace';
+import ProjectWorkspace from '@/components/project/ProjectWorkspace';
 import LoadingState from '@/components/LoadingState';
 import { ProjectParams } from '@/lib/types';
 import StorageDebugger from './StorageDebugger';

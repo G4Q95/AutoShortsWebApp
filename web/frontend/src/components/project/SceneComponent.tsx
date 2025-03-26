@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { Scene } from './ProjectProvider';
+import { Scene, useProject } from './ProjectProvider';
 import {
   Trash2 as TrashIcon,
   Edit as EditIcon,
@@ -22,14 +22,13 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import ErrorDisplay from '../ErrorDisplay';
-import { useProject } from './ProjectProvider';
+import { useProject as useProjectContext } from '@/contexts/ProjectContext';
 import { getStoredAudio, generateVoice, persistVoiceAudio } from '@/lib/api-client';
 import SceneAudioControls from '../audio/SceneAudioControls';
 import SceneVideoPlayerWrapper from '../scene/SceneVideoPlayerWrapper';
 import SceneVoiceControlsWrapper from '../scene/SceneVoiceControlsWrapper';
 import { SceneMediaPlayer } from '../scene/SceneMediaPlayer';
 import { SceneTextEditor } from '../scene/SceneTextEditor';
-import { useProject as useProjectContext } from '@/contexts/ProjectContext';
 
 // Import extracted functions
 import {
@@ -111,6 +110,10 @@ interface SceneComponentProps {
   useNewAudioControls?: boolean;
   /** Drag handle props from react-beautiful-dnd */
   dragHandleProps?: DraggableProvidedDragHandleProps;
+  /** Project aspect ratio setting */
+  projectAspectRatio?: '9:16' | '16:9' | '1:1' | '4:5';
+  /** Whether to show letterboxing/pillarboxing */
+  showLetterboxing?: boolean;
 }
 
 /**
@@ -158,7 +161,9 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   isFullWidth = false,
   customStyles = {},
   useNewAudioControls = false,
-  dragHandleProps
+  dragHandleProps,
+  projectAspectRatio = '9:16',
+  showLetterboxing = true
 }: SceneComponentProps) {
   // Use new controls for all scenes
   const useNewControls = useNewAudioControls;
@@ -356,8 +361,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 }
               }}
               data-testid="scene-video-player-wrapper"
-              projectAspectRatio={project?.aspectRatio || '9:16'}
-              showLetterboxing={project?.showLetterboxing || true}
+              projectAspectRatio={projectAspectRatio}
+              showLetterboxing={showLetterboxing}
             />
             
             {/* OLD IMPLEMENTATION - Commenting out but keeping for reference 

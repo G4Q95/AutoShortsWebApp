@@ -9,9 +9,8 @@
 
 import React, { useState, useCallback } from 'react';
 import { SceneMediaPlayer } from './SceneMediaPlayer';
-import { Scene } from '@/components/project/ProjectProvider';
+import { Scene, useProject } from '@/components/project/ProjectProvider';
 import { constructStorageUrl } from '@/utils/scene';
-import { useProject as useProjectContext } from '@/contexts/ProjectContext';
 
 interface SceneVideoPlayerWrapperProps {
   /** The scene object containing media information */
@@ -59,7 +58,7 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   }, [onMediaTrimChange]);
   
   // Access the Scene type from our updated context for type consistency
-  const { project } = useProjectContext();
+  const { project } = useProject();
   console.log(`[SceneVideoPlayerWrapper] Scene ID: ${scene.id}, Project ID: ${projectId}`);
   console.log(`[SceneVideoPlayerWrapper] Scene media:`, scene.media);
   

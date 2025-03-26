@@ -14,7 +14,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProject, Scene, Project } from './ProjectProvider';
+import { useProject } from '@/components/project/ProjectProvider';
+import { Scene, Project } from './ProjectProvider';
 import { SceneComponent } from './SceneComponent';
 import {
   PlusCircle as PlusCircleIcon,
@@ -31,6 +32,7 @@ import { processVideoWithCustomization, processVideoFast } from '@/lib/project-u
 import { getProject } from '@/lib/storage-utils';
 import SaveStatusIndicator from './SaveStatusIndicator';
 import AspectRatioDropdown from '../ui/AspectRatioDropdown';
+import { type AspectRatioOption } from '@/types/project-types';
 
 /**
  * Props for the ProjectWorkspace component
@@ -173,9 +175,9 @@ export default function ProjectWorkspace({
       return;
     }
 
-    // If we already have a current project, don't load again
+    // If we already have a project, don't load again
     if (currentProject) {
-      console.log(`[${instanceIdRef.current}] Using existing current project:`, currentProject.id);
+      console.log(`[${instanceIdRef.current}] Using existing project:`, currentProject.id);
       setLocalLoading(false);
       return;
     }
@@ -620,6 +622,48 @@ export default function ProjectWorkspace({
     setMode('voice-enabled');
   };
 
+  // Add logging for project state
+  console.log('[ProjectWorkspace] Current project state:', {
+    aspectRatio: effectiveProject?.aspectRatio,
+    showLetterboxing: effectiveProject?.showLetterboxing,
+    hasSetProjectAspectRatio: !!setProjectAspectRatio,
+    hasToggleLetterboxing: !!toggleLetterboxing
+  });
+
+  const handleAspectRatioChange = async (ratio: AspectRatioOption) => {
+    console.log('[ProjectWorkspace] Aspect ratio change requested:', {
+      newRatio: ratio,
+      currentRatio: effectiveProject?.aspectRatio,
+      setProjectAspectRatioExists: !!setProjectAspectRatio
+    });
+
+    if (setProjectAspectRatio) {
+      await setProjectAspectRatio(ratio);
+      console.log('[ProjectWorkspace] Aspect ratio updated:', ratio);
+      await handleManualSave();
+      console.log('[ProjectWorkspace] Project saved after aspect ratio change');
+    } else {
+      console.warn('[ProjectWorkspace] setProjectAspectRatio function not available');
+    }
+  };
+
+  const handleToggleLetterboxing = async (show: boolean) => {
+    console.log('[ProjectWorkspace] Toggle letterboxing requested:', {
+      currentState: effectiveProject?.showLetterboxing,
+      newState: show,
+      toggleFunctionExists: !!toggleLetterboxing
+    });
+
+    if (toggleLetterboxing) {
+      await toggleLetterboxing(show);
+      console.log('[ProjectWorkspace] Letterboxing toggled to:', show);
+      await handleManualSave();
+      console.log('[ProjectWorkspace] Project saved after letterboxing toggle');
+    } else {
+      console.warn('[ProjectWorkspace] toggleLetterboxing function not available');
+    }
+  };
+
   if (isContextLoading) {
     return (
       <div className="flex justify-center items-center py-12 bg-white">
@@ -656,16 +700,10 @@ export default function ProjectWorkspace({
           
           {/* Aspect Ratio Dropdown */}
           <AspectRatioDropdown
-            currentRatio="9:16"
-            onChange={(ratio) => {
-              console.log('Changing aspect ratio to:', ratio);
-              handleManualSave();
-            }}
-            showLetterboxing={true}
-            onToggleLetterboxing={(show) => {
-              console.log('Toggling letterboxing:', show);
-              handleManualSave();
-            }}
+            currentRatio={effectiveProject?.aspectRatio || '9:16'}
+            onChange={handleAspectRatioChange}
+            showLetterboxing={effectiveProject?.showLetterboxing || true}
+            onToggleLetterboxing={(show) => handleToggleLetterboxing(show)}
             className="ml-auto mr-4"
           />
           
@@ -679,7 +717,7 @@ export default function ProjectWorkspace({
               <SaveIcon className="h-4 w-4 mr-1" />
               Save
             </button>
-            <SaveStatusIndicator isSaving={isSaving} lastSaved={lastSaved} />
+            <SaveStatusIndicator isSaving={isSaving} lastSaved={saveCurrentProject} />
           </div>
         </div>
 
@@ -771,6 +809,8 @@ export default function ProjectWorkspace({
                               onSceneReorder={(id, newIndex) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
                               isDragging={snapshot.isDragging}
                               dragHandleProps={provided.dragHandleProps}
+                              projectAspectRatio={(effectiveProject as any)?.aspectRatio || '9:16'}
+                              showLetterboxing={(effectiveProject as any)?.showLetterboxing || true}
                             />
                           </div>
                         )}

@@ -95,9 +95,13 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   projectAspectRatio,
   showLetterboxing,
 }) => {
-  console.log(`[SceneMediaPlayer] Rendering for scene: ${sceneId}`);
+  console.log(`[SceneMediaPlayer] RENDER for scene: ${sceneId} with projectAspectRatio: ${projectAspectRatio}`);
   console.log(`[SceneMediaPlayer] Media object:`, media);
-  console.log(`[SceneMediaPlayer] Project aspect ratio: ${projectAspectRatio}, showLetterboxing: ${showLetterboxing}`);
+  
+  // Add more specific logging about the aspect ratio props
+  React.useEffect(() => {
+    console.log(`[SceneMediaPlayer] PROPS CHANGED: projectAspectRatio=${projectAspectRatio}, showLetterboxing=${showLetterboxing}`);
+  }, [projectAspectRatio, showLetterboxing]);
   
   if (!media) {
     // Log the empty media case

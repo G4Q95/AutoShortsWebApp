@@ -106,6 +106,10 @@ const ProjectContext = createContext<(ProjectState & {
     success: number;
     failed: number;
   } | null>;
+  /** Sets the aspect ratio for the current project */
+  setProjectAspectRatio: (aspectRatio: Project['aspectRatio']) => void;
+  /** Toggles letterboxing/pillarboxing display */
+  toggleLetterboxing: (show: boolean) => void;
 }) | undefined>(undefined);
 
 /**
@@ -1152,6 +1156,95 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
   }, [state.mode]);
 
+  // Set project aspect ratio  
+  const setProjectAspectRatio = useCallback(async (aspectRatio: Project['aspectRatio']) => {
+    if (!state.currentProject) {
+      console.warn('[ProjectProvider] No active project to update aspect ratio for');
+      return;
+    }
+
+    console.log('[ProjectProvider] Setting aspect ratio:', {
+      currentRatio: state.currentProject.aspectRatio,
+      newRatio: aspectRatio,
+      projectId: state.currentProject.id
+    });
+
+    // Create updated project with new aspect ratio
+    const updatedProject = {
+      ...state.currentProject,
+      aspectRatio,
+      updatedAt: Date.now()
+    };
+
+    // First update the state immediately for UI responsiveness
+    dispatch({
+      type: 'SET_PROJECT_ASPECT_RATIO',
+      payload: { aspectRatio }
+    });
+
+    // Then save the project
+    try {
+      await saveProject(updatedProject);
+      
+      // Verify the update by getting a fresh copy of the project
+      const savedProject = await getProject(state.currentProject.id);
+      
+      if (!savedProject) {
+        throw new Error('Failed to retrieve saved project');
+      }
+      
+      console.log('[ProjectProvider] Aspect ratio update verification:', {
+        requestedRatio: aspectRatio,
+        savedRatio: savedProject.aspectRatio,
+        stateRatio: state.currentProject.aspectRatio
+      });
+      
+      // Check if the aspect ratio was properly saved
+      if (savedProject.aspectRatio !== aspectRatio) {
+        console.error('[ProjectProvider] Aspect ratio mismatch after save:', {
+          requested: aspectRatio,
+          saved: savedProject.aspectRatio
+        });
+        throw new Error('Aspect ratio update failed to persist');
+      }
+
+      // Update state with the saved project to ensure consistency
+      dispatch({
+        type: 'LOAD_PROJECT_SUCCESS',
+        payload: { project: savedProject }
+      });
+
+      console.log('[ProjectProvider] Aspect ratio update successful:', aspectRatio);
+    } catch (error) {
+      console.error('[ProjectProvider] Error saving project after updating aspect ratio:', error);
+      dispatch({
+        type: 'SET_ERROR',
+        payload: { 
+          error: `Failed to save aspect ratio change: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }
+      });
+      throw error;
+    }
+  }, [state.currentProject, dispatch, saveProject]);
+
+  // Toggle letterboxing display
+  const toggleLetterboxing = useCallback((show: boolean) => {
+    console.log('[ProjectProvider] Toggling letterboxing:', show);
+    
+    dispatch({ 
+      type: 'TOGGLE_LETTERBOXING', 
+      payload: { showLetterboxing: show } 
+    });
+    
+    // Force a re-render of affected components
+    dispatch({ type: 'FORCE_UPDATE' });
+    
+    // Save the project after toggling letterboxing
+    saveCurrentProject().catch(error => {
+      console.error('Error saving project after toggling letterboxing:', error);
+    });
+  }, [saveCurrentProject]);
+
   // Memoize the context value to prevent unnecessary re-renders
   // Split context values into separate memoized objects
   const stateValues = useMemo(() => ({
@@ -1192,6 +1285,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     nextMode,
     previousMode,
     storeAllMedia,
+    setProjectAspectRatio,
+    toggleLetterboxing
   }), [
     createProject,
     setCurrentProject,
@@ -1212,6 +1307,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     nextMode,
     previousMode,
     storeAllMedia,
+    setProjectAspectRatio,
+    toggleLetterboxing
   ]);
 
   // Combine state and actions only when either changes

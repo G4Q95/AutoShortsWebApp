@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useProject } from '@/contexts/ProjectContext';
+import { useProject } from '@/components/project/ProjectProvider';
 import LoadingState from '@/components/LoadingState';
 
 interface ProjectWorkspaceProps {

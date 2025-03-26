@@ -126,6 +126,10 @@ export interface Project {
   updatedAt: number;
   /** Current status of the project */
   status: 'draft' | 'processing' | 'completed' | 'error';
+  /** Project aspect ratio setting */
+  aspectRatio: '9:16' | '16:9' | '1:1' | '4:5';
+  /** Whether to show letterboxing/pillarboxing in previews */
+  showLetterboxing: boolean;
 }
 
 /**
@@ -229,7 +233,15 @@ export type ProjectAction =
   /** Clear all projects from state */
   | { type: 'CLEAR_ALL_PROJECTS' }
   /** Set the UI mode */
-  | { type: 'SET_MODE'; payload: { mode: 'organization' | 'voice-enabled' | 'preview' } };
+  | { type: 'SET_MODE'; payload: { mode: 'organization' | 'voice-enabled' | 'preview' } }
+  /** Set the project aspect ratio */
+  | { type: 'SET_PROJECT_ASPECT_RATIO'; payload: { aspectRatio: '9:16' | '16:9' | '1:1' | '4:5' } }
+  /** Toggle letterboxing/pillarboxing display */
+  | { type: 'TOGGLE_LETTERBOXING'; payload: { showLetterboxing: boolean } }
+  /** Force a re-render of components */
+  | { type: 'FORCE_UPDATE' }
+  /** Mark a scene as storing media */
+  | { type: 'SET_SCENE_STORING_MEDIA'; payload: { sceneId: string; isStoringMedia: boolean } };
 
 /**
  * Utility function to generate a unique identifier.

@@ -265,84 +265,45 @@ export async function getProjects(): Promise<Project[]> {
  *   console.error('Failed to save project:', error);
  * }
  */
-export async function saveProject(project: Project): Promise<void> {
+export const saveProject = async (project: Project): Promise<void> => {
   try {
-    console.log(`[storage-utils] Saving project: ${project.id}, title: ${project.title}`);
+    console.log('[storage-utils] Saving project:', project.id, ', title:', project.title);
+    console.log('[storage-utils] Project contains', project.scenes.length, 'scenes, scene IDs:', project.scenes.map(s => s.id));
     
-    // Log detailed scene information
-    console.log(`[storage-utils] Project contains ${project.scenes.length} scenes, scene IDs: [${project.scenes.map(s => s.id).join(', ')}]`);
-    
-    const key = getProjectKey(project.id);
-    const projectData = JSON.stringify(project);
-    console.log(`[storage-utils] Project data size: ${projectData.length} characters`);
-
-    // Store the project data
-    localStorage.setItem(key, projectData);
-
-    // Store the project ID for quick access (used in create flow)
-    localStorage.setItem('last_created_project_id', project.id);
-    console.log(
-      `[storage-utils] Project saved successfully and set as last created: ${project.id}`
-    );
-
-    // Update the projects list with this project's metadata
-    updateProjectsList(project);
-    console.log(`[storage-utils] Updated projects list with metadata for: ${project.id}`);
-
-    // Verify the save was successful
-    const savedData = localStorage.getItem(key);
-    if (!savedData) {
-      console.error(
-        `[storage-utils] Project save verification failed - data not found for key: ${key}`
-      );
-    } else {
-      // Parse the saved data to verify scene count
-      try {
-        const savedProject = JSON.parse(savedData) as Project;
-        console.log(`[storage-utils] Project save verified - found ${savedProject.scenes.length} scenes in saved project ${project.id}`);
-      } catch (parseError) {
-        console.error(`[storage-utils] Error parsing saved project data during verification:`, parseError);
-      }
-      
-      console.log(`[storage-utils] Project save verified - found data for key: ${key}`);
+    // Ensure required fields are present
+    if (!project.id || !project.aspectRatio) {
+      console.error('[storage-utils] Invalid project data:', project);
+      throw new Error('Invalid project data: missing required fields');
     }
-  } catch (error) {
-    console.error(`[storage-utils] Error saving project ${project.id}:`, error);
-    throw new Error(
-      `Failed to save project: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
-}
 
-/**
- * Updates the projects list metadata in localStorage
- * Maintains a separate list of project metadata for quick access
- * 
- * @param {Project} project - Project to update metadata for
- * @returns {void}
- * 
- * @example
- * // This is typically called by saveProject, but can be used independently
- * updateProjectsList(project);
- */
-function updateProjectsList(project: Project): void {
-  try {
-    // Get current projects list
-    const projectsListJson = localStorage.getItem(PROJECTS_LIST_KEY) || '[]';
-    const projectsList: ProjectMetadata[] = JSON.parse(projectsListJson);
+    // Create project key
+    console.log('[storage-utils] Creating project key for ID:', JSON.stringify(project.id));
+    const key = `auto-shorts-project-${project.id}`;
+    console.log('[storage-utils] Generated project key:', JSON.stringify(key));
+
+    // Save project data
+    const projectJson = JSON.stringify(project);
+    console.log('[storage-utils] Project data size:', projectJson.length, 'characters');
+    localStorage.setItem(key, projectJson);
+
+    // Update projects list metadata
+    const projectsListKey = 'auto-shorts-projects-list';
+    const projectsListJson = localStorage.getItem(projectsListKey) || '[]';
+    const projectsList = JSON.parse(projectsListJson);
 
     // Create metadata for this project
-    const metadata: ProjectMetadata = {
+    const metadata = {
       id: project.id,
       title: project.title,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
-      // Get thumbnail from first scene with media if available
-      thumbnailUrl: project.scenes.find((s) => s.media?.thumbnailUrl)?.media?.thumbnailUrl,
+      aspectRatio: project.aspectRatio,
+      thumbnailUrl: project.scenes.find(s => s.media?.thumbnailUrl)?.media?.thumbnailUrl,
+      scenesCount: project.scenes.length,
     };
 
     // Update or add to the list
-    const existingIndex = projectsList.findIndex((p) => p.id === project.id);
+    const existingIndex = projectsList.findIndex((p: { id: string }) => p.id === project.id);
     if (existingIndex >= 0) {
       projectsList[existingIndex] = metadata;
     } else {
@@ -350,12 +311,32 @@ function updateProjectsList(project: Project): void {
     }
 
     // Save updated list
-    localStorage.setItem(PROJECTS_LIST_KEY, JSON.stringify(projectsList));
+    localStorage.setItem(projectsListKey, JSON.stringify(projectsList));
+    console.log('[storage-utils] Project saved successfully and set as last created:', project.id);
+
+    // Verify the save
+    const savedProjectJson = localStorage.getItem(key);
+    if (!savedProjectJson) {
+      throw new Error('Project save verification failed - data not found');
+    }
+
+    const savedProject = JSON.parse(savedProjectJson);
+    console.log('[storage-utils] Project save verified - found', savedProject.scenes.length, 'scenes in saved project', savedProject.id);
+    console.log('[storage-utils] Project save verified - found data for key:', key);
+    
+    // Verify aspect ratio was saved
+    if (savedProject.aspectRatio !== project.aspectRatio) {
+      console.error('[storage-utils] Aspect ratio mismatch in saved project:', {
+        expected: project.aspectRatio,
+        saved: savedProject.aspectRatio
+      });
+      throw new Error('Project save verification failed - aspect ratio mismatch');
+    }
   } catch (error) {
-    console.error('Failed to update projects list:', error);
-    // We don't throw here to avoid blocking the main project save
+    console.error('[storage-utils] Error saving project:', error);
+    throw error;
   }
-}
+};
 
 /**
  * Retrieves a specific project from localStorage

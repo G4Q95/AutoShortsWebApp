@@ -140,17 +140,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   projectAspectRatio = '9:16',
   showLetterboxing = true,
 }) => {
-  console.log(`[VideoContextScenePreviewPlayer] Initializing for scene: ${sceneId}`);
-  console.log(`[VideoContextScenePreviewPlayer] Props:`, {
-    mediaType,
-    mediaUrl: mediaUrl.substring(0, 100) + (mediaUrl.length > 100 ? '...' : ''), // Truncate long URLs
-    initialMediaAspectRatio,
+  // Add detailed logging for initialization
+  console.log(`[VideoContextScenePreviewPlayer] MOUNT/UPDATE for scene ${sceneId}:`, {
     projectAspectRatio,
+    initialMediaAspectRatio,
     showLetterboxing,
     isCompactView,
-    trim
+    mediaType,
+    mediaUrl: mediaUrl.substring(0, 50) + '...'
   });
-  
+
   // State for player
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -357,7 +356,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Don't initialize until we have local media URL
     if (typeof window === 'undefined' || !canvasRef.current || !localMediaUrl) return;
     
-    // Import VideoContext dynamically to avoid SSR issues
+    console.log(`[VideoContext] Initialize effect triggered, projectAspectRatio=${projectAspectRatio}`);
+    
+    const canvas = canvasRef.current;
+    
+    // Set the high-quality base size for creating the canvas
+    const baseSize = 1920;
+    let canvasWidth, canvasHeight;
+    
     const initVideoContext = async () => {
       try {
         // Clean up existing context if any
@@ -371,28 +377,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         const VideoContextModule = await import('videocontext');
         const VideoContext = VideoContextModule.default || VideoContextModule;
         
-        // Create non-null assertion for canvas since we checked above
-        const canvas = canvasRef.current!;
-        
-        // Add more detailed logging here
-        console.log(`[VideoContext] Initializing with:`, {
-          mediaType,
-          initialMediaAspectRatio,
-          projectAspectRatio,
-          canvasExists: !!canvasRef.current,
-          mediaUrlExists: !!localMediaUrl
-        });
-        
-        // Calculate canvas dimensions based on media aspect ratio or project ratio
-        // Determine canvas dimensions based on aspect ratio while maintaining quality
-        const baseSize = 1920; // Base size for quality
-        let canvasWidth, canvasHeight;
-        
-        // Get project aspect ratio as a number
-        const [projectWidth, projectHeight] = projectAspectRatio.split(':').map(Number);
-        const projectRatioNumber = projectWidth / projectHeight;
-        
-        console.log(`[VideoContext] Project aspect ratio: ${projectAspectRatio} (${projectRatioNumber.toFixed(2)})`);
+        console.log(`[VideoContext] Initializing for scene ${sceneId} with media type ${mediaType}`);
         
         if (initialMediaAspectRatio) {
           console.log(`[VideoContext] Using provided media aspect ratio: ${initialMediaAspectRatio}`);
@@ -424,17 +409,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         console.log(`[VideoContext] Canvas resized from ${canvas.width}x${canvas.height}`);
         
         // Create VideoContext instance after setting canvas dimensions
-        let ctx: any;
+        let ctx = new VideoContext(canvas);
+        setVideoContext(ctx);
         
         // Create source node (using local media URL)
-        let source: any;
+        let source;
         console.log(`[VideoContext] Creating source node for ${mediaType} media: ${localMediaUrl.substring(0, 50)}...`);
 
         if (mediaType === 'video') {
-          // Create VideoContext instance
-          ctx = new VideoContext(canvas);
-          setVideoContext(ctx);
-          
           // Create the source
           source = ctx.video(localMediaUrl);
           console.log(`[VideoContext] Video source node created:`, source);
@@ -489,9 +471,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           }
         } else if (mediaType === 'image') {
           // Create after dimensions are set
-          ctx = new VideoContext(canvas);
-          setVideoContext(ctx);
-          
           source = ctx.image(localMediaUrl);
           console.log(`[VideoContext] Image source node created:`, source);
           
@@ -540,9 +519,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           img.src = localMediaUrl;
         } else {
           // Create after dimensions are set
-          ctx = new VideoContext(canvas);
-          setVideoContext(ctx);
-          
           throw new Error(`Unsupported media type: ${mediaType}`);
         }
         
@@ -687,7 +663,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         }
       });
     };
-  }, [localMediaUrl, mediaType, initialMediaAspectRatio]); // Added initialMediaAspectRatio to dependencies
+  }, [localMediaUrl, mediaType]);
   
   // Update trim values when props change - but only for trimStart
   useEffect(() => {
@@ -859,203 +835,159 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return width / height;
   }, [projectAspectRatio]);
 
-  // Container styling function with letterboxing/pillarboxing
+  // Get container style with letterboxing/pillarboxing
   const getContainerStyle = useCallback(() => {
-    // Define a proper type for the container style
-    type ContainerStyle = {
+    console.log(`[VideoContextScenePreviewPlayer] Calculating container style for scene ${sceneId}:`, {
+      receivedProjectAspectRatio: projectAspectRatio,
+      isCompactView
+    });
+
+    // Get project aspect ratio as a number
+    const [width, height] = projectAspectRatio.split(':').map(Number);
+    const projectRatio = width / height;
+    
+    // Calculate container dimensions - this enforces the project aspect ratio
+    const style: {
       backgroundColor: string;
       display: string;
       alignItems: string;
       justifyContent: string;
       overflow: string;
       position: 'relative';
-      width?: string | number;
-      height?: string | number;
-      maxWidth?: string | number;
-      maxHeight?: string | number;
-      margin?: string;
+      width: string;
+      height: string;
       aspectRatio?: string;
-    };
-
-    // Log initial values
-    console.log(`[VideoContext] Calculating container style:`, {
-      projectAspectRatio,
-      calculatedAspectRatio: aspectRatio,
-      isSquare,
-      isVertical,
-      showLetterboxing,
-      isCompactView
-    });
-
-    // Default style for all containers
-    const baseStyle: ContainerStyle = {
+    } = {
       backgroundColor: '#000',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
       position: 'relative',
+      width: '100%',
+      height: isCompactView ? '190px' : 'auto',
     };
 
-    if (!showLetterboxing) {
-      // Without letterboxing, use standard styles
-      console.log(`[VideoContext] Letterboxing disabled, using standard style`);
-      if (isSquare) {
-        const style = {
-          ...baseStyle,
-          width: isCompactView ? '110px' : '300px',
-          height: isCompactView ? '110px' : '300px',
-          margin: '0 auto',
-        };
-        console.log(`[VideoContext] Square media style:`, style);
-        return style;
-      }
-      console.log(`[VideoContext] Non-square media with letterboxing disabled, using base style:`, baseStyle);
-      return baseStyle;
+    // Add aspect ratio only in non-compact view
+    if (!isCompactView) {
+      style.aspectRatio = projectAspectRatio.replace(':', '/');
     }
 
-    // With letterboxing enabled, calculate dimensions
-    const projectRatio = getProjectAspectRatioNumber();
+    console.log(`[VideoContextScenePreviewPlayer] Final container style for scene ${sceneId}:`, {
+      projectAspectRatio,
+      projectRatio,
+      style,
+      isCompactView,
+      effectiveAspectRatio: style.aspectRatio
+    });
+
+    return style;
+  }, [projectAspectRatio, isCompactView, sceneId]);
+  
+  // Get media container style - this will create letterboxing/pillarboxing effect
+  const getMediaContainerStyle = useCallback(() => {
+    const [width, height] = projectAspectRatio.split(':').map(Number);
+    const projectRatio = width / height;
     const mediaRatio = aspectRatio;
-    
-    console.log(`[VideoContext] Letterboxing enabled, ratios:`, {
+
+    // This style creates the letterboxing/pillarboxing effect
+    const style: {
+      position: string;
+      display: string;
+      alignItems: string;
+      justifyContent: string;
+      width: string;
+      height: string;
+      overflow: string;
+    } = {
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '100%',
+      height: '100%',
+      overflow: 'hidden'
+    };
+
+    if (showLetterboxing) {
+      if (mediaRatio > projectRatio) {
+        // Media is wider than project - add letterboxing (black bars top/bottom)
+        // Use percentage to scale correctly
+        const heightPercentage = (projectRatio / mediaRatio) * 100;
+        style.height = `${heightPercentage}%`;
+      } else if (mediaRatio < projectRatio) {
+        // Media is taller than project - add pillarboxing (black bars left/right)
+        // Use percentage to scale correctly
+        const widthPercentage = (mediaRatio / projectRatio) * 100;
+        style.width = `${widthPercentage}%`;
+      }
+    }
+
+    console.log(`[VideoContextScenePreviewPlayer] Media container style calculated:`, {
       projectRatio,
       mediaRatio,
-      difference: projectRatio - mediaRatio
+      style,
+      showLetterboxing
     });
-    
-    let containerStyle: ContainerStyle = { ...baseStyle };
-    
-    // Set container to match project aspect ratio
-    if (isCompactView) {
-      // Compact view has fixed sizes
-      if (projectRatio < 1) {
-        // Vertical project (9:16, 4:5)
-        containerStyle = {
-          ...containerStyle,
-          width: '110px',
-          height: `${110 / projectRatio}px`,
-          maxHeight: '195px', // Limit height for very tall ratios
-        };
-        console.log(`[VideoContext] Vertical project ratio (${projectRatio.toFixed(2)}), compact view container:`, containerStyle);
-      } else if (projectRatio === 1) {
-        // Square project (1:1)
-        containerStyle = {
-          ...containerStyle,
-          width: '110px',
-          height: '110px',
-        };
-        console.log(`[VideoContext] Square project ratio, compact view container:`, containerStyle);
-      } else {
-        // Landscape project (16:9)
-        containerStyle = {
-          ...containerStyle,
-          width: `${110 * projectRatio}px`,
-          height: '110px',
-          maxWidth: '195px', // Limit width for very wide ratios
-        };
-        console.log(`[VideoContext] Landscape project ratio (${projectRatio.toFixed(2)}), compact view container:`, containerStyle);
-      }
-    } else {
-      // Full view - use container with proper aspect ratio
-      containerStyle = {
-        ...containerStyle,
-        width: '100%',
-        aspectRatio: projectAspectRatio.replace(':', '/'),
-      };
-      console.log(`[VideoContext] Full view container with aspect ratio ${projectAspectRatio}:`, containerStyle);
-    }
 
-    console.log(`[VideoContext] Final container style:`, containerStyle);
-    return containerStyle;
-  }, [isCompactView, isSquare, showLetterboxing, aspectRatio, projectAspectRatio, getProjectAspectRatioNumber, isVertical]);
+    return style;
+  }, [aspectRatio, projectAspectRatio, showLetterboxing]);
   
   // Get media element style with letterboxing/pillarboxing
   const getMediaStyle = useCallback(() => {
-    console.log(`[VideoContext] Calculating media element style:`, {
-      aspectRatio,
-      showLetterboxing,
-      isCompactView
-    });
-
-    if (!showLetterboxing) {
-      // Without letterboxing, use standard styles based on aspect ratio
-      console.log(`[VideoContext] Letterboxing disabled for media style`);
-      if (aspectRatio > 1.1) {
-        const style = {
-          width: isCompactView ? 'auto' : '100%',
-          height: isCompactView ? '110px' : 'auto',
-          objectFit: 'contain' as const,
-        };
-        console.log(`[VideoContext] Landscape media style (no letterboxing):`, style);
-        return style;
-      }
-      
-      if (aspectRatio >= 0.9 && aspectRatio <= 1.1) {
-        const style = {
-          width: isCompactView ? '110px' : '300px',
-          height: isCompactView ? '110px' : '300px',
-          maxWidth: isCompactView ? '110px' : '300px',
-          maxHeight: isCompactView ? '110px' : '300px',
-          objectFit: 'contain' as const,
-        };
-        console.log(`[VideoContext] Square media style (no letterboxing):`, style);
-        return style;
-      }
-      
-      const style = {
-        width: isCompactView ? '110px' : '100%',
-        height: 'auto',
-        objectFit: 'contain' as const,
-      };
-      console.log(`[VideoContext] Portrait media style (no letterboxing):`, style);
-      return style;
-    }
-
-    // With letterboxing, we need to compare media ratio to project ratio
-    const projectRatio = getProjectAspectRatioNumber();
+    const [width, height] = projectAspectRatio.split(':').map(Number);
+    const projectRatio = width / height;
     const mediaRatio = aspectRatio;
-    
-    console.log(`[VideoContext] Applying letterboxing/pillarboxing:`, {
-      projectRatio: projectRatio.toFixed(2),
-      mediaRatio: mediaRatio.toFixed(2),
-      comparison: mediaRatio > projectRatio ? 'Media wider than project' : 'Media taller than project'
-    });
-    
-    // Calculate proper scaling for letterboxing/pillarboxing
-    if (mediaRatio > projectRatio) {
-      // Media is wider than project - add letterboxing (black bars top and bottom)
-      // Media will be sized to 100% width with auto height
-      const style = {
-        width: '100%',
-        height: 'auto',
-        objectFit: 'contain' as const,
-        maxHeight: '100%',
-      };
-      console.log(`[VideoContext] Letterboxing style (horizontal bars):`, style);
-      return style;
-    } else if (mediaRatio < projectRatio) {
-      // Media is taller than project - add pillarboxing (black bars left and right)
-      // Media will be sized to 100% height with auto width
-      const style = {
-        width: 'auto',
-        height: '100%',
-        objectFit: 'contain' as const,
-        maxWidth: '100%',
-      };
-      console.log(`[VideoContext] Pillarboxing style (vertical bars):`, style);
-      return style;
+
+    type MediaStyle = {
+      objectFit: 'contain' | 'cover';
+      maxWidth: string;
+      maxHeight: string;
+      width?: string;
+      height?: string;
+    };
+
+    let style: MediaStyle = {
+      objectFit: 'contain',
+      maxWidth: '100%',
+      maxHeight: '100%'
+    };
+
+    if (showLetterboxing) {
+      if (mediaRatio > projectRatio) {
+        // Media is wider than project - add letterboxing (black bars top/bottom)
+        style = {
+          ...style,
+          width: '100%',
+          height: 'auto'
+        };
+      } else {
+        // Media is taller than project - add pillarboxing (black bars left/right)
+        style = {
+          ...style,
+          width: 'auto',
+          height: '100%'
+        };
+      }
     } else {
-      // Perfect match - no letterboxing or pillarboxing needed
-      const style = {
+      // No letterboxing - stretch to fill
+      style = {
+        ...style,
         width: '100%',
         height: '100%',
-        objectFit: 'contain' as const,
+        objectFit: 'cover'
       };
-      console.log(`[VideoContext] Perfect ratio match style:`, style);
-      return style;
     }
-  }, [aspectRatio, isCompactView, showLetterboxing, getProjectAspectRatioNumber]);
+
+    console.log(`[VideoContextScenePreviewPlayer] Media style calculated for ${sceneId}:`, {
+      projectRatio,
+      mediaRatio,
+      style,
+      showLetterboxing
+    });
+
+    return style;
+  }, [aspectRatio, projectAspectRatio, showLetterboxing, sceneId]);
   
   // Set up mouse event listeners for trim bracket dragging
   useEffect(() => {
@@ -1172,6 +1104,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
   }, [localMediaUrl, mediaType]);
   
+  // Add this after the VideoContext initialization effect
+  // This effect handles project aspect ratio changes without re-initializing VideoContext
+  useEffect(() => {
+    console.log(`[VideoContext] Project aspect ratio changed to ${projectAspectRatio} for scene ${sceneId}`);
+    
+    // Update styling only, don't re-create the VideoContext
+    // Canvas dimensions and content remain the same
+    
+  }, [projectAspectRatio, sceneId]);
+  
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
@@ -1210,24 +1152,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   return (
     <div 
+      className={`relative bg-black flex items-center justify-center ${className}`}
+      style={getContainerStyle()}
       ref={containerRef}
-      className={`flex flex-col bg-gray-900 rounded-lg overflow-hidden video-player-container ${className}`}
-      data-testid="videocontext-scene-preview-player"
-      style={{ 
-        maxWidth: showLetterboxing ? '100%' : 
-          (isCompactView ? 
-            (isSquare ? '110px' : (isVertical ? '110px' : '100%')) 
-            : '100%'),
-        outline: 'none',
-        border: 'none'
-      }}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-      onDragStart={(e) => e.stopPropagation()}
-      draggable={false}
-      tabIndex={-1}
+      data-testid="video-context-preview"
     >
       {/* Add style tag for custom range styling */}
       <style>{smallRangeThumbStyles}</style>
@@ -1253,7 +1183,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       {/* Media Display */}
       <div 
         className="relative bg-black flex items-center justify-center"
-        style={getContainerStyle()}
+        style={getMediaContainerStyle()}
       >
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">

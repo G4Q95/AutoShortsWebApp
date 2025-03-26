@@ -46,6 +46,48 @@ const AspectRatioDropdown: React.FC<AspectRatioDropdownProps> = ({
     };
   }, [isOpen]);
 
+  const handleAspectRatioChange = async (ratio: AspectRatioOption) => {
+    console.log('[AspectRatioDropdown] Aspect ratio change requested:', {
+      currentRatio,
+      newRatio: ratio,
+      hasOnChange: !!onChange
+    });
+
+    if (onChange) {
+      await Promise.resolve(onChange(ratio));
+      console.log('[AspectRatioDropdown] Called onChange with new ratio:', ratio);
+      // Only close after the change is processed
+      setTimeout(() => setIsOpen(false), 100);
+    } else {
+      console.warn('[AspectRatioDropdown] No onChange handler provided');
+    }
+  };
+
+  const handleLetterboxingToggle = (show: boolean) => {
+    console.log('[AspectRatioDropdown] Letterboxing toggle requested:', {
+      currentState: showLetterboxing,
+      newState: show,
+      hasOnToggleLetterboxing: !!onToggleLetterboxing
+    });
+
+    if (onToggleLetterboxing) {
+      onToggleLetterboxing(show);
+      console.log('[AspectRatioDropdown] Called onToggleLetterboxing with new state:', show);
+    } else {
+      console.warn('[AspectRatioDropdown] No onToggleLetterboxing handler provided');
+    }
+  };
+
+  // Log when component receives new props
+  useEffect(() => {
+    console.log('[AspectRatioDropdown] Props updated:', {
+      currentRatio,
+      showLetterboxing,
+      hasOnChange: !!onChange,
+      hasOnToggleLetterboxing: !!onToggleLetterboxing
+    });
+  }, [currentRatio, showLetterboxing, onChange, onToggleLetterboxing]);
+
   return (
     <div ref={dropdownRef} className={`relative ${className}`}>
       {/* Toggle button */}
@@ -72,12 +114,9 @@ const AspectRatioDropdown: React.FC<AspectRatioDropdownProps> = ({
           <div className="p-3">
             <AspectRatioSelector
               currentRatio={currentRatio}
-              onChange={(ratio) => {
-                onChange(ratio);
-                setIsOpen(false);
-              }}
+              onChange={handleAspectRatioChange}
               showLetterboxing={showLetterboxing}
-              onToggleLetterboxing={onToggleLetterboxing}
+              onToggleLetterboxing={handleLetterboxingToggle}
             />
           </div>
         </div>
