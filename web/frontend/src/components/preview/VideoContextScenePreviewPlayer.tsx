@@ -654,11 +654,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return 10;
   };
   
-  // Utility function to format time
-  const formatTime = (seconds: number): string => {
+  // Utility function to format time - with conditional precision
+  const formatTime = (seconds: number, showTenths: boolean = false): string => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    
+    if (showTenths) {
+      // Show tenths of a second when dragging brackets
+      const tenths = Math.floor((seconds % 1) * 10);
+      return `${mins}:${secs.toString().padStart(2, '0')}.${tenths}`;
+    } else {
+      // Standard format for normal display
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
   };
   
   // Get style for the video display based on aspect ratio
@@ -697,12 +705,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       const rect = containerRef.current.getBoundingClientRect();
       // Direct mouse positioning for precise control
       const relativeX = e.clientX - rect.left;
-      // Calculate percentage of timeline width
+      // Calculate percentage of timeline width with high precision
       const percentPosition = Math.max(0, Math.min(100, (relativeX / rect.width) * 100));
+      // Use full floating point precision for time calculations
       const newTime = (percentPosition / 100) * duration;
       
       if (activeHandle === 'start') {
         // Ensure trim start doesn't go beyond trim end minus minimum duration
+        // Preserve full precision for trim positions (don't round)
         const newStart = Math.min(newTime, trimEnd - 0.1);
         setTrimStart(newStart);
         if (onTrimChange) onTrimChange(newStart, trimEnd);
@@ -717,6 +727,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         }
       } else if (activeHandle === 'end') {
         // Ensure trim end doesn't go before trim start plus minimum duration
+        // Preserve full precision for trim positions (don't round)
         const newEnd = Math.max(newTime, trimStart + 0.1);
         setTrimEnd(newEnd);
         userTrimEndRef.current = newEnd;
@@ -1106,12 +1117,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               )}
             </button>
 
-            {/* Time display (center) - updated to show current/total time */}
+            {/* Time display (center) - updated to conditionally show tenths */}
             <div className="text-white text-[9px] select-none">
               {activeHandle === 'start' 
-                ? `${formatTime(trimStart)} / ${formatTime(getEffectiveTrimEnd() - trimStart)}`
+                ? `${formatTime(trimStart, true)} / ${formatTime(getEffectiveTrimEnd() - trimStart)}`
                 : activeHandle === 'end'
-                  ? `${formatTime(getEffectiveTrimEnd())} / ${formatTime(getEffectiveTrimEnd() - trimStart)}`
+                  ? `${formatTime(getEffectiveTrimEnd(), true)} / ${formatTime(getEffectiveTrimEnd() - trimStart)}`
                   : `${formatTime(Math.max(0, currentTime - trimStart))} / ${trimStart > 0 || getEffectiveTrimEnd() < duration ? formatTime(getEffectiveTrimEnd() - trimStart) : formatTime(duration)}`
               }
             </div>
