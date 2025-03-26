@@ -487,7 +487,7 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
       className="scene-component relative mb-4 bg-white rounded-md border opacity-100 transition-opacity duration-500 shadow-sm"
       data-testid="scene-component"
       data-scene-id={scene.id}
-      style={{ maxWidth: '100%', minHeight: '200px' }}
+      style={{ maxWidth: '100%', minHeight: '210px' }}
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -517,7 +517,7 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
         </div>
 
         {/* Text content section */}
-        <div className="p-2 flex-grow" data-testid="scene-text-content">
+        <div className="p-2 pt-1.5 pb-4 flex-grow" data-testid="scene-text-content">
           <SceneTextContent
             text={text}
             isEditing={isEditing}

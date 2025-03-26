@@ -86,7 +86,7 @@ const SceneTextContentComponent: React.FC<SceneTextContentProps> = ({
   isEditing,
   isTextExpanded,
   readOnly = false,
-  maxCompactHeight = 60,
+  maxCompactHeight = 85,
   onTextChange,
   onStartEditing,
   onSaveText,
@@ -115,12 +115,12 @@ const SceneTextContentComponent: React.FC<SceneTextContentProps> = ({
       {/* Text display (when not editing) */}
       {!isEditing && (
         <div 
-          className={`relative ${isTextExpanded ? '' : 'max-h-[60px] overflow-hidden'}`}
+          className={`relative ${isTextExpanded ? '' : 'max-h-[85px] overflow-hidden'}`}
           data-testid="text-display"
         >
           {/* Text content */}
           <div 
-            className="text-sm text-gray-700 mb-1 whitespace-pre-wrap"
+            className="text-sm text-gray-700 mt-1 mb-2.5 whitespace-pre-wrap"
             onClick={() => !readOnly && onStartEditing()}
             data-testid="text-display-content"
           >

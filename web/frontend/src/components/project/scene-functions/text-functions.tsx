@@ -196,7 +196,7 @@ export function renderTextContent(
   } = textState;
 
   return (
-    <div className="mt-1 text-sm relative" style={{ height: '3.6em' }}>
+    <div className="mt-1 text-sm relative" style={{ height: '4.7em' }}>
       {/* Info button and popup removed since they're now in voice controls */}
       
       {/* Fixed height container for text with exactly 3 lines visible */}

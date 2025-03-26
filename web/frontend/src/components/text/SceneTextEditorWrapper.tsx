@@ -79,13 +79,13 @@ export const SceneTextEditorWrapper: React.FC<SceneTextEditorWrapperProps> = ({
     const isLongText = displayText.length > 100;
     
     return (
-      <div className="relative" style={{ height: '65px' }} data-test-layout="text-content-container">
+      <div className="relative" style={{ height: '85px' }} data-test-layout="text-content-container">
         {/* Base text container - always visible when not editing */}
         <div 
-          className="h-16 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 pt-0.5 pb-1 rounded"
+          className="h-24 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 pt-0.5 pb-1 rounded"
           onClick={() => !readOnly && setIsEditing(true)}
           data-test-layout="text-display"
-          data-test-dimensions={`height:16px;overflow:hidden`}
+          data-test-dimensions={`height:24px;overflow:hidden`}
           data-testid="scene-text"
         >
           <p className="text-gray-800 line-clamp-3">{displayText}</p>

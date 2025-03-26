@@ -129,7 +129,7 @@ export const SceneTextEditor: React.FC<SceneTextEditorProps> = ({
     <div className={`relative text-editor ${className}`}>
       {/* Base text container (collapsed view) */}
       <div
-        className="h-16 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 pt-0.5 pb-0.5 rounded"
+        className="h-24 overflow-hidden relative text-sm cursor-pointer hover:bg-gray-50 p-1 pt-0.5 pb-0.5 rounded"
         onClick={handleTextClick}
       >
         <p className="text-gray-800 line-clamp-3">{text}</p>
