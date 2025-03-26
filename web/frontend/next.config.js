@@ -35,4 +35,4 @@ const nextConfig = {
   // Add any other configuration options as needed
 };
 
-module.exports = nextConfig; 
+module.exports = nextConfig;

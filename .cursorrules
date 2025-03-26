@@ -379,6 +379,12 @@ When determining the commit message prefix, pick the most relevant prefix from t
 Use lower case for commit messages.
 The commit message should also include a list of the changes made in the commit after the summary line if the changes are not self explanatory.
 
+### Critical Git Rules
+- NEVER commit changes without explicit user permission
+- Wait for user to review changes before committing
+- Only suggest commit messages when asked
+- Let user handle the actual commit process unless specifically instructed otherwise
+
 ### Documentation Update Guidelines
 
 When making changes to the codebase, documentation must be updated to maintain accuracy. Follow these guidelines:
