@@ -15,15 +15,35 @@ Currently, the application has issues maintaining consistent aspect ratios for v
 ### 1. Project-Level Aspect Ratio Setting
 
 - Add a project configuration setting where users can select the desired output aspect ratio
-- Common presets will include:
-  - 9:16 (Vertical/Stories/TikTok)
-  - 16:9 (Landscape/YouTube)
-  - 1:1 (Square/Instagram)
-  - 4:5 (Instagram portrait)
+- Initial implementation will focus on these four most common aspect ratios:
+  - **9:16** (Vertical/TikTok/Instagram Stories/Reels)
+  - **16:9** (Landscape/YouTube/Standard widescreen)
+  - **1:1** (Square/Instagram traditional)
+  - **4:5** (Instagram portrait)
+- Design the system to handle any aspect ratio, making it easy to add more options in the future
 - This setting will be stored in project metadata and apply to all scenes
 - Allow users to change this setting after project creation, with a warning about potential cropping
 
-### 2. Consistent Container Approach
+### 2. UI Implementation
+
+- **Placement Options**: 
+  - Option 1: Add an aspect ratio selector next to the project title at the top of the page
+  - Option 2: Create a dropdown menu that shows the current aspect ratio and its shape icon
+  - Option 3: Add it to a project settings panel accessible via a gear icon
+- **Visual Selector**: Similar to CapCut's implementation, show a visual representation of each ratio
+- **Display Format**: Show both the numerical ratio (e.g., "9:16") and a common name/use case (e.g., "TikTok")
+- Clearly indicate the currently selected aspect ratio
+
+### 3. Letterboxing/Pillarboxing Implementation
+
+- The key functionality is to preserve original media proportions without stretching/distorting
+- For videos that don't match the project aspect ratio:
+  - Add black bars above/below (letterboxing) for content too wide for container
+  - Add black bars on sides (pillarboxing) for content too tall for container
+- Never stretch or distort the original content - maintain its original aspect ratio
+- Apply this consistently across thumbnails, preview, and final export
+
+### 4. Consistent Container Approach
 
 - Create fixed-ratio containers for all video elements based on the project setting
 - Use modern CSS `aspect-ratio` property to maintain consistent container shapes
@@ -33,21 +53,12 @@ Currently, the application has issues maintaining consistent aspect ratios for v
   - Scene preview player
   - Final video export
 
-### 3. Proper Media Rendering
+### 5. Future Enhancements (Post Initial Implementation)
 
-- Use `object-fit: contain` to ensure videos maintain their original aspect ratio
-- Center all media content within the fixed containers
-- Add letterbox/pillarbox bars automatically as needed
-- Ensure transitions between thumbnail and video playback are smooth and maintain aspect ratio
-
-### 4. VideoContext Implementation
-
-For the VideoContext implementation specifically:
-
-- Modify canvas initialization to respect the project's aspect ratio setting
-- Handle WebGL viewport configuration to ensure content renders at the correct dimensions
-- Separate the styling of the player container from the actual media content
-- Ensure both first-frame preview and canvas playback maintain identical positioning
+- Add ability to reposition/zoom content within the frame for better framing
+- Add more aspect ratio options (4:3, 2:1, 3:4, 5:4, etc.)
+- Add custom aspect ratio input
+- Visual indicators showing how content will be letterboxed/pillarboxed
 
 ## Technical Implementation
 
@@ -119,9 +130,9 @@ For the VideoContext implementation specifically:
 ### Project Settings UI
 
 1. Add an aspect ratio selector to the project creation form
-2. Create a project settings modal that includes aspect ratio selection
-3. Provide visual previews of each aspect ratio option
-4. Warn users about potential cropping when changing aspect ratios for existing projects
+2. Create a project settings dropdown or button near the project title
+3. Provide visual previews of each aspect ratio option similar to CapCut's implementation
+4. Warn users about potential letterboxing/pillarboxing when changing aspect ratios for existing projects
 
 ### Database Schema Updates
 
@@ -146,4 +157,4 @@ interface Project {
 - All scenes maintain consistent aspect ratio throughout the application
 - Videos don't stretch or distort regardless of their original dimensions
 - Letterboxing/pillarboxing is applied consistently and aesthetically
-- Smooth transitions between thumbnail and playback views 
+- Smooth transitions between thumbnail and video playback views 
