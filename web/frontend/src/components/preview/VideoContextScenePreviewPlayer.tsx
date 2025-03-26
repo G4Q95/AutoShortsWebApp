@@ -172,6 +172,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add state to track media aspect ratio
   const [aspectRatio, setAspectRatio] = useState<number>(9/16); // Default to vertical
   const [isVertical, setIsVertical] = useState<boolean>(true);
+  const [isSquare, setIsSquare] = useState<boolean>(false);
   
   // Add state for local media
   const [localMediaUrl, setLocalMediaUrl] = useState<string | null>(null);
@@ -359,21 +360,76 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         // Create non-null assertion for canvas since we checked above
         const canvas = canvasRef.current!;
         
-        // Set the initial canvas dimensions for correct aspect ratio
-        canvas.width = 1080;  // Standard short-form width
-        canvas.height = 1920; // Standard short-form height for 9:16 aspect ratio
-        
-        // Create VideoContext instance
-        const ctx = new VideoContext(canvas);
-        setVideoContext(ctx);
+        // Create VideoContext instance after setting canvas dimensions
+        let ctx: any;
         
         // Create source node (using local media URL)
-        let source;
+        let source: any;
         if (mediaType === 'video') {
+          // Pre-detect aspect ratio for canvas sizing - using a sync approach
+          const tempVideo = document.createElement('video');
+          tempVideo.muted = true;
+          
+          // Set default canvas dimensions first (will be updated when video metadata loads)
+          canvas.width = 1080;
+          canvas.height = 1920;
+          
+          // We need to create the VideoContext now with initial dimensions
+          ctx = new VideoContext(canvas);
+          setVideoContext(ctx);
+          
+          // Create the source
           source = ctx.video(localMediaUrl);
+          
+          // When source element is created, adjust canvas dimensions
+          if (source.element) {
+            // Add event listener to the actual video element
+            source.element.addEventListener('loadedmetadata', () => {
+              // Get dimensions from the actual source
+              const videoWidth = source.element.videoWidth;
+              const videoHeight = source.element.videoHeight;
+              const ratio = videoWidth / videoHeight;
+              
+              console.log(`[VideoContext] Video dimensions detected: ${videoWidth}x${videoHeight}, ratio: ${ratio.toFixed(2)}`);
+              
+              // Update canvas dimensions based on aspect ratio
+              if (ratio >= 0.9 && ratio <= 1.1) {
+                // Square video - use equal dimensions
+                canvas.width = 1080;
+                canvas.height = 1080;
+                console.log('[VideoContext] Set square canvas dimensions:', canvas.width, canvas.height);
+              } else if (ratio > 1.1) {
+                // Landscape video
+                canvas.width = 1920;
+                canvas.height = 1080;
+                console.log('[VideoContext] Set landscape canvas dimensions:', canvas.width, canvas.height);
+              } else {
+                // Portrait video (default)
+                canvas.width = 1080;
+                canvas.height = 1920;
+                console.log('[VideoContext] Set portrait canvas dimensions:', canvas.width, canvas.height);
+              }
+            });
+          }
         } else if (mediaType === 'image') {
+          // Default dimensions for images
+          canvas.width = 1080;
+          canvas.height = 1920;
+          
+          // Create after dimensions are set
+          ctx = new VideoContext(canvas);
+          setVideoContext(ctx);
+          
           source = ctx.image(localMediaUrl);
         } else {
+          // Default dimensions for other types
+          canvas.width = 1080;
+          canvas.height = 1920;
+          
+          // Create after dimensions are set
+          ctx = new VideoContext(canvas);
+          setVideoContext(ctx);
+          
           throw new Error(`Unsupported media type: ${mediaType}`);
         }
         
@@ -397,7 +453,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               currentTrimEnd: trimEnd,
               currentUserTrimEnd: userTrimEndRef.current,
               isNaN: isNaN(videoElement.duration),
-              isFinite: isFinite(videoElement.duration)
+              isFinite: isFinite(videoElement.duration),
+              canvasWidth: canvas.width,
+              canvasHeight: canvas.height
             });
             
             // Set the duration
@@ -418,12 +476,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               console.log("[VideoContext] Setting initial userTrimEnd to", videoElement.duration);
             }
             
-            // Set aspect ratio from video dimensions
+            // Set aspect ratio from video dimensions (don't change canvas dimensions here)
             const videoWidth = videoElement.videoWidth;
             const videoHeight = videoElement.videoHeight;
             const ratio = videoWidth / videoHeight;
             setAspectRatio(ratio);
-            setIsVertical(ratio < 1);
+            
+            // Determine if video is square (within a small margin of error)
+            const isSquareVideo = ratio >= 0.9 && ratio <= 1.1;
+            setIsSquare(isSquareVideo);
+            setIsVertical(ratio < 0.9); // Only truly vertical if ratio is less than 0.9
+            
+            // Log canvas dimensions to verify
+            console.log(`[VideoContext] Current canvas dimensions: ${canvas.width}x${canvas.height} for ratio ${ratio.toFixed(2)}`);
           } else if (audioRef.current && audioRef.current.duration) {
             // For images with audio, use audio duration
             console.log("[VideoContext] Audio loaded", {
@@ -684,10 +749,21 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Get style for the video display based on aspect ratio
   const getMediaStyle = () => {
     // Video is wider than it is tall (landscape)
-    if (aspectRatio > 1) {
+    if (aspectRatio > 1.1) {
       return {
         width: isCompactView ? 'auto' : '100%',
         height: isCompactView ? '110px' : 'auto',
+        objectFit: 'contain' as const,
+      };
+    }
+    
+    // Square video (aspect ratio close to 1)
+    if (aspectRatio >= 0.9 && aspectRatio <= 1.1) {
+      return {
+        width: isCompactView ? '110px' : '300px',
+        height: isCompactView ? '110px' : '300px',
+        maxWidth: isCompactView ? '110px' : '300px',
+        maxHeight: isCompactView ? '110px' : '300px',
         objectFit: 'contain' as const,
       };
     }
@@ -698,6 +774,31 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       height: 'auto',
       objectFit: 'contain' as const,
     };
+  };
+
+  // Return different container style based on aspect ratio
+  const getContainerStyle = () => {
+    // Default style for all containers
+    const baseStyle = {
+      backgroundColor: '#000',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    };
+
+    // Square video
+    if (isSquare) {
+      return {
+        ...baseStyle,
+        width: isCompactView ? '110px' : '300px',
+        height: isCompactView ? '110px' : '300px',
+        margin: '0 auto',
+      };
+    }
+
+    // Portrait or landscape - use default dimensions
+    return baseStyle;
   };
   
   // Set up mouse event listeners for trim bracket dragging
@@ -857,7 +958,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       className={`flex flex-col bg-gray-900 rounded-lg overflow-hidden video-player-container ${className}`}
       data-testid="videocontext-scene-preview-player"
       style={{ 
-        maxWidth: isCompactView ? (isVertical ? '110px' : '100%') : '100%',
+        maxWidth: isCompactView ? 
+          (isSquare ? '110px' : (isVertical ? '110px' : '100%')) 
+          : '100%',
         outline: 'none',
         border: 'none'
       }}
@@ -891,7 +994,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       )}
       
       {/* Media Display */}
-      <div className="relative bg-black flex items-center justify-center">
+      <div 
+        className="relative bg-black flex items-center justify-center"
+        style={getContainerStyle()}
+      >
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
@@ -917,7 +1023,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           className="w-auto h-auto"
           style={{
             ...getMediaStyle(),
-            display: showFirstFrame && mediaType === 'video' ? 'none' : 'block'
+            display: showFirstFrame && mediaType === 'video' ? 'none' : 'block',
           }}
           data-testid="videocontext-canvas"
         />
