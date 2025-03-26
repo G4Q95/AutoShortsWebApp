@@ -9,11 +9,12 @@
  * Now with adaptive scene-based aspect ratio support.
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { PlayIcon, PauseIcon, LockIcon, UnlockIcon, ScissorsIcon, CheckIcon } from 'lucide-react';
 import { VideoContextProvider } from '@/contexts/VideoContextProvider';
 import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
 import EditHistoryManager, { ActionType } from '@/utils/video/editHistoryManager';
+import { CSSProperties } from 'react';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -209,6 +210,45 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Add video element ref for first frame capture
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Style objects with proper typing
+  const playPauseOverlayStyle: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0)',
+    transition: 'background-color 0.2s',
+  };
+
+  const aspectRatioIndicatorStyle: CSSProperties = {
+    zIndex: 20,
+    pointerEvents: 'none',
+  };
+
+  const controlsBackgroundStyle: CSSProperties = {
+    height: '40px',
+    bottom: '0px',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    zIndex: 9, // Behind the controls
+  };
+
+  const controlsContainerStyle: CSSProperties = {
+    minHeight: '32px',
+    padding: '4px 8px 6px 8px',
+    zIndex: 10,
+  };
+
+  const timelineScrubberStyle = (trimActive: boolean, currentTime: number): CSSProperties => ({
+    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
+    height: '4px',
+    opacity: trimActive ? 0.4 : 1,
+    WebkitAppearance: 'none',
+    appearance: 'none',
+  });
 
   // Add time update loop with trim boundaries
   useEffect(() => {
@@ -413,7 +453,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         setVideoContext(ctx);
         
         // Create source node (using local media URL)
-        let source;
+        let source: any; // Explicitly type as any since we're accessing non-standard properties
         console.log(`[VideoContext] Creating source node for ${mediaType} media: ${localMediaUrl.substring(0, 50)}...`);
 
         if (mediaType === 'video') {
@@ -423,10 +463,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           
           // Check for positioning and scaling properties on source node
           console.log(`[VideoContext] Source node initial properties:`, {
-            position: source.position,
-            scale: source.scale,
-            sourceWidth: source.element?.videoWidth,
-            sourceHeight: source.element?.videoHeight
+            position: (source as any).position,
+            scale: (source as any).scale,
+            sourceWidth: (source.element as HTMLVideoElement)?.videoWidth,
+            sourceHeight: (source.element as HTMLVideoElement)?.videoHeight
           });
           
           // When source element is created, store aspect ratio info
@@ -846,18 +886,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     const [width, height] = projectAspectRatio.split(':').map(Number);
     const projectRatio = width / height;
     
-    // Calculate container dimensions - this enforces the project aspect ratio
-    const style: {
-      backgroundColor: string;
-      display: string;
-      alignItems: string;
-      justifyContent: string;
-      overflow: string;
-      position: 'relative';
-      width: string;
-      height: string;
-      aspectRatio?: string;
-    } = {
+    // Style for container div - enforces the project aspect ratio
+    const containerStyle: CSSProperties = {
       backgroundColor: '#000',
       display: 'flex',
       alignItems: 'center',
@@ -868,20 +898,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       height: isCompactView ? '190px' : 'auto',
     };
 
-    // Add aspect ratio only in non-compact view
     if (!isCompactView) {
-      style.aspectRatio = projectAspectRatio.replace(':', '/');
+      containerStyle.aspectRatio = projectAspectRatio.replace(':', '/');
     }
 
     console.log(`[VideoContextScenePreviewPlayer] Final container style for scene ${sceneId}:`, {
       projectAspectRatio,
       projectRatio,
-      style,
+      containerStyle,
       isCompactView,
-      effectiveAspectRatio: style.aspectRatio
+      effectiveAspectRatio: containerStyle.aspectRatio
     });
 
-    return style;
+    return containerStyle;
   }, [projectAspectRatio, isCompactView, sceneId]);
   
   // Get media container style - this will create letterboxing/pillarboxing effect
@@ -891,22 +920,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     const mediaRatio = aspectRatio;
 
     // This style creates the letterboxing/pillarboxing effect
-    const style: {
-      position: string;
-      display: string;
-      alignItems: string;
-      justifyContent: string;
-      width: string;
-      height: string;
-      overflow: string;
-    } = {
+    const mediaContainerStyle: CSSProperties = {
       position: 'relative',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       width: '100%',
       height: '100%',
-      overflow: 'hidden'
+      overflow: 'hidden',
     };
 
     if (showLetterboxing) {
@@ -914,23 +935,23 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         // Media is wider than project - add letterboxing (black bars top/bottom)
         // Use percentage to scale correctly
         const heightPercentage = (projectRatio / mediaRatio) * 100;
-        style.height = `${heightPercentage}%`;
+        mediaContainerStyle.height = `${heightPercentage}%`;
       } else if (mediaRatio < projectRatio) {
         // Media is taller than project - add pillarboxing (black bars left/right)
         // Use percentage to scale correctly
         const widthPercentage = (mediaRatio / projectRatio) * 100;
-        style.width = `${widthPercentage}%`;
+        mediaContainerStyle.width = `${widthPercentage}%`;
       }
     }
 
     console.log(`[VideoContextScenePreviewPlayer] Media container style calculated:`, {
       projectRatio,
       mediaRatio,
-      style,
+      mediaContainerStyle,
       showLetterboxing
     });
 
-    return style;
+    return mediaContainerStyle;
   }, [aspectRatio, projectAspectRatio, showLetterboxing]);
   
   // Get media element style with letterboxing/pillarboxing
@@ -1237,7 +1258,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         {process.env.NODE_ENV === 'development' && (
           <div 
             className="absolute top-1 left-1 bg-black bg-opacity-50 px-1 py-0.5 text-white text-xs rounded"
-            style={{ zIndex: 20, pointerEvents: 'none' }}
+            style={aspectRatioIndicatorStyle}
           >
             {aspectRatio.toFixed(2)} / {projectAspectRatio}
           </div>
@@ -1246,23 +1267,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         {/* Separate background element with larger height to cover controls */}
         <div 
           className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
-          style={{ 
-            height: '40px',
-            bottom: '0px',
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            zIndex: 9, // Behind the controls
-          }}
+          style={controlsBackgroundStyle}
         />
         
         {/* Controls container - now with transparent background */}
         <div 
           className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
           data-drag-handle-exclude="true"
-          style={{ 
-            minHeight: '32px',
-            padding: '4px 8px 6px 8px',
-            zIndex: 10
-          }}
+          style={controlsContainerStyle}
         >
           {/* Main timeline scrubber */}
           <div className="flex items-center px-1 mb-1 relative" data-drag-handle-exclude="true">
@@ -1289,13 +1301,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                 }
               }}
               className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${trimActive ? 'pointer-events-none' : ''}`}
-              style={{ 
-                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
-                height: '4px',
-                opacity: trimActive ? 0.4 : 1, // Make the scrubber translucent when in trim mode
-                WebkitAppearance: 'none',
-                appearance: 'none'
-              }}
+              style={timelineScrubberStyle(trimActive, currentTime)}
               data-testid="timeline-scrubber"
               data-drag-handle-exclude="true"
               onMouseDown={(e) => {

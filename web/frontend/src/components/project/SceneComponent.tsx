@@ -40,8 +40,7 @@ import {
   renderSceneHeader,
   renderSceneInfo,
   useMediaLogic,
-  renderMediaSection,
-  MediaType
+  renderMediaSection
 } from './scene-functions';
 
 // Import utility functions
@@ -91,21 +90,21 @@ interface SceneComponentProps {
   /** Callback to remove a scene */
   onSceneRemove: (id: string) => void;
   /** Callback when a scene is being moved (during drag) */
-  onSceneMove: (id: string, newIndex: number) => void;
+  _onSceneMove: (id: string, newIndex: number) => void;
   /** Callback when a scene's position is finalized */
   onSceneReorder: (id: string, newIndex: number) => void;
   /** Whether the scene is in reorder mode */
-  reorderMode?: boolean;
+  _reorderMode?: boolean;
   /** Whether the scene is read-only */
-  readOnly?: boolean;
+  _readOnly?: boolean;
   /** Reference to the text editor element */
-  editorRef?: React.RefObject<HTMLTextAreaElement>;
+  _editorRef?: React.RefObject<HTMLTextAreaElement>;
   /** Whether the scene is currently being dragged */
   isDragging?: boolean;
   /** Whether to display the scene at full width */
   isFullWidth?: boolean;
   /** Custom styles for the scene component */
-  customStyles?: React.CSSProperties;
+  _customStyles?: React.CSSProperties;
   /** Feature flag to use the new SceneAudioControls component instead of built-in audio controls */
   useNewAudioControls?: boolean;
   /** Drag handle props from react-beautiful-dnd */
@@ -152,14 +151,14 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   preview,
   index,
   onSceneRemove,
-  onSceneMove,
+  _onSceneMove: onSceneMove,
   onSceneReorder,
-  reorderMode = false,
-  readOnly = false,
-  editorRef,
+  _reorderMode: reorderMode = false,
+  _readOnly: readOnly = false,
+  _editorRef: editorRef,
   isDragging = false,
   isFullWidth = false,
-  customStyles = {},
+  _customStyles: customStyles = {},
   useNewAudioControls = false,
   dragHandleProps,
   projectAspectRatio = '9:16',
@@ -265,38 +264,32 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     )();
   };
 
-  // Add this new function to handle media upload and analysis
+  // Handler for media upload
   const handleMediaUpload = async (mediaUrl: string, mediaType: 'image' | 'video' | 'gallery') => {
-    console.log(`[SceneComponent] Starting media upload/analysis for ${mediaType} url: ${mediaUrl.substring(0, 50)}...`);
-    
+    console.warn(`Scene ${scene.id}: Uploading media from ${mediaUrl}`);
     try {
-      console.log(`[SceneComponent] Analyzing media...`);
-      const mediaAnalysisResult = await analyzeMedia(mediaUrl, mediaType);
-      
-      console.log(`[SceneComponent] Media analysis complete:`, {
-        width: mediaAnalysisResult.width, 
-        height: mediaAnalysisResult.height,
-        aspectRatio: mediaAnalysisResult.aspectRatio
-      });
-      
-      // Update the scene with the detected dimensions and aspect ratio
-      const updatedMedia = {
-        ...scene.media, // existing media data
-        aspectRatio: mediaAnalysisResult.aspectRatio,
-        mediaOriginalWidth: mediaAnalysisResult.width,
-        mediaOriginalHeight: mediaAnalysisResult.height
-      };
-      
-      console.log(`[SceneComponent] Updating scene with media data:`, updatedMedia);
+      // Analyze the media to get dimensions and aspect ratio
+      const mediaInfo = await analyzeMedia(mediaUrl, mediaType);
+      console.warn(`Media analysis result for scene ${scene.id}:`, mediaInfo);
       
       // Update the scene with the new media data
-      updateSceneMedia(scene.id, updatedMedia);
+      const updatedMedia = {
+        ...scene.media,
+        url: mediaUrl,
+        type: mediaType,
+        width: mediaInfo.width || 0,
+        height: mediaInfo.height || 0,
+        aspectRatio: mediaInfo.aspectRatio || '16:9'
+      };
       
-      console.log(`[SceneComponent] Media data updated successfully`);
-      console.log(`[SceneComponent] Added aspect ratio data: ${mediaAnalysisResult.aspectRatio.toFixed(2)} (${mediaAnalysisResult.width}x${mediaAnalysisResult.height})`);
+      // Update scene media in project context
+      updateSceneMedia(scene.id, updatedMedia);
+      console.warn(`Scene ${scene.id}: Media updated successfully`);
+      return true;
     } catch (error) {
-      console.error('[SceneComponent] Failed to analyze media:', error);
-      // Continue with the upload even if analysis fails
+      console.warn(`Scene ${scene.id}: Failed to upload media:`, error);
+      console.warn('Media upload error:', error);
+      return false;
     }
   };
 
