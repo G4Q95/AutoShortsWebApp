@@ -16,19 +16,19 @@ const nextConfig = {
     return [
       {
         source: '/api/preview',
-        destination: 'http://localhost:8000/api/v1/content/preview',
+        destination: 'http://backend:8000/api/v1/content/preview',
       },
       {
         source: '/api/projects/:projectId/process',
-        destination: 'http://localhost:8000/api/v1/projects/:projectId/process',
+        destination: 'http://backend:8000/api/v1/projects/:projectId/process',
       },
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/api/v1/:path*',
+        destination: 'http://backend:8000/api/v1/:path*',
       },
       {
         source: '/health',
-        destination: 'http://localhost:8000/api/v1/health',
+        destination: 'http://backend:8000/api/v1/health',
       },
     ];
   },
