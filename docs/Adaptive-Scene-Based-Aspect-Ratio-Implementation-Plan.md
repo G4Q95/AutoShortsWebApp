@@ -395,7 +395,40 @@ The adaptive aspect ratio support has been successfully implemented in the appli
    - Implemented automatic letterboxing/pillarboxing when aspect ratios don't match
    - Ensured alignment between preview display and final output
 
-This implementation ensures users can now confidently mix media with different aspect ratios in the same project, knowing that each piece of content will be displayed appropriately without stretching or distortion. 
+5. **Project-Wide Aspect Ratio Selection**:
+   - Added UI to switch between different project aspect ratios (9:16, 16:9, etc.)
+   - Implemented proper letterboxing/pillarboxing based on selected ratio
+   - Ensured video playback continuity when changing aspect ratio
+   - Applied consistent ratio styling across all scene cards
+
+### Implementation Challenges Overcome
+
+Several significant challenges were encountered and resolved during implementation:
+
+1. **VideoContext Re-initialization**:
+   - Initial implementation caused VideoContext to completely re-initialize when aspect ratio changed
+   - Video playback would stop and reset when switching aspect ratios
+   - Solution: Modified effect dependencies to prevent re-initialization on aspect ratio changes
+
+2. **DOM Structure Issues**:
+   - Nested containers with identical style functions nullified letterboxing/pillarboxing
+   - Solution: Implemented three-layer container architecture:
+     - Outer container: Enforces project aspect ratio
+     - Middle container: Creates letterboxing/pillarboxing effect
+     - Inner media elements: Maintain original media proportions
+
+3. **Styling Approach**:
+   - Created specialized style functions for each container layer:
+     - `getContainerStyle()`: Sets project aspect ratio
+     - `getMediaContainerStyle()`: Creates letterboxing/pillarboxing using percentage-based scaling
+     - `getMediaStyle()`: Handles media element containment
+
+4. **Style Calculation**:
+   - Used percentage-based scaling for proper letterboxing/pillarboxing
+   - For media wider than project ratio: `height: ${(projectRatio / mediaRatio) * 100}%`
+   - For media taller than project ratio: `width: ${(mediaRatio / projectRatio) * 100}%`
+
+This implementation ensures users can now confidently mix media with different aspect ratios in the same project, knowing that each piece of content will be displayed appropriately without stretching or distortion. The project-wide aspect ratio selector allows easy switching between common formats while maintaining proper visual representation.
 
 ## Solution Implementation Details
 
