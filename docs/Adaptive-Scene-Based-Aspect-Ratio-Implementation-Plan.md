@@ -655,3 +655,70 @@ A critical part of the implementation was ensuring that aspect ratio information
 This ensured that the aspect ratio information detected during upload was properly passed down to the components that needed it for proper rendering.
 
 While logging was added to verify this implementation and identify potential issues, the actual solution was the complete chain of media analysis, data storage, and proper aspect ratio-aware rendering described above. 
+
+## Next Steps
+
+### Phase 1: Aspect Ratio Switching (1-2 weeks)
+1. **Project Settings Enhancement**
+   - Add aspect ratio selection to project settings
+   - Support for 9:16, 16:9, 1:1, and 4:5 ratios
+   - Store selection in project metadata
+   - Add UI for ratio selection in project header
+
+2. **VideoContextScenePreviewPlayer Updates**
+   - Enhance existing letterboxing/pillarboxing logic to handle ratio changes
+   - Update container styling for new aspect ratios
+   - Ensure smooth transitions between ratios
+   - Maintain proper media scaling during ratio changes
+
+3. **Scene Card Adaptations**
+   - Update scene card sizing logic for different ratios
+   - Implement proper thumbnail scaling
+   - Add visual indicators for current ratio
+   - Ensure consistent preview across all views
+
+4. **Testing & Validation**
+   - Test ratio switching with various media types
+   - Verify proper letterboxing/pillarboxing
+   - Ensure consistent rendering across components
+   - Validate export with different ratios
+
+### Phase 2: Zoom Controls (2-3 weeks)
+1. **Zoom Implementation**
+   - Add zoom level state management
+   - Implement zoom controls UI
+   - Create smooth zoom transitions
+   - Handle zoom boundaries and limits
+
+2. **Media Positioning**
+   - Add pan controls for zoomed content
+   - Implement position persistence
+   - Create reset functionality
+   - Add position boundary checking
+
+3. **Integration with Aspect Ratios**
+   - Ensure zoom works correctly with all aspect ratios
+   - Maintain zoom state during ratio changes
+   - Implement proper scaling calculations
+   - Add position normalization for different ratios
+
+4. **UI/UX Enhancements**
+   - Add visual zoom level indicator
+   - Implement zoom gestures (pinch/scroll)
+   - Create intuitive zoom controls
+   - Add keyboard shortcuts
+
+### Implementation Priority
+1. **Aspect Ratio Switching First**
+   - Builds on existing letterboxing/pillarboxing system
+   - Provides immediate value for different output formats
+   - Simpler to implement than zoom controls
+   - Natural extension of current functionality
+
+2. **Zoom Controls Second**
+   - More complex interaction model
+   - Requires new state management
+   - Builds on stable aspect ratio foundation
+   - Adds advanced editing capabilities
+
+This phased approach ensures we maintain stability while adding powerful new features. The aspect ratio switching implementation will provide a solid foundation for the more complex zoom control system. 
