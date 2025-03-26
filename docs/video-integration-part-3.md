@@ -26,13 +26,17 @@ Currently, the application has issues maintaining consistent aspect ratios for v
 
 ### 2. UI Implementation
 
-- **Placement Options**: 
-  - Option 1: Add an aspect ratio selector next to the project title at the top of the page
-  - Option 2: Create a dropdown menu that shows the current aspect ratio and its shape icon
-  - Option 3: Add it to a project settings panel accessible via a gear icon
+- **In-Project Placement**: 
+  - Place the aspect ratio selector on the project page, next to the project title (between the project title and the Save button)
+  - Implement as a dropdown menu showing both the current ratio and a visual representation of its shape
+  - Make it easily accessible within the project workspace, not during initial project creation
+- **Real-Time Updates**:
+  - When a user changes the aspect ratio, all scene cards should update immediately to show the new ratio
+  - Show letterboxing/pillarboxing applied in real-time across all scenes
+  - Provide visual feedback as the ratio changes to help users visualize the final output
 - **Visual Selector**: Similar to CapCut's implementation, show a visual representation of each ratio
 - **Display Format**: Show both the numerical ratio (e.g., "9:16") and a common name/use case (e.g., "TikTok")
-- Clearly indicate the currently selected aspect ratio
+- **Clearly indicate the currently selected aspect ratio**
 
 ### 3. Letterboxing/Pillarboxing Implementation
 
@@ -129,10 +133,10 @@ Currently, the application has issues maintaining consistent aspect ratios for v
 
 ### Project Settings UI
 
-1. Add an aspect ratio selector to the project creation form
-2. Create a project settings dropdown or button near the project title
+1. Implement aspect ratio selector in the active project view, not in the initial project creation flow
+2. Position the selector between the project title and Save button for easy access
 3. Provide visual previews of each aspect ratio option similar to CapCut's implementation
-4. Warn users about potential letterboxing/pillarboxing when changing aspect ratios for existing projects
+4. Display a warning when changing aspect ratios on projects with existing content
 
 ### Database Schema Updates
 
@@ -146,15 +150,16 @@ interface Project {
 ## Implementation Priority
 
 1. Update project schema to include aspect ratio setting
-2. Modify VideoContextScenePreviewPlayer to read and respect project aspect ratio
-3. Create UI for selecting aspect ratio in project settings
-4. Ensure consistent rendering across all views (thumbnail, preview, export)
+2. Create UI component for the aspect ratio selector in the project header
+3. Modify VideoContextScenePreviewPlayer to read and respect project aspect ratio
+4. Implement real-time updating of all scene thumbnails when aspect ratio changes
 5. Add visual indicators for letterboxing/pillarboxing
 
 ## Expected Outcome
 
-- Users can select their desired aspect ratio at the project level
+- Users can select and change their desired aspect ratio directly within the project
 - All scenes maintain consistent aspect ratio throughout the application
 - Videos don't stretch or distort regardless of their original dimensions
 - Letterboxing/pillarboxing is applied consistently and aesthetically
+- Scene thumbnails update in real-time when the aspect ratio is changed
 - Smooth transitions between thumbnail and video playback views 
