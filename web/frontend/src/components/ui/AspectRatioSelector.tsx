@@ -6,9 +6,7 @@
  */
 
 import React from 'react';
-import { Square, LayoutTemplate, Instagram, AlignVerticalJustifyCenter } from 'lucide-react';
-
-export type AspectRatioOption = '9:16' | '16:9' | '1:1' | '4:5';
+import AspectRatioIcon, { AspectRatioOption } from './AspectRatioIcon';
 
 interface AspectRatioSelectorProps {
   currentRatio: AspectRatioOption;
@@ -25,38 +23,33 @@ const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({
   onToggleLetterboxing,
   className = ''
 }) => {
-  const ratioOptions = [
-    { value: '9:16', label: 'Vertical', icon: <AlignVerticalJustifyCenter className="w-4 h-4" /> },
-    { value: '16:9', label: 'Landscape', icon: <LayoutTemplate className="w-4 h-4" /> },
-    { value: '1:1', label: 'Square', icon: <Square className="w-4 h-4" /> },
-    { value: '4:5', label: 'Instagram', icon: <Instagram className="w-4 h-4" /> }
-  ];
+  const ratioOptions: AspectRatioOption[] = ['9:16', '16:9', '1:1', '4:5'];
 
   return (
     <div className={`aspect-ratio-selector ${className}`}>
-      <div className="flex flex-col space-y-3">
+      <div className="flex flex-col space-y-4">
         <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
           Aspect Ratio
         </div>
         
-        <div className="flex flex-wrap gap-2">
-          {ratioOptions.map(option => (
+        <div className="grid grid-cols-4 gap-3">
+          {ratioOptions.map(ratio => (
             <button
-              key={option.value}
+              key={ratio}
               className={`
-                flex flex-col items-center justify-center p-2 rounded-md border transition-colors
-                ${currentRatio === option.value 
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
-                  : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}
+                flex flex-col items-center justify-center p-2 rounded-md transition-colors
+                ${currentRatio === ratio 
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+                  : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}
               `}
-              onClick={() => onChange(option.value as AspectRatioOption)}
-              title={`Set aspect ratio to ${option.value}`}
+              onClick={() => onChange(ratio)}
+              title={`Set aspect ratio to ${ratio}`}
             >
-              <div className="p-1">
-                {option.icon}
-              </div>
-              <div className="text-xs mt-1">{option.label}</div>
-              <div className="text-[10px] opacity-70">{option.value}</div>
+              <AspectRatioIcon 
+                ratio={ratio} 
+                isSelected={currentRatio === ratio}
+                size={48}
+              />
             </button>
           ))}
         </div>

@@ -23,12 +23,14 @@ import {
   Save as SaveIcon,
   Check as CheckIcon,
   Zap as ZapIcon,
+  LayoutTemplate,
 } from 'lucide-react';
 import ErrorDisplay from '../ErrorDisplay';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { processVideoWithCustomization, processVideoFast } from '@/lib/project-utils';
 import { getProject } from '@/lib/storage-utils';
 import SaveStatusIndicator from './SaveStatusIndicator';
+import AspectRatioDropdown from '../ui/AspectRatioDropdown';
 
 /**
  * Props for the ProjectWorkspace component
@@ -106,6 +108,8 @@ export default function ProjectWorkspace({
     mode,
     setMode,
     nextMode,
+    setProjectAspectRatio,
+    toggleLetterboxing,
   } = useProject();
 
   const [url, setUrl] = useState('');
@@ -649,6 +653,22 @@ export default function ProjectWorkspace({
               data-testid="project-title"
             />
           </div>
+          
+          {/* Aspect Ratio Dropdown */}
+          <AspectRatioDropdown
+            currentRatio="9:16"
+            onChange={(ratio) => {
+              console.log('Changing aspect ratio to:', ratio);
+              handleManualSave();
+            }}
+            showLetterboxing={true}
+            onToggleLetterboxing={(show) => {
+              console.log('Toggling letterboxing:', show);
+              handleManualSave();
+            }}
+            className="ml-auto mr-4"
+          />
+          
           <div className="flex flex-col items-end">
             <button
               onClick={handleManualSave}
