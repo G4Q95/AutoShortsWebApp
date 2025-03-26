@@ -184,6 +184,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add ref to store the user's manually set trim end value - initialize to null
   const userTrimEndRef = useRef<number | null>(null);
 
+  // Add state to track visual playback position separate from actual time
+  const [visualTime, setVisualTime] = useState<number>(0);
+
   // Add time update loop with trim boundaries
   useEffect(() => {
     const updateTime = () => {
@@ -681,12 +684,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   useEffect(() => {
     if (!activeHandle) return;
     
+    // Store the current playback position when starting to drag
+    const initialPlaybackPosition = currentTime;
+    
     // Create a handler for mouse movement during drag
     const handleMouseMove = (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       
-      if (!containerRef.current) return;
+      if (!containerRef.current || !videoContext) return;
       
       const rect = containerRef.current.getBoundingClientRect();
       // Direct mouse positioning for precise control
@@ -700,12 +706,30 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         const newStart = Math.min(newTime, trimEnd - 0.1);
         setTrimStart(newStart);
         if (onTrimChange) onTrimChange(newStart, trimEnd);
+        
+        // Update video frame visually without changing playhead position
+        videoContext.currentTime = newStart;
+        setVisualTime(newStart);
+        
+        // Update audio time if available
+        if (audioRef.current) {
+          audioRef.current.currentTime = newStart;
+        }
       } else if (activeHandle === 'end') {
         // Ensure trim end doesn't go before trim start plus minimum duration
         const newEnd = Math.max(newTime, trimStart + 0.1);
         setTrimEnd(newEnd);
         userTrimEndRef.current = newEnd;
         if (onTrimChange) onTrimChange(trimStart, newEnd);
+        
+        // Update video frame visually without changing playhead position
+        videoContext.currentTime = newEnd;
+        setVisualTime(newEnd);
+        
+        // Update audio time if available
+        if (audioRef.current) {
+          audioRef.current.currentTime = newEnd;
+        }
       }
       
       setTrimManuallySet(true);
@@ -713,14 +737,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Handle mouse up to end the drag operation
     const handleMouseUp = () => {
+      // Store which handle was active before clearing it
+      const wasHandleActive = activeHandle;
       setActiveHandle(null);
       document.body.style.cursor = 'default';
       
-      // Restore original playback position when done dragging
-      if (videoContext && !isPlaying) {
-        videoContext.currentTime = originalPlaybackTime;
-        setCurrentTime(originalPlaybackTime);
+      // Only update the current time if left bracket (start) was being dragged
+      if (!isPlaying && wasHandleActive === 'start') {
+        setCurrentTime(visualTime);
       }
+      // For end bracket, we don't update the currentTime
     };
     
     // Set cursor style for better UX
@@ -736,7 +762,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       document.removeEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'default';
     };
-  }, [activeHandle, trimStart, trimEnd, duration, containerRef, onTrimChange, videoContext, isPlaying, originalPlaybackTime]);
+  }, [activeHandle, trimStart, trimEnd, duration, containerRef, onTrimChange, videoContext, isPlaying, currentTime, visualTime]);
   
   // Render loading state
   if (isLoading && !localMediaUrl) {
