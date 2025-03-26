@@ -163,3 +163,93 @@ interface Project {
 - Letterboxing/pillarboxing is applied consistently and aesthetically
 - Scene thumbnails update in real-time when the aspect ratio is changed
 - Smooth transitions between thumbnail and video playback views 
+
+## Aspect Ratio Troubleshooting
+
+### Initial Investigation
+We initially attempted to control aspect ratio by setting fixed canvas dimensions and using VideoContext's source node scaling:
+
+```typescript
+// Initial attempt - proved ineffective
+canvas.width = 1920; 
+canvas.height = 1080;
+source.scale(scaleX, scaleY);     // These methods don't persist
+source.position(x, y, 0);         // These methods don't persist
+```
+
+### Key Findings
+1. **VideoContext Limitations**:
+   - VideoContext doesn't have native support for `object-fit: contain` equivalent
+   - The `scale()` and `position()` methods on source nodes don't persist during playback
+   - Scaling values become `undefined` during video playback
+   - This is a known limitation (see [VideoContext Issue #56](https://github.com/bbc/VideoContext/issues/56))
+
+2. **Current Behavior**:
+   - Thumbnail view maintains aspect ratio using CSS `object-fit: contain`
+   - During playback, VideoContext stretches content to fill canvas
+   - No built-in method to maintain aspect ratio in VideoContext
+
+### Potential Solutions
+
+1. **Custom WebGL Shader Approach** (Most Promising):
+   - Create a custom shader in VideoContext
+   - Handle aspect ratio preservation in the WebGL rendering pipeline
+   - Maintain proper scaling and positioning through shader uniforms
+   - Benefits:
+     - Works at the rendering level
+     - Consistent across all playback states
+     - Better performance than canvas manipulation
+
+2. **Manual Canvas Rendering**:
+   - Control WebGL viewport and projection matrix
+   - Calculate and apply proper scaling in render loop
+   - Challenges:
+     - Complex WebGL implementation
+     - Potential performance impact
+     - May interfere with VideoContext's internal rendering
+
+3. **Container-Based Solution**:
+   - Keep canvas stretched
+   - Control aspect ratio through container div
+   - Use overflow hidden for letterboxing/pillarboxing
+   - Limitations:
+     - May affect video quality
+     - Less precise control
+     - Potential resolution issues
+
+### Next Steps
+1. Implement custom WebGL shader solution:
+   - Research VideoContext shader implementation
+   - Create aspect-ratio-preserving fragment shader
+   - Add shader uniforms for aspect ratio control
+   - Test with various video dimensions
+
+2. Fallback considerations:
+   - Implement container-based solution as temporary measure
+   - Document limitations for future reference
+   - Plan for proper shader-based implementation
+
+### Implementation Notes
+- Keep canvas dimensions consistent (1920x1080)
+- Calculate aspect ratios early in video loading
+- Apply letterboxing/pillarboxing through shaders
+- Maintain separate thumbnail and playback solutions until shader implementation is complete
+
+### Testing Strategy
+1. Test with multiple aspect ratios:
+   - Vertical (9:16)
+   - Horizontal (16:9)
+   - Square (1:1)
+   - Non-standard ratios
+
+2. Verify consistent behavior:
+   - During thumbnail display
+   - During playback
+   - During transitions
+   - After seeking/trimming
+
+3. Monitor performance:
+   - Shader compilation time
+   - Rendering performance
+   - Memory usage
+   - CPU/GPU utilization 

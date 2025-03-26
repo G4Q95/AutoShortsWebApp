@@ -370,61 +370,75 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           const tempVideo = document.createElement('video');
           tempVideo.muted = true;
           
-          // Set default canvas dimensions first (will be updated when video metadata loads)
-          canvas.width = 1080;
-          canvas.height = 1920;
+          // Keep canvas dimensions consistent for future shader implementation
+          canvas.width = 1920;
+          canvas.height = 1080;
           
-          // We need to create the VideoContext now with initial dimensions
+          console.log('[VideoContext] Canvas size set to 1920x1080');
+          
+          // Create VideoContext instance
           ctx = new VideoContext(canvas);
           setVideoContext(ctx);
           
           // Create the source
           source = ctx.video(localMediaUrl);
           
-          // When source element is created, adjust canvas dimensions
+          // When source element is created, store aspect ratio info
           if (source.element) {
-            // Add event listener to the actual video element
             source.element.addEventListener('loadedmetadata', () => {
               // Get dimensions from the actual source
               const videoWidth = source.element.videoWidth;
               const videoHeight = source.element.videoHeight;
               const ratio = videoWidth / videoHeight;
               
-              console.log(`[VideoContext] Video dimensions detected: ${videoWidth}x${videoHeight}, ratio: ${ratio.toFixed(2)}`);
+              // Save aspect ratio for use in other parts of the component
+              setAspectRatio(ratio);
               
-              // Update canvas dimensions based on aspect ratio
-              if (ratio >= 0.9 && ratio <= 1.1) {
-                // Square video - use equal dimensions
-                canvas.width = 1080;
-                canvas.height = 1080;
-                console.log('[VideoContext] Set square canvas dimensions:', canvas.width, canvas.height);
-              } else if (ratio > 1.1) {
-                // Landscape video
-                canvas.width = 1920;
-                canvas.height = 1080;
-                console.log('[VideoContext] Set landscape canvas dimensions:', canvas.width, canvas.height);
-              } else {
-                // Portrait video (default)
-                canvas.width = 1080;
-                canvas.height = 1920;
-                console.log('[VideoContext] Set portrait canvas dimensions:', canvas.width, canvas.height);
-              }
+              // Determine if video is square (within a small margin of error)
+              const isSquareVideo = ratio >= 0.9 && ratio <= 1.1;
+              setIsSquare(isSquareVideo);
+              setIsVertical(ratio < 0.9);
+              
+              console.log(`[VideoContext] Video dimensions detected: ${videoWidth}x${videoHeight}, ratio: ${ratio.toFixed(2)}`);
             });
           }
         } else if (mediaType === 'image') {
-          // Default dimensions for images
-          canvas.width = 1080;
-          canvas.height = 1920;
+          // Keep canvas dimensions consistent
+          canvas.width = 1920;
+          canvas.height = 1080;
+          
+          console.log('[VideoContext] Canvas size set to 1920x1080');
           
           // Create after dimensions are set
           ctx = new VideoContext(canvas);
           setVideoContext(ctx);
           
           source = ctx.image(localMediaUrl);
+          
+          // For images, we need to manually get the dimensions
+          const img = new Image();
+          img.onload = () => {
+            const imageWidth = img.width;
+            const imageHeight = img.height;
+            const ratio = imageWidth / imageHeight;
+            
+            // Save aspect ratio for use in other parts of the component
+            setAspectRatio(ratio);
+            
+            // Determine if image is square (within a small margin of error)
+            const isSquareImage = ratio >= 0.9 && ratio <= 1.1;
+            setIsSquare(isSquareImage);
+            setIsVertical(ratio < 0.9);
+            
+            console.log(`[VideoContext] Image dimensions loaded: ${imageWidth}x${imageHeight}, ratio: ${ratio.toFixed(2)}`);
+          };
+          img.src = localMediaUrl;
         } else {
-          // Default dimensions for other types
-          canvas.width = 1080;
-          canvas.height = 1920;
+          // MODIFIED: Set canvas dimensions to always use 16:9 for testing
+          canvas.width = 1920;
+          canvas.height = 1080;
+          
+          console.log('[VideoContext] TESTING: Forcing canvas to 16:9 aspect ratio (1920x1080)');
           
           // Create after dimensions are set
           ctx = new VideoContext(canvas);
@@ -614,7 +628,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Handle play/pause with trim boundaries
   const handlePlay = () => {
-    if (!videoContext) return;
+    if (!videoContext || !isReady) return;
     
     // When playing, switch from first frame to canvas
     setShowFirstFrame(false);
@@ -625,19 +639,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       setCurrentTime(trimStart);
     }
     
-    // Log trim values before playing
-    console.log("[VideoContext] Before play", {
-      videoTime: videoContext.currentTime,
-      trimStart,
-      trimEnd,
-      "trim.end": trim.end
-    });
-    
     videoContext.play();
     setIsPlaying(true);
     
     // Play the audio in sync
-    if (audioRef.current) {
+    if (audioRef.current && audioUrl) {
       audioRef.current.currentTime = videoContext.currentTime;
       audioRef.current.play().catch(err => console.error("Error playing audio:", err));
     }
@@ -745,7 +751,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
   };
-  
+
   // Get style for the video display based on aspect ratio
   const getMediaStyle = () => {
     // Video is wider than it is tall (landscape)
