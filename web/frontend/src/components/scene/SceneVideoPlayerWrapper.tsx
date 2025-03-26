@@ -58,7 +58,7 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   }, [onMediaTrimChange]);
   
   // Access the Scene type from our updated context for type consistency
-  const { project } = useProject();
+  useProject();
   console.log(`[SceneVideoPlayerWrapper] Scene ID: ${scene.id}, Project ID: ${projectId}`);
   console.log(`[SceneVideoPlayerWrapper] Scene media:`, scene.media);
   
