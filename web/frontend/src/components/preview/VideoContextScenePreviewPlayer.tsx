@@ -898,9 +898,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                 style={{ 
                   left: `calc(${(trimStart / duration) * 100}% - 6px)`,
                   top: '-8px', 
-                  height: '26px',
+                  height: '20px', // Reduced height to not overlap controls
                   width: '12px',
-                  zIndex: 20,
+                  zIndex: 15, // Lower z-index than controls
                   pointerEvents: trimActive ? 'auto' : 'none',
                   opacity: trimActive ? 1 : (trimStart <= 0.01 ? 0 : 0.6),
                   transition: 'opacity 0.2s ease'
@@ -981,9 +981,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                 style={{ 
                   left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 6px)`,
                   top: '-8px',
-                  height: '26px',
+                  height: '20px', // Reduced height to not overlap controls
                   width: '12px',
-                  zIndex: 20,
+                  zIndex: 15, // Lower z-index than controls
                   pointerEvents: trimActive ? 'auto' : 'none',
                   opacity: trimActive ? 1 : (getEffectiveTrimEnd() >= duration - 0.01 ? 0 : 0.6),
                   transition: 'opacity 0.2s ease'
@@ -1061,7 +1061,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           </div>
           
           {/* Control buttons row */}
-          <div className="flex justify-between items-center px-1" data-drag-handle-exclude="true">
+          <div className="flex justify-between items-center px-1" data-drag-handle-exclude="true" style={{ position: 'relative', zIndex: 25 }}>
             {/* Lock button (left side) */}
             <button
               onClick={(e) => {
@@ -1071,7 +1071,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               className="text-white hover:opacity-100 focus:outline-none"
               data-testid="toggle-lock-button"
               onMouseDown={(e) => e.stopPropagation()}
-              style={{ padding: '1.5px' }}
+              style={{ padding: '1.5px', position: 'relative', zIndex: 30 }}
             >
               {controlsLocked ? (
                 <LockIcon className="w-3 h-3" />
@@ -1099,7 +1099,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               className="text-white hover:opacity-100 focus:outline-none"
               data-testid="toggle-trim-button"
               onMouseDown={(e) => e.stopPropagation()}
-              style={{ padding: '1.5px' }}
+              style={{ padding: '1.5px', position: 'relative', zIndex: 30 }}
             >
               {trimActive ? (
                 <CheckIcon className="w-3 h-3" />
