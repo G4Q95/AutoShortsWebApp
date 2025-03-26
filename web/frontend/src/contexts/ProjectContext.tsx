@@ -13,6 +13,11 @@ export interface Scene {
   trim?: { start: number; end: number };
   duration?: number;
   order: number;
+  
+  // New fields for aspect ratio support
+  mediaAspectRatio?: number;        // Numerical ratio (e.g., 1.78 for 16:9)
+  mediaOriginalWidth?: number;      // Original width in pixels
+  mediaOriginalHeight?: number;     // Original height in pixels
 }
 
 export interface Project {
@@ -23,6 +28,8 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   status: 'draft' | 'processing' | 'completed';
+  aspectRatio: '9:16' | '16:9' | '1:1' | '4:5';  // Project-wide aspect ratio setting
+  showLetterboxing: boolean;  // Whether to show letterboxing in preview
 }
 
 // Define the context state interface
@@ -36,6 +43,8 @@ interface ProjectContextState {
   deleteScene: (sceneId: string) => Promise<void>;
   reorderScenes: (sceneIds: string[]) => Promise<void>;
   loadProject: (projectId: string) => Promise<void>;
+  setProjectAspectRatio: (aspectRatio: '9:16' | '16:9' | '1:1' | '4:5') => void;
+  toggleLetterboxing: (show: boolean) => void;
 }
 
 // Create context with default values
@@ -49,6 +58,8 @@ const ProjectContext = createContext<ProjectContextState>({
   deleteScene: async () => {},
   reorderScenes: async () => {},
   loadProject: async () => {},
+  setProjectAspectRatio: () => {},
+  toggleLetterboxing: () => {},
 });
 
 // Create provider component
@@ -97,7 +108,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         ],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        status: "draft"
+        status: "draft",
+        aspectRatio: "16:9",
+        showLetterboxing: true
       };
       
       setProject(mockProject);
@@ -297,6 +310,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Set project aspect ratio
+  const setProjectAspectRatio = (aspectRatio: '9:16' | '16:9' | '1:1' | '4:5') => {
+    setProject(prev => prev ? { ...prev, aspectRatio } : null);
+  };
+
+  // Toggle letterboxing
+  const toggleLetterboxing = (show: boolean) => {
+    setProject(prev => prev ? { ...prev, showLetterboxing: show } : null);
+  };
+
   // Value for the context provider
   const contextValue = {
     project,
@@ -307,7 +330,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     addScene,
     updateScene,
     deleteScene,
-    reorderScenes
+    reorderScenes,
+    setProjectAspectRatio,
+    toggleLetterboxing
   };
 
   return (

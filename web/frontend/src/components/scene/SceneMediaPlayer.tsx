@@ -33,6 +33,7 @@ interface SceneMediaPlayerProps {
     trim?: { start: number; end: number };
     storageKey?: string;
     isStorageBacked?: boolean;
+    aspectRatio?: number;
   } | null;
   
   /**
@@ -65,6 +66,16 @@ interface SceneMediaPlayerProps {
    * Set to true to use the VideoContext implementation
    */
   useVideoContext?: boolean;
+  
+  /**
+   * Project aspect ratio
+   */
+  projectAspectRatio?: '9:16' | '16:9' | '1:1' | '4:5';
+  
+  /**
+   * Whether to show letterboxing/pillarboxing
+   */
+  showLetterboxing?: boolean;
 }
 
 /**
@@ -81,8 +92,16 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   onTrimChange,
   className = '',
   useVideoContext = true, // Default to using VideoContext player
+  projectAspectRatio,
+  showLetterboxing,
 }) => {
+  console.log(`[SceneMediaPlayer] Rendering for scene: ${sceneId}`);
+  console.log(`[SceneMediaPlayer] Media object:`, media);
+  console.log(`[SceneMediaPlayer] Project aspect ratio: ${projectAspectRatio}, showLetterboxing: ${showLetterboxing}`);
+  
   if (!media) {
+    // Log the empty media case
+    console.log(`[SceneMediaPlayer] No media to display for scene: ${sceneId}`);
     // Render placeholder for empty media
     return (
       <div 
@@ -109,6 +128,17 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
     }
   };
   
+  // Log the video context player props
+  if (useVideoContext) {
+    console.log(`[SceneMediaPlayer] Using VideoContextScenePreviewPlayer with:`, {
+      mediaUrl,
+      mediaType: media.type,
+      mediaAspectRatio: media.aspectRatio,
+      projectAspectRatio,
+      showLetterboxing
+    });
+  }
+  
   return (
     <div 
       className={`relative w-full bg-black rounded-t-lg overflow-hidden ${className}`}
@@ -129,6 +159,9 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
             className="rounded-t-lg"
             isCompactView={isCompactView}
             thumbnailUrl={media.thumbnailUrl}
+            mediaAspectRatio={media.aspectRatio}
+            projectAspectRatio={projectAspectRatio || '9:16'}
+            showLetterboxing={showLetterboxing || true}
           />
         ) : (
           <ScenePreviewPlayer
@@ -196,7 +229,9 @@ function arePropsEqual(prevProps: SceneMediaPlayerProps, nextProps: SceneMediaPl
     prevProps.audioUrl !== nextProps.audioUrl ||
     prevProps.isCompactView !== nextProps.isCompactView ||
     prevProps.projectId !== nextProps.projectId ||
-    prevProps.sceneId !== nextProps.sceneId
+    prevProps.sceneId !== nextProps.sceneId ||
+    prevProps.projectAspectRatio !== nextProps.projectAspectRatio ||
+    prevProps.showLetterboxing !== nextProps.showLetterboxing
   );
 }
 

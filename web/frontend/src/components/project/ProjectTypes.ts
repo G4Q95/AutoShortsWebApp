@@ -51,6 +51,12 @@ export interface Scene {
       /** End time in seconds */
       end: number;
     };
+    /** Aspect ratio of the media */
+    mediaAspectRatio?: number;
+    /** Original width of the media in pixels */
+    mediaOriginalWidth?: number;
+    /** Original height of the media in pixels */
+    mediaOriginalHeight?: number;
   };
   /** Text content associated with the scene */
   text: string;

@@ -4,16 +4,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Scene } from '../ProjectProvider';
 import { ImageIcon, TrashIcon, Film, GalleryHorizontalEnd } from 'lucide-react';
 import Image from 'next/image';
-
-/**
- * Types of media a scene can contain
- */
-export enum MediaType {
-  None = 'none',
-  Image = 'image',
-  Video = 'video',
-  Gallery = 'gallery'
-}
+import { MediaType } from './types';
+import { analyzeMedia } from '@/utils/media/mediaAnalysis';
 
 /**
  * Custom hook for media handling in scene card
@@ -102,17 +94,41 @@ export function useMediaLogic(
       setGalleryImages(newGalleryImages);
       setActiveGalleryIndex(0);
       
-      // Update scene with new gallery - use the first image as the main URL
+      // Use the first image URL for analysis
+      const firstImageUrl = newGalleryImages[0].url;
+      
+      // Update scene with basic info first
       updateSceneMedia(scene.id, {
         media: {
           type: 'gallery',
-          url: newGalleryImages[0].url,
-          thumbnailUrl: newGalleryImages[0].url,
-          width: 800,
-          height: 600,
+          url: firstImageUrl,
+          thumbnailUrl: firstImageUrl,
           contentType: 'image/jpeg'
         }
       });
+      
+      // Analyze the first image to get accurate dimensions and aspect ratio
+      analyzeMedia(firstImageUrl, 'image')
+        .then(result => {
+          // Update scene with accurate dimensions and aspect ratio
+          updateSceneMedia(scene.id, {
+            media: {
+              type: 'gallery',
+              url: firstImageUrl,
+              thumbnailUrl: firstImageUrl,
+              width: result.width,
+              height: result.height,
+              contentType: 'image/jpeg',
+              mediaAspectRatio: result.aspectRatio,
+              mediaOriginalWidth: result.width,
+              mediaOriginalHeight: result.height
+            }
+          });
+          console.log(`[MediaAnalysis] Gallery image analyzed: ${result.width}x${result.height}, ratio: ${result.aspectRatio.toFixed(2)}`);
+        })
+        .catch(error => {
+          console.error('[MediaAnalysis] Failed to analyze gallery image:', error);
+        });
       
       return;
     }
@@ -129,32 +145,75 @@ export function useMediaLogic(
       setMediaType(MediaType.Image);
       setMediaUrl(objectUrl);
       
-      // Update scene with new image
+      // Update scene with basic info first
       updateSceneMedia(scene.id, {
         media: {
           type: 'image',
           url: objectUrl,
           thumbnailUrl: objectUrl,
-          width: 800,
-          height: 600,
-          contentType: 'image/jpeg'
+          contentType: file.type || 'image/jpeg'
         }
       });
+      
+      // Analyze the image to get accurate dimensions and aspect ratio
+      analyzeMedia(objectUrl, 'image')
+        .then(result => {
+          // Update scene with accurate dimensions and aspect ratio
+          updateSceneMedia(scene.id, {
+            media: {
+              type: 'image',
+              url: objectUrl,
+              thumbnailUrl: objectUrl,
+              width: result.width,
+              height: result.height,
+              contentType: file.type || 'image/jpeg',
+              mediaAspectRatio: result.aspectRatio,
+              mediaOriginalWidth: result.width,
+              mediaOriginalHeight: result.height
+            }
+          });
+          console.log(`[MediaAnalysis] Image analyzed: ${result.width}x${result.height}, ratio: ${result.aspectRatio.toFixed(2)}`);
+        })
+        .catch(error => {
+          console.error('[MediaAnalysis] Failed to analyze image:', error);
+        });
+      
     } else if (isVideo) {
       setMediaType(MediaType.Video);
       setMediaUrl(objectUrl);
       
-      // Update scene with new video
+      // Update scene with basic info first
       updateSceneMedia(scene.id, {
         media: {
           type: 'video',
           url: objectUrl,
           thumbnailUrl: objectUrl,
-          width: 800,
-          height: 600,
-          contentType: 'video/mp4'
+          contentType: file.type || 'video/mp4'
         }
       });
+      
+      // Analyze the video to get accurate dimensions and aspect ratio
+      analyzeMedia(objectUrl, 'video')
+        .then(result => {
+          // Update scene with accurate dimensions and aspect ratio
+          updateSceneMedia(scene.id, {
+            media: {
+              type: 'video',
+              url: objectUrl,
+              thumbnailUrl: objectUrl,
+              width: result.width,
+              height: result.height,
+              contentType: file.type || 'video/mp4',
+              mediaAspectRatio: result.aspectRatio,
+              mediaOriginalWidth: result.width,
+              mediaOriginalHeight: result.height
+            }
+          });
+          console.log(`[MediaAnalysis] Video analyzed: ${result.width}x${result.height}, ratio: ${result.aspectRatio.toFixed(2)}`);
+        })
+        .catch(error => {
+          console.error('[MediaAnalysis] Failed to analyze video:', error);
+        });
     }
   }, [mediaType, scene.id, updateSceneMedia]);
   
@@ -219,17 +278,49 @@ export function useMediaLogic(
     setMediaType(MediaType.Image);
     setMediaUrl(imageUrl);
     
-    // Update scene with new image
+    // Update scene with basic info first
     updateSceneMedia(scene.id, {
       media: {
         type: 'image',
         url: imageUrl,
         thumbnailUrl: imageUrl,
-        width: 800,
-        height: 600,
         contentType: 'image/jpeg'
       }
     });
+    
+    // Analyze the image to get accurate dimensions and aspect ratio
+    analyzeMedia(imageUrl, 'image')
+      .then(result => {
+        // Update scene with accurate dimensions and aspect ratio
+        updateSceneMedia(scene.id, {
+          media: {
+            type: 'image',
+            url: imageUrl,
+            thumbnailUrl: imageUrl,
+            width: result.width,
+            height: result.height,
+            contentType: 'image/jpeg',
+            mediaAspectRatio: result.aspectRatio,
+            mediaOriginalWidth: result.width,
+            mediaOriginalHeight: result.height
+          }
+        });
+        console.log(`[MediaAnalysis] Sample image analyzed: ${result.width}x${result.height}, ratio: ${result.aspectRatio.toFixed(2)}`);
+      })
+      .catch(error => {
+        console.error('[MediaAnalysis] Failed to analyze sample image:', error);
+        // If analysis fails, keep the default dimensions
+        updateSceneMedia(scene.id, {
+          media: {
+            type: 'image',
+            url: imageUrl,
+            thumbnailUrl: imageUrl,
+            width: 800,
+            height: 600,
+            contentType: 'image/jpeg'
+          }
+        });
+      });
     
     console.log(`Added sample image to scene ${scene.id}: ${imageUrl}`);
   }, [scene.id, updateSceneMedia]);

@@ -11,6 +11,7 @@ import React, { useState, useCallback } from 'react';
 import { SceneMediaPlayer } from './SceneMediaPlayer';
 import { Scene } from '@/components/project/ProjectProvider';
 import { constructStorageUrl } from '@/utils/scene';
+import { useProject as useProjectContext } from '@/contexts/ProjectContext';
 
 interface SceneVideoPlayerWrapperProps {
   /** The scene object containing media information */
@@ -23,6 +24,10 @@ interface SceneVideoPlayerWrapperProps {
   className?: string;
   /** Callback for when media trim points change */
   onMediaTrimChange?: (start: number, end: number) => void;
+  /** Project aspect ratio */
+  projectAspectRatio?: '9:16' | '16:9' | '1:1' | '4:5';
+  /** Whether to show letterboxing */
+  showLetterboxing?: boolean;
 }
 
 /**
@@ -34,7 +39,9 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   projectId,
   audioUrl,
   className = '',
-  onMediaTrimChange
+  onMediaTrimChange,
+  projectAspectRatio = '9:16',
+  showLetterboxing = true
 }) => {
   // Extract media state from scene
   const [isCompactView, setIsCompactView] = useState<boolean>(true);
@@ -51,6 +58,11 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
     }
   }, [onMediaTrimChange]);
   
+  // Access the Scene type from our updated context for type consistency
+  const { project } = useProjectContext();
+  console.log(`[SceneVideoPlayerWrapper] Scene ID: ${scene.id}, Project ID: ${projectId}`);
+  console.log(`[SceneVideoPlayerWrapper] Scene media:`, scene.media);
+  
   // Prepare media object for SceneMediaPlayer
   const mediaObject = scene.media ? {
     url: scene.media.url || '',
@@ -62,6 +74,41 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
     isStorageBacked: !!scene.media.storageKey
   } : null;
   
+  // Log the media dimensions and aspect ratio if available
+  console.log(`[SceneVideoPlayerWrapper] Original scene aspect ratio data:`, {
+    mediaAspectRatio: (scene as any).mediaAspectRatio,
+    mediaOriginalWidth: (scene as any).mediaOriginalWidth,
+    mediaOriginalHeight: (scene as any).mediaOriginalHeight,
+    mediaWidth: scene.media?.width,
+    mediaHeight: scene.media?.height
+  });
+  
+  // Log the aspectRatio assignment in more detail with type checking
+  if (mediaObject) {
+    const mediaAspectRatio = (scene as any).mediaAspectRatio || 
+      (scene.media as any).mediaAspectRatio || 
+      (scene.media?.width && scene.media?.height ? 
+        scene.media.width / scene.media.height : undefined);
+    
+    console.log(`[SceneVideoPlayerWrapper] Calculated aspect ratio:`, {
+      fromScene: (scene as any).mediaAspectRatio,
+      fromMedia: (scene.media as any).mediaAspectRatio,
+      fromDimensions: scene.media?.width && scene.media?.height ? 
+        scene.media.width / scene.media.height : undefined,
+      calculatedValue: mediaAspectRatio
+    });
+    
+    (mediaObject as any).aspectRatio = mediaAspectRatio;
+    
+    console.log(`[SceneVideoPlayerWrapper] Final mediaObject:`, mediaObject);
+  }
+  
+  // Add logging to the SceneMediaPlayer props
+  console.log(`[SceneVideoPlayerWrapper] Rendering with:`, {
+    projectAspectRatio,
+    showLetterboxing
+  });
+  
   return (
     <SceneMediaPlayer
       projectId={projectId}
@@ -72,6 +119,8 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
       onToggleViewMode={toggleViewMode}
       onTrimChange={handleTrimChange}
       className={className}
+      projectAspectRatio={projectAspectRatio}
+      showLetterboxing={showLetterboxing}
     />
   );
 };

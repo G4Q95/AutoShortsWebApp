@@ -6,6 +6,7 @@
  * as ScenePreviewPlayer for easy integration with the existing scene card UI.
  * 
  * Enhanced with local media downloads for improved seeking and scrubbing.
+ * Now with adaptive scene-based aspect ratio support.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -110,6 +111,9 @@ interface VideoContextScenePreviewPlayerProps {
   className?: string;
   isCompactView?: boolean;
   thumbnailUrl?: string;
+  mediaAspectRatio?: number;           // Media's original aspect ratio
+  projectAspectRatio?: '9:16' | '16:9' | '1:1' | '4:5'; // Project-wide setting
+  showLetterboxing?: boolean;          // Whether to show letterboxing/pillarboxing
 }
 
 // Create a wrapper component to provide VideoContextProvider
@@ -132,10 +136,20 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   className = '',
   isCompactView = true,
   thumbnailUrl,
+  mediaAspectRatio: initialMediaAspectRatio,
+  projectAspectRatio = '9:16',
+  showLetterboxing = true,
 }) => {
-  console.log(`[VideoContext] Component rendering for scene ${sceneId} with media URL: ${mediaUrl}`);
-  console.log(`[VideoContext] Initial trim values:`, trim);
-  console.log(`[VideoContext] Thumbnail URL:`, thumbnailUrl);
+  console.log(`[VideoContextScenePreviewPlayer] Initializing for scene: ${sceneId}`);
+  console.log(`[VideoContextScenePreviewPlayer] Props:`, {
+    mediaType,
+    mediaUrl: mediaUrl.substring(0, 100) + (mediaUrl.length > 100 ? '...' : ''), // Truncate long URLs
+    initialMediaAspectRatio,
+    projectAspectRatio,
+    showLetterboxing,
+    isCompactView,
+    trim
+  });
   
   // State for player
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -170,7 +184,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [isReady, setIsReady] = useState<boolean>(false);
   
   // Add state to track media aspect ratio
-  const [aspectRatio, setAspectRatio] = useState<number>(9/16); // Default to vertical
+  const [aspectRatio, setAspectRatio] = useState<number>(initialMediaAspectRatio || 9/16); // Use prop if provided
   const [isVertical, setIsVertical] = useState<boolean>(true);
   const [isSquare, setIsSquare] = useState<boolean>(false);
   
@@ -360,36 +374,109 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         // Create non-null assertion for canvas since we checked above
         const canvas = canvasRef.current!;
         
+        // Add more detailed logging here
+        console.log(`[VideoContext] Initializing with:`, {
+          mediaType,
+          initialMediaAspectRatio,
+          projectAspectRatio,
+          canvasExists: !!canvasRef.current,
+          mediaUrlExists: !!localMediaUrl
+        });
+        
+        // Calculate canvas dimensions based on media aspect ratio or project ratio
+        // Determine canvas dimensions based on aspect ratio while maintaining quality
+        const baseSize = 1920; // Base size for quality
+        let canvasWidth, canvasHeight;
+        
+        // Get project aspect ratio as a number
+        const [projectWidth, projectHeight] = projectAspectRatio.split(':').map(Number);
+        const projectRatioNumber = projectWidth / projectHeight;
+        
+        console.log(`[VideoContext] Project aspect ratio: ${projectAspectRatio} (${projectRatioNumber.toFixed(2)})`);
+        
+        if (initialMediaAspectRatio) {
+          console.log(`[VideoContext] Using provided media aspect ratio: ${initialMediaAspectRatio}`);
+          
+          // Use media's original aspect ratio if provided
+          if (initialMediaAspectRatio >= 1) {
+            // Landscape or square
+            canvasWidth = baseSize;
+            canvasHeight = Math.round(baseSize / initialMediaAspectRatio);
+            console.log(`[VideoContext] Landscape media (${initialMediaAspectRatio.toFixed(2)}) - Setting canvas to ${canvasWidth}x${canvasHeight}`);
+          } else {
+            // Portrait
+            canvasHeight = baseSize;
+            canvasWidth = Math.round(baseSize * initialMediaAspectRatio);
+            console.log(`[VideoContext] Portrait media (${initialMediaAspectRatio.toFixed(2)}) - Setting canvas to ${canvasWidth}x${canvasHeight}`);
+          }
+        } else {
+          console.log(`[VideoContext] No media aspect ratio provided, using default 16:9`);
+          // Default to 16:9 if no media aspect ratio is provided
+          canvasWidth = 1920;
+          canvasHeight = 1080;
+          console.log(`[VideoContext] Default canvas size: ${canvasWidth}x${canvasHeight}`);
+        }
+        
+        // Set canvas dimensions
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        
+        console.log(`[VideoContext] Canvas resized from ${canvas.width}x${canvas.height}`);
+        
         // Create VideoContext instance after setting canvas dimensions
         let ctx: any;
         
         // Create source node (using local media URL)
         let source: any;
+        console.log(`[VideoContext] Creating source node for ${mediaType} media: ${localMediaUrl.substring(0, 50)}...`);
+
         if (mediaType === 'video') {
-          // Pre-detect aspect ratio for canvas sizing - using a sync approach
-          const tempVideo = document.createElement('video');
-          tempVideo.muted = true;
-          
-          // Keep canvas dimensions consistent for future shader implementation
-          canvas.width = 1920;
-          canvas.height = 1080;
-          
-          console.log('[VideoContext] Canvas size set to 1920x1080');
-          
           // Create VideoContext instance
           ctx = new VideoContext(canvas);
           setVideoContext(ctx);
           
           // Create the source
           source = ctx.video(localMediaUrl);
+          console.log(`[VideoContext] Video source node created:`, source);
+          
+          // Check for positioning and scaling properties on source node
+          console.log(`[VideoContext] Source node initial properties:`, {
+            position: source.position,
+            scale: source.scale,
+            sourceWidth: source.element?.videoWidth,
+            sourceHeight: source.element?.videoHeight
+          });
           
           // When source element is created, store aspect ratio info
           if (source.element) {
+            console.log(`[VideoContext] Video element attached to source node:`, source.element);
+            
             source.element.addEventListener('loadedmetadata', () => {
               // Get dimensions from the actual source
               const videoWidth = source.element.videoWidth;
               const videoHeight = source.element.videoHeight;
               const ratio = videoWidth / videoHeight;
+              
+              // Log source node position and scale
+              const sourceScale = source.scale || 1;
+              const sourcePosition = source.position || [0, 0];
+              
+              console.log(`[VideoContext] Video source loaded with dimensions: ${videoWidth}x${videoHeight}, ratio: ${ratio.toFixed(2)}`);
+              console.log(`[VideoContext] Source node scale: ${sourceScale}, position: [${sourcePosition}]`);
+              console.log(`[VideoContext] Canvas vs Media ratio check:`, {
+                canvasWidth: canvas.width,
+                canvasHeight: canvas.height,
+                canvasRatio: canvas.width / canvas.height,
+                mediaWidth: videoWidth,
+                mediaHeight: videoHeight,
+                mediaRatio: ratio,
+                difference: (canvas.width / canvas.height) - ratio
+              });
+              
+              // If there's a mismatch, log a warning
+              if (Math.abs((canvas.width / canvas.height) - ratio) > 0.01) {
+                console.warn(`[VideoContext] ⚠️ ASPECT RATIO MISMATCH: Canvas (${(canvas.width / canvas.height).toFixed(2)}) doesn't match video (${ratio.toFixed(2)})`);
+              }
               
               // Save aspect ratio for use in other parts of the component
               setAspectRatio(ratio);
@@ -398,22 +485,21 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               const isSquareVideo = ratio >= 0.9 && ratio <= 1.1;
               setIsSquare(isSquareVideo);
               setIsVertical(ratio < 0.9);
-              
-              console.log(`[VideoContext] Video dimensions detected: ${videoWidth}x${videoHeight}, ratio: ${ratio.toFixed(2)}`);
             });
           }
         } else if (mediaType === 'image') {
-          // Keep canvas dimensions consistent
-          canvas.width = 1920;
-          canvas.height = 1080;
-          
-          console.log('[VideoContext] Canvas size set to 1920x1080');
-          
           // Create after dimensions are set
           ctx = new VideoContext(canvas);
           setVideoContext(ctx);
           
           source = ctx.image(localMediaUrl);
+          console.log(`[VideoContext] Image source node created:`, source);
+          
+          // Check for positioning and scaling properties on source node
+          console.log(`[VideoContext] Image source node initial properties:`, {
+            position: source.position,
+            scale: source.scale
+          });
           
           // For images, we need to manually get the dimensions
           const img = new Image();
@@ -422,6 +508,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             const imageHeight = img.height;
             const ratio = imageWidth / imageHeight;
             
+            // Log source node position and scale after load
+            const sourceScale = source.scale || 1;
+            const sourcePosition = source.position || [0, 0];
+            
+            console.log(`[VideoContext] Image loaded with dimensions: ${imageWidth}x${imageHeight}, ratio: ${ratio.toFixed(2)}`);
+            console.log(`[VideoContext] Image source node scale: ${sourceScale}, position: [${sourcePosition}]`);
+            console.log(`[VideoContext] Canvas vs Image ratio check:`, {
+              canvasWidth: canvas.width,
+              canvasHeight: canvas.height,
+              canvasRatio: canvas.width / canvas.height,
+              imageWidth: imageWidth,
+              imageHeight: imageHeight,
+              imageRatio: ratio,
+              difference: (canvas.width / canvas.height) - ratio
+            });
+            
+            // If there's a mismatch, log a warning
+            if (Math.abs((canvas.width / canvas.height) - ratio) > 0.01) {
+              console.warn(`[VideoContext] ⚠️ ASPECT RATIO MISMATCH: Canvas (${(canvas.width / canvas.height).toFixed(2)}) doesn't match image (${ratio.toFixed(2)})`);
+            }
+            
             // Save aspect ratio for use in other parts of the component
             setAspectRatio(ratio);
             
@@ -429,17 +536,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             const isSquareImage = ratio >= 0.9 && ratio <= 1.1;
             setIsSquare(isSquareImage);
             setIsVertical(ratio < 0.9);
-            
-            console.log(`[VideoContext] Image dimensions loaded: ${imageWidth}x${imageHeight}, ratio: ${ratio.toFixed(2)}`);
           };
           img.src = localMediaUrl;
         } else {
-          // MODIFIED: Set canvas dimensions to always use 16:9 for testing
-          canvas.width = 1920;
-          canvas.height = 1080;
-          
-          console.log('[VideoContext] TESTING: Forcing canvas to 16:9 aspect ratio (1920x1080)');
-          
           // Create after dimensions are set
           ctx = new VideoContext(canvas);
           setVideoContext(ctx);
@@ -450,9 +549,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         // Set up source timing and connect to output
         source.start(0);
         source.connect(ctx.destination);
+        console.log(`[VideoContext] Source connected to destination`);
         
         // Handle video loading
         source.registerCallback('loaded', () => {
+          console.log(`[VideoContext] Source node 'loaded' callback fired`);
           setIsLoading(false);
           setIsReady(true);
           
@@ -586,7 +687,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         }
       });
     };
-  }, [localMediaUrl, mediaType]); // Only re-run when localMediaUrl changes
+  }, [localMediaUrl, mediaType, initialMediaAspectRatio]); // Added initialMediaAspectRatio to dependencies
   
   // Update trim values when props change - but only for trimStart
   useEffect(() => {
@@ -752,60 +853,209 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   };
 
-  // Get style for the video display based on aspect ratio
-  const getMediaStyle = () => {
-    // Video is wider than it is tall (landscape)
-    if (aspectRatio > 1.1) {
-      return {
-        width: isCompactView ? 'auto' : '100%',
-        height: isCompactView ? '110px' : 'auto',
-        objectFit: 'contain' as const,
-      };
-    }
-    
-    // Square video (aspect ratio close to 1)
-    if (aspectRatio >= 0.9 && aspectRatio <= 1.1) {
-      return {
-        width: isCompactView ? '110px' : '300px',
-        height: isCompactView ? '110px' : '300px',
-        maxWidth: isCompactView ? '110px' : '300px',
-        maxHeight: isCompactView ? '110px' : '300px',
-        objectFit: 'contain' as const,
-      };
-    }
-    
-    // Video is taller than it is wide (portrait)
-    return {
-      width: isCompactView ? '110px' : '100%',
-      height: 'auto',
-      objectFit: 'contain' as const,
-    };
-  };
+  // Get project aspect ratio as a number (e.g. 9/16 or 16/9)
+  const getProjectAspectRatioNumber = useCallback(() => {
+    const [width, height] = projectAspectRatio.split(':').map(Number);
+    return width / height;
+  }, [projectAspectRatio]);
 
-  // Return different container style based on aspect ratio
-  const getContainerStyle = () => {
+  // Container styling function with letterboxing/pillarboxing
+  const getContainerStyle = useCallback(() => {
+    // Define a proper type for the container style
+    type ContainerStyle = {
+      backgroundColor: string;
+      display: string;
+      alignItems: string;
+      justifyContent: string;
+      overflow: string;
+      position: 'relative';
+      width?: string | number;
+      height?: string | number;
+      maxWidth?: string | number;
+      maxHeight?: string | number;
+      margin?: string;
+      aspectRatio?: string;
+    };
+
+    // Log initial values
+    console.log(`[VideoContext] Calculating container style:`, {
+      projectAspectRatio,
+      calculatedAspectRatio: aspectRatio,
+      isSquare,
+      isVertical,
+      showLetterboxing,
+      isCompactView
+    });
+
     // Default style for all containers
-    const baseStyle = {
+    const baseStyle: ContainerStyle = {
       backgroundColor: '#000',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
+      position: 'relative',
     };
 
-    // Square video
-    if (isSquare) {
-      return {
-        ...baseStyle,
-        width: isCompactView ? '110px' : '300px',
-        height: isCompactView ? '110px' : '300px',
-        margin: '0 auto',
-      };
+    if (!showLetterboxing) {
+      // Without letterboxing, use standard styles
+      console.log(`[VideoContext] Letterboxing disabled, using standard style`);
+      if (isSquare) {
+        const style = {
+          ...baseStyle,
+          width: isCompactView ? '110px' : '300px',
+          height: isCompactView ? '110px' : '300px',
+          margin: '0 auto',
+        };
+        console.log(`[VideoContext] Square media style:`, style);
+        return style;
+      }
+      console.log(`[VideoContext] Non-square media with letterboxing disabled, using base style:`, baseStyle);
+      return baseStyle;
     }
 
-    // Portrait or landscape - use default dimensions
-    return baseStyle;
-  };
+    // With letterboxing enabled, calculate dimensions
+    const projectRatio = getProjectAspectRatioNumber();
+    const mediaRatio = aspectRatio;
+    
+    console.log(`[VideoContext] Letterboxing enabled, ratios:`, {
+      projectRatio,
+      mediaRatio,
+      difference: projectRatio - mediaRatio
+    });
+    
+    let containerStyle: ContainerStyle = { ...baseStyle };
+    
+    // Set container to match project aspect ratio
+    if (isCompactView) {
+      // Compact view has fixed sizes
+      if (projectRatio < 1) {
+        // Vertical project (9:16, 4:5)
+        containerStyle = {
+          ...containerStyle,
+          width: '110px',
+          height: `${110 / projectRatio}px`,
+          maxHeight: '195px', // Limit height for very tall ratios
+        };
+        console.log(`[VideoContext] Vertical project ratio (${projectRatio.toFixed(2)}), compact view container:`, containerStyle);
+      } else if (projectRatio === 1) {
+        // Square project (1:1)
+        containerStyle = {
+          ...containerStyle,
+          width: '110px',
+          height: '110px',
+        };
+        console.log(`[VideoContext] Square project ratio, compact view container:`, containerStyle);
+      } else {
+        // Landscape project (16:9)
+        containerStyle = {
+          ...containerStyle,
+          width: `${110 * projectRatio}px`,
+          height: '110px',
+          maxWidth: '195px', // Limit width for very wide ratios
+        };
+        console.log(`[VideoContext] Landscape project ratio (${projectRatio.toFixed(2)}), compact view container:`, containerStyle);
+      }
+    } else {
+      // Full view - use container with proper aspect ratio
+      containerStyle = {
+        ...containerStyle,
+        width: '100%',
+        aspectRatio: projectAspectRatio.replace(':', '/'),
+      };
+      console.log(`[VideoContext] Full view container with aspect ratio ${projectAspectRatio}:`, containerStyle);
+    }
+
+    console.log(`[VideoContext] Final container style:`, containerStyle);
+    return containerStyle;
+  }, [isCompactView, isSquare, showLetterboxing, aspectRatio, projectAspectRatio, getProjectAspectRatioNumber, isVertical]);
+  
+  // Get media element style with letterboxing/pillarboxing
+  const getMediaStyle = useCallback(() => {
+    console.log(`[VideoContext] Calculating media element style:`, {
+      aspectRatio,
+      showLetterboxing,
+      isCompactView
+    });
+
+    if (!showLetterboxing) {
+      // Without letterboxing, use standard styles based on aspect ratio
+      console.log(`[VideoContext] Letterboxing disabled for media style`);
+      if (aspectRatio > 1.1) {
+        const style = {
+          width: isCompactView ? 'auto' : '100%',
+          height: isCompactView ? '110px' : 'auto',
+          objectFit: 'contain' as const,
+        };
+        console.log(`[VideoContext] Landscape media style (no letterboxing):`, style);
+        return style;
+      }
+      
+      if (aspectRatio >= 0.9 && aspectRatio <= 1.1) {
+        const style = {
+          width: isCompactView ? '110px' : '300px',
+          height: isCompactView ? '110px' : '300px',
+          maxWidth: isCompactView ? '110px' : '300px',
+          maxHeight: isCompactView ? '110px' : '300px',
+          objectFit: 'contain' as const,
+        };
+        console.log(`[VideoContext] Square media style (no letterboxing):`, style);
+        return style;
+      }
+      
+      const style = {
+        width: isCompactView ? '110px' : '100%',
+        height: 'auto',
+        objectFit: 'contain' as const,
+      };
+      console.log(`[VideoContext] Portrait media style (no letterboxing):`, style);
+      return style;
+    }
+
+    // With letterboxing, we need to compare media ratio to project ratio
+    const projectRatio = getProjectAspectRatioNumber();
+    const mediaRatio = aspectRatio;
+    
+    console.log(`[VideoContext] Applying letterboxing/pillarboxing:`, {
+      projectRatio: projectRatio.toFixed(2),
+      mediaRatio: mediaRatio.toFixed(2),
+      comparison: mediaRatio > projectRatio ? 'Media wider than project' : 'Media taller than project'
+    });
+    
+    // Calculate proper scaling for letterboxing/pillarboxing
+    if (mediaRatio > projectRatio) {
+      // Media is wider than project - add letterboxing (black bars top and bottom)
+      // Media will be sized to 100% width with auto height
+      const style = {
+        width: '100%',
+        height: 'auto',
+        objectFit: 'contain' as const,
+        maxHeight: '100%',
+      };
+      console.log(`[VideoContext] Letterboxing style (horizontal bars):`, style);
+      return style;
+    } else if (mediaRatio < projectRatio) {
+      // Media is taller than project - add pillarboxing (black bars left and right)
+      // Media will be sized to 100% height with auto width
+      const style = {
+        width: 'auto',
+        height: '100%',
+        objectFit: 'contain' as const,
+        maxWidth: '100%',
+      };
+      console.log(`[VideoContext] Pillarboxing style (vertical bars):`, style);
+      return style;
+    } else {
+      // Perfect match - no letterboxing or pillarboxing needed
+      const style = {
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain' as const,
+      };
+      console.log(`[VideoContext] Perfect ratio match style:`, style);
+      return style;
+    }
+  }, [aspectRatio, isCompactView, showLetterboxing, getProjectAspectRatioNumber]);
   
   // Set up mouse event listeners for trim bracket dragging
   useEffect(() => {
@@ -964,9 +1214,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       className={`flex flex-col bg-gray-900 rounded-lg overflow-hidden video-player-container ${className}`}
       data-testid="videocontext-scene-preview-player"
       style={{ 
-        maxWidth: isCompactView ? 
-          (isSquare ? '110px' : (isVertical ? '110px' : '100%')) 
-          : '100%',
+        maxWidth: showLetterboxing ? '100%' : 
+          (isCompactView ? 
+            (isSquare ? '110px' : (isVertical ? '110px' : '100%')) 
+            : '100%'),
         outline: 'none',
         border: 'none'
       }}
@@ -1051,6 +1302,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             <PlayIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
           )}
         </button>
+        
+        {/* Add aspect ratio indicator for debugging */}
+        {process.env.NODE_ENV === 'development' && (
+          <div 
+            className="absolute top-1 left-1 bg-black bg-opacity-50 px-1 py-0.5 text-white text-xs rounded"
+            style={{ zIndex: 20, pointerEvents: 'none' }}
+          >
+            {aspectRatio.toFixed(2)} / {projectAspectRatio}
+          </div>
+        )}
         
         {/* Separate background element with larger height to cover controls */}
         <div 

@@ -29,6 +29,7 @@ import SceneVideoPlayerWrapper from '../scene/SceneVideoPlayerWrapper';
 import SceneVoiceControlsWrapper from '../scene/SceneVoiceControlsWrapper';
 import { SceneMediaPlayer } from '../scene/SceneMediaPlayer';
 import { SceneTextEditor } from '../scene/SceneTextEditor';
+import { useProject as useProjectContext } from '@/contexts/ProjectContext';
 
 // Import extracted functions
 import {
@@ -75,6 +76,7 @@ import {
 import { useVoiceContext } from '@/contexts/VoiceContext';
 // Import DnD types for dragHandleProps
 import { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
+import { analyzeMedia } from '@/utils/media/mediaAnalysis';
 
 /**
  * Props for the SceneComponent
@@ -164,6 +166,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   const { mode, updateSceneText, updateSceneAudio, currentProject, updateSceneMedia } = useProject();
   const [isRetrying, setIsRetrying] = useState(false);
   const [isCompactView, setIsCompactView] = useState(false);
+  const { project } = useProjectContext();
 
   // Use extracted hooks for different functionalities
   const textState = useTextLogic(scene, updateSceneText);
@@ -257,6 +260,41 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
     )();
   };
 
+  // Add this new function to handle media upload and analysis
+  const handleMediaUpload = async (mediaUrl: string, mediaType: 'image' | 'video' | 'gallery') => {
+    console.log(`[SceneComponent] Starting media upload/analysis for ${mediaType} url: ${mediaUrl.substring(0, 50)}...`);
+    
+    try {
+      console.log(`[SceneComponent] Analyzing media...`);
+      const mediaAnalysisResult = await analyzeMedia(mediaUrl, mediaType);
+      
+      console.log(`[SceneComponent] Media analysis complete:`, {
+        width: mediaAnalysisResult.width, 
+        height: mediaAnalysisResult.height,
+        aspectRatio: mediaAnalysisResult.aspectRatio
+      });
+      
+      // Update the scene with the detected dimensions and aspect ratio
+      const updatedMedia = {
+        ...scene.media, // existing media data
+        aspectRatio: mediaAnalysisResult.aspectRatio,
+        mediaOriginalWidth: mediaAnalysisResult.width,
+        mediaOriginalHeight: mediaAnalysisResult.height
+      };
+      
+      console.log(`[SceneComponent] Updating scene with media data:`, updatedMedia);
+      
+      // Update the scene with the new media data
+      updateSceneMedia(scene.id, updatedMedia);
+      
+      console.log(`[SceneComponent] Media data updated successfully`);
+      console.log(`[SceneComponent] Added aspect ratio data: ${mediaAnalysisResult.aspectRatio.toFixed(2)} (${mediaAnalysisResult.width}x${mediaAnalysisResult.height})`);
+    } catch (error) {
+      console.error('[SceneComponent] Failed to analyze media:', error);
+      // Continue with the upload even if analysis fails
+    }
+  };
+
   return !manuallyRemoving ? (
     <div
       id={`scene-${scene.id}`}
@@ -318,6 +356,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
                 }
               }}
               data-testid="scene-video-player-wrapper"
+              projectAspectRatio={project?.aspectRatio || '9:16'}
+              showLetterboxing={project?.showLetterboxing || true}
             />
             
             {/* OLD IMPLEMENTATION - Commenting out but keeping for reference 
