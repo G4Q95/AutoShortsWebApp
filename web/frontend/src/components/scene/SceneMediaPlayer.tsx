@@ -28,6 +28,7 @@ interface SceneMediaPlayerProps {
   media: {
     url: string;
     storedUrl?: string;
+    thumbnailUrl?: string;
     type: 'image' | 'video' | 'gallery';
     trim?: { start: number; end: number };
     storageKey?: string;
@@ -127,6 +128,7 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
             onTrimChange={handleTrimChange}
             className="rounded-t-lg"
             isCompactView={isCompactView}
+            thumbnailUrl={media.thumbnailUrl}
           />
         ) : (
           <ScenePreviewPlayer

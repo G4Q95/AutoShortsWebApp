@@ -109,6 +109,7 @@ interface VideoContextScenePreviewPlayerProps {
   onTrimChange?: (start: number, end: number) => void;
   className?: string;
   isCompactView?: boolean;
+  thumbnailUrl?: string;
 }
 
 // Create a wrapper component to provide VideoContextProvider
@@ -130,9 +131,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   onTrimChange,
   className = '',
   isCompactView = true,
+  thumbnailUrl,
 }) => {
   console.log(`[VideoContext] Component rendering for scene ${sceneId} with media URL: ${mediaUrl}`);
   console.log(`[VideoContext] Initial trim values:`, trim);
+  console.log(`[VideoContext] Thumbnail URL:`, thumbnailUrl);
   
   // State for player
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -186,6 +189,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
   // Add state to track visual playback position separate from actual time
   const [visualTime, setVisualTime] = useState<number>(0);
+
+  // Add state for first frame capture
+  const [showFirstFrame, setShowFirstFrame] = useState<boolean>(true);
+  
+  // Add video element ref for first frame capture
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Add time update loop with trim boundaries
   useEffect(() => {
@@ -542,6 +551,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const handlePlay = () => {
     if (!videoContext) return;
     
+    // When playing, switch from first frame to canvas
+    setShowFirstFrame(false);
+    
     // If current time is outside trim bounds, reset to trim start
     if (currentTime < trimStart || currentTime >= trimEnd) {
       videoContext.currentTime = trimStart;
@@ -775,17 +787,66 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
   }, [activeHandle, trimStart, trimEnd, duration, containerRef, onTrimChange, videoContext, isPlaying, currentTime, visualTime]);
   
+  // Add effect to handle first frame capture
+  useEffect(() => {
+    if (mediaType !== 'video' || !localMediaUrl) return;
+    
+    const video = videoRef.current;
+    if (!video) return;
+    
+    // Set the video source to the local media URL
+    video.src = localMediaUrl;
+    
+    // Load metadata and pause at the first frame
+    video.addEventListener('loadedmetadata', () => {
+      video.currentTime = 0;
+    });
+    
+    // When data is available, show the first frame and pause
+    video.addEventListener('loadeddata', () => {
+      video.pause();
+      setIsLoading(false);
+    });
+    
+    return () => {
+      video.removeEventListener('loadedmetadata', () => {});
+      video.removeEventListener('loadeddata', () => {});
+      video.src = '';
+    };
+  }, [localMediaUrl, mediaType]);
+  
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
       <div className={`flex flex-col items-center justify-center bg-gray-900 rounded-lg overflow-hidden ${className}`}
            style={{ height: isCompactView ? '110px' : '200px', width: isCompactView ? '110px' : '100%' }}>
-        <div className="flex flex-col items-center justify-center text-white">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
-          <div className="text-xs">
-            {downloadProgress > 0 ? `${Math.round(downloadProgress * 100)}%` : 'Loading...'}
+        {thumbnailUrl ? (
+          // If thumbnail URL is available, show it as background with loading indicator
+          <div 
+            className="flex flex-col items-center justify-center text-white w-full h-full relative"
+            style={{
+              backgroundImage: `url(${thumbnailUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            }}
+          >
+            <div className="absolute inset-0 bg-black bg-opacity-40 flex flex-col items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+              <div className="text-xs">
+                {downloadProgress > 0 ? `${Math.round(downloadProgress * 100)}%` : 'Loading...'}
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          // Default loading indicator without thumbnail
+          <div className="flex flex-col items-center justify-center text-white">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+            <div className="text-xs">
+              {downloadProgress > 0 ? `${Math.round(downloadProgress * 100)}%` : 'Loading...'}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -837,10 +898,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           </div>
         )}
         
+        {/* First frame video element (visible when not playing) */}
+        {mediaType === 'video' && showFirstFrame && (
+          <video
+            ref={videoRef}
+            className="w-auto h-auto"
+            style={getMediaStyle()}
+            playsInline
+            muted
+            preload="auto"
+            data-testid="first-frame-video"
+          />
+        )}
+        
+        {/* VideoContext canvas (visible when playing) */}
         <canvas 
           ref={canvasRef}
           className="w-auto h-auto"
-          style={getMediaStyle()}
+          style={{
+            ...getMediaStyle(),
+            display: showFirstFrame && mediaType === 'video' ? 'none' : 'block'
+          }}
           data-testid="videocontext-canvas"
         />
         

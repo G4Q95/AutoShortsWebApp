@@ -55,6 +55,7 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   const mediaObject = scene.media ? {
     url: scene.media.url || '',
     storedUrl: scene.media.storageKey ? constructStorageUrl(scene.media.storageKey, projectId, scene.id) : undefined,
+    thumbnailUrl: scene.media.thumbnailUrl || undefined,
     type: scene.media.type as 'image' | 'video' | 'gallery',
     trim: scene.media.trim,
     storageKey: scene.media.storageKey,

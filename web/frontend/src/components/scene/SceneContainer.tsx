@@ -392,6 +392,7 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
   const mediaProps = scene.media ? {
     url: scene.media.url,
     storedUrl: scene.media.storedUrl,
+    thumbnailUrl: scene.media.thumbnailUrl,
     type: scene.media.type,
     trim: scene.media.trim,
     storageKey: scene.media.storageKey,
