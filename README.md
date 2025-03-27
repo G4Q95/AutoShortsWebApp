@@ -153,12 +153,16 @@ The project is currently in active development with the following components:
 - ✅ Video Playback Integration (VideoContext-based player)
 - ✅ Adaptive Scene-Based Aspect Ratio Support
 - 🔄 API Modularization & Feature Flag System  
+- 🔄 R2 Storage Lifecycle Management
 - 🔄 Video Processing Pipeline (FFMPEG)
 - ⏳ External Media Download Implementation
 - ⏳ Authentication System
 - ⏳ Cloud Storage Integration
 
 ### Recent Updates
+- Identified and planned solution for Cloudflare R2 storage cleanup to prevent orphaned files
+- Designed phased implementation approach for storage lifecycle management
+- Added detailed documentation for R2 storage management in r2_setup.md
 - Implemented adaptive aspect ratio support for consistent media display
 - Added intelligent letterboxing/pillarboxing based on media dimensions
 - Fixed vertical (9:16) video stretching issues in player component
@@ -175,6 +179,10 @@ The project is currently in active development with the following components:
 - Successfully refactored the Scene Component using the "Code Splitting Without Component Extraction" approach, preserving functionality while improving code organization
 - Developing Video API module with robust error handling
 - Added feature flag system for controlled API implementation rollout
+- 🚀 Implemented R2 storage lifecycle management to prevent orphaned files and reduce storage costs
+- 📦 Added automatic cleanup of R2 storage when projects are deleted
+- 🧰 Created command-line utility for manual cleanup of orphaned files
+- 📝 Added comprehensive documentation for R2 operations and costs
 
 ## Development Setup
 

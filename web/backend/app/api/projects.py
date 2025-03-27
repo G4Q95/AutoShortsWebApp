@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import motor.motor_asyncio
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Response, status, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -336,9 +336,9 @@ async def update_project(project_id: str, project_update: ProjectCreate = Body(.
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
-async def delete_project(project_id: str):
+async def delete_project(project_id: str, background_tasks: BackgroundTasks):
     """
-    Delete a project by ID.
+    Delete a project by ID and clean up associated R2 storage.
     Returns no content on success.
     """
     try:
@@ -356,6 +356,20 @@ async def delete_project(project_id: str):
 
     if not db.is_mock:
         try:
+            # First verify project exists
+            project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
+            if not project:
+                error_response = create_error_response(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message=f"Project {project_id} not found",
+                    error_code=ErrorCodes.RESOURCE_NOT_FOUND
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_response
+                )
+                
+            # Delete from database
             result = await db.client[db.db_name].projects.delete_one({"_id": obj_id})
             if result.deleted_count == 0:
                 error_response = create_error_response(
@@ -367,6 +381,10 @@ async def delete_project(project_id: str):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=error_response
                 )
+            
+            # Add R2 cleanup to background task
+            background_tasks.add_task(cleanup_project_storage, project_id)
+            
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             error_response = create_error_response(
@@ -379,8 +397,42 @@ async def delete_project(project_id: str):
                 detail=error_response
             )
     else:
-        # Mock deletion always succeeds
+        # Mock deletion always succeeds, but still run cleanup
+        background_tasks.add_task(cleanup_project_storage, project_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def cleanup_project_storage(project_id: str):
+    """
+    Clean up all R2 storage for a deleted project.
+    This runs as a background task after successful project deletion.
+    
+    Args:
+        project_id: ID of the deleted project
+    """
+    logger.info(f"Starting R2 storage cleanup for deleted project: {project_id}")
+    
+    try:
+        # Get storage service
+        from app.services.storage import get_storage
+        storage = get_storage()
+        
+        # Directory prefix for project
+        project_prefix = f"projects/{project_id}/"
+        
+        # Delete all project files
+        result = storage.delete_directory(project_prefix)
+        
+        if result["failed_count"] == 0:
+            logger.info(f"Successfully cleaned up R2 storage for project {project_id}: Deleted {result['deleted_count']} files ({result['total_bytes']/1024/1024:.2f} MB)")
+        else:
+            logger.warning(f"Partial cleanup of R2 storage for project {project_id}: Deleted {result['deleted_count']} files, failed to delete {result['failed_count']} files")
+            for error in result["errors"][:5]:  # Log first 5 errors
+                logger.warning(f"Error during cleanup: {error}")
+            
+    except Exception as e:
+        logger.error(f"Failed to clean up R2 storage for project {project_id}: {str(e)}")
+        logger.exception("Full traceback:")
 
 
 @router.post("/{project_id}/process", response_model=ApiResponse[Dict[str, Any]])

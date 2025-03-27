@@ -346,6 +346,13 @@ The current focus is on improving code stability, API connectivity, and refactor
   - ✅ Added container styling for proper media presentation
   - ✅ Integrated aspect ratio preservation throughout the application
   - ✅ Added comprehensive testing for various media types and ratios
+- ✅ R2 Storage Lifecycle Management (Phase 1)
+  - ✅ Enhanced R2Storage class with list_directory and delete_directory methods
+  - ✅ Modified project deletion endpoint to clean up R2 storage
+  - ✅ Added background task for storage cleanup to avoid blocking the API response
+  - ✅ Created manual cleanup utility for orphaned files
+  - ✅ Added unit tests for R2 storage operations
+  - ✅ Created comprehensive documentation for R2 operations and costs
 
 ### In Progress
 - 🔄 Scene Component Refactoring (Phase 1 - 85% Complete):

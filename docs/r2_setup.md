@@ -222,3 +222,45 @@ The backend service integrates with R2 through an abstraction layer that handles
 5. Path normalization and validation
 
 All interactions with R2 should go through this abstraction layer rather than directly using boto3 in multiple places. 
+
+## Storage Lifecycle Management
+
+The application implements proper lifecycle management for R2 storage to prevent accumulation of orphaned files and unnecessary storage costs:
+
+### 1. Project Deletion Cleanup (Implementation Planned)
+
+When a project is deleted through the application:
+- The project record is removed from the database
+- A background task automatically deletes all associated R2 storage files
+- The deletion follows the directory structure: `projects/{projectId}/...`
+- Files are deleted in batches to optimize API operations
+- Detailed logs track the cleanup process
+
+### 2. Orphaned Files Cleanup (Future Implementation)
+
+For maintenance of existing storage and cleanup of previously deleted projects:
+- A command-line cleanup utility will be created to identify and remove orphaned files
+- The utility will compare active projects in the database with files in R2 storage
+- It will include a "dry-run" mode to preview what would be deleted before execution
+- Detailed reporting will provide statistics on cleanup operations
+
+### Implementation Strategy
+
+The implementation plan prioritizes:
+1. First implementing the project deletion cleanup to prevent new orphaned files
+2. Later implementing the orphaned files cleanup utility after authentication is in place
+3. Ensuring all operations are properly logged and have appropriate safeguards
+
+For administrators, a command-line interface will provide:
+```bash
+# Preview what would be deleted (dry run)
+python scripts/cleanup_orphaned_r2_files.py --dry-run
+
+# Delete orphaned files (with confirmation)
+python scripts/cleanup_orphaned_r2_files.py
+
+# Delete without confirmation (for automated tasks)
+python scripts/cleanup_orphaned_r2_files.py --force
+```
+
+This approach ensures proper storage management while keeping storage costs optimized. 
