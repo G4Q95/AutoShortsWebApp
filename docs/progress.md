@@ -495,6 +495,16 @@ The current focus is on improving code stability, API connectivity, and refactor
   - 🔄 Setting up default duration logic based on content type
   - Detailed implementation plan available in docs/Video-Integration-Implementation.md
 
+- 🔄 R2 Storage Structure Enhancements (Phase 1 - 20%)
+  - Attempted implementation of hierarchical storage structure for R2
+  - Created improved storage path format: `users/{user_id}/projects/{project_id}/scenes/{scene_id}/{file_type}/{filename}`
+  - Identified implementation challenges with interconnected components
+  - Reverted to stable version after resolving import conflicts
+  - Created detailed incremental plan for safe implementation
+  - Documented lessons learned in R2_STORAGE_STRUCTURE.md
+  - Planning to take an incremental approach with component-by-component updates
+  - Ensuring backward compatibility for existing content
+
 ## Component Implementation Status
 
 ### Frontend Components
