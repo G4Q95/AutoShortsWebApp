@@ -250,6 +250,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add state to track aspect ratio display toggle
   const [showAspectRatio, setShowAspectRatio] = useState<boolean>(process.env.NODE_ENV === 'development');
 
+  // Add a ref to track playing state
+  const isPlayingRef = useRef<boolean>(false);
+
   // Add time update loop with trim boundaries
   useEffect(() => {
     const updateTime = () => {
@@ -410,8 +413,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         setTrimEnd(audioRef.current.duration);
       } else {
         // Default duration for images without audio
-        setDuration(5);
-        setTrimEnd(5);
+        setDuration(30);
+        setTrimEnd(30);
       }
       
       // Set is ready to true so controls work properly
@@ -688,12 +691,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               
               // Set default duration for images
               console.log(`[DEBUG][${instanceId}] Setting default duration for image`);
-              setDuration(5);
-              setTrimEnd(5);
+              setDuration(30);
+              setTrimEnd(30);
               
               // Initialize userTrimEnd if not already set
               if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-                userTrimEndRef.current = 5;
+                userTrimEndRef.current = 30;
               }
               
               // Mark as ready after a brief delay to ensure rendering
@@ -821,15 +824,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               console.log("[VideoContext] Setting default duration");
               
               // Set the duration
-              setDuration(5);
+              setDuration(30);
               
               // Always ensure trimEnd is set to the full duration initially
-              setTrimEnd(5);
+              setTrimEnd(30);
               
               // Initialize userTrimEnd if not already set
               if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-                userTrimEndRef.current = 5;
-                console.log("[VideoContext] Setting initial userTrimEnd to", 5);
+                userTrimEndRef.current = 30;
+                console.log("[VideoContext] Setting initial userTrimEnd to", 30);
               }
             }
           });
@@ -950,11 +953,23 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // If user manually set it, don't override with zero or undefined
   }, [trim.start, trim.end, duration, trimManuallySet]);
   
+  // Update the setIsPlayingWithLog function to update both state and ref
+  const setIsPlayingWithLog = (value: boolean) => {
+    console.log(`[DEBUG-STATE] Setting isPlaying from ${isPlaying} to ${value}`);
+    // Update the ref first - this is what animation will check
+    isPlayingRef.current = value;
+    // Then update React state for UI
+    setIsPlaying(value);
+  };
+  
   // Handle play/pause with trim boundaries
   const handlePlay = () => {
     // For images without VideoContext, update state and start animation
     if (isImageType(mediaType)) {
-      setIsPlaying(true);
+      console.log(`[DEBUG-TIMER] Play requested for image: isPlaying=${isPlaying}, currentTime=${currentTime.toFixed(2)}`);
+      
+      // Set playing state
+      setIsPlayingWithLog(true);
       
       // Play the audio if available
       if (audioRef.current && audioUrl) {
@@ -962,55 +977,69 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         audioRef.current.play().catch(err => console.error("Error playing audio:", err));
       }
       
-      // Start an animation loop to update the time for images
-      const startTime = currentTime;
-      const endTime = getEffectiveTrimEnd();
-      const startTimestamp = performance.now();
-      
-      console.log(`[ImagePlay] Starting image playback from ${startTime} to ${endTime}`);
-      
       // If we're at the end already, loop back to start
-      if (currentTime >= endTime - 0.1) {
+      if (currentTime >= getEffectiveTrimEnd() - 0.1) {
+        console.log(`[DEBUG-TIMER] At end of timeline, resetting to start`);
         setCurrentTime(trimStart);
-        
         if (audioRef.current) {
           audioRef.current.currentTime = trimStart;
         }
       }
       
-      // Create animation loop function
-      const animateImageTime = (timestamp: number) => {
-        if (!isPlaying) return; // Stop if no longer playing
-        
-        const elapsed = (timestamp - startTimestamp) / 1000; // Convert to seconds
-        const newTime = Math.min(startTime + elapsed, endTime);
-        
-        setCurrentTime(newTime);
-        
-        // Update audio time if available
-        if (audioRef.current) {
-          audioRef.current.currentTime = newTime;
-        }
-        
-        // If we've reached the end, pause
-        if (newTime >= endTime) {
-          console.log(`[ImagePlay] Reached end (${newTime} >= ${endTime}), pausing`);
-          setIsPlaying(false);
-          setCurrentTime(trimStart);
-          
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = trimStart;
+      // Clear any existing timer
+      if (imageTimerRef.current !== null) {
+        window.clearInterval(imageTimerRef.current);
+        imageTimerRef.current = null;
+      }
+      
+      // Start a new interval timer - update 10 times per second
+      const startTime = currentTime;
+      const startRealTime = Date.now();
+      
+      console.log(`[DEBUG-TIMER] Starting interval timer for image playback`);
+      imageTimerRef.current = window.setInterval(() => {
+        if (!isPlayingRef.current) {
+          console.log(`[DEBUG-TIMER] Not playing anymore, clearing timer`);
+          if (imageTimerRef.current !== null) {
+            window.clearInterval(imageTimerRef.current);
+            imageTimerRef.current = null;
           }
           return;
         }
         
-        // Continue animation
-        animationFrameRef.current = requestAnimationFrame(animateImageTime);
-      };
-      
-      // Start animation
-      animationFrameRef.current = requestAnimationFrame(animateImageTime);
+        // Calculate elapsed time
+        const elapsedSeconds = (Date.now() - startRealTime) / 1000;
+        const newTime = Math.min(startTime + elapsedSeconds, getEffectiveTrimEnd());
+        
+        console.log(`[DEBUG-TIMER] Timer tick: elapsed=${elapsedSeconds.toFixed(2)}s, newTime=${newTime.toFixed(2)}s`);
+        
+        // Update time
+        setCurrentTime(newTime);
+        
+        // Update audio position
+        if (audioRef.current) {
+          audioRef.current.currentTime = newTime;
+        }
+        
+        // Check if we've reached the end
+        if (newTime >= getEffectiveTrimEnd() - 0.05) {
+          console.log(`[DEBUG-TIMER] Reached end of timeline, stopping`);
+          setIsPlayingWithLog(false);
+          setCurrentTime(trimStart);
+          
+          // Reset audio
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = trimStart;
+          }
+          
+          // Clear timer
+          if (imageTimerRef.current !== null) {
+            window.clearInterval(imageTimerRef.current);
+            imageTimerRef.current = null;
+          }
+        }
+      }, 100); // 100ms interval = 10 updates per second
       
       return;
     }
@@ -1040,17 +1069,21 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const handlePause = () => {
     // For images without VideoContext, just update the state
     if (isImageType(mediaType)) {
-      setIsPlaying(false);
+      console.log(`[DEBUG-TIMER] Pause called: currentTime=${currentTime.toFixed(2)}, isPlaying=${isPlaying}, isPlayingRef=${isPlayingRef.current}`);
       
-      // Pause the audio if available
+      // Set state
+      setIsPlayingWithLog(false);
+      
+      // Pause audio if available
       if (audioRef.current) {
         audioRef.current.pause();
       }
       
-      // Cancel animation frame
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = undefined;
+      // Clear the timer
+      if (imageTimerRef.current !== null) {
+        console.log(`[DEBUG-TIMER] Clearing interval timer`);
+        window.clearInterval(imageTimerRef.current);
+        imageTimerRef.current = null;
       }
       
       return;
@@ -1454,6 +1487,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
   }, [projectAspectRatio, sceneId]);
   
+  // Add a timer ref alongside other refs
+  const imageTimerRef = useRef<number | null>(null);
+  
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
@@ -1591,8 +1627,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                 setTrimEnd(audioRef.current.duration);
               } else {
                 // Default duration for images without audio
-                setDuration(5);
-                setTrimEnd(5);
+                setDuration(30);
+                setTrimEnd(30);
               }
               
               setIsLoading(false);
