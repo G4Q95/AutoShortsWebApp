@@ -1295,7 +1295,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
     console.log(`[VideoContextScenePreviewPlayer] Calculating container style for scene ${sceneId}:`, {
       projectAspectRatio,
-      mediaAspectRatio: aspectRatio
+      mediaAspectRatio: aspectRatio,
+      isCompactView
     });
 
     // Calculate aspect ratios
@@ -1303,7 +1304,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     const projectRatio = projWidth / projHeight;
     const mediaRatio = aspectRatio || projectRatio;
 
-    console.log(`[AspectRatio-Debug] Scene: ${sceneId}, Project ratio: ${projectRatio.toFixed(4)}, Media ratio: ${mediaRatio.toFixed(4)}`);
+    console.log(`[AspectRatio-Debug] Scene: ${sceneId}, Project ratio: ${projectRatio.toFixed(4)}, Media ratio: ${mediaRatio.toFixed(4)}, CompactView: ${isCompactView}`);
 
     // Default styles
     const style: React.CSSProperties = {
@@ -1313,31 +1314,36 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       overflow: "hidden",
     };
 
-    // FOR CONSISTENT PILLARBOXING/LETTERBOXING ACROSS ALL SCENES:
-    // Instead of calculating based on each media's individual aspect ratio,
-    // we calculate based on the project aspect ratio and apply consistently
-
-    // In 9:16 mode (vertical container):
-    if (projectRatio < 1) {
-      // If the project is vertical (like 9:16)
-      // Apply consistent pillarboxing for all scenes - use a fixed width percentage
-      const FIXED_WIDTH_PERCENTAGE = 80; // Adjust this value as needed - this will be consistent across scenes
-      style.width = `${FIXED_WIDTH_PERCENTAGE}%`;
-      style.height = "100%";
-      console.log(`[AspectRatio-Debug] Using CONSISTENT pillarboxing with fixed width: ${FIXED_WIDTH_PERCENTAGE}%`);
-    } 
-    // In 16:9 mode (horizontal container):
-    else {
-      // If the project is horizontal (like 16:9)
-      // Apply consistent letterboxing for all scenes - use a fixed height percentage
-      const FIXED_HEIGHT_PERCENTAGE = 80; // Adjust this value as needed - this will be consistent across scenes
+    // Apply different styling based on view mode
+    if (isCompactView) {
+      // SMALL SCREEN MODE (thumbnails) - use fixed percentages for consistent look
+      // In 9:16 mode (vertical container):
+      if (projectRatio < 1) {
+        // If the project is vertical (like 9:16)
+        // Apply consistent pillarboxing for all scenes - use a fixed width percentage
+        const FIXED_WIDTH_PERCENTAGE = 80; // Consistent sizing for thumbnails
+        style.width = `${FIXED_WIDTH_PERCENTAGE}%`;
+        style.height = "100%";
+        console.log(`[AspectRatio-Debug] SMALL SCREEN: Using pillarboxing with fixed width: ${FIXED_WIDTH_PERCENTAGE}%`);
+      } 
+      // In 16:9 mode (horizontal container):
+      else {
+        // If the project is horizontal (like 16:9)
+        // Apply consistent letterboxing for all scenes - use a fixed height percentage
+        const FIXED_HEIGHT_PERCENTAGE = 80; // Consistent sizing for thumbnails
+        style.width = "100%";
+        style.height = `${FIXED_HEIGHT_PERCENTAGE}%`;
+        console.log(`[AspectRatio-Debug] SMALL SCREEN: Using letterboxing with fixed height: ${FIXED_HEIGHT_PERCENTAGE}%`);
+      }
+    } else {
+      // FULL SCREEN MODE - fill the container completely
       style.width = "100%";
-      style.height = `${FIXED_HEIGHT_PERCENTAGE}%`;
-      console.log(`[AspectRatio-Debug] Using CONSISTENT letterboxing with fixed height: ${FIXED_HEIGHT_PERCENTAGE}%`);
+      style.height = "100%";
+      console.log(`[AspectRatio-Debug] FULL SCREEN: Using full width/height container`);
     }
 
     return style;
-  }, [aspectRatio, projectAspectRatio, sceneId, showLetterboxing]);
+  }, [aspectRatio, projectAspectRatio, sceneId, showLetterboxing, isCompactView]);
   
   // Get media element style with letterboxing/pillarboxing
   const getMediaStyle = useCallback(() => {
