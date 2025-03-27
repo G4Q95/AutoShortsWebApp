@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { PlayIcon, PauseIcon, LockIcon, UnlockIcon, ScissorsIcon, CheckIcon } from 'lucide-react';
+import { PlayIcon, PauseIcon, LockIcon, UnlockIcon, ScissorsIcon, CheckIcon, Maximize2 as FullscreenIcon, Minimize2 as ExitFullscreenIcon } from 'lucide-react';
 import { VideoContextProvider } from '@/contexts/VideoContextProvider';
 import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
 import EditHistoryManager, { ActionType } from '@/utils/video/editHistoryManager';
@@ -1537,6 +1537,36 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add a timer ref alongside other refs
   const imageTimerRef = useRef<number | null>(null);
   
+  // Add state for fullscreen mode
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  
+  // Add fullscreen toggle handler
+  const handleFullscreenToggle = useCallback(() => {
+    if (!containerRef.current) return;
+    
+    if (!document.fullscreenElement) {
+      // Enter fullscreen
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error(`[VideoContext] Error attempting to enable fullscreen:`, err);
+      });
+    } else {
+      // Exit fullscreen
+      document.exitFullscreen();
+    }
+  }, [containerRef]);
+  
+  // Listen for fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+  
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
@@ -2103,6 +2133,23 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           </div>
         </div>
       </div>
+      
+      {/* Fullscreen toggle button - placed below the expand/collapse button that would be added by parent component */}
+      <button
+        onClick={handleFullscreenToggle}
+        className="absolute top-9 right-2 bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
+        style={{
+          zIndex: 100, // Use a very high z-index to ensure it's above all other elements
+          pointerEvents: 'auto' // Explicitly ensure it captures pointer events
+        }}
+        data-testid="fullscreen-toggle"
+      >
+        {isFullscreen ? (
+          <ExitFullscreenIcon className="h-4 w-4" />
+        ) : (
+          <FullscreenIcon className="h-4 w-4" />
+        )}
+      </button>
     </div>
   );
 };
