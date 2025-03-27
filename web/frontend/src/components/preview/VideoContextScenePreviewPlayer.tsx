@@ -1265,9 +1265,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       zIndex: 1, // Add a base z-index for proper stacking
     };
 
-    if (!isCompactView) {
-      containerStyle.aspectRatio = projectAspectRatio.replace(':', '/');
-    }
+    // Apply aspect ratio in both view modes - not just expanded view
+    containerStyle.aspectRatio = projectAspectRatio.replace(':', '/');
 
     console.log(`[VideoContextScenePreviewPlayer] Final container style for scene ${sceneId}:`, {
       projectAspectRatio,
@@ -1282,109 +1281,74 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Get media container style - this will create letterboxing/pillarboxing effect
   const getMediaContainerStyle = useCallback(() => {
-    const [width, height] = projectAspectRatio.split(':').map(Number);
-    const projectRatio = width / height;
-    const mediaRatio = aspectRatio;
-
-    // This style creates the letterboxing/pillarboxing effect
-    const mediaContainerStyle: CSSProperties = {
-      position: 'relative',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: '100%',
-      height: '100%',
-      overflow: 'hidden',
-    };
-
-    if (showLetterboxing) {
-      if (mediaRatio > projectRatio) {
-        // Media is wider than project - add letterboxing (black bars top/bottom)
-        // Use percentage to scale correctly
-        const heightPercentage = (projectRatio / mediaRatio) * 100;
-        mediaContainerStyle.height = `${heightPercentage}%`;
-      } else if (mediaRatio < projectRatio) {
-        // Media is taller than project - add pillarboxing (black bars left/right)
-        // Use percentage to scale correctly
-        const widthPercentage = (mediaRatio / projectRatio) * 100;
-        mediaContainerStyle.width = `${widthPercentage}%`;
-      }
+    // Base style without letterboxing/pillarboxing
+    if (!showLetterboxing) {
+      return {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        overflow: "hidden",
+      };
     }
 
-    console.log(`[VideoContextScenePreviewPlayer] Media container style calculated:`, {
-      projectRatio,
-      mediaRatio,
-      mediaContainerStyle,
-      showLetterboxing
+    console.log(`[VideoContextScenePreviewPlayer] Calculating container style for scene ${sceneId}:`, {
+      projectAspectRatio,
+      mediaAspectRatio: aspectRatio
     });
 
-    return mediaContainerStyle;
-  }, [aspectRatio, projectAspectRatio, showLetterboxing]);
+    // Calculate aspect ratios
+    const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
+    const projectRatio = projWidth / projHeight;
+    const mediaRatio = aspectRatio || projectRatio;
+
+    console.log(`[AspectRatio-Debug] Scene: ${sceneId}, Project ratio: ${projectRatio.toFixed(4)}, Media ratio: ${mediaRatio.toFixed(4)}`);
+
+    // Default styles
+    const style: React.CSSProperties = {
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      overflow: "hidden",
+    };
+
+    // FOR CONSISTENT PILLARBOXING/LETTERBOXING ACROSS ALL SCENES:
+    // Instead of calculating based on each media's individual aspect ratio,
+    // we calculate based on the project aspect ratio and apply consistently
+
+    // In 9:16 mode (vertical container):
+    if (projectRatio < 1) {
+      // If the project is vertical (like 9:16)
+      // Apply consistent pillarboxing for all scenes - use a fixed width percentage
+      const FIXED_WIDTH_PERCENTAGE = 80; // Adjust this value as needed - this will be consistent across scenes
+      style.width = `${FIXED_WIDTH_PERCENTAGE}%`;
+      style.height = "100%";
+      console.log(`[AspectRatio-Debug] Using CONSISTENT pillarboxing with fixed width: ${FIXED_WIDTH_PERCENTAGE}%`);
+    } 
+    // In 16:9 mode (horizontal container):
+    else {
+      // If the project is horizontal (like 16:9)
+      // Apply consistent letterboxing for all scenes - use a fixed height percentage
+      const FIXED_HEIGHT_PERCENTAGE = 80; // Adjust this value as needed - this will be consistent across scenes
+      style.width = "100%";
+      style.height = `${FIXED_HEIGHT_PERCENTAGE}%`;
+      console.log(`[AspectRatio-Debug] Using CONSISTENT letterboxing with fixed height: ${FIXED_HEIGHT_PERCENTAGE}%`);
+    }
+
+    return style;
+  }, [aspectRatio, projectAspectRatio, sceneId, showLetterboxing]);
   
   // Get media element style with letterboxing/pillarboxing
   const getMediaStyle = useCallback(() => {
-    const [width, height] = projectAspectRatio.split(':').map(Number);
-    const projectRatio = width / height;
-    const mediaRatio = aspectRatio;
-
-    type MediaStyle = {
-      objectFit: 'contain' | 'cover';
-      maxWidth: string;
-      maxHeight: string;
-      width?: string;
-      height?: string;
+    return {
+      objectFit: "contain" as const,
+      maxWidth: "100%",
+      maxHeight: "100%",
+      width: "auto",
+      height: "auto",
     };
-
-    let style: MediaStyle = {
-      objectFit: 'contain',
-      maxWidth: '100%',
-      maxHeight: '100%'
-    };
-
-    if (showLetterboxing) {
-      if (mediaRatio > projectRatio) {
-        // Media is wider than project - add letterboxing (black bars top/bottom)
-        style = {
-          ...style,
-          width: '100%',
-          height: 'auto'
-        };
-      } else {
-        // Media is taller than project - add pillarboxing (black bars left/right)
-        style = {
-          ...style,
-          width: 'auto',
-          height: '100%'
-        };
-      }
-    } else {
-      // No letterboxing - stretch to fill
-      style = {
-        ...style,
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover'
-      };
-    }
-    
-    // Apply different max height based on compact view mode
-    if (isCompactView) {
-      style.maxHeight = '190px';
-    } else {
-      // In expanded view, let the container handle the aspect ratio
-      style.maxHeight = '100%';
-    }
-
-    console.log(`[VideoContextScenePreviewPlayer] Media style calculated for ${sceneId}:`, {
-      projectRatio,
-      mediaRatio,
-      style,
-      showLetterboxing,
-      isCompactView
-    });
-
-    return style;
-  }, [aspectRatio, projectAspectRatio, showLetterboxing, sceneId, isCompactView]);
+  }, []);
   
   // Set up mouse event listeners for trim bracket dragging
   useEffect(() => {
