@@ -114,6 +114,25 @@ const smallRangeThumbStyles = `
 const isImageType = (type: 'image' | 'video' | 'gallery'): boolean => type === 'image' || type === 'gallery';
 const isVideoType = (type: 'image' | 'video' | 'gallery'): boolean => type === 'video';
 
+// Add Info icon for aspect ratio display toggle
+const InfoIcon = () => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width="12" 
+    height="12" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="12" y1="16" x2="12" y2="12"></line>
+    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+  </svg>
+);
+
 interface VideoContextScenePreviewPlayerProps {
   projectId: string;
   sceneId: string;
@@ -227,6 +246,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Add video element ref for first frame capture
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Add state to track aspect ratio display toggle
+  const [showAspectRatio, setShowAspectRatio] = useState<boolean>(process.env.NODE_ENV === 'development');
 
   // Add time update loop with trim boundaries
   useEffect(() => {
@@ -1632,7 +1654,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         </button>
         
         {/* Add aspect ratio indicator for debugging */}
-        {process.env.NODE_ENV === 'development' && (
+        {showAspectRatio && (
           <div 
             className="absolute top-1 left-1 bg-black bg-opacity-50 px-1 py-0.5 text-white text-xs rounded"
             style={{ zIndex: 30, pointerEvents: 'none' }}
@@ -1915,8 +1937,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               )}
             </button>
 
-            {/* Time display (center) - updated to conditionally show tenths */}
-            <div className="text-white text-[9px] select-none">
+            {/* Time display (center) */}
+            <div className="flex-grow text-center text-white text-xs">
               {activeHandle === 'start' 
                 ? `${formatTime(trimStart, true)} / ${formatTime(getEffectiveTrimEnd() - trimStart)}`
                 : activeHandle === 'end'
@@ -1924,6 +1946,21 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   : `${formatTime(Math.max(0, currentTime - trimStart))} / ${trimStart > 0 || getEffectiveTrimEnd() < duration ? formatTime(getEffectiveTrimEnd() - trimStart) : formatTime(duration)}`
               }
             </div>
+            
+            {/* Aspect ratio info button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowAspectRatio(!showAspectRatio);
+                console.log(`[VideoContext] Aspect ratio toggle: ${showAspectRatio} -> ${!showAspectRatio}`);
+              }}
+              className={`text-white hover:opacity-100 focus:outline-none ${showAspectRatio ? 'opacity-100' : 'opacity-60'}`}
+              data-testid="toggle-aspect-ratio"
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto', marginRight: '4px' }}
+            >
+              <InfoIcon />
+            </button>
             
             {/* Scissor/Save button (right side) */}
             <button
