@@ -248,10 +248,40 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const videoRef = useRef<HTMLVideoElement>(null);
   
   // Add state to track aspect ratio display toggle
-  const [showAspectRatio, setShowAspectRatio] = useState<boolean>(process.env.NODE_ENV === 'development');
+  const [showAspectRatio, setShowAspectRatio] = useState<boolean>(false);
 
   // Add a ref to track playing state
   const isPlayingRef = useRef<boolean>(false);
+
+  // After other state variables, add this new state:
+  // Add state for temporary aspect ratio indicator display
+  const [showTemporaryIndicator, setShowTemporaryIndicator] = useState<boolean>(true);
+  
+  // Add useEffect for temporary aspect ratio display on mount
+  useEffect(() => {
+    // Show indicator when component mounts (new scene)
+    setShowTemporaryIndicator(true);
+    
+    // Hide after 2 seconds
+    const timer = setTimeout(() => {
+      setShowTemporaryIndicator(false);
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, [sceneId]); // Re-run when sceneId changes (new scene)
+  
+  // Add useEffect for aspect ratio changes
+  useEffect(() => {
+    // Show indicator when aspect ratio changes
+    setShowTemporaryIndicator(true);
+    
+    // Hide after 2 seconds
+    const timer = setTimeout(() => {
+      setShowTemporaryIndicator(false);
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, [projectAspectRatio]); // Re-run when projectAspectRatio changes
 
   // Add time update loop with trim boundaries
   useEffect(() => {
@@ -1535,6 +1565,22 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       onMouseLeave={() => setIsHovering(false)}
       data-testid="video-context-preview"
     >
+      {/* Add aspect ratio indicator for debugging */}
+      {(showAspectRatio || showTemporaryIndicator) && (
+        <div 
+          className="absolute left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 px-1 py-0.5 text-white rounded"
+          style={{ 
+            zIndex: 60, 
+            pointerEvents: 'none', 
+            top: '0px',
+            fontSize: '0.65rem',
+            opacity: showTemporaryIndicator ? '0.8' : '1'
+          }}
+        >
+          {aspectRatio.toFixed(2)} / {projectAspectRatio}
+        </div>
+      )}
+      
       {/* Add style tag for custom range styling */}
       <style>{smallRangeThumbStyles}</style>
       
@@ -1688,16 +1734,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             <PlayIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
           )}
         </button>
-        
-        {/* Add aspect ratio indicator for debugging */}
-        {showAspectRatio && (
-          <div 
-            className="absolute top-1 left-1 bg-black bg-opacity-50 px-1 py-0.5 text-white text-xs rounded"
-            style={{ zIndex: 30, pointerEvents: 'none' }}
-          >
-            {aspectRatio.toFixed(2)} / {projectAspectRatio}
-          </div>
-        )}
         
         {/* Separate background element with larger height to cover controls */}
         <div 
