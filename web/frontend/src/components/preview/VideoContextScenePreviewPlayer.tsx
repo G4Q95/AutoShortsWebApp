@@ -1981,24 +1981,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         <div className="flex justify-between items-center px-1" 
              data-drag-handle-exclude="true" 
              style={{ position: 'relative', zIndex: 55, pointerEvents: 'auto' }}>
-          {/* Lock button (left side) */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setControlsLocked(!controlsLocked);
-              console.log(`[VideoContext] Lock button clicked: controlsLocked=${controlsLocked} -> ${!controlsLocked}`);
-            }}
-            className="text-white hover:opacity-100 focus:outline-none"
-            data-testid="toggle-lock-button"
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
-          >
-            {controlsLocked ? (
-              <LockIcon className="w-3 h-3" />
-            ) : (
-              <UnlockIcon className="w-3 h-3" />
-            )}
-          </button>
+          {/* Left button section */}
+          <div className="flex-shrink-0 w-14 flex justify-start">
+            {/* Lock button (left side) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlsLocked(!controlsLocked);
+                console.log(`[VideoContext] Lock button clicked: controlsLocked=${controlsLocked} -> ${!controlsLocked}`);
+              }}
+              className="text-white hover:opacity-100 focus:outline-none"
+              data-testid="toggle-lock-button"
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
+            >
+              {controlsLocked ? (
+                <LockIcon className="w-3 h-3" />
+              ) : (
+                <UnlockIcon className="w-3 h-3" />
+              )}
+            </button>
+          </div>
 
           {/* Time display (center) */}
           <div className="flex-grow text-center text-white text-xs">
@@ -2010,39 +2013,42 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             }
           </div>
           
-          {/* Aspect ratio info button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowAspectRatio(!showAspectRatio);
-              console.log(`[VideoContext] Aspect ratio toggle: ${showAspectRatio} -> ${!showAspectRatio}`);
-            }}
-            className={`text-white hover:opacity-100 focus:outline-none ${showAspectRatio ? 'opacity-100' : 'opacity-60'}`}
-            data-testid="toggle-aspect-ratio"
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto', marginRight: '4px' }}
-          >
-            <InfoIcon />
-          </button>
-          
-          {/* Scissor/Save button (right side) */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setTrimActive(!trimActive);
-              console.log(`[VideoContext] Trim button clicked: trimActive=${trimActive} -> ${!trimActive}`);
-            }}
-            className="text-white hover:opacity-100 focus:outline-none"
-            data-testid="toggle-trim-button"
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
-          >
-            {trimActive ? (
-              <CheckIcon className="w-3 h-3" />
-            ) : (
-              <ScissorsIcon className="w-3 h-3" />
-            )}
-          </button>
+          {/* Right buttons section */}
+          <div className="flex-shrink-0 w-14 flex justify-end">
+            {/* Aspect ratio info button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowAspectRatio(!showAspectRatio);
+                console.log(`[VideoContext] Aspect ratio toggle: ${showAspectRatio} -> ${!showAspectRatio}`);
+              }}
+              className={`text-white hover:opacity-100 focus:outline-none ${showAspectRatio ? 'opacity-100' : 'opacity-60'}`}
+              data-testid="toggle-aspect-ratio"
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto', marginRight: '4px' }}
+            >
+              <InfoIcon />
+            </button>
+            
+            {/* Scissor/Save button (right side) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setTrimActive(!trimActive);
+                console.log(`[VideoContext] Trim button clicked: trimActive=${trimActive} -> ${!trimActive}`);
+              }}
+              className="text-white hover:opacity-100 focus:outline-none"
+              data-testid="toggle-trim-button"
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
+            >
+              {trimActive ? (
+                <CheckIcon className="w-3 h-3" />
+              ) : (
+                <ScissorsIcon className="w-3 h-3" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
