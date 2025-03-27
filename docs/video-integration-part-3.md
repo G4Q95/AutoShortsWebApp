@@ -253,6 +253,30 @@ The core of the aspect ratio implementation relies on a carefully structured hie
 </div>
 ```
 
+### Enhanced Aspect Ratio Visualization
+
+To improve the user experience and provide better technical insights, an enhanced aspect ratio display was implemented:
+
+```jsx
+// Aspect ratio indicator shown at the top of media containers
+<div className="aspect-ratio-indicator">
+  {/* Calculate and display three key pieces of information */}
+  <span style={{ color: '#fff' }}>{exactRatio.toFixed(2)}</span>
+  <span style={{ color: '#fff' }}> [{closestStandardRatio}]</span>
+  <span style={{ color: '#4ade80' }}> / {projectAspectRatio}</span>
+</div>
+```
+
+This display provides:
+1. The **exact decimal ratio** of the original media (e.g., "0.56")
+2. The **closest standard aspect ratio** determined algorithmically (e.g., "[9:16]")
+3. The current **project aspect ratio setting** (e.g., "16:9")
+
+This allows users to easily:
+- Verify the true dimensions of their media
+- Understand how media will fit within the project's chosen aspect ratio
+- Quickly identify media that might need replacement or adjustment
+
 ### Style Calculation Logic
 
 ```typescript
@@ -624,30 +648,4 @@ The solution implements a dual-path approach for media rendering:
 
 The solution also implements proper timeline animation for images:
 
-```typescript
-// Animation loop for image playback
-const animateImageTime = (timestamp: number) => {
-  if (!isPlaying || animationRef.current === null) return;
-  
-  // Calculate elapsed time
-  const elapsed = (timestamp - animationRef.current) / 1000;
-  let newTime = currentTime + elapsed;
-  
-  // Reset if we reach the end (5 seconds or trim end)
-  if (newTime >= getEffectiveTrimEnd()) {
-    newTime = trimStart;
-  }
-  
-  // Update time state and audio position
-  setCurrentTime(newTime);
-  if (audioRef.current) {
-    audioRef.current.currentTime = newTime;
-  }
-  
-  // Store current timestamp and continue animation
-  animationRef.current = timestamp;
-  requestAnimationFrame(animateImageTime);
-};
 ```
-
-This robust implementation provides a seamless experience for all media types, ensuring consistent rendering, proper controls, and reliable playback for both images and videos throughout the application. 

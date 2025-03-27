@@ -60,6 +60,9 @@ The current focus is on improving code stability, API connectivity, and refactor
   - Fixed issues with vertical (9:16) videos being stretched to 16:9
   - Ensured proper rendering of both landscape and portrait orientations
   - Improved visual quality by eliminating stretching and distortion
+  - Fixed letterboxing/pillarboxing logic to correctly apply black bars based on aspect ratio comparisons
+  - Enhanced aspect ratio display with clearer visualization using "/" separator
+  - Added color-coded aspect ratio indicator to distinguish media ratio from project ratio
   - **Technical Solution**: 
     - Created media analysis utilities to calculate exact dimensions and aspect ratios
     - Enhanced scene data model to store width, height, and aspect ratio values
@@ -68,6 +71,7 @@ The current focus is on improving code stability, API connectivity, and refactor
     - Created container styling with dynamic letterboxing/pillarboxing
     - Added aspect ratio data propagation through component props
     - Ensured proper media styling with object-fit containment
+    - Corrected logic for aspect ratio comparison to accurately determine when to apply letterboxing vs. pillarboxing
   - **Project-Wide Aspect Ratio Selection**:
     - Implemented UI component for selecting between different aspect ratios (9:16, 16:9, 1:1, 4:5)
     - Created three-layer container architecture for proper aspect ratio handling:
@@ -79,6 +83,17 @@ The current focus is on improving code stability, API connectivity, and refactor
       - For media wider than project: `height: ${(projectRatio / mediaRatio) * 100}%`
       - For media taller than project: `width: ${(mediaRatio / projectRatio) * 100}%`
     - Fixed re-initialization issues in VideoContext when changing aspect ratios
+  - **Enhanced Aspect Ratio Display**:
+    - Added intelligent aspect ratio indicator for media preview
+    - Implemented display showing exact decimal ratio (e.g., "0.56")
+    - Added automatic detection of closest standard aspect ratio (e.g., "[9:16]")
+    - Displayed project aspect ratio with clear separation (e.g., "/ 16:9")
+    - Used consistent calculation logic between small and full-screen views
+    - Fixed inconsistencies between different view modes
+    - Ensured proper representation of media's original dimensions
+    - Improved visual clarity with color-coded display (white for media ratio, green for project ratio)
+    - Changed separator from dash to forward slash for better visual distinction
+    - Fixed logic for determining when to apply letterboxing vs. pillarboxing based on aspect ratio comparison
 - ✅ API Refactoring (Phase 1) - Voice API Modularization
   - Created detailed API function inventory for voice-related functions
   - Implemented feature flag system to safely toggle between implementations
