@@ -1284,20 +1284,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Base style without letterboxing/pillarboxing
     if (!showLetterboxing) {
       return {
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        overflow: "hidden",
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
       };
     }
-
-    console.log(`[VideoContextScenePreviewPlayer] Calculating container style for scene ${sceneId}:`, {
-      projectAspectRatio,
-      mediaAspectRatio: aspectRatio,
-      isCompactView
-    });
 
     // Calculate aspect ratios
     const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
@@ -1306,55 +1300,108 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
     console.log(`[AspectRatio-Debug] Scene: ${sceneId}, Project ratio: ${projectRatio.toFixed(4)}, Media ratio: ${mediaRatio.toFixed(4)}, CompactView: ${isCompactView}`);
 
-    // Default styles
-    const style: React.CSSProperties = {
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      overflow: "hidden",
+    // Base container style for both compact and full-screen views
+    const style: CSSProperties = {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+      backgroundColor: '#000',
+      overflow: 'hidden',
     };
 
-    // Apply different styling based on view mode
+    // CONSISTENT CALCULATION FOR BOTH VIEWS:
+    // Use the same exact calculation approach for both compact and full screen
+    // This ensures media appears in the same proportions in both views
+
+    // First set container to match project aspect ratio
+    // (This sets the "canvas" into which media will be placed)
     if (isCompactView) {
-      // SMALL SCREEN MODE (thumbnails) - use fixed percentages for consistent look
-      // In 9:16 mode (vertical container):
-      if (projectRatio < 1) {
-        // If the project is vertical (like 9:16)
-        // Apply consistent pillarboxing for all scenes - use a fixed width percentage
-        const FIXED_WIDTH_PERCENTAGE = 80; // Consistent sizing for thumbnails
-        style.width = `${FIXED_WIDTH_PERCENTAGE}%`;
-        style.height = "100%";
-        console.log(`[AspectRatio-Debug] SMALL SCREEN: Using pillarboxing with fixed width: ${FIXED_WIDTH_PERCENTAGE}%`);
-      } 
-      // In 16:9 mode (horizontal container):
-      else {
-        // If the project is horizontal (like 16:9)
-        // Apply consistent letterboxing for all scenes - use a fixed height percentage
-        const FIXED_HEIGHT_PERCENTAGE = 80; // Consistent sizing for thumbnails
-        style.width = "100%";
-        style.height = `${FIXED_HEIGHT_PERCENTAGE}%`;
-        console.log(`[AspectRatio-Debug] SMALL SCREEN: Using letterboxing with fixed height: ${FIXED_HEIGHT_PERCENTAGE}%`);
-      }
+      // Small view - fixed height but proper proportional width
+      style.height = '100%';
+      style.width = 'auto';
+      style.aspectRatio = projectAspectRatio.replace(':', '/');
+      style.margin = 'auto'; // Center in parent
     } else {
-      // FULL SCREEN MODE - fill the container completely
-      style.width = "100%";
-      style.height = "100%";
-      console.log(`[AspectRatio-Debug] FULL SCREEN: Using full width/height container`);
+      // Full screen view - fill available space while maintaining aspect ratio
+      style.width = '100%';
+      style.height = 'auto';
+      style.aspectRatio = projectAspectRatio.replace(':', '/');
     }
 
+    // Calculate and log precise details about the scaling
+    console.log(`[AspectRatio-Scaling] Scene ${sceneId}: MediaRatio=${mediaRatio.toFixed(4)}, ProjectRatio=${projectRatio.toFixed(4)}`);
+
     return style;
-  }, [aspectRatio, projectAspectRatio, sceneId, showLetterboxing, isCompactView]);
+  }, [aspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
   
   // Get media element style with letterboxing/pillarboxing
   const getMediaStyle = useCallback(() => {
-    return {
-      objectFit: "contain" as const,
-      maxWidth: "100%",
-      maxHeight: "100%",
-      width: "auto",
-      height: "auto",
+    // Calculate aspect ratios
+    const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
+    const projectRatio = projWidth / projHeight;
+    const mediaRatio = aspectRatio || projectRatio;
+
+    type MediaStyle = {
+      objectFit: 'contain' | 'cover';
+      maxWidth: string;
+      maxHeight: string;
+      width?: string;
+      height?: string;
     };
-  }, []);
+
+    let style: MediaStyle = {
+      objectFit: 'contain',
+      maxWidth: '100%',
+      maxHeight: '100%'
+    };
+
+    if (showLetterboxing) {
+      // CONSISTENT CALCULATION:
+      // Calculate width/height percentage based on aspect ratio comparison
+      // This is the key to consistent appearance between views
+      
+      if (mediaRatio > projectRatio) {
+        // Media is wider than project - it will have letterboxing (black bars top/bottom)
+        // Keep width at 100% and calculate height to maintain aspect ratio
+        style = {
+          ...style,
+          width: '100%',
+          height: 'auto',
+          maxHeight: '100%'
+        };
+        console.log(`[AspectRatio-Styling] Scene ${sceneId}: Using LETTERBOXING for wide media`);
+      } else if (mediaRatio < projectRatio) {
+        // Media is taller than project - it will have pillarboxing (black bars sides)
+        // Keep height at 100% and calculate width to maintain aspect ratio
+        style = {
+          ...style,
+          width: 'auto',
+          height: '100%',
+          maxWidth: '100%'
+        };
+        console.log(`[AspectRatio-Styling] Scene ${sceneId}: Using PILLARBOXING for tall media`);
+      } else {
+        // Perfect match - no letterboxing or pillarboxing needed
+        style = {
+          ...style,
+          width: '100%',
+          height: '100%'
+        };
+        console.log(`[AspectRatio-Styling] Scene ${sceneId}: PERFECT MATCH, no boxing needed`);
+      }
+    } else {
+      // No letterboxing - stretch to fill
+      style = {
+        ...style,
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover'
+      };
+    }
+
+    return style;
+  }, [aspectRatio, projectAspectRatio, showLetterboxing, sceneId]);
   
   // Set up mouse event listeners for trim bracket dragging
   useEffect(() => {
@@ -1547,7 +1594,42 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             opacity: showTemporaryIndicator ? '0.8' : '1'
           }}
         >
-          {aspectRatio.toFixed(2)} / {projectAspectRatio}
+          {/* Calculate the closest standard aspect ratio */}
+          {(() => {
+            // Function to find closest standard aspect ratio
+            const exactRatio = aspectRatio;
+            
+            // Common standard aspect ratios as [name, decimal value]
+            type RatioType = [string, number];
+            const standardRatios: RatioType[] = [
+              ['9:16', 0.5625], // 0.5625 - vertical smartphone
+              ['3:4', 0.75],    // 0.75 - classic portrait
+              ['1:1', 1],       // 1.0 - square
+              ['4:3', 1.33],    // 1.33 - classic TV/monitor
+              ['16:9', 1.78]    // 1.78 - widescreen
+            ];
+            
+            // Find the closest standard ratio
+            let closestRatio = standardRatios[0];
+            let smallestDiff = Math.abs(exactRatio - standardRatios[0][1]);
+            
+            for (let i = 1; i < standardRatios.length; i++) {
+              const diff = Math.abs(exactRatio - standardRatios[i][1]);
+              if (diff < smallestDiff) {
+                smallestDiff = diff;
+                closestRatio = standardRatios[i];
+              }
+            }
+            
+            // Format and return the new display string
+            return (
+              <>
+                <span style={{ color: '#fff' }}>{exactRatio.toFixed(2)}</span>
+                <span style={{ color: '#fff' }}> [{closestRatio[0]}]</span>
+                <span style={{ color: '#4ade80' }}> / {projectAspectRatio}</span>
+              </>
+            );
+          })()}
         </div>
       )}
       
