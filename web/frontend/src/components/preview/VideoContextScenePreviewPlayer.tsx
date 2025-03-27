@@ -1626,13 +1626,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         {/* Add aspect ratio indicator for debugging */}
         {(showAspectRatio || showTemporaryIndicator) && (
           <div 
-            className="absolute left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 px-1 py-0.5 text-white rounded"
+            className="absolute left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 px-2 py-0.5 text-white rounded whitespace-nowrap"
             style={{ 
               zIndex: 60, 
               pointerEvents: 'none', 
               top: '0px',
               fontSize: '0.65rem',
-              opacity: showTemporaryIndicator ? '0.8' : '1'
+              opacity: showTemporaryIndicator ? '0.8' : '1',
+              display: 'flex',
+              gap: '4px'
             }}
           >
             {/* Calculate the closest standard aspect ratio */}
@@ -1666,8 +1668,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               return (
                 <>
                   <span style={{ color: '#fff' }}>{exactRatio.toFixed(2)}</span>
-                  <span style={{ color: '#fff' }}> [{closestRatio[0]}]</span>
-                  <span style={{ color: '#4ade80' }}> / {projectAspectRatio}</span>
+                  <span style={{ color: '#fff' }}>[{closestRatio[0]}]</span>
+                  <span style={{ color: '#4ade80' }}>{projectAspectRatio}</span>
                 </>
               );
             })()}
