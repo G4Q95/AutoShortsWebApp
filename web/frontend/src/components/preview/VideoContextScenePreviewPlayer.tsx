@@ -377,7 +377,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     console.log(`[VideoContext] Initialize effect triggered, projectAspectRatio=${projectAspectRatio}`);
     
     // For static images, ONLY use the fallback image approach and skip VideoContext entirely
-    if (mediaType === 'image' || mediaType === 'gallery') {
+    if (isImageType(mediaType)) {
       console.log(`[VideoContext] Static media detected (${mediaType}), using ONLY fallback for ${sceneId}`);
       setUseImageFallback(true);
       setIsLoading(false);
@@ -844,7 +844,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         setIsLoading(false);
         
         // Fall back to regular image element for images
-        if (mediaType === 'image') {
+        if (isImageType(mediaType)) {
           console.log(`[VideoContext] Activating image fallback due to initialization error`);
           setUseImageFallback(true);
         }
@@ -1061,6 +1061,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Handle seeked time update
   const handleTimeUpdate = (newTime: number) => {
+    // For images, update state directly and sync audio if available
+    if (isImageType(mediaType)) {
+      const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd);
+      setCurrentTime(clampedTime);
+      
+      // Update audio position too
+      if (audioRef.current) {
+        audioRef.current.currentTime = clampedTime;
+      }
+      return;
+    }
+    
+    // For videos with VideoContext
     if (!videoContext) return;
     
     // Keep time within trim boundaries
@@ -1164,6 +1177,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       position: 'relative',
       width: '100%',
       height: isCompactView ? '190px' : 'auto',
+      zIndex: 1, // Add a base z-index for proper stacking
     };
 
     if (!isCompactView) {
@@ -1267,16 +1281,25 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         objectFit: 'cover'
       };
     }
+    
+    // Apply different max height based on compact view mode
+    if (isCompactView) {
+      style.maxHeight = '190px';
+    } else {
+      // In expanded view, let the container handle the aspect ratio
+      style.maxHeight = '100%';
+    }
 
     console.log(`[VideoContextScenePreviewPlayer] Media style calculated for ${sceneId}:`, {
       projectRatio,
       mediaRatio,
       style,
-      showLetterboxing
+      showLetterboxing,
+      isCompactView
     });
 
     return style;
-  }, [aspectRatio, projectAspectRatio, showLetterboxing, sceneId]);
+  }, [aspectRatio, projectAspectRatio, showLetterboxing, sceneId, isCompactView]);
   
   // Set up mouse event listeners for trim bracket dragging
   useEffect(() => {
@@ -1290,7 +1313,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       e.preventDefault();
       e.stopPropagation();
       
-      if (!containerRef.current || !videoContext) return;
+      if (!containerRef.current) return;
       
       const rect = containerRef.current.getBoundingClientRect();
       // Direct mouse positioning for precise control
@@ -1307,9 +1330,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         setTrimStart(newStart);
         if (onTrimChange) onTrimChange(newStart, trimEnd);
         
-        // Update video frame visually without changing playhead position
-        videoContext.currentTime = newStart;
+        // Update visuals for both video and image media types
+        if (videoContext) {
+          // For videos with VideoContext
+          videoContext.currentTime = newStart;
+        }
+        
+        // Set visual time for all media types
         setVisualTime(newStart);
+        setCurrentTime(newStart);
         
         // Update audio time if available
         if (audioRef.current) {
@@ -1473,7 +1502,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       {/* Media Display */}
       <div 
         className="relative bg-black flex items-center justify-center"
-        style={getMediaContainerStyle()}
+        style={{
+          ...getMediaContainerStyle(),
+          position: 'relative', 
+          zIndex: 5 // Ensure media container has proper z-index
+        }}
       >
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -1486,7 +1519,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           <video
             ref={videoRef}
             className="w-auto h-auto"
-            style={getMediaStyle()}
+            style={{
+              ...getMediaStyle(),
+              pointerEvents: 'none' // Ensure all videos have pointer-events: none
+            }}
             playsInline
             muted
             preload="auto"
@@ -1504,7 +1540,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             style={{
               ...getMediaStyle(),
               objectFit: 'contain',
-              zIndex: 20
+              zIndex: 10,
+              maxHeight: isCompactView ? '190px' : '100%',
+              pointerEvents: 'none' // Ensure all clicks pass through
             }}
             data-testid="fallback-image"
             onLoad={() => {
@@ -1554,8 +1592,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             ...getMediaStyle(),
             display: (isImageType(mediaType)) ? 'none' : 
                     (showFirstFrame && mediaType === 'video') ? 'none' : 'block',
-            zIndex: 10, // Lower than the overlay button
-            pointerEvents: 'none' // Don't block click events
+            zIndex: 10, // Match the img z-index
+            pointerEvents: 'none' // Ensure all click events pass through
           }}
           data-testid="videocontext-canvas"
         />
@@ -1579,7 +1617,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           }}
           className="absolute inset-0 w-full h-full flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-20 transition-opacity"
           style={{ 
-            zIndex: 40, // Ensure it's above everything else
+            zIndex: 20, // Lower than controls but higher than media
             pointerEvents: 'auto' // Explicitly enable pointer events
           }}
           data-testid="play-pause-button"
@@ -1597,7 +1635,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         {process.env.NODE_ENV === 'development' && (
           <div 
             className="absolute top-1 left-1 bg-black bg-opacity-50 px-1 py-0.5 text-white text-xs rounded"
-            style={{ zIndex: 20, pointerEvents: 'none' }}
+            style={{ zIndex: 30, pointerEvents: 'none' }}
           >
             {aspectRatio.toFixed(2)} / {projectAspectRatio}
           </div>
@@ -1610,7 +1648,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             height: '40px',
             bottom: '0px',
             backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            zIndex: 45, // Higher than the play/pause button
+            zIndex: 30, // Higher than media
             pointerEvents: 'auto'
           }}
         />
@@ -1622,7 +1660,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           style={{ 
             minHeight: '32px',
             padding: '4px 8px 6px 8px',
-            zIndex: 50, // Higher than the background
+            zIndex: 40, // Higher than the background
             pointerEvents: 'auto' // Ensure this catches pointer events
           }}
         >
@@ -1714,9 +1752,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                         left: '-2px',
                         WebkitAppearance: 'none',
                         appearance: 'none',
-                        zIndex: 54,
+                        zIndex: 90, // Very high z-index to ensure it's clickable
                         opacity: 0,
-                        pointerEvents: 'auto'
+                        pointerEvents: 'auto',
+                        cursor: 'ew-resize' // Add explicit cursor style
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
@@ -1799,9 +1838,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                         left: '-2px',
                         WebkitAppearance: 'none',
                         appearance: 'none',
-                        zIndex: 54,
+                        zIndex: 90, // Very high z-index to ensure it's clickable
                         opacity: 0,
-                        pointerEvents: 'auto'
+                        pointerEvents: 'auto',
+                        cursor: 'ew-resize' // Add explicit cursor style
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();

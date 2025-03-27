@@ -32,12 +32,9 @@ const ProjectHeader: React.FC<ProjectHeaderProps> = ({
         </h1>
         <SaveStatusIndicator isSaving={isSaving} lastSaved={lastSaved} />
       </div>
-      
-      {/* Spacer */}
-      <div className="flex-1"></div>
-      
+
       {/* Aspect Ratio Selector */}
-      <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className="relative ml-4 mr-4" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={() => setIsSettingsOpen(!isSettingsOpen)}
           className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -68,6 +65,9 @@ const ProjectHeader: React.FC<ProjectHeaderProps> = ({
           </div>
         )}
       </div>
+
+      {/* Spacer */}
+      <div className="flex-1"></div>
       
       {/* Save Button */}
       <button

@@ -687,7 +687,7 @@ export default function ProjectWorkspace({
       <div className="bg-white p-6 rounded-lg shadow">
         {/* Project header */}
         <div className="mb-6 flex justify-between items-center">
-          <div>
+          <div className="flex items-center">
             <input
               type="text"
               value={effectiveProject.title}
@@ -696,16 +696,16 @@ export default function ProjectWorkspace({
               aria-label="Project title"
               data-testid="project-title"
             />
+            
+            {/* Aspect Ratio Dropdown - moved next to title */}
+            <AspectRatioDropdown
+              currentRatio={effectiveProject?.aspectRatio || '9:16'}
+              onChange={handleAspectRatioChange}
+              showLetterboxing={effectiveProject?.showLetterboxing || true}
+              onToggleLetterboxing={(show) => handleToggleLetterboxing(show)}
+              className="ml-4"
+            />
           </div>
-          
-          {/* Aspect Ratio Dropdown */}
-          <AspectRatioDropdown
-            currentRatio={effectiveProject?.aspectRatio || '9:16'}
-            onChange={handleAspectRatioChange}
-            showLetterboxing={effectiveProject?.showLetterboxing || true}
-            onToggleLetterboxing={(show) => handleToggleLetterboxing(show)}
-            className="ml-auto mr-4"
-          />
           
           <div className="flex flex-col items-end">
             <button
@@ -717,7 +717,7 @@ export default function ProjectWorkspace({
               <SaveIcon className="h-4 w-4 mr-1" />
               Save
             </button>
-            <SaveStatusIndicator isSaving={isSaving} lastSaved={saveCurrentProject} />
+            <SaveStatusIndicator isSaving={isSaving} lastSaved={lastSaved} />
           </div>
         </div>
 
@@ -825,11 +825,11 @@ export default function ProjectWorkspace({
         )}
 
         {/* Action Buttons Section */}
-        <div className="grid grid-cols-1 mt-4 gap-4">
+        <div className="grid grid-cols-2 mt-4 gap-4">
           {/* Process Video / Fast Video Buttons */}
           <button
             onClick={handleProcessVideo}
-            className="px-4 py-3 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
+            className="px-3 py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
             disabled={isAddingScene || isSaving}
             data-testid="process-video-button"
           >
@@ -839,7 +839,7 @@ export default function ProjectWorkspace({
           {/* Fast Video button always visible */}
           <button
             onClick={handleFastVideo}
-            className="px-4 py-3 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
+            className="px-3 py-2 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
             disabled={isAddingScene || isSaving}
             data-testid="fast-video-button"
           >
@@ -847,7 +847,7 @@ export default function ProjectWorkspace({
             Fast Video
           </button>
 
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-gray-600 mt-1 col-span-2">
             <strong>Process Video:</strong> Customize each scene before processing
           </p>
         </div>
