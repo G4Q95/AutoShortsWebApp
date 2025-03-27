@@ -1606,7 +1606,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Fix container hierarchy without disrupting controls
   return (
     <div 
-      className={`relative bg-gray-800 flex items-center justify-center ${className}`}
+      className={`relative bg-gray-800 flex items-center justify-center ${className} cursor-pointer`}
       style={{
         width: '100%',
         height: isCompactView ? '190px' : 'auto',
@@ -1617,6 +1617,18 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       data-testid="video-context-preview"
+      onClick={(e) => {
+        // Don't trigger play/pause if clicking on interactive elements
+        const target = e.target as HTMLElement;
+        const isButton = target.tagName === 'BUTTON' || 
+                        target.closest('button') !== null ||
+                        target.closest('[data-drag-handle-exclude]') !== null;
+        
+        if (!isButton) {
+          isPlaying ? handlePause() : handlePlay();
+          console.log(`[VideoContext] Container clicked: isPlaying=${isPlaying} -> ${!isPlaying}`);
+        }
+      }}
     >
       {/* Black inner container for letterboxing/pillarboxing */}
       <div 
@@ -1807,28 +1819,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             </div>
           )}
           
-          {/* Play/Pause overlay */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation(); // Prevent click from bubbling up to scene
-              isPlaying ? handlePause() : handlePlay();
-              console.log(`[VideoContext] Play/Pause button clicked: isPlaying=${isPlaying} -> ${!isPlaying}`);
-            }}
-            className="absolute inset-0 w-full h-full flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-20 transition-opacity"
-            style={{ 
-              zIndex: 20, // Lower than controls but higher than media
-              pointerEvents: 'auto' // Explicitly enable pointer events
-            }}
-            data-testid="play-pause-button"
-            onMouseDown={(e) => e.stopPropagation()}
-            draggable={false}
-          >
+          {/* Show play/pause indicator in the center when playing or paused */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             {isPlaying ? (
               <PauseIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
             ) : (
               <PlayIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
             )}
-          </button>
+          </div>
         </div>
       </div>
       
