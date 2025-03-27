@@ -246,16 +246,80 @@ export async function getProjects(): Promise<Project[]> {
 }
 
 /**
- * Saves a project to localStorage and updates the projects list
- * Performs the following operations:
- * 1. Saves the full project data
- * 2. Updates the last created project ID
- * 3. Updates the projects list metadata
- * 4. Verifies the save was successful
+ * Ensures project data includes all required fields by adding sensible defaults for any missing fields
+ * Used to migrate older project data to newer schema requirements
  * 
- * @param {Project} project - Project to save
+ * @param {Project} project - Project data to migrate
+ * @returns {Project} Project data with all required fields
+ */
+export function migrateProjectData(project: Project): Project {
+  if (!project) return project;
+  
+  console.log(`[storage-utils] Migrating project data for: ${project.id}`);
+  
+  // Make a copy to avoid mutating the original object
+  const migratedProject = { ...project };
+  
+  // Ensure aspectRatio exists (required in saveProject validation)
+  if (!migratedProject.aspectRatio) {
+    console.log(`[storage-utils] Adding missing aspectRatio field to project ${project.id}`);
+    migratedProject.aspectRatio = '9:16'; // Default to vertical video
+  }
+  
+  // Ensure showLetterboxing exists
+  if (migratedProject.showLetterboxing === undefined) {
+    console.log(`[storage-utils] Adding missing showLetterboxing field to project ${project.id}`);
+    migratedProject.showLetterboxing = true;
+  }
+  
+  // Ensure status exists
+  if (!migratedProject.status) {
+    console.log(`[storage-utils] Adding missing status field to project ${project.id}`);
+    migratedProject.status = 'draft';
+  }
+  
+  // Ensure each scene has all required fields
+  if (Array.isArray(migratedProject.scenes)) {
+    migratedProject.scenes = migratedProject.scenes.map(scene => {
+      const migratedScene = { ...scene };
+      
+      // Ensure basic required scene fields
+      if (!migratedScene.createdAt) {
+        migratedScene.createdAt = Date.now();
+      }
+      
+      // Ensure media object exists
+      if (!migratedScene.media) {
+        migratedScene.media = { type: 'video', url: '' };
+      }
+      
+      // Ensure media has required fields
+      if (migratedScene.media) {
+        // Set mediaAspectRatio if it doesn't exist but we have width and height
+        if (!migratedScene.media.mediaAspectRatio && 
+            migratedScene.media.width && 
+            migratedScene.media.height && 
+            migratedScene.media.height > 0) {
+          migratedScene.media.mediaAspectRatio = migratedScene.media.width / migratedScene.media.height;
+          console.log(`[storage-utils] Calculated missing mediaAspectRatio for scene ${migratedScene.id}: ${migratedScene.media.mediaAspectRatio}`);
+        }
+      }
+      
+      return migratedScene;
+    });
+  }
+  
+  console.log(`[storage-utils] Project migration complete for: ${project.id}`);
+  return migratedProject;
+}
+
+/**
+ * Saves a project to localStorage
+ * Includes validation checks to ensure project data meets requirements
+ * 
+ * @param {Project} project - Project data to save
  * @returns {Promise<void>}
- * @throws {Error} If save fails or verification fails
+ * @throws {Error} If project data is invalid or saving fails
  * 
  * @example
  * try {
@@ -267,22 +331,25 @@ export async function getProjects(): Promise<Project[]> {
  */
 export const saveProject = async (project: Project): Promise<void> => {
   try {
-    console.log('[storage-utils] Saving project:', project.id, ', title:', project.title);
-    console.log('[storage-utils] Project contains', project.scenes.length, 'scenes, scene IDs:', project.scenes.map(s => s.id));
+    // First run the project through migration to ensure all required fields are present
+    const projectToSave = migrateProjectData(project);
+    
+    console.log('[storage-utils] Saving project:', projectToSave.id, ', title:', projectToSave.title);
+    console.log('[storage-utils] Project contains', projectToSave.scenes.length, 'scenes, scene IDs:', projectToSave.scenes.map(s => s.id));
     
     // Ensure required fields are present
-    if (!project.id || !project.aspectRatio) {
-      console.error('[storage-utils] Invalid project data:', project);
+    if (!projectToSave.id || !projectToSave.aspectRatio) {
+      console.error('[storage-utils] Invalid project data:', projectToSave);
       throw new Error('Invalid project data: missing required fields');
     }
 
     // Create project key
-    console.log('[storage-utils] Creating project key for ID:', JSON.stringify(project.id));
-    const key = `auto-shorts-project-${project.id}`;
+    console.log('[storage-utils] Creating project key for ID:', JSON.stringify(projectToSave.id));
+    const key = `auto-shorts-project-${projectToSave.id}`;
     console.log('[storage-utils] Generated project key:', JSON.stringify(key));
 
     // Save project data
-    const projectJson = JSON.stringify(project);
+    const projectJson = JSON.stringify(projectToSave);
     console.log('[storage-utils] Project data size:', projectJson.length, 'characters');
     localStorage.setItem(key, projectJson);
 
@@ -293,17 +360,17 @@ export const saveProject = async (project: Project): Promise<void> => {
 
     // Create metadata for this project
     const metadata = {
-      id: project.id,
-      title: project.title,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
-      aspectRatio: project.aspectRatio,
-      thumbnailUrl: project.scenes.find(s => s.media?.thumbnailUrl)?.media?.thumbnailUrl,
-      scenesCount: project.scenes.length,
+      id: projectToSave.id,
+      title: projectToSave.title,
+      createdAt: projectToSave.createdAt,
+      updatedAt: projectToSave.updatedAt,
+      aspectRatio: projectToSave.aspectRatio,
+      thumbnailUrl: projectToSave.scenes.find(s => s.media?.thumbnailUrl)?.media?.thumbnailUrl,
+      scenesCount: projectToSave.scenes.length,
     };
 
     // Update or add to the list
-    const existingIndex = projectsList.findIndex((p: { id: string }) => p.id === project.id);
+    const existingIndex = projectsList.findIndex((p: { id: string }) => p.id === projectToSave.id);
     if (existingIndex >= 0) {
       projectsList[existingIndex] = metadata;
     } else {
@@ -312,7 +379,7 @@ export const saveProject = async (project: Project): Promise<void> => {
 
     // Save updated list
     localStorage.setItem(projectsListKey, JSON.stringify(projectsList));
-    console.log('[storage-utils] Project saved successfully and set as last created:', project.id);
+    console.log('[storage-utils] Project saved successfully and set as last created:', projectToSave.id);
 
     // Verify the save
     const savedProjectJson = localStorage.getItem(key);
@@ -325,9 +392,9 @@ export const saveProject = async (project: Project): Promise<void> => {
     console.log('[storage-utils] Project save verified - found data for key:', key);
     
     // Verify aspect ratio was saved
-    if (savedProject.aspectRatio !== project.aspectRatio) {
+    if (savedProject.aspectRatio !== projectToSave.aspectRatio) {
       console.error('[storage-utils] Aspect ratio mismatch in saved project:', {
-        expected: project.aspectRatio,
+        expected: projectToSave.aspectRatio,
         saved: savedProject.aspectRatio
       });
       throw new Error('Project save verification failed - aspect ratio mismatch');
@@ -377,19 +444,23 @@ export async function getProject(projectId: string): Promise<Project | null> {
         return null;
       }
 
+      // Apply data migration to ensure all required fields are present
+      const migratedProject = migrateProjectData(project);
+      
       // Log scene information for debugging
       console.log(
-        `[storage-utils] Successfully loaded project ${projectId} with ${project.scenes.length} scenes: [${project.scenes.map(s => s.id).join(', ')}]`
+        `[storage-utils] Successfully loaded project ${projectId} with ${migratedProject.scenes.length} scenes: [${migratedProject.scenes.map(s => s.id).join(', ')}]`
       );
       
       console.log(`[storage-utils] Successfully parsed project ${projectId}:`, {
-        id: project.id,
-        title: project.title,
-        scenesCount: project.scenes.length,
-        createdAt: new Date(project.createdAt).toISOString(),
+        id: migratedProject.id,
+        title: migratedProject.title,
+        scenesCount: migratedProject.scenes.length,
+        createdAt: new Date(migratedProject.createdAt).toISOString(),
+        aspectRatio: migratedProject.aspectRatio
       });
 
-      return project;
+      return migratedProject;
     } catch (parseError) {
       console.error(`[storage-utils] Error parsing project ${projectId} data:`, parseError);
       console.error(`[storage-utils] Raw project data: ${projectData.substring(0, 100)}...`);

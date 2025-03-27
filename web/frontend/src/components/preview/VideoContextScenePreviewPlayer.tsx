@@ -16,6 +16,15 @@ import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
 import EditHistoryManager, { ActionType } from '@/utils/video/editHistoryManager';
 import { CSSProperties } from 'react';
 
+// Add global tracking counters to help debug the issue
+const DEBUG_COUNTERS = {
+  totalImageAttempts: 0,
+  videoContextSuccess: 0,
+  videoContextFailure: 0,
+  fallbackSuccess: 0,
+  fallbackFailure: 0
+};
+
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
   input[type=range].small-thumb::-webkit-slider-thumb {
@@ -101,6 +110,10 @@ const smallRangeThumbStyles = `
   }
 `;
 
+// Add type guard functions for media type checking
+const isImageType = (type: 'image' | 'video' | 'gallery'): boolean => type === 'image' || type === 'gallery';
+const isVideoType = (type: 'image' | 'video' | 'gallery'): boolean => type === 'video';
+
 interface VideoContextScenePreviewPlayerProps {
   projectId: string;
   sceneId: string;
@@ -141,14 +154,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   projectAspectRatio = '9:16',
   showLetterboxing = true,
 }) => {
-  // Add detailed logging for initialization
-  console.log(`[VideoContextScenePreviewPlayer] MOUNT/UPDATE for scene ${sceneId}:`, {
-    projectAspectRatio,
-    initialMediaAspectRatio,
-    showLetterboxing,
-    isCompactView,
+  // Immediately log media information for debugging
+  console.log(`[CRITICAL-DEBUG] Component mounted for scene ${sceneId}:`, {
     mediaType,
-    mediaUrl: mediaUrl.substring(0, 50) + '...'
+    mediaUrl: mediaUrl.substring(0, 50) + '...',
+    isImageMedia: mediaType === 'image' || mediaType === 'gallery',
+    thumbnailUrl: thumbnailUrl ? (thumbnailUrl.substring(0, 50) + '...') : 'none',
+    initialMediaAspectRatio
   });
 
   // State for player
@@ -192,6 +204,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [localMediaUrl, setLocalMediaUrl] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   
+  // Add state for fallback image rendering
+  const [useImageFallback, setUseImageFallback] = useState<boolean>(false);
+  const [imageLoadError, setImageLoadError] = useState<boolean>(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  
   // Get singletons for media and edit history management
   const mediaManager = useRef(MediaDownloadManager.getInstance());
   const historyManager = useRef(EditHistoryManager.getInstance());
@@ -210,45 +227,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Add video element ref for first frame capture
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Style objects with proper typing
-  const playPauseOverlayStyle: CSSProperties = {
-    position: 'absolute',
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0)',
-    transition: 'background-color 0.2s',
-  };
-
-  const aspectRatioIndicatorStyle: CSSProperties = {
-    zIndex: 20,
-    pointerEvents: 'none',
-  };
-
-  const controlsBackgroundStyle: CSSProperties = {
-    height: '40px',
-    bottom: '0px',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    zIndex: 9, // Behind the controls
-  };
-
-  const controlsContainerStyle: CSSProperties = {
-    minHeight: '32px',
-    padding: '4px 8px 6px 8px',
-    zIndex: 10,
-  };
-
-  const timelineScrubberStyle = (trimActive: boolean, currentTime: number): CSSProperties => ({
-    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
-    height: '4px',
-    opacity: trimActive ? 0.4 : 1,
-    WebkitAppearance: 'none',
-    appearance: 'none',
-  });
 
   // Add time update loop with trim boundaries
   useEffect(() => {
@@ -398,6 +376,28 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     console.log(`[VideoContext] Initialize effect triggered, projectAspectRatio=${projectAspectRatio}`);
     
+    // For static images, ONLY use the fallback image approach and skip VideoContext entirely
+    if (mediaType === 'image' || mediaType === 'gallery') {
+      console.log(`[VideoContext] Static media detected (${mediaType}), using ONLY fallback for ${sceneId}`);
+      setUseImageFallback(true);
+      setIsLoading(false);
+      
+      // For images with audio, setup duration now
+      if (audioRef.current && audioRef.current.duration) {
+        setDuration(audioRef.current.duration);
+        setTrimEnd(audioRef.current.duration);
+      } else {
+        // Default duration for images without audio
+        setDuration(5);
+        setTrimEnd(5);
+      }
+      
+      // Set is ready to true so controls work properly
+      setIsReady(true);
+      
+      return; // Skip VideoContext initialization completely for images
+    }
+    
     const canvas = canvasRef.current;
     
     // Set the high-quality base size for creating the canvas
@@ -408,8 +408,18 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       try {
         // Clean up existing context if any
         if (videoContext) {
-          videoContext.reset();
-          videoContext.dispose();
+          console.log(`[VideoContext] Cleaning up existing context for ${sceneId}`);
+          try {
+            videoContext.reset();
+            // Check if dispose is a function before calling it
+            if (typeof videoContext.dispose === 'function') {
+              videoContext.dispose();
+            } else {
+              console.warn(`[VideoContext] dispose is not a function on existing context, skipping disposal`);
+            }
+          } catch (cleanupError) {
+            console.error(`[VideoContext] Error during context cleanup:`, cleanupError);
+          }
           setVideoContext(null);
         }
         
@@ -446,10 +456,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
         
-        console.log(`[VideoContext] Canvas resized from ${canvas.width}x${canvas.height}`);
+        console.log(`[VideoContext] Canvas resized to ${canvas.width}x${canvas.height}`);
         
         // Create VideoContext instance after setting canvas dimensions
         let ctx = new VideoContext(canvas);
+        console.log(`[VideoContext] VideoContext instance created for ${sceneId}:`, 
+                    { hasReset: typeof ctx.reset === 'function', 
+                      hasDispose: typeof ctx.dispose === 'function' });
         setVideoContext(ctx);
         
         // Create source node (using local media URL)
@@ -510,176 +523,317 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             });
           }
         } else if (mediaType === 'image') {
-          // Create after dimensions are set
-          source = ctx.image(localMediaUrl);
-          console.log(`[VideoContext] Image source node created:`, source);
+          // Add a unique instance ID for tracking this specific component instance
+          const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
           
-          // Check for positioning and scaling properties on source node
-          console.log(`[VideoContext] Image source node initial properties:`, {
-            position: source.position,
-            scale: source.scale
-          });
+          // Increment attempt counter
+          DEBUG_COUNTERS.totalImageAttempts++;
+          console.log(`[DEBUG][${instanceId}] Initializing image handler for scene ${sceneId} with URL: ${localMediaUrl.substring(0, 30)}...`);
           
-          // For images, we need to manually get the dimensions
-          const img = new Image();
-          img.onload = () => {
-            const imageWidth = img.width;
-            const imageHeight = img.height;
-            const ratio = imageWidth / imageHeight;
-            
-            // Log source node position and scale after load
-            const sourceScale = source.scale || 1;
-            const sourcePosition = source.position || [0, 0];
-            
-            console.log(`[VideoContext] Image loaded with dimensions: ${imageWidth}x${imageHeight}, ratio: ${ratio.toFixed(2)}`);
-            console.log(`[VideoContext] Image source node scale: ${sourceScale}, position: [${sourcePosition}]`);
-            console.log(`[VideoContext] Canvas vs Image ratio check:`, {
-              canvasWidth: canvas.width,
-              canvasHeight: canvas.height,
-              canvasRatio: canvas.width / canvas.height,
-              imageWidth: imageWidth,
-              imageHeight: imageHeight,
-              imageRatio: ratio,
-              difference: (canvas.width / canvas.height) - ratio
-            });
-            
-            // If there's a mismatch, log a warning
-            if (Math.abs((canvas.width / canvas.height) - ratio) > 0.01) {
-              console.warn(`[VideoContext] ⚠️ ASPECT RATIO MISMATCH: Canvas (${(canvas.width / canvas.height).toFixed(2)}) doesn't match image (${ratio.toFixed(2)})`);
+          // Reset fallback flags when re-initializing
+          setUseImageFallback(false);
+          setImageLoadError(false);
+          
+          // For images, immediately set up the fallback as a precaution
+          const preloadImage = new Image();
+          preloadImage.src = localMediaUrl;
+          
+          console.log(`[DEBUG][${instanceId}] Preloading image for fallback`);
+          
+          // For images, create a checking mechanism before using VideoContext
+          const testImage = new Image();
+          testImage.onload = () => {
+            // Create image source after confirming the image loads
+            try {
+              console.log(`[DEBUG][${instanceId}] Test image loaded successfully, dimensions: ${testImage.width}x${testImage.height}`);
+              console.log(`[DEBUG][${instanceId}] Creating VideoContext image source node`);
+              
+              source = ctx.image(localMediaUrl);
+              
+              // Log detailed information about the source node
+              console.log(`[DEBUG][${instanceId}] Image source created:`, {
+                source: !!source,
+                hasStart: typeof source?.start === 'function',
+                hasConnect: typeof source?.connect === 'function',
+                element: source?.element ? 'exists' : 'missing',
+                state: source?._state || 'unknown'
+              });
+              
+              // Additional safeguards for image source creation
+              if (!source || typeof source.start !== 'function') {
+                console.error(`[DEBUG][${instanceId}] Invalid image source created, switching to fallback`);
+                setUseImageFallback(true);
+                return;
+              }
+              
+              // Canvas state before source setup
+              console.log(`[DEBUG][${instanceId}] Canvas state before source setup:`, {
+                width: canvas.width,
+                height: canvas.height,
+                context2d: !!canvas.getContext('2d'),
+                webgl: !!canvas.getContext('webgl')
+              });
+              
+              // Set up error checking timeouts - check multiple times with increasing delays
+              [100, 300, 800].forEach(delay => {
+                setTimeout(() => {
+                  // Check if component is still mounted
+                  if (!canvas || !canvasRef.current) {
+                    console.log(`[DEBUG][${instanceId}] Component unmounted before ${delay}ms check`);
+                    return;
+                  }
+                  
+                  // Check if any pixels were drawn to the canvas
+                  try {
+                    const ctx2d = canvas.getContext('2d');
+                    const pixelData = ctx2d?.getImageData(0, 0, canvas.width, canvas.height).data;
+                    
+                    if (!pixelData) {
+                      console.warn(`[DEBUG][${instanceId}] ${delay}ms check: Couldn't get pixel data`);
+                      return;
+                    }
+                    
+                    // Count non-zero pixels to see if canvas has content
+                    let nonZeroPixels = 0;
+                    for (let i = 0; i < pixelData.length; i += 40) { // Check every 10th pixel for performance
+                      if (pixelData[i] !== 0 || pixelData[i+1] !== 0 || pixelData[i+2] !== 0 || pixelData[i+3] !== 0) {
+                        nonZeroPixels++;
+                      }
+                    }
+                    
+                    const pixelSampleSize = Math.floor(pixelData.length / 40);
+                    const percentNonZero = (nonZeroPixels / pixelSampleSize) * 100;
+                    
+                    console.log(`[DEBUG][${instanceId}] ${delay}ms check: Canvas content analysis:`, {
+                      sampledPixels: pixelSampleSize,
+                      nonZeroPixels,
+                      percentNonZero: percentNonZero.toFixed(2) + '%'
+                    });
+                    
+                    // If less than 1% of pixels have content, consider it empty
+                    if (percentNonZero < 1) {
+                      console.warn(`[DEBUG][${instanceId}] ${delay}ms check: Canvas appears empty (${percentNonZero.toFixed(2)}% non-zero), switching to fallback`);
+                      if (delay === 800) { // Only count failures on the final check
+                        DEBUG_COUNTERS.videoContextFailure++;
+                      }
+                      setUseImageFallback(true);
+                    } else {
+                      console.log(`[DEBUG][${instanceId}] ${delay}ms check: Canvas has content (${percentNonZero.toFixed(2)}% non-zero)`);
+                      if (delay === 800) { // Only count success on the final check
+                        DEBUG_COUNTERS.videoContextSuccess++;
+                        console.log(`[DEBUG-COUNTERS] Updated stats:`, {
+                          totalAttempts: DEBUG_COUNTERS.totalImageAttempts,
+                          vcSuccess: DEBUG_COUNTERS.videoContextSuccess,
+                          vcFailure: DEBUG_COUNTERS.videoContextFailure,
+                          fbSuccess: DEBUG_COUNTERS.fallbackSuccess,
+                          fbFailure: DEBUG_COUNTERS.fallbackFailure,
+                          successRate: `${((DEBUG_COUNTERS.videoContextSuccess + DEBUG_COUNTERS.fallbackSuccess) / 
+                            DEBUG_COUNTERS.totalImageAttempts * 100).toFixed(1)}%`
+                        });
+                      }
+                    }
+                  } catch (pixelCheckError) {
+                    console.error(`[DEBUG][${instanceId}] ${delay}ms check: Error analyzing canvas:`, pixelCheckError);
+                    setUseImageFallback(true);
+                  }
+                }, delay);
+              });
+              
+              // For images, we need to manually get the dimensions
+              const imageWidth = testImage.width;
+              const imageHeight = testImage.height;
+              const ratio = imageWidth / imageHeight;
+              
+              // Save aspect ratio for use in other parts of the component
+              setAspectRatio(ratio);
+              
+              // Determine if image is square (within a small margin of error)
+              const isSquareImage = ratio >= 0.9 && ratio <= 1.1;
+              setIsSquare(isSquareImage);
+              setIsVertical(ratio < 0.9);
+              
+              // Source setup for image - with error handling
+              try {
+                console.log(`[DEBUG][${instanceId}] Setting up source: start(0) and connect`);
+                source.start(0);
+                source.connect(ctx.destination);
+                console.log(`[DEBUG][${instanceId}] Source connected to destination successfully`);
+              } catch (sourceConnectError) {
+                console.error(`[DEBUG][${instanceId}] Failed to connect image source:`, sourceConnectError);
+                setUseImageFallback(true);
+                return;
+              }
+              
+              // Set default duration for images
+              console.log(`[DEBUG][${instanceId}] Setting default duration for image`);
+              setDuration(5);
+              setTrimEnd(5);
+              
+              // Initialize userTrimEnd if not already set
+              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
+                userTrimEndRef.current = 5;
+              }
+              
+              // Mark as ready after a brief delay to ensure rendering
+              setTimeout(() => {
+                console.log(`[DEBUG][${instanceId}] Setting component to ready state`);
+                setIsLoading(false);
+                setIsReady(true);
+              }, 200);
+              
+            } catch (imageSourceError) {
+              console.error(`[DEBUG][${instanceId}] Error creating image source:`, imageSourceError);
+              setUseImageFallback(true);
+              setImageLoadError(false); // Don't set this to true yet, let the fallback try
             }
-            
-            // Save aspect ratio for use in other parts of the component
-            setAspectRatio(ratio);
-            
-            // Determine if image is square (within a small margin of error)
-            const isSquareImage = ratio >= 0.9 && ratio <= 1.1;
-            setIsSquare(isSquareImage);
-            setIsVertical(ratio < 0.9);
           };
-          img.src = localMediaUrl;
+          
+          testImage.onerror = (err) => {
+            console.error(`[DEBUG][${instanceId}] Failed to load test image:`, err);
+            setUseImageFallback(true);
+            setImageLoadError(false); // Let the fallback <img> try first
+          };
+          
+          // Set a timeout to ensure we don't wait forever
+          const timeoutId = setTimeout(() => {
+            console.warn(`[DEBUG][${instanceId}] Image load timeout, switching to fallback`);
+            setUseImageFallback(true);
+          }, 3000);
+          
+          console.log(`[DEBUG][${instanceId}] Starting image load: ${localMediaUrl.substring(0, 30)}...`);
+          testImage.src = localMediaUrl;
+          
+          // Cleanup function for the timeout
+          return () => {
+            console.log(`[DEBUG][${instanceId}] Cleanup called for image loading timeouts`);
+            clearTimeout(timeoutId);
+          };
         } else {
-          // Create after dimensions are set
+          // Unsupported media type
           throw new Error(`Unsupported media type: ${mediaType}`);
         }
         
-        // Set up source timing and connect to output
-        source.start(0);
-        source.connect(ctx.destination);
-        console.log(`[VideoContext] Source connected to destination`);
-        
-        // Handle video loading
-        source.registerCallback('loaded', () => {
-          console.log(`[VideoContext] Source node 'loaded' callback fired`);
-          setIsLoading(false);
-          setIsReady(true);
+        // Only add callbacks for videos - image callbacks are handled separately
+        if (mediaType === 'video') {
+          // Set up source timing and connect to output
+          source.start(0);
+          source.connect(ctx.destination);
+          console.log(`[VideoContext] Source connected to destination`);
           
-          // Set duration based on media type and audio
-          if (mediaType === 'video') {
-            // Handle HTMLVideoElement specifically for type safety
-            const videoElement = source.element as HTMLVideoElement;
+          // Handle video loading
+          source.registerCallback('loaded', () => {
+            console.log(`[VideoContext] Source node 'loaded' callback fired`);
+            setIsLoading(false);
+            setIsReady(true);
             
-            console.log("[VideoContext] Video loaded", {
-              duration: videoElement.duration,
-              durationDataType: typeof videoElement.duration,
-              currentTrimEnd: trimEnd,
-              currentUserTrimEnd: userTrimEndRef.current,
-              isNaN: isNaN(videoElement.duration),
-              isFinite: isFinite(videoElement.duration),
-              canvasWidth: canvas.width,
-              canvasHeight: canvas.height
-            });
-            
-            // Set the duration
-            setDuration(videoElement.duration);
-            
-            // Log values for debugging
-            console.log(`[VideoContext] Video Duration: ${videoElement.duration}, trim.end: ${trim.end}, trimEnd: ${trimEnd}`);
-            
-            // Always ensure trimEnd is set to the full duration if not set or is the default 10 seconds
-            if (trimEnd <= 0 || trimEnd === 10) {
-              setTrimEnd(videoElement.duration);
-              console.log(`[VideoContext] Updated trimEnd to full duration: ${videoElement.duration}`);
+            // Set duration based on media type and audio
+            if (mediaType === 'video') {
+              // Handle HTMLVideoElement specifically for type safety
+              const videoElement = source.element as HTMLVideoElement;
+              
+              console.log("[VideoContext] Video loaded", {
+                duration: videoElement.duration,
+                durationDataType: typeof videoElement.duration,
+                currentTrimEnd: trimEnd,
+                currentUserTrimEnd: userTrimEndRef.current,
+                isNaN: isNaN(videoElement.duration),
+                isFinite: isFinite(videoElement.duration),
+                canvasWidth: canvas.width,
+                canvasHeight: canvas.height
+              });
+              
+              // Set the duration
+              setDuration(videoElement.duration);
+              
+              // Log values for debugging
+              console.log(`[VideoContext] Video Duration: ${videoElement.duration}, trim.end: ${trim.end}, trimEnd: ${trimEnd}`);
+              
+              // Always ensure trimEnd is set to the full duration if not set or is the default 10 seconds
+              if (trimEnd <= 0 || trimEnd === 10) {
+                setTrimEnd(videoElement.duration);
+                console.log(`[VideoContext] Updated trimEnd to full duration: ${videoElement.duration}`);
+              }
+              
+              // Initialize userTrimEnd if not already set or is currently set to 10 seconds
+              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0 || userTrimEndRef.current === 10) {
+                userTrimEndRef.current = videoElement.duration;
+                console.log("[VideoContext] Setting initial userTrimEnd to", videoElement.duration);
+              }
+              
+              // Set aspect ratio from video dimensions (don't change canvas dimensions here)
+              const videoWidth = videoElement.videoWidth;
+              const videoHeight = videoElement.videoHeight;
+              const ratio = videoWidth / videoHeight;
+              setAspectRatio(ratio);
+              
+              // Determine if video is square (within a small margin of error)
+              const isSquareVideo = ratio >= 0.9 && ratio <= 1.1;
+              setIsSquare(isSquareVideo);
+              setIsVertical(ratio < 0.9); // Only truly vertical if ratio is less than 0.9
+              
+              // Log canvas dimensions to verify
+              console.log(`[VideoContext] Current canvas dimensions: ${canvas.width}x${canvas.height} for ratio ${ratio.toFixed(2)}`);
+            } else if (audioRef.current && audioRef.current.duration) {
+              // For images with audio, use audio duration
+              console.log("[VideoContext] Audio loaded", {
+                duration: audioRef.current.duration,
+                currentTrimEnd: trimEnd,
+                currentUserTrimEnd: userTrimEndRef.current
+              });
+              
+              // Set the duration
+              setDuration(audioRef.current.duration);
+              
+              // Always ensure trimEnd is set to the full duration initially if not set
+              if (trimEnd <= 0 || trimEnd > audioRef.current.duration) {
+                setTrimEnd(audioRef.current.duration);
+              }
+              
+              // Initialize userTrimEnd if not already set
+              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
+                userTrimEndRef.current = audioRef.current.duration;
+                console.log("[VideoContext] Setting initial userTrimEnd to", audioRef.current.duration);
+              }
+            } else {
+              // Default duration for images without audio
+              console.log("[VideoContext] Setting default duration");
+              
+              // Set the duration
+              setDuration(5);
+              
+              // Always ensure trimEnd is set to the full duration initially
+              setTrimEnd(5);
+              
+              // Initialize userTrimEnd if not already set
+              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
+                userTrimEndRef.current = 5;
+                console.log("[VideoContext] Setting initial userTrimEnd to", 5);
+              }
             }
-            
-            // Initialize userTrimEnd if not already set or is currently set to 10 seconds
-            if (userTrimEndRef.current === null || userTrimEndRef.current <= 0 || userTrimEndRef.current === 10) {
-              userTrimEndRef.current = videoElement.duration;
-              console.log("[VideoContext] Setting initial userTrimEnd to", videoElement.duration);
-            }
-            
-            // Set aspect ratio from video dimensions (don't change canvas dimensions here)
-            const videoWidth = videoElement.videoWidth;
-            const videoHeight = videoElement.videoHeight;
-            const ratio = videoWidth / videoHeight;
-            setAspectRatio(ratio);
-            
-            // Determine if video is square (within a small margin of error)
-            const isSquareVideo = ratio >= 0.9 && ratio <= 1.1;
-            setIsSquare(isSquareVideo);
-            setIsVertical(ratio < 0.9); // Only truly vertical if ratio is less than 0.9
-            
-            // Log canvas dimensions to verify
-            console.log(`[VideoContext] Current canvas dimensions: ${canvas.width}x${canvas.height} for ratio ${ratio.toFixed(2)}`);
-          } else if (audioRef.current && audioRef.current.duration) {
-            // For images with audio, use audio duration
-            console.log("[VideoContext] Audio loaded", {
-              duration: audioRef.current.duration,
-              currentTrimEnd: trimEnd,
-              currentUserTrimEnd: userTrimEndRef.current
-            });
-            
-            // Set the duration
-            setDuration(audioRef.current.duration);
-            
-            // Always ensure trimEnd is set to the full duration initially if not set
-            if (trimEnd <= 0 || trimEnd > audioRef.current.duration) {
-              setTrimEnd(audioRef.current.duration);
-            }
-            
-            // Initialize userTrimEnd if not already set
-            if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-              userTrimEndRef.current = audioRef.current.duration;
-              console.log("[VideoContext] Setting initial userTrimEnd to", audioRef.current.duration);
-            }
-          } else {
-            // Default duration for images without audio
-            console.log("[VideoContext] Setting default duration");
-            
-            // Set the duration
-            setDuration(5);
-            
-            // Always ensure trimEnd is set to the full duration initially
-            setTrimEnd(5);
-            
-            // Initialize userTrimEnd if not already set
-            if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-              userTrimEndRef.current = 5;
-              console.log("[VideoContext] Setting initial userTrimEnd to", 5);
-            }
-          }
-        });
-        
-        // Set up time update callback
-        ctx.registerTimeUpdateCallback((time: number) => {
-          console.warn(`[VideoContext] Time update: ${time.toFixed(2)}`);
-          
-          // Ensure we're updating state with the latest time
-          setCurrentTime(time);
-          
-          // Request an animation frame to ensure smooth updates
-          requestAnimationFrame(() => {
-            setCurrentTime(time);
           });
           
-          // Auto-pause at trim end
-          if (time >= trimEnd) {
-            ctx.pause();
-            setIsPlaying(false);
-            if (audioRef.current) {
-              audioRef.current.pause();
+          // Set up time update callback
+          ctx.registerTimeUpdateCallback((time: number) => {
+            console.warn(`[VideoContext] Time update: ${time.toFixed(2)}`);
+            
+            // Ensure we're updating state with the latest time
+            setCurrentTime(time);
+            
+            // Request an animation frame to ensure smooth updates
+            requestAnimationFrame(() => {
+              setCurrentTime(time);
+            });
+            
+            // Auto-pause at trim end
+            if (time >= trimEnd) {
+              ctx.pause();
+              setIsPlaying(false);
+              if (audioRef.current) {
+                audioRef.current.pause();
+              }
             }
-          }
-        });
+          });
+        }
         
         return {
           context: ctx,
@@ -688,6 +842,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       } catch (error) {
         console.error('Error initializing VideoContext:', error);
         setIsLoading(false);
+        
+        // Fall back to regular image element for images
+        if (mediaType === 'image') {
+          console.log(`[VideoContext] Activating image fallback due to initialization error`);
+          setUseImageFallback(true);
+        }
+        
         return null;
       }
     };
@@ -696,11 +857,35 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Clean up
     return () => {
+      console.log(`[VideoContext] Cleanup function called for scene ${sceneId}`);
       setup.then(result => {
-        if (result?.context) {
-          result.context.reset();
-          result.context.dispose();
+        // Check if result exists and is an object with a context property
+        if (result && typeof result === 'object' && 'context' in result && result.context) {
+          console.log(`[VideoContext] Cleaning up context in effect cleanup`, {
+            hasContext: !!result.context,
+            hasReset: typeof result.context.reset === 'function',
+            hasDispose: typeof result.context.dispose === 'function'
+          });
+          
+          try {
+            // Always check if methods exist before calling
+            if (typeof result.context.reset === 'function') {
+              result.context.reset();
+            }
+            
+            if (typeof result.context.dispose === 'function') {
+              result.context.dispose();
+            } else {
+              console.warn(`[VideoContext] dispose is not a function on context during cleanup`);
+            }
+          } catch (cleanupError) {
+            console.error(`[VideoContext] Error during effect cleanup:`, cleanupError);
+          }
+        } else {
+          console.log(`[VideoContext] No context to clean up for scene ${sceneId}`);
         }
+      }).catch(error => {
+        console.error(`[VideoContext] Error in cleanup Promise:`, error);
       });
     };
   }, [localMediaUrl, mediaType]);
@@ -745,6 +930,70 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Handle play/pause with trim boundaries
   const handlePlay = () => {
+    // For images without VideoContext, update state and start animation
+    if (isImageType(mediaType)) {
+      setIsPlaying(true);
+      
+      // Play the audio if available
+      if (audioRef.current && audioUrl) {
+        audioRef.current.currentTime = currentTime;
+        audioRef.current.play().catch(err => console.error("Error playing audio:", err));
+      }
+      
+      // Start an animation loop to update the time for images
+      const startTime = currentTime;
+      const endTime = getEffectiveTrimEnd();
+      const startTimestamp = performance.now();
+      
+      console.log(`[ImagePlay] Starting image playback from ${startTime} to ${endTime}`);
+      
+      // If we're at the end already, loop back to start
+      if (currentTime >= endTime - 0.1) {
+        setCurrentTime(trimStart);
+        
+        if (audioRef.current) {
+          audioRef.current.currentTime = trimStart;
+        }
+      }
+      
+      // Create animation loop function
+      const animateImageTime = (timestamp: number) => {
+        if (!isPlaying) return; // Stop if no longer playing
+        
+        const elapsed = (timestamp - startTimestamp) / 1000; // Convert to seconds
+        const newTime = Math.min(startTime + elapsed, endTime);
+        
+        setCurrentTime(newTime);
+        
+        // Update audio time if available
+        if (audioRef.current) {
+          audioRef.current.currentTime = newTime;
+        }
+        
+        // If we've reached the end, pause
+        if (newTime >= endTime) {
+          console.log(`[ImagePlay] Reached end (${newTime} >= ${endTime}), pausing`);
+          setIsPlaying(false);
+          setCurrentTime(trimStart);
+          
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = trimStart;
+          }
+          return;
+        }
+        
+        // Continue animation
+        animationFrameRef.current = requestAnimationFrame(animateImageTime);
+      };
+      
+      // Start animation
+      animationFrameRef.current = requestAnimationFrame(animateImageTime);
+      
+      return;
+    }
+    
+    // For videos with VideoContext
     if (!videoContext || !isReady) return;
     
     // When playing, switch from first frame to canvas
@@ -767,6 +1016,25 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   };
   
   const handlePause = () => {
+    // For images without VideoContext, just update the state
+    if (isImageType(mediaType)) {
+      setIsPlaying(false);
+      
+      // Pause the audio if available
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      
+      // Cancel animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
+      }
+      
+      return;
+    }
+    
+    // For videos with VideoContext
     if (!videoContext) return;
     
     console.log("[VideoContext] Pausing playback", {
@@ -1194,6 +1462,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           onLoadedMetadata={() => {
             // Update duration for images when audio loads
             if (mediaType === 'image' && audioRef.current) {
+              console.log(`[VideoContext] Audio loaded for image, duration: ${audioRef.current.duration}`);
               setDuration(audioRef.current.duration);
               setTrimEnd(audioRef.current.duration);
             }
@@ -1225,24 +1494,94 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           />
         )}
         
+        {/* Image fallback for static images */}
+        {isImageType(mediaType) && (
+          <img
+            ref={imgRef}
+            src={mediaUrl} 
+            alt="Scene content"
+            className="w-auto h-auto max-w-full max-h-full"
+            style={{
+              ...getMediaStyle(),
+              objectFit: 'contain',
+              zIndex: 20
+            }}
+            data-testid="fallback-image"
+            onLoad={() => {
+              const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
+              console.log(`[DEBUG-FALLBACK][${instanceId}] Image loaded successfully`);
+              
+              // If we have an img element, get the aspect ratio from it
+              if (imgRef.current) {
+                const imgWidth = imgRef.current.naturalWidth;
+                const imgHeight = imgRef.current.naturalHeight;
+                const ratio = imgWidth / imgHeight;
+                console.log(`[DEBUG-FALLBACK][${instanceId}] Image dimensions: ${imgWidth}x${imgHeight}, ratio: ${ratio.toFixed(2)}`);
+                setAspectRatio(ratio);
+                
+                // Determine if image is square (within a small margin of error)
+                const isSquareImage = ratio >= 0.9 && ratio <= 1.1;
+                setIsSquare(isSquareImage);
+                setIsVertical(ratio < 0.9);
+              }
+              
+              // For images with audio, use audio duration
+              if (audioRef.current && audioRef.current.duration) {
+                setDuration(audioRef.current.duration);
+                setTrimEnd(audioRef.current.duration);
+              } else {
+                // Default duration for images without audio
+                setDuration(5);
+                setTrimEnd(5);
+              }
+              
+              setIsLoading(false);
+              setIsReady(true);
+            }}
+            onError={(e) => {
+              console.error(`[DEBUG-FALLBACK] Error loading image:`, e);
+              setIsLoading(false);
+              setImageLoadError(true);
+            }}
+          />
+        )}
+        
         {/* VideoContext canvas (visible when playing) */}
         <canvas 
           ref={canvasRef}
           className="w-auto h-auto"
           style={{
             ...getMediaStyle(),
-            display: showFirstFrame && mediaType === 'video' ? 'none' : 'block',
+            display: (isImageType(mediaType)) ? 'none' : 
+                    (showFirstFrame && mediaType === 'video') ? 'none' : 'block',
+            zIndex: 10, // Lower than the overlay button
+            pointerEvents: 'none' // Don't block click events
           }}
           data-testid="videocontext-canvas"
         />
+        
+        {/* Error display if both VideoContext and fallback fail */}
+        {mediaType === 'image' && imageLoadError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 text-white text-sm">
+            <div className="text-center p-4">
+              <div>Failed to load image</div>
+              <div className="text-xs mt-1">Please check the image URL</div>
+            </div>
+          </div>
+        )}
         
         {/* Play/Pause overlay */}
         <button
           onClick={(e) => {
             e.stopPropagation(); // Prevent click from bubbling up to scene
             isPlaying ? handlePause() : handlePlay();
+            console.log(`[VideoContext] Play/Pause button clicked: isPlaying=${isPlaying} -> ${!isPlaying}`);
           }}
           className="absolute inset-0 w-full h-full flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-20 transition-opacity"
+          style={{ 
+            zIndex: 40, // Ensure it's above everything else
+            pointerEvents: 'auto' // Explicitly enable pointer events
+          }}
           data-testid="play-pause-button"
           onMouseDown={(e) => e.stopPropagation()}
           draggable={false}
@@ -1258,7 +1597,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         {process.env.NODE_ENV === 'development' && (
           <div 
             className="absolute top-1 left-1 bg-black bg-opacity-50 px-1 py-0.5 text-white text-xs rounded"
-            style={aspectRatioIndicatorStyle}
+            style={{ zIndex: 20, pointerEvents: 'none' }}
           >
             {aspectRatio.toFixed(2)} / {projectAspectRatio}
           </div>
@@ -1267,17 +1606,30 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         {/* Separate background element with larger height to cover controls */}
         <div 
           className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
-          style={controlsBackgroundStyle}
+          style={{ 
+            height: '40px',
+            bottom: '0px',
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            zIndex: 45, // Higher than the play/pause button
+            pointerEvents: 'auto'
+          }}
         />
         
         {/* Controls container - now with transparent background */}
         <div 
           className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
           data-drag-handle-exclude="true"
-          style={controlsContainerStyle}
+          style={{ 
+            minHeight: '32px',
+            padding: '4px 8px 6px 8px',
+            zIndex: 50, // Higher than the background
+            pointerEvents: 'auto' // Ensure this catches pointer events
+          }}
         >
           {/* Main timeline scrubber */}
-          <div className="flex items-center px-1 mb-1 relative" data-drag-handle-exclude="true">
+          <div className="flex items-center px-1 mb-1 relative" 
+               data-drag-handle-exclude="true"
+               style={{ zIndex: 51, pointerEvents: 'auto' }}>
             {/* Timeline scrubber */}
             <input
               ref={timelineRef}
@@ -1301,16 +1653,28 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                 }
               }}
               className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${trimActive ? 'pointer-events-none' : ''}`}
-              style={timelineScrubberStyle(trimActive, currentTime)}
+              style={{ 
+                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
+                height: '4px',
+                opacity: trimActive ? 0.4 : 1, // Make the scrubber translucent when in trim mode
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                zIndex: 52,
+                pointerEvents: 'auto'
+              }}
               data-testid="timeline-scrubber"
               data-drag-handle-exclude="true"
               onMouseDown={(e) => {
                 e.stopPropagation();
                 if (!trimActive) {
                   setIsDraggingScrubber(true);
+                  console.log('[VideoContext] Timeline scrubber: mouse down');
                 }
               }}
-              onMouseUp={() => setIsDraggingScrubber(false)}
+              onMouseUp={() => {
+                setIsDraggingScrubber(false);
+                console.log('[VideoContext] Timeline scrubber: mouse up');
+              }}
               onMouseLeave={() => setIsDraggingScrubber(false)}
             />
             
@@ -1324,7 +1688,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   top: '-8px', 
                   height: '20px', // Reduced height to not overlap controls
                   width: '12px',
-                  zIndex: 15, // Lower z-index than controls
+                  zIndex: 53, // Higher z-index than scrubber
                   pointerEvents: trimActive ? 'auto' : 'none',
                   opacity: trimActive ? 1 : (trimStart <= 0.01 ? 0 : 0.6),
                   transition: 'opacity 0.2s ease'
@@ -1350,12 +1714,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                         left: '-2px',
                         WebkitAppearance: 'none',
                         appearance: 'none',
-                        zIndex: 25,
-                        opacity: 0
+                        zIndex: 54,
+                        opacity: 0,
+                        pointerEvents: 'auto'
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
                         setActiveHandle('start');
+                        console.log('[VideoContext] Trim start handle activated');
                         // Store original playback position
                         if (videoContext) {
                           setOriginalPlaybackTime(videoContext.currentTime);
@@ -1407,7 +1773,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   top: '-8px',
                   height: '20px', // Reduced height to not overlap controls
                   width: '12px',
-                  zIndex: 15, // Lower z-index than controls
+                  zIndex: 53, // Higher z-index than scrubber
                   pointerEvents: trimActive ? 'auto' : 'none',
                   opacity: trimActive ? 1 : (getEffectiveTrimEnd() >= duration - 0.01 ? 0 : 0.6),
                   transition: 'opacity 0.2s ease'
@@ -1433,12 +1799,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                         left: '-2px',
                         WebkitAppearance: 'none',
                         appearance: 'none',
-                        zIndex: 25,
-                        opacity: 0
+                        zIndex: 54,
+                        opacity: 0,
+                        pointerEvents: 'auto'
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
                         setActiveHandle('end');
+                        console.log('[VideoContext] Trim end handle activated');
                         // Store original playback position
                         if (videoContext) {
                           setOriginalPlaybackTime(videoContext.currentTime);
@@ -1483,19 +1851,22 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               </div>
             </>
           </div>
-          
+
           {/* Control buttons row */}
-          <div className="flex justify-between items-center px-1" data-drag-handle-exclude="true" style={{ position: 'relative', zIndex: 25 }}>
+          <div className="flex justify-between items-center px-1" 
+               data-drag-handle-exclude="true" 
+               style={{ position: 'relative', zIndex: 55, pointerEvents: 'auto' }}>
             {/* Lock button (left side) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setControlsLocked(!controlsLocked);
+                console.log(`[VideoContext] Lock button clicked: controlsLocked=${controlsLocked} -> ${!controlsLocked}`);
               }}
               className="text-white hover:opacity-100 focus:outline-none"
               data-testid="toggle-lock-button"
               onMouseDown={(e) => e.stopPropagation()}
-              style={{ padding: '1.5px', position: 'relative', zIndex: 30 }}
+              style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
             >
               {controlsLocked ? (
                 <LockIcon className="w-3 h-3" />
@@ -1519,11 +1890,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               onClick={(e) => {
                 e.stopPropagation();
                 setTrimActive(!trimActive);
+                console.log(`[VideoContext] Trim button clicked: trimActive=${trimActive} -> ${!trimActive}`);
               }}
               className="text-white hover:opacity-100 focus:outline-none"
               data-testid="toggle-trim-button"
               onMouseDown={(e) => e.stopPropagation()}
-              style={{ padding: '1.5px', position: 'relative', zIndex: 30 }}
+              style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
             >
               {trimActive ? (
                 <CheckIcon className="w-3 h-3" />
