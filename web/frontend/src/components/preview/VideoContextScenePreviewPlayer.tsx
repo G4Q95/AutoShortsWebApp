@@ -1603,227 +1603,256 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     );
   }
   
+  // Fix container hierarchy without disrupting controls
   return (
     <div 
-      className={`relative bg-black flex items-center justify-center ${className}`}
-      style={getContainerStyle()}
+      className={`relative bg-gray-800 flex items-center justify-center ${className}`}
+      style={{
+        width: '100%',
+        height: isCompactView ? '190px' : 'auto',
+        aspectRatio: !isCompactView ? projectAspectRatio.replace(':', '/') : undefined,
+        overflow: 'hidden'
+      }}
       ref={containerRef}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       data-testid="video-context-preview"
     >
-      {/* Add aspect ratio indicator for debugging */}
-      {(showAspectRatio || showTemporaryIndicator) && (
-        <div 
-          className="absolute left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 px-1 py-0.5 text-white rounded"
-          style={{ 
-            zIndex: 60, 
-            pointerEvents: 'none', 
-            top: '0px',
-            fontSize: '0.65rem',
-            opacity: showTemporaryIndicator ? '0.8' : '1'
-          }}
-        >
-          {/* Calculate the closest standard aspect ratio */}
-          {(() => {
-            // Function to find closest standard aspect ratio
-            const exactRatio = aspectRatio;
-            
-            // Common standard aspect ratios as [name, decimal value]
-            type RatioType = [string, number];
-            const standardRatios: RatioType[] = [
-              ['9:16', 0.5625], // 0.5625 - vertical smartphone
-              ['3:4', 0.75],    // 0.75 - classic portrait
-              ['1:1', 1],       // 1.0 - square
-              ['4:3', 1.33],    // 1.33 - classic TV/monitor
-              ['16:9', 1.78]    // 1.78 - widescreen
-            ];
-            
-            // Find the closest standard ratio
-            let closestRatio = standardRatios[0];
-            let smallestDiff = Math.abs(exactRatio - standardRatios[0][1]);
-            
-            for (let i = 1; i < standardRatios.length; i++) {
-              const diff = Math.abs(exactRatio - standardRatios[i][1]);
-              if (diff < smallestDiff) {
-                smallestDiff = diff;
-                closestRatio = standardRatios[i];
-              }
-            }
-            
-            // Format and return the new display string
-            return (
-              <>
-                <span style={{ color: '#fff' }}>{exactRatio.toFixed(2)}</span>
-                <span style={{ color: '#fff' }}> [{closestRatio[0]}]</span>
-                <span style={{ color: '#4ade80' }}> / {projectAspectRatio}</span>
-              </>
-            );
-          })()}
-        </div>
-      )}
-      
-      {/* Add style tag for custom range styling */}
-      <style>{smallRangeThumbStyles}</style>
-      
-      {/* Separate audio element for voiceover */}
-      {audioUrl && (
-        <audio 
-          ref={audioRef} 
-          src={audioUrl} 
-          preload="auto"
-          style={{ display: 'none' }}
-          data-testid="audio-element"
-          onLoadedMetadata={() => {
-            // Update duration for images when audio loads
-            if (mediaType === 'image' && audioRef.current) {
-              console.log(`[VideoContext] Audio loaded for image, duration: ${audioRef.current.duration}`);
-              setDuration(audioRef.current.duration);
-              setTrimEnd(audioRef.current.duration);
-            }
-          }}
-        />
-      )}
-      
-      {/* Media Display */}
+      {/* Black inner container for letterboxing/pillarboxing */}
       <div 
-        className="relative bg-black flex items-center justify-center"
-        style={{
-          ...getMediaContainerStyle(),
-          position: 'relative', 
-          zIndex: 5 // Ensure media container has proper z-index
-        }}
+        className="bg-black flex items-center justify-center w-full h-full relative"
+        style={getMediaContainerStyle()}
       >
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+        {/* Add aspect ratio indicator for debugging */}
+        {(showAspectRatio || showTemporaryIndicator) && (
+          <div 
+            className="absolute left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 px-1 py-0.5 text-white rounded"
+            style={{ 
+              zIndex: 60, 
+              pointerEvents: 'none', 
+              top: '0px',
+              fontSize: '0.65rem',
+              opacity: showTemporaryIndicator ? '0.8' : '1'
+            }}
+          >
+            {/* Calculate the closest standard aspect ratio */}
+            {(() => {
+              // Function to find closest standard aspect ratio
+              const exactRatio = aspectRatio;
+              
+              // Common standard aspect ratios as [name, decimal value]
+              type RatioType = [string, number];
+              const standardRatios: RatioType[] = [
+                ['9:16', 0.5625], // 0.5625 - vertical smartphone
+                ['3:4', 0.75],    // 0.75 - classic portrait
+                ['1:1', 1],       // 1.0 - square
+                ['4:3', 1.33],    // 1.33 - classic TV/monitor
+                ['16:9', 1.78]    // 1.78 - widescreen
+              ];
+              
+              // Find the closest standard ratio
+              let closestRatio = standardRatios[0];
+              let smallestDiff = Math.abs(exactRatio - standardRatios[0][1]);
+              
+              for (let i = 1; i < standardRatios.length; i++) {
+                const diff = Math.abs(exactRatio - standardRatios[i][1]);
+                if (diff < smallestDiff) {
+                  smallestDiff = diff;
+                  closestRatio = standardRatios[i];
+                }
+              }
+              
+              // Format and return the new display string
+              return (
+                <>
+                  <span style={{ color: '#fff' }}>{exactRatio.toFixed(2)}</span>
+                  <span style={{ color: '#fff' }}> [{closestRatio[0]}]</span>
+                  <span style={{ color: '#4ade80' }}> / {projectAspectRatio}</span>
+                </>
+              );
+            })()}
           </div>
         )}
         
-        {/* First frame video element (visible when not playing) */}
-        {mediaType === 'video' && showFirstFrame && (
-          <video
-            ref={videoRef}
+        {/* Add style tag for custom range styling */}
+        <style>{smallRangeThumbStyles}</style>
+        
+        {/* Separate audio element for voiceover */}
+        {audioUrl && (
+          <audio 
+            ref={audioRef} 
+            src={audioUrl} 
+            preload="auto"
+            style={{ display: 'none' }}
+            data-testid="audio-element"
+            onLoadedMetadata={() => {
+              // Update duration for images when audio loads
+              if (mediaType === 'image' && audioRef.current) {
+                console.log(`[VideoContext] Audio loaded for image, duration: ${audioRef.current.duration}`);
+                setDuration(audioRef.current.duration);
+                setTrimEnd(audioRef.current.duration);
+              }
+            }}
+          />
+        )}
+        
+        {/* Media Display */}
+        <div 
+          className="relative bg-black flex items-center justify-center"
+          style={{
+            ...getMediaStyle(),
+            position: 'relative', 
+            zIndex: 5 // Ensure media container has proper z-index
+          }}
+        >
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          )}
+          
+          {/* First frame video element (visible when not playing) */}
+          {mediaType === 'video' && showFirstFrame && (
+            <video
+              ref={videoRef}
+              className="w-auto h-auto"
+              style={{
+                ...getMediaStyle(),
+                pointerEvents: 'none' // Ensure all videos have pointer-events: none
+              }}
+              playsInline
+              muted
+              preload="auto"
+              data-testid="first-frame-video"
+            />
+          )}
+          
+          {/* Image fallback for static images */}
+          {isImageType(mediaType) && (
+            <img
+              ref={imgRef}
+              src={mediaUrl} 
+              alt="Scene content"
+              className="w-auto h-auto max-w-full max-h-full"
+              style={{
+                ...getMediaStyle(),
+                objectFit: 'contain',
+                zIndex: 10,
+                maxHeight: isCompactView ? '190px' : '100%',
+                pointerEvents: 'none' // Ensure all clicks pass through
+              }}
+              data-testid="fallback-image"
+              onLoad={() => {
+                const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
+                console.log(`[DEBUG-FALLBACK][${instanceId}] Image loaded successfully`);
+                
+                // If we have an img element, get the aspect ratio from it
+                if (imgRef.current) {
+                  const imgWidth = imgRef.current.naturalWidth;
+                  const imgHeight = imgRef.current.naturalHeight;
+                  const ratio = imgWidth / imgHeight;
+                  console.log(`[DEBUG-FALLBACK][${instanceId}] Image dimensions: ${imgWidth}x${imgHeight}, ratio: ${ratio.toFixed(2)}`);
+                  setAspectRatio(ratio);
+                  
+                  // Determine if image is square (within a small margin of error)
+                  const isSquareImage = ratio >= 0.9 && ratio <= 1.1;
+                  setIsSquare(isSquareImage);
+                  setIsVertical(ratio < 0.9);
+                }
+                
+                // For images with audio, use audio duration
+                if (audioRef.current && audioRef.current.duration) {
+                  setDuration(audioRef.current.duration);
+                  setTrimEnd(audioRef.current.duration);
+                } else {
+                  // Default duration for images without audio
+                  setDuration(30);
+                  setTrimEnd(30);
+                }
+                
+                setIsLoading(false);
+                setIsReady(true);
+              }}
+              onError={(e) => {
+                console.error(`[DEBUG-FALLBACK] Error loading image:`, e);
+                setIsLoading(false);
+                setImageLoadError(true);
+              }}
+            />
+          )}
+          
+          {/* VideoContext canvas (visible when playing) */}
+          <canvas 
+            ref={canvasRef}
             className="w-auto h-auto"
             style={{
               ...getMediaStyle(),
-              pointerEvents: 'none' // Ensure all videos have pointer-events: none
+              display: (isImageType(mediaType)) ? 'none' : 
+                      (showFirstFrame && mediaType === 'video') ? 'none' : 'block',
+              zIndex: 10, // Match the img z-index
+              pointerEvents: 'none' // Ensure all click events pass through
             }}
-            playsInline
-            muted
-            preload="auto"
-            data-testid="first-frame-video"
+            data-testid="videocontext-canvas"
           />
-        )}
-        
-        {/* Image fallback for static images */}
-        {isImageType(mediaType) && (
-          <img
-            ref={imgRef}
-            src={mediaUrl} 
-            alt="Scene content"
-            className="w-auto h-auto max-w-full max-h-full"
-            style={{
-              ...getMediaStyle(),
-              objectFit: 'contain',
-              zIndex: 10,
-              maxHeight: isCompactView ? '190px' : '100%',
-              pointerEvents: 'none' // Ensure all clicks pass through
-            }}
-            data-testid="fallback-image"
-            onLoad={() => {
-              const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
-              console.log(`[DEBUG-FALLBACK][${instanceId}] Image loaded successfully`);
-              
-              // If we have an img element, get the aspect ratio from it
-              if (imgRef.current) {
-                const imgWidth = imgRef.current.naturalWidth;
-                const imgHeight = imgRef.current.naturalHeight;
-                const ratio = imgWidth / imgHeight;
-                console.log(`[DEBUG-FALLBACK][${instanceId}] Image dimensions: ${imgWidth}x${imgHeight}, ratio: ${ratio.toFixed(2)}`);
-                setAspectRatio(ratio);
-                
-                // Determine if image is square (within a small margin of error)
-                const isSquareImage = ratio >= 0.9 && ratio <= 1.1;
-                setIsSquare(isSquareImage);
-                setIsVertical(ratio < 0.9);
-              }
-              
-              // For images with audio, use audio duration
-              if (audioRef.current && audioRef.current.duration) {
-                setDuration(audioRef.current.duration);
-                setTrimEnd(audioRef.current.duration);
-              } else {
-                // Default duration for images without audio
-                setDuration(30);
-                setTrimEnd(30);
-              }
-              
-              setIsLoading(false);
-              setIsReady(true);
-            }}
-            onError={(e) => {
-              console.error(`[DEBUG-FALLBACK] Error loading image:`, e);
-              setIsLoading(false);
-              setImageLoadError(true);
-            }}
-          />
-        )}
-        
-        {/* VideoContext canvas (visible when playing) */}
-        <canvas 
-          ref={canvasRef}
-          className="w-auto h-auto"
-          style={{
-            ...getMediaStyle(),
-            display: (isImageType(mediaType)) ? 'none' : 
-                    (showFirstFrame && mediaType === 'video') ? 'none' : 'block',
-            zIndex: 10, // Match the img z-index
-            pointerEvents: 'none' // Ensure all click events pass through
-          }}
-          data-testid="videocontext-canvas"
-        />
-        
-        {/* Error display if both VideoContext and fallback fail */}
-        {mediaType === 'image' && imageLoadError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 text-white text-sm">
-            <div className="text-center p-4">
-              <div>Failed to load image</div>
-              <div className="text-xs mt-1">Please check the image URL</div>
+          
+          {/* Error display if both VideoContext and fallback fail */}
+          {mediaType === 'image' && imageLoadError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 text-white text-sm">
+              <div className="text-center p-4">
+                <div>Failed to load image</div>
+                <div className="text-xs mt-1">Please check the image URL</div>
+              </div>
             </div>
-          </div>
-        )}
-        
-        {/* Play/Pause overlay */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation(); // Prevent click from bubbling up to scene
-            isPlaying ? handlePause() : handlePlay();
-            console.log(`[VideoContext] Play/Pause button clicked: isPlaying=${isPlaying} -> ${!isPlaying}`);
-          }}
-          className="absolute inset-0 w-full h-full flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-20 transition-opacity"
-          style={{ 
-            zIndex: 20, // Lower than controls but higher than media
-            pointerEvents: 'auto' // Explicitly enable pointer events
-          }}
-          data-testid="play-pause-button"
-          onMouseDown={(e) => e.stopPropagation()}
-          draggable={false}
-        >
-          {isPlaying ? (
-            <PauseIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
-          ) : (
-            <PlayIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
           )}
-        </button>
+          
+          {/* Play/Pause overlay */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent click from bubbling up to scene
+              isPlaying ? handlePause() : handlePlay();
+              console.log(`[VideoContext] Play/Pause button clicked: isPlaying=${isPlaying} -> ${!isPlaying}`);
+            }}
+            className="absolute inset-0 w-full h-full flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-20 transition-opacity"
+            style={{ 
+              zIndex: 20, // Lower than controls but higher than media
+              pointerEvents: 'auto' // Explicitly enable pointer events
+            }}
+            data-testid="play-pause-button"
+            onMouseDown={(e) => e.stopPropagation()}
+            draggable={false}
+          >
+            {isPlaying ? (
+              <PauseIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
+            ) : (
+              <PlayIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
+            )}
+          </button>
+        </div>
       </div>
       
-      {/* Controls container - moved outside the media container to the main container */}
+      {/* Fullscreen toggle button - positioned below the expand/collapse button */}
+      <button
+        onClick={handleFullscreenToggle}
+        className="absolute top-9 right-2 bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
+        style={{
+          zIndex: 100, // Use a very high z-index to ensure it's above all other elements
+          pointerEvents: 'auto' // Explicitly ensure it captures pointer events
+        }}
+        data-testid="fullscreen-toggle"
+      >
+        {isFullscreen ? (
+          <ExitFullscreenIcon className="h-4 w-4" />
+        ) : (
+          <FullscreenIcon className="h-4 w-4" />
+        )}
+      </button>
+      
+      {/* Controls container positioned as an overlay at the bottom */}
       <div 
         className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
         style={{ 
           backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          zIndex: 30, // Higher than media
+          zIndex: 50, // Higher than media
           pointerEvents: 'auto',
           padding: '4px 8px 6px 8px',
           width: '100%',
@@ -2133,23 +2162,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           </div>
         </div>
       </div>
-      
-      {/* Fullscreen toggle button - placed below the expand/collapse button that would be added by parent component */}
-      <button
-        onClick={handleFullscreenToggle}
-        className="absolute top-9 right-2 bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
-        style={{
-          zIndex: 100, // Use a very high z-index to ensure it's above all other elements
-          pointerEvents: 'auto' // Explicitly ensure it captures pointer events
-        }}
-        data-testid="fullscreen-toggle"
-      >
-        {isFullscreen ? (
-          <ExitFullscreenIcon className="h-4 w-4" />
-        ) : (
-          <FullscreenIcon className="h-4 w-4" />
-        )}
-      </button>
     </div>
   );
 };
