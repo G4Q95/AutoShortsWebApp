@@ -382,9 +382,26 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
                     detail=error_response
                 )
             
-            # Add R2 cleanup to background task - note we're using the enhanced implementation
-            # The dry_run parameter is set to False to actually perform the deletion
-            background_tasks.add_task(cleanup_project_storage, project_id, dry_run=False)
+            # Get the actual project ID format used in storage (the one with proj_ prefix)
+            # This might be different from the MongoDB ObjectId string
+            from app.services.project import cleanup_project_storage
+            
+            # Get the project ID used in storage from the project data
+            storage_project_id = project.get('proj_id')
+            
+            # If no proj_id field exists, try to determine from other fields or use the ObjectId
+            if not storage_project_id:
+                if 'name' in project and project['name'].startswith('proj_'):
+                    storage_project_id = project['name'].split('_')[0]
+                else:
+                    # Fallback to using the ObjectId string
+                    storage_project_id = str(obj_id)
+                    
+            logger.info(f"Deleting project with storage ID: {storage_project_id}")
+            
+            # Add R2 cleanup to background task using the project service implementation
+            # This uses the WranglerR2Client for more reliable operations with --remote flag
+            background_tasks.add_task(cleanup_project_storage, storage_project_id, dry_run=False)
             
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         except Exception as e:
@@ -399,15 +416,20 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
             )
     else:
         # Mock deletion always succeeds, but still run cleanup
-        background_tasks.add_task(cleanup_project_storage, project_id, dry_run=False)
+        from app.services.project import cleanup_project_storage
+        background_tasks.add_task(cleanup_project_storage, f"proj_{project_id}", dry_run=False)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 async def cleanup_project_storage(project_id: str, dry_run: bool = False):
     """
-    Remove all files for a project from storage using direct project ID matching.
+    Remove all files for a project from storage using multiple matching strategies.
     
-    This function uses the project ID directly as a prefix to find and delete files.
+    This function uses aggressive pattern matching to find all files related to a project:
+    1. Exact prefix matching
+    2. Project ID matching (with and without prefix)
+    3. Case-insensitive matching
+    4. Pattern variants (common known formats)
     
     Args:
         project_id: The project ID to clean up
@@ -429,36 +451,147 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False):
         "failed_files": [],
         "total_files_deleted": 0,
         "total_bytes_freed": 0,
-        "dry_run": dry_run
+        "dry_run": dry_run,
+        "matching_strategies": {},  # Track files found via each strategy
     }
     
-    # Ensure the project ID has the proj_ prefix (if it doesn't already)
-    project_id_with_prefix = project_id
-    if not project_id.startswith("proj_"):
-        project_id_with_prefix = f"proj_{project_id}"
+    # Normalize project ID and create variants for matching
+    project_id_variations = {}
     
-    logger.info(f"[CLEANUP-PROJECT] Using project ID with prefix: {project_id_with_prefix}")
+    # Original project ID (as provided)
+    project_id_variations["original"] = project_id
+    
+    # With proj_ prefix if not already there
+    if not project_id.startswith("proj_"):
+        project_id_variations["with_prefix"] = f"proj_{project_id}"
+    else:
+        project_id_variations["with_prefix"] = project_id
+        # Without proj_ prefix if it's already there
+        project_id_variations["without_prefix"] = project_id.replace("proj_", "")
+    
+    # Clean version (alphanumeric only, lowercase)
+    import re
+    clean_id = re.sub(r'[^a-zA-Z0-9]', '', project_id.replace("proj_", "")).lower()
+    project_id_variations["clean"] = clean_id
+    
+    # Log all variations
+    for key, value in project_id_variations.items():
+        logger.info(f"[CLEANUP-PROJECT] Project ID variation ({key}): '{value}'")
     
     try:
         # Get S3 client
         s3_client = await storage_service.get_s3_client()
         bucket_name = storage_service.bucket_name
         
-        # List all objects in the bucket
-        logger.info(f"[CLEANUP-PROJECT] Listing objects in bucket with prefix: {project_id_with_prefix}_")
+        # We'll collect all files to delete in this set (to avoid duplicates)
+        files_to_delete = {}  # Using dict: Key -> {Size, MatchedBy}
         
-        # Use a direct prefix search for files starting with the project ID followed by underscore
+        # STRATEGY 1: Direct prefix match with the standard format: proj_ID_
+        logger.info(f"[CLEANUP-PROJECT] STRATEGY 1: Direct prefix matching")
+        prefix = f"{project_id_variations['with_prefix']}_"
+        logger.info(f"[CLEANUP-PROJECT] Using prefix pattern: '{prefix}'")
+        
         paginator = s3_client.get_paginator('list_objects_v2')
         page_iterator = paginator.paginate(
             Bucket=bucket_name,
-            Prefix=f"{project_id_with_prefix}_"  # This is key - we're searching for exact prefix match
+            Prefix=prefix
         )
         
-        # Collect files that match our prefix exactly
-        files_to_delete = []
-        
-        # Check objects with our prefix
+        strategy1_count = 0
         async for page in page_iterator:
+            if "Contents" not in page:
+                logger.info(f"[CLEANUP-PROJECT] No objects found with prefix: '{prefix}'")
+                continue
+                
+            for obj in page["Contents"]:
+                obj_key = obj["Key"]
+                obj_size = obj.get("Size", 0)
+                
+                if obj_key not in files_to_delete:
+                    files_to_delete[obj_key] = {
+                        "Size": obj_size, 
+                        "MatchedBy": ["prefix_match"]
+                    }
+                    strategy1_count += 1
+                    logger.info(f"[CLEANUP-PROJECT] Found matching file via direct prefix: {obj_key}")
+                else:
+                    files_to_delete[obj_key]["MatchedBy"].append("prefix_match")
+        
+        logger.info(f"[CLEANUP-PROJECT] STRATEGY 1 found {strategy1_count} files")
+        results["matching_strategies"]["prefix_match"] = strategy1_count
+        
+        # STRATEGY 2: Pattern variations - try with common formats
+        logger.info(f"[CLEANUP-PROJECT] STRATEGY 2: Pattern variation matching")
+        
+        patterns = [
+            # Standard pattern with proj_
+            f"proj_{project_id_variations['without_prefix'] if 'without_prefix' in project_id_variations else project_id_variations['original']}",
+            # Double prefix pattern
+            f"proj_proj_{project_id_variations['without_prefix'] if 'without_prefix' in project_id_variations else project_id_variations['original']}",
+            # Project ID directly - more specific patterns
+            f"{project_id_variations['without_prefix'] if 'without_prefix' in project_id_variations else project_id_variations['original']}_",
+            # Hierarchical patterns
+            f"projects/{project_id_variations['with_prefix']}/",
+            f"audio/{project_id_variations['with_prefix']}/",
+            f"media/{project_id_variations['with_prefix']}/"
+        ]
+        
+        # Log all patterns we're checking
+        logger.info(f"[CLEANUP-PROJECT] Checking {len(patterns)} pattern variations:")
+        for i, pattern in enumerate(patterns):
+            logger.info(f"[CLEANUP-PROJECT] Pattern {i+1}: '{pattern}'")
+        
+        # Helper function for searching patterns
+        async def search_pattern(pattern, label):
+            nonlocal files_to_delete
+            
+            count = 0
+            try:
+                pattern_iterator = paginator.paginate(
+                    Bucket=bucket_name,
+                    Prefix=pattern
+                )
+                
+                async for page in pattern_iterator:
+                    if "Contents" not in page:
+                        continue
+                        
+                    for obj in page["Contents"]:
+                        obj_key = obj["Key"]
+                        obj_size = obj.get("Size", 0)
+                        
+                        if obj_key not in files_to_delete:
+                            files_to_delete[obj_key] = {
+                                "Size": obj_size, 
+                                "MatchedBy": [label]
+                            }
+                            count += 1
+                            logger.info(f"[CLEANUP-PROJECT] Found matching file via {label}: {obj_key}")
+                        else:
+                            files_to_delete[obj_key]["MatchedBy"].append(label)
+                            
+                return count
+            except Exception as e:
+                logger.error(f"[CLEANUP-PROJECT] Error searching pattern '{pattern}': {str(e)}")
+                return 0
+        
+        # Check all patterns
+        for i, pattern in enumerate(patterns):
+            pattern_label = f"pattern_{i+1}"
+            pattern_count = await search_pattern(pattern, pattern_label)
+            logger.info(f"[CLEANUP-PROJECT] Pattern {i+1} ('{pattern}') found {pattern_count} files")
+            results["matching_strategies"][pattern_label] = pattern_count
+        
+        # STRATEGY 3: Scan all objects for any that contain the project ID variants
+        logger.info(f"[CLEANUP-PROJECT] STRATEGY 3: Complete scan for project ID in filenames")
+        
+        # NOTE: This is potentially expensive for large buckets!
+        all_objects_iterator = paginator.paginate(Bucket=bucket_name)
+        
+        # Keep track of which objects match which patterns
+        strategy3_counts = {key: 0 for key in project_id_variations.keys()}
+        
+        async for page in all_objects_iterator:
             if "Contents" not in page:
                 continue
                 
@@ -466,31 +599,70 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False):
                 obj_key = obj["Key"]
                 obj_size = obj.get("Size", 0)
                 
-                # These files match our exact prefix, so we'll delete them
-                files_to_delete.append({
-                    "Key": obj_key,
-                    "Size": obj_size
-                })
-                logger.info(f"[CLEANUP-PROJECT] Found matching file: {obj_key}")
+                # Try each project ID variant
+                for variant_name, variant_value in project_id_variations.items():
+                    # Skip empty or too short variants (avoid false positives)
+                    if not variant_value or len(variant_value) < 5:
+                        continue
+                        
+                    # Check if variant is contained in the object key (case sensitive)
+                    if variant_value in obj_key:
+                        match_label = f"contains_{variant_name}"
+                        
+                        if obj_key not in files_to_delete:
+                            files_to_delete[obj_key] = {
+                                "Size": obj_size, 
+                                "MatchedBy": [match_label]
+                            }
+                            strategy3_counts[variant_name] += 1
+                            logger.info(f"[CLEANUP-PROJECT] Found matching file contains_{variant_name}: {obj_key}")
+                        else:
+                            files_to_delete[obj_key]["MatchedBy"].append(match_label)
+                            
+                    # Also try case-insensitive matching
+                    elif variant_value.lower() in obj_key.lower():
+                        match_label = f"case_insensitive_{variant_name}"
+                        
+                        if obj_key not in files_to_delete:
+                            files_to_delete[obj_key] = {
+                                "Size": obj_size, 
+                                "MatchedBy": [match_label]
+                            }
+                            strategy3_counts[variant_name] += 1
+                            logger.info(f"[CLEANUP-PROJECT] Found matching file case_insensitive_{variant_name}: {obj_key}")
+                        else:
+                            files_to_delete[obj_key]["MatchedBy"].append(match_label)
         
-        # Log summary of found files
-        logger.info(f"[CLEANUP-PROJECT] Found {len(files_to_delete)} files with prefix {project_id_with_prefix}_")
+        # Log results for strategy 3
+        for variant_name, count in strategy3_counts.items():
+            logger.info(f"[CLEANUP-PROJECT] Variant '{variant_name}' found {count} files")
+            results["matching_strategies"][f"contains_{variant_name}"] = count
+        
+        # Summarize all matching results
+        total_files = len(files_to_delete)
+        logger.info(f"[CLEANUP-PROJECT] SUMMARY: Found {total_files} unique files to delete across all strategies")
         
         # Skip deletion if in dry run mode
         if dry_run:
-            logger.info(f"[CLEANUP-PROJECT] DRY RUN - would delete {len(files_to_delete)} files:")
-            for file in files_to_delete:
-                logger.info(f"[CLEANUP-PROJECT] - Would delete: {file['Key']} ({file['Size']/1024:.2f} KB)")
+            logger.info(f"[CLEANUP-PROJECT] DRY RUN - would delete {total_files} files:")
+            for key, info in list(files_to_delete.items())[:10]:  # Show first 10
+                logger.info(f"[CLEANUP-PROJECT] - Would delete: {key} ({info['Size']/1024:.2f} KB), matched by: {', '.join(info['MatchedBy'])}")
             
-            results["dry_run_matches"] = [f["Key"] for f in files_to_delete]
-            results["dry_run_total_bytes"] = sum(f["Size"] for f in files_to_delete)
+            if total_files > 10:
+                logger.info(f"[CLEANUP-PROJECT] - ... and {total_files - 10} more files")
+                
+            results["dry_run_matches"] = list(files_to_delete.keys())
+            results["dry_run_total_bytes"] = sum(info["Size"] for info in files_to_delete.values())
             
             return results
         
+        # Convert to format needed for deletion
+        files_to_delete_list = [{"Key": key, "Size": info["Size"]} for key, info in files_to_delete.items()]
+        
         # Process files in batches (S3 delete_objects has a limit of 1000 objects per request)
         batch_size = 500
-        for i in range(0, len(files_to_delete), batch_size):
-            batch = files_to_delete[i:i + batch_size]
+        for i in range(0, len(files_to_delete_list), batch_size):
+            batch = files_to_delete_list[i:i + batch_size]
             
             # Skip empty batches
             if not batch:
@@ -549,8 +721,14 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False):
         
         # Log summary of cleanup
         logger.info(f"[CLEANUP-PROJECT] Project cleanup summary for {project_id}:")
+        logger.info(f"[CLEANUP-PROJECT] - Total files found: {total_files}")
         logger.info(f"[CLEANUP-PROJECT] - Total files deleted: {results['total_files_deleted']}")
         logger.info(f"[CLEANUP-PROJECT] - Total storage freed: {results['total_bytes_freed']/1024/1024:.2f} MB")
+        
+        # Log strategy results
+        logger.info(f"[CLEANUP-PROJECT] - Files found by strategy:")
+        for strategy, count in results["matching_strategies"].items():
+            logger.info(f"[CLEANUP-PROJECT]   - {strategy}: {count}")
         
         if results["deleted_files"]:
             logger.info(f"[CLEANUP-PROJECT] - First few deleted files:")

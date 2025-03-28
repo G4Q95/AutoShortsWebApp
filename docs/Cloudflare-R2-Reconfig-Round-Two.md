@@ -433,4 +433,511 @@ To verify deletion is working:
 
 3. **Migration Script**:
    - Develop a script to migrate objects from old path structures to new ones
-   - Eliminate duplicate patterns over time 
+   - Eliminate duplicate patterns over time
+
+4. **R2 Directory Browser Integration**:
+   - Consider implementing [r2-dir-list](https://github.com/cmj2002/r2-dir-list) for better bucket navigation
+   - Would provide web-based directory-style browsing of R2 storage
+   - Useful for debugging and content management
+   - No impact on normal bucket operations
+   - Could help identify file pattern issues more easily
+
+## Latest Attempts (June 2024)
+
+After several rounds of testing different approaches, we've documented our most recent attempts to resolve the R2 storage cleanup issues:
+
+### Attempt 1: URL-Based 13-Character Matching
+
+We observed that project URLs and R2 filenames shared a common pattern:
+- Project URLs: `localhost:3000/projects/proj_m8s1kqpq`
+- R2 filenames: `proj_m8s1kqpq_sdwytmk4ys49dk7vu3dul_media.mp4`
+
+We implemented a solution that:
+1. Extracted the unique 13-character identifier from the project ID (e.g., `m8s1kqpq`)
+2. Searched for files containing this unique ID anywhere in their name
+3. Added these matches to the files found by the standard prefix matching
+
+Implementation:
+```python
+# Extract the unique identifier (without proj_ prefix)
+project_id_clean = project_id_with_prefix.replace("proj_", "")
+unique_id = project_id_clean[:13] if len(project_id_clean) >= 13 else project_id_clean
+
+# Find objects containing our unique ID
+unique_id_matches = []
+for obj in all_objects:
+    if unique_id in obj_key and not already_matched(obj_key):
+        unique_id_matches.append(obj)
+```
+
+**Results**: Despite the visual match between URLs and filenames, this approach did not successfully identify and delete the expected files.
+
+### Attempt 2: Aggressive Multi-Strategy Pattern Matching (June 2024)
+
+After the 13-character matching approach failed, we implemented a much more aggressive pattern matching strategy that:
+
+1. Created multiple variations of the project ID to handle different formats:
+   - Original ID (as provided)
+   - With "proj_" prefix
+   - Without "proj_" prefix
+   - Clean version (alphanumeric only, lowercase)
+
+2. Used three different matching strategies:
+   - Strategy 1: Direct prefix matching (standard format)
+   - Strategy 2: Pattern variations based on common known formats (6 different patterns)
+   - Strategy 3: Complete bucket scan with case-sensitive and case-insensitive matching
+
+Implementation:
+```python
+# Create variations of the project ID
+project_id_variations = {
+    "original": project_id,
+    "with_prefix": f"proj_{project_id}" if not project_id.startswith("proj_") else project_id,
+    "clean": re.sub(r'[^a-zA-Z0-9]', '', project_id.replace("proj_", "")).lower()
+}
+if project_id.startswith("proj_"):
+    project_id_variations["without_prefix"] = project_id.replace("proj_", "")
+
+# Define common pattern variations
+patterns = [
+    f"proj_{project_id_variations['without_prefix']}",  # Standard pattern
+    f"proj_proj_{project_id_variations['without_prefix']}",  # Double prefix
+    f"{project_id_variations['without_prefix']}_",  # Direct ID with underscore
+    f"projects/{project_id_variations['with_prefix']}/",  # Hierarchical paths
+    f"audio/{project_id_variations['with_prefix']}/",
+    f"media/{project_id_variations['with_prefix']}/"
+]
+
+# Complete scan with case-insensitive matching
+for variant_name, variant_value in project_id_variations.items():
+    if variant_value in obj_key:  # Case-sensitive
+        # Match found
+    elif variant_value.lower() in obj_key.lower():  # Case-insensitive
+        # Match found
+```
+
+**Results**: Despite the comprehensive approach testing multiple pattern variations, this aggressive matching strategy also failed to identify and delete the expected files.
+
+### Attempt 3: Alternative S3/R2 Deletion Methods (June 2024)
+
+After our custom pattern matching strategies failed, we investigated standard AWS S3 methods for deletion that work with Cloudflare R2, as R2 is compatible with the S3 API:
+
+1. **Direct Object Deletion**:
+   ```python
+   response = await s3_client.delete_object(
+       Bucket=bucket_name,
+       Key=object_key
+   )
+   ```
+
+2. **Batch Object Deletion**:
+   ```python
+   response = await s3_client.delete_objects(
+       Bucket=bucket_name,
+       Delete={
+           "Objects": [{"Key": key1}, {"Key": key2}]
+       }
+   )
+   ```
+
+3. **Lifecycle Rules**: Configured with R2 dashboard.
+
+4. **Tag-Based Deletion**: We explored adding metadata tags to files during upload:
+   ```python
+   # During upload:
+   await s3_client.put_object(
+       Bucket=bucket_name,
+       Key=object_key,
+       Body=file_content,
+       Tagging=f"project_id={project_id}"
+   )
+   
+   # During deletion:
+   response = await s3_client.list_objects_v2(
+       Bucket=bucket_name,
+       # List objects with specific tags
+   )
+   ```
+
+We also researched standard methods for R2 deletion:
+
+1. **Using the Cloudflare Dashboard**: Manual deletion through the web interface
+2. **Using r2.delete function**: For code-based deletion
+3. **Using AWS CLI**: Configured with R2 credentials
+4. **Using Wrangler**: Cloudflare's command-line tool
+5. **Using Object Lifecycles**: For automatic deletion
+
+**Results**: Our implementation is already using the S3-compatible API methods (specifically `delete_objects` for batch deletion). The tagging-based approach may warrant further investigation as it doesn't rely on filename patterns.
+
+### Attempt 4: Wrangler-Based Direct Deletion (June 2024)
+
+After multiple attempts with the S3-compatible API, we've decided to try using Cloudflare's official CLI tool, Wrangler, which provides direct access to R2 storage. Wrangler is purpose-built for Cloudflare and should avoid the compatibility issues we've encountered with the S3 API.
+
+### Background
+
+Wrangler is Cloudflare's official command-line tool for managing Cloudflare Workers and R2 storage. It provides direct commands for working with R2 buckets, making it a more reliable option than going through the S3-compatible API.
+
+Key advantages of using Wrangler:
+- Direct integration with Cloudflare's APIs
+- Purpose-built commands for R2 management
+- Avoids compatibility issues with the S3 API
+- Better error reporting and debugging
+
+### Implementation
+
+We've created a Python wrapper around the Wrangler CLI commands to enable seamless integration with our backend. This implementation includes:
+
+1. A `WranglerR2Client` class that interfaces with the Wrangler CLI
+2. Support for listing, searching, and deleting R2 objects
+3. Enhanced logging for all operations
+4. Retry mechanisms for failed operations
+5. Integration with our existing project cleanup flow
+
+#### Key Components
+
+**WranglerR2Client Class:**
+The core component of our implementation is the `WranglerR2Client` class, which provides a Python interface to the Wrangler CLI. This class includes methods for listing objects, finding objects containing specific strings, and deleting objects.
+
+```python
+class WranglerR2Client:
+    def __init__(self, bucket_name: str, retry_attempts: int = 3):
+        self.bucket_name = bucket_name
+        self.retry_attempts = retry_attempts
+        
+    def list_objects(self, prefix: Optional[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        # List objects in the bucket with optional prefix and limit
+        
+    def find_objects_containing(self, substring: str, case_sensitive: bool = True) -> List[Dict[str, Any]]:
+        # Find all objects containing a specific substring in their key
+        
+    def delete_object(self, object_key: str) -> bool:
+        # Delete a single object from the bucket
+        
+    def batch_delete_objects(self, object_keys: List[str]) -> Tuple[int, int, List[str]]:
+        # Delete multiple objects in sequence
+        
+    def delete_objects_by_project_id(self, project_id: str, dry_run: bool = False) -> Dict[str, Any]:
+        # Delete all objects associated with a project ID
+```
+
+**Integration with Project Deletion:**
+We've updated the `cleanup_project_storage` function to use the Wrangler client for finding and deleting files associated with a project:
+
+```python
+async def cleanup_project_storage(project_id: str, dry_run: bool = False) -> dict:
+    # Ensure project ID has the correct format
+    if not project_id.startswith("proj_"):
+        project_id = f"proj_{project_id}"
+    
+    # Initialize the Wrangler R2 client
+    settings = get_settings()
+    bucket_name = settings.r2_bucket_name
+    wrangler_client = WranglerR2Client(bucket_name)
+    
+    # Use the Wrangler client to find and delete files
+    results = wrangler_client.delete_objects_by_project_id(project_id, dry_run=dry_run)
+    
+    # Log summary
+    if dry_run:
+        logger.info(f"[CLEANUP] DRY RUN completed for {project_id}")
+    else:
+        logger.info(f"[CLEANUP] Completed for {project_id}: Deleted {results['total_deleted']} files")
+    
+    return results
+```
+
+**CLI Scripts for Testing and Debugging:**
+We've also created several CLI scripts to facilitate testing and debugging:
+
+1. `test_wrangler.py` - Verifies Wrangler installation and bucket access
+2. `list_r2_objects.py` - Lists objects in the bucket with filtering options
+3. `cleanup_project_files.py` - Command-line interface for project cleanup
+
+### Advantages of This Approach
+
+1. **Direct Access**: Using Wrangler provides direct access to Cloudflare's R2 API, avoiding any compatibility issues with the S3 API.
+2. **Simplified Logic**: The implementation doesn't rely on complex pattern matching for finding files, instead using a more reliable search approach.
+3. **Better Error Reporting**: Wrangler provides more detailed error messages, making it easier to diagnose issues.
+4. **Thorough Deletion**: By searching for variations of the project ID, we can ensure that all associated files are deleted.
+5. **Dry Run Support**: The implementation includes a dry run option for testing deletion without actually removing files.
+
+### Potential Challenges
+
+1. **Performance**: The current implementation deletes files one at a time, which could be slow for projects with many files.
+2. **Dependency Management**: The solution requires Wrangler to be installed on the server, adding an external dependency.
+3. **Authentication**: Wrangler needs to be properly authenticated with Cloudflare, which requires setup on the server.
+
+### Testing Plan
+
+We'll test this approach thoroughly across different types of projects:
+
+1. **Verify Identification**: Ensure all files associated with a project are correctly identified
+2. **Test Dry Run Mode**: Confirm the dry run mode correctly identifies files without deleting them
+3. **Validate Deletion**: Verify that files are successfully deleted
+4. **Testing with Edge Cases**:
+   - Projects with unusual naming patterns
+   - Projects with a large number of files
+   - Projects with files that have been modified by other processes
+
+### Next Steps
+
+1. Complete the implementation of the Wrangler-based approach
+2. Test thoroughly with both dry runs and actual deletions
+3. Monitor performance and make optimizations if needed
+4. Update documentation with findings and results
+
+## Future Improvements
+
+1. **Storage Pattern Standardization**:
+   - Ensure all code paths use the centralized path generation function
+   - Move all legacy data to the new flat structure
+
+2. **Lifecycle Rules**:
+   - Implement R2 lifecycle rules to automatically delete objects after a certain period
+   - Particularly useful for temporary files and content from deleted projects
+
+3. **Migration Script**:
+   - Develop a script to migrate objects from old path structures to new ones
+   - Eliminate duplicate patterns over time
+
+4. **R2 Directory Browser Integration**:
+   - Consider implementing [r2-dir-list](https://github.com/cmj2002/r2-dir-list) for better bucket navigation
+   - Would provide web-based directory-style browsing of R2 storage
+   - Useful for debugging and content management
+   - No impact on normal bucket operations
+   - Could help identify file pattern issues more easily
+
+### Helper Scripts
+
+To make it easier to work with Wrangler and R2, we've created several helper scripts:
+
+#### 1. `setup_wrangler.py`
+
+This script guides you through the process of setting up Wrangler authentication and testing your R2 access.
+
+```bash
+# Run the setup script
+cd web/backend/scripts
+./setup_wrangler.py
+```
+
+The script will:
+- Check if Wrangler is installed
+- Verify Wrangler authentication status
+- Guide you through the login process if needed
+- Test access to your R2 buckets
+- Help you set up the required environment variables
+
+#### 2. `test_wrangler.py`
+
+This script verifies that Wrangler is correctly configured to access your R2 bucket.
+
+```bash
+# Run the test script
+cd web/backend/scripts
+./test_wrangler.py
+```
+
+The script will:
+- Check if Wrangler is installed
+- Test listing objects in your R2 bucket
+- Verify permissions for deletion operations
+
+#### 3. `list_r2_objects.py`
+
+This script lets you list and search for objects in your R2 bucket.
+
+```bash
+# List all objects in the bucket (up to 100)
+cd web/backend/scripts
+./list_r2_objects.py
+
+# List objects with a specific prefix
+./list_r2_objects.py --prefix proj_abc123
+
+# Search for objects containing a string
+./list_r2_objects.py --search "video"
+
+# Case-insensitive search
+./list_r2_objects.py --search "audio" --case-insensitive
+
+# Limit the number of results
+./list_r2_objects.py --limit 50
+```
+
+The script provides detailed information about the objects in your bucket, including:
+- Object keys
+- Sizes
+- ETags
+- Upload timestamps
+- Summary statistics by prefix
+
+#### 4. `cleanup_project_files.py`
+
+This script provides a command-line interface for cleaning up files associated with a specific project.
+
+```bash
+# Clean up files for a project (dry run)
+cd web/backend/scripts
+./cleanup_project_files.py proj_abc123 --dry-run
+
+# Perform actual deletion
+./cleanup_project_files.py proj_abc123
+```
+
+The script will:
+- Find all files associated with the specified project ID
+- List files that would be deleted in dry run mode
+- Delete files and report results in normal mode 
+
+# Hybrid Approach Implementation Results (March 2025)
+
+After implementing the Wrangler-based direct deletion, we've successfully tested the hybrid approach for R2 operations. Here are the key findings and implementation details:
+
+## Hybrid Approach Implementation
+
+The hybrid approach successfully combines:
+1. **S3 API** - For comprehensive object listing and filtering
+2. **Wrangler CLI** - For reliable object operations (upload/delete)
+
+### Key Implementation Components
+
+1. **WranglerR2Client Class**:
+   - Successfully integrated with Wrangler CLI
+   - Fixed `--remote` flag requirement for all operations
+   - Corrected command syntax using `bucket-name/object-key` format
+   - Added retry mechanisms for resilience
+   - Implemented proper object existence checking
+
+2. **S3 API Integration**:
+   - Used for comprehensive object listing when available
+   - Implemented pagination for handling large datasets
+   - Added error handling for authentication issues
+
+3. **Fallback Mechanism**:
+   - System detects when S3 API fails (e.g., 401 Unauthorized)
+   - Automatically falls back to Wrangler for basic operations
+   - Logs appropriate warnings and continues operations
+
+4. **Project ID Normalization**:
+   - Handles various project ID formats:
+     - With "proj_" prefix
+     - Without prefix
+     - Double-prefixed formats
+   - Ensures all variations are properly cleaned up
+
+## Testing Results
+
+We've validated the hybrid approach with comprehensive tests:
+
+1. **Object Listing**: S3 API successfully lists objects when authorized
+2. **Object Upload**: Wrangler reliably uploads files with `--remote` flag
+3. **Object Existence**: Wrangler correctly checks if objects exist
+4. **Object Deletion**: Wrangler successfully deletes objects
+5. **Project Cleanup**: Successfully identifies and cleans up project files
+
+## Implementation Details
+
+The hybrid approach is implemented in the following components:
+
+1. **Scripts**:
+   - `
+
+# Critical R2 Findings - March 2025
+
+After extensive testing, we've identified several key findings for working with Cloudflare R2 storage:
+
+## The `--remote` Flag is Essential
+
+The most important discovery is that **all Wrangler R2 commands must use the `--remote` flag** to access the actual cloud bucket. Without this flag, commands will only affect a local simulator of the bucket:
+
+```bash
+# This only affects the local simulator (NOT the actual cloud bucket):
+wrangler r2 object delete autoshorts-media/test.txt
+
+# This affects the actual cloud bucket:
+wrangler r2 object delete autoshorts-media/test.txt --remote
+```
+
+This explains why our previous deletion attempts appeared to succeed but didn't actually remove files from R2.
+
+## Direct Command Approach
+
+Our updated implementation uses direct Wrangler commands for R2 operations. The correct syntax for key operations is:
+
+1. **Delete Object**:
+   ```bash
+   wrangler r2 object delete bucket-name/object-key --remote
+   ```
+
+2. **Upload Object**:
+   ```bash
+   wrangler r2 object put bucket-name/object-key --file local-path --remote
+   ```
+
+3. **Get Object**:
+   ```bash
+   wrangler r2 object get bucket-name/object-key --remote
+   ```
+
+## Command Limitations
+
+Some R2 operations are limited with the Wrangler CLI:
+
+1. **No Native Object Listing**: Wrangler doesn't provide a direct command to list objects in a bucket. Our implementation uses alternatives:
+   - Direct deletion of known objects
+   - Pattern-based searching
+   - Integrating with AWS S3 API for listing when possible
+
+2. **No Advanced Filtering**: Unlike the S3 API, Wrangler doesn't support prefix filtering, pagination, or other advanced querying features.
+
+## Debugging Tools
+
+We've created several scripts to help diagnose and fix R2-related issues:
+
+1. **Fast Deletion Script**: `web/backend/scripts/test_fast_deletion.py`
+   - Deletes all files associated with a specific project ID
+   - Uses pattern-based matching to find related files
+   - Includes dry-run mode for testing
+
+2. **File Checker Script**: `web/backend/scripts/check_exact_file.py`
+   - Verifies if specific files exist in R2 storage
+   - Useful for debugging deletion issues
+
+3. **File Deletion Script**: `web/backend/scripts/delete_files.py`
+   - Deletes specific files from R2 storage
+   - Useful for manual cleanup
+
+## Known Issues and Troubleshooting
+
+### 1. Scene Cards Not Loading
+
+Some users have reported issues with scene cards not loading properly in the video editor (appearing empty as in the screenshot). This appears to be a separate issue from R2 storage deletion, and may be related to:
+
+- Media URLs not resolving correctly
+- Frontend not receiving proper scene data
+- Rendering issues in the scene components
+
+Troubleshooting steps:
+1. Check browser console for errors when scenes fail to load
+2. Inspect network requests to see if media files are being fetched correctly
+3. Check if scene data includes proper media paths
+
+### 2. Cloudflare Dashboard Caching
+
+The Cloudflare R2 dashboard may show cached or stale data. Files that appear in the dashboard might have already been deleted or might not reflect recent changes. Always refresh the dashboard before concluding that deletion failed.
+
+### 3. Project Deletion Delay
+
+When a project is deleted through the web interface, the backend initiates an asynchronous background task to clean up storage. This means there may be a delay between when a project is deleted in the UI and when its files are removed from R2 storage.
+
+## Implementation Details
+
+Our solution implements a fast, pattern-based deletion approach that:
+
+1. Generates multiple file patterns based on the project ID
+2. Uses direct wrangler commands with the `--remote` flag
+3. Runs deletion operations in parallel without waiting for completion
+4. Handles various naming patterns and edge cases
+
+The implementation successfully addresses the most common deletion scenarios while improving performance by avoiding expensive list operations.

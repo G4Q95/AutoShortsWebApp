@@ -1,0 +1,904 @@
+import logging
+import os
+import traceback
+from typing import BinaryIO, Optional, Tuple, Any, List, Dict, Union
+
+import boto3
+from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
+
+from app.core.config import settings
+from app.services.wrangler_r2 import WranglerR2Client
+
+logger = logging.getLogger(__name__)
+
+
+class R2Storage:
+    """
+    Class for interacting with Cloudflare R2 Storage.
+    Uses S3-compatible API with WranglerR2Client as fallback for critical operations.
+    """
+
+    def __init__(self):
+        """Initialize the R2 client."""
+        # Use the endpoint URL from settings if available, otherwise construct it
+        self.endpoint_url = settings.R2_ENDPOINT or f"https://{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+        self.bucket_name = settings.R2_BUCKET_NAME
+        
+        # Log configuration details (with sensitive parts masked)
+        logger.info(f"Initializing R2Storage with endpoint: {self.endpoint_url}")
+        logger.info(f"Using bucket: {self.bucket_name}")
+        logger.info(f"Access Key ID: {settings.R2_ACCESS_KEY_ID[:4]}...{settings.R2_ACCESS_KEY_ID[-4:]}")
+        
+        # Validate settings
+        if not settings.R2_ENDPOINT and not settings.R2_ACCOUNT_ID:
+            logger.error("Neither R2_ENDPOINT nor R2_ACCOUNT_ID is set")
+        if not settings.R2_ACCESS_KEY_ID:
+            logger.error("R2_ACCESS_KEY_ID is not set or empty")
+        if not settings.R2_SECRET_ACCESS_KEY:
+            logger.error("R2_SECRET_ACCESS_KEY is not set or empty")
+        if not settings.R2_BUCKET_NAME:
+            logger.error("R2_BUCKET_NAME is not set or empty")
+
+        # Create session with error handling
+        try:
+            self.s3 = boto3.client(
+                "s3",
+                endpoint_url=self.endpoint_url,
+                aws_access_key_id=settings.R2_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+                region_name="auto",  # Cloudflare R2 requires a specific region: auto, wnam, enam, weur, eeur, apac
+            )
+            
+            # Test connection during initialization
+            self._test_connection()
+            self.s3_available = True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize S3 client: {str(e)}")
+            logger.error(traceback.format_exc())
+            # Still create the client, but mark it as unavailable
+            self.s3 = boto3.client(
+                "s3",
+                endpoint_url=self.endpoint_url,
+                aws_access_key_id=settings.R2_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+                region_name="auto",
+            )
+            self.s3_available = False
+        
+        # Initialize WranglerR2Client as fallback for critical operations
+        try:
+            self.wrangler_client = WranglerR2Client(bucket_name=self.bucket_name)
+            logger.info("Successfully initialized WranglerR2Client as backup")
+        except Exception as e:
+            logger.error(f"Failed to initialize WranglerR2Client: {str(e)}")
+            self.wrangler_client = None
+    
+    def _test_connection(self):
+        """Test connection to R2 by listing buckets."""
+        try:
+            # First check if our bucket exists
+            self.s3.head_bucket(Bucket=self.bucket_name)
+            logger.info(f"Successfully connected to R2 bucket: {self.bucket_name}")
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code')
+            if error_code == '403':
+                logger.error(f"Access denied to bucket {self.bucket_name}. Check your credentials.")
+            elif error_code == '404':
+                logger.error(f"Bucket {self.bucket_name} does not exist.")
+            else:
+                logger.error(f"Error checking bucket: {str(e)}")
+        except NoCredentialsError:
+            logger.error("Credentials not available or incorrect")
+        except EndpointConnectionError:
+            logger.error(f"Could not connect to endpoint: {self.endpoint_url}")
+        except Exception as e:
+            logger.error(f"Error testing R2 connection: {str(e)}")
+            logger.error(traceback.format_exc())
+
+    def get_file_path(
+        self, 
+        user_id: str, 
+        project_id: str, 
+        scene_id: Optional[str] = None, 
+        file_type: Optional[str] = None, 
+        filename: Optional[str] = None,
+        use_simplified_structure: bool = True
+    ) -> str:
+        """
+        Generate a structured file path for storage.
+        
+        Args:
+            user_id: User ID for the file owner
+            project_id: Project ID the file belongs to
+            scene_id: Optional scene ID
+            file_type: Optional file type (e.g., 'video', 'audio', 'image')
+            filename: Optional filename
+            use_simplified_structure: Whether to use the new simplified flat structure
+            
+        Returns:
+            Structured file path
+        """
+        # Log input parameters for debugging
+        logger.info(f"[STORAGE-PATH-DEBUG] Called with: user_id={user_id}, project_id={project_id}, scene_id={scene_id}, file_type={file_type}, filename={filename}, use_simplified={use_simplified_structure}")
+        
+        # Simplified flat structure
+        if use_simplified_structure:
+            # Ensure we have the basic components needed
+            if not project_id:
+                logger.warning(f"[STORAGE-PATH] Missing project_id, falling back to hierarchical structure")
+                use_simplified_structure = False
+            else:
+                # Check if project_id already starts with "proj_" to avoid double prefix
+                prefix = ""
+                if not project_id.startswith("proj_"):
+                    prefix = "proj_"
+                    logger.info(f"[STORAGE-PATH-DEBUG] Adding 'proj_' prefix to project_id")
+                else:
+                    logger.info(f"[STORAGE-PATH-DEBUG] Project ID already has 'proj_' prefix, not adding again")
+                
+                # Build simplified path with conditional prefix
+                path_components = [f"{prefix}{project_id}"]
+                logger.info(f"[STORAGE-PATH-DEBUG] First path component: {path_components[0]}")
+                
+                # Add scene component if available
+                if scene_id:
+                    path_components.append(scene_id)
+                else:
+                    path_components.append("general")
+                    
+                # Add file type component if available
+                if file_type:
+                    path_components.append(file_type)
+                else:
+                    path_components.append("media")
+                
+                # Process filename
+                if filename:
+                    # Extract extension if present
+                    if '.' in filename:
+                        name_part, ext = os.path.splitext(filename)
+                    else:
+                        name_part, ext = filename, ''
+                        
+                    # Combine all components with the filename
+                    final_filename = f"{'_'.join(path_components)}{ext}"
+                    
+                    logger.info(f"[STORAGE-PATH] Using simplified path: {final_filename}")
+                    return final_filename
+                    
+                # If we don't have a filename, we can't use the simplified structure
+                logger.warning(f"[STORAGE-PATH] Missing filename for simplified structure, falling back to hierarchical")
+                use_simplified_structure = False
+                
+        # Traditional hierarchical structure (fallback)
+        if not use_simplified_structure:
+            # Default user ID if not provided
+            if not user_id:
+                user_id = "default"
+                
+            # Build hierarchical path components
+            path_parts = ["users", user_id, "projects", project_id]
+            
+            # Add scene component if available
+            if scene_id:
+                path_parts.extend(["scenes", scene_id])
+                
+            # Add file type component if available
+            if file_type:
+                path_parts.append(file_type)
+                
+            # Add filename component if available
+            if filename:
+                path_parts.append(filename)
+                
+            # Join path components with forward slashes
+            path = '/'.join(path_parts)
+            logger.info(f"[STORAGE-PATH] Using hierarchical path: {path}")
+            return path
+
+    async def upload_file(
+        self, file_path: str, object_name: Optional[str] = None,
+        user_id: Optional[str] = None, project_id: Optional[str] = None,
+        scene_id: Optional[str] = None, file_type: Optional[str] = None
+    ) -> Tuple[bool, str]:
+        """
+        Upload a file to R2 storage.
+
+        Args:
+            file_path: Path to the file to upload
+            object_name: S3 object name (if not specified, file_path's basename is used)
+            user_id: Optional user ID for structured storage path
+            project_id: Optional project ID for structured storage path
+            scene_id: Optional scene ID for structured storage path
+            file_type: Optional file type category for structured storage path
+
+        Returns:
+            Tuple of (success, url or error message)
+        """
+        if not os.path.exists(file_path):
+            logger.error(f"File not found during upload: {file_path}")
+            return False, f"File {file_path} does not exist"
+
+        # If we have user_id and project_id, use structured paths
+        if user_id and project_id:
+            filename = os.path.basename(file_path) if object_name is None else object_name
+            object_name = self.get_file_path(user_id, project_id, scene_id, file_type, filename)
+        elif object_name is None:
+            # Fall back to simple object name if not using structured paths
+            object_name = os.path.basename(file_path)
+        
+        logger.info(f"Attempting to upload file {file_path} to R2 as {object_name}")
+        
+        # Add file size info for debugging
+        try:
+            file_size = os.path.getsize(file_path)
+            logger.info(f"File size: {file_size} bytes")
+        except Exception as e:
+            logger.warning(f"Could not get file size: {str(e)}")
+
+        # Try S3 API first
+        if self.s3_available:
+            try:
+                # Open and read the file to ensure it's valid
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+                    logger.info(f"Successfully read {len(file_content)} bytes from file")
+                
+                # Upload the file
+                self.s3.upload_file(file_path, self.bucket_name, object_name)
+                
+                # Create a proper URL for the uploaded file
+                url = self.s3.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': self.bucket_name, 'Key': object_name},
+                    ExpiresIn=settings.R2_URL_EXPIRATION  # Use the expiration setting from config
+                )
+                
+                logger.info(f"Successfully uploaded file to R2 with S3 API: {url}")
+                return True, url
+                
+            except Exception as e:
+                logger.error(f"S3 API upload failed: {str(e)}")
+                logger.error(traceback.format_exc())
+                
+                # Fall back to Wrangler approach if available
+                if self.wrangler_client:
+                    logger.info(f"Trying upload with Wrangler client")
+                    
+                    try:
+                        success = self.wrangler_client.upload_file(file_path, object_name)
+                        if success:
+                            # Since we can't generate a real URL with Wrangler, construct a placeholder
+                            url = f"https://{self.bucket_name}.r2.cloudflarestorage.com/{object_name}"
+                            logger.info(f"Successfully uploaded file with Wrangler: {url}")
+                            return True, url
+                        else:
+                            logger.error(f"Wrangler upload failed for file: {file_path}")
+                            return False, f"Failed to upload file with both S3 API and Wrangler"
+                    except Exception as wrangler_error:
+                        logger.error(f"Wrangler upload also failed: {str(wrangler_error)}")
+                        return False, f"Failed to upload file: {str(e)}, Wrangler error: {str(wrangler_error)}"
+                else:
+                    return False, f"Failed to upload file: {str(e)}"
+        
+        # S3 API not available, try Wrangler directly
+        elif self.wrangler_client:
+            try:
+                success = self.wrangler_client.upload_file(file_path, object_name)
+                if success:
+                    # Since we can't generate a real URL with Wrangler, construct a placeholder
+                    url = f"https://{self.bucket_name}.r2.cloudflarestorage.com/{object_name}"
+                    logger.info(f"Successfully uploaded file with Wrangler: {url}")
+                    return True, url
+                else:
+                    logger.error(f"Wrangler upload failed for file: {file_path}")
+                    return False, f"Failed to upload file with Wrangler"
+            except Exception as e:
+                logger.error(f"Wrangler upload failed: {str(e)}")
+                return False, f"Failed to upload file with Wrangler: {str(e)}"
+        
+        # Neither method available
+        else:
+            error_msg = "Neither S3 API nor Wrangler client is available for upload"
+            logger.error(error_msg)
+            return False, error_msg
+
+    async def download_file(self, object_name: str, file_path: str) -> Tuple[bool, str]:
+        """
+        Download a file from R2 storage.
+
+        Args:
+            object_name: The object to download
+            file_path: The local path to save the file to
+
+        Returns:
+            Tuple of (success, url or error message)
+        """
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        try:
+            if self.s3_available:
+                self.s3.download_file(self.bucket_name, object_name, file_path)
+                logger.info(f"Successfully downloaded file from R2: {object_name} to {file_path}")
+                return True, file_path
+            else:
+                error_msg = "S3 client is not available for download"
+                logger.error(error_msg)
+                return False, error_msg
+        except Exception as e:
+            error_msg = f"Failed to download file: {str(e)}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            return False, error_msg
+
+    async def delete_file(self, object_name: str) -> Tuple[bool, str]:
+        """
+        Delete a file from R2 storage.
+
+        Args:
+            object_name: The object to delete
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not object_name:
+            return False, "No object name provided"
+        
+        # Try S3 API first
+        if self.s3_available:
+            try:
+                self.s3.delete_object(Bucket=self.bucket_name, Key=object_name)
+                logger.info(f"Successfully deleted file from R2 with S3 API: {object_name}")
+                return True, f"Deleted {object_name}"
+            except Exception as e:
+                logger.error(f"S3 API delete failed: {str(e)}")
+                
+                # Fall back to Wrangler approach if available
+                if self.wrangler_client:
+                    try:
+                        success = self.wrangler_client.delete_object(object_name)
+                        if success:
+                            logger.info(f"Successfully deleted file with Wrangler: {object_name}")
+                            return True, f"Deleted {object_name} with Wrangler"
+                        else:
+                            logger.error(f"Wrangler delete failed for file: {object_name}")
+                            return False, f"Failed to delete file with both methods"
+                    except Exception as wrangler_error:
+                        logger.error(f"Wrangler delete also failed: {str(wrangler_error)}")
+                        return False, f"Failed to delete: {str(e)}, Wrangler error: {str(wrangler_error)}"
+                else:
+                    return False, f"Failed to delete file: {str(e)}"
+        
+        # S3 API not available, try Wrangler directly
+        elif self.wrangler_client:
+            try:
+                success = self.wrangler_client.delete_object(object_name)
+                if success:
+                    logger.info(f"Successfully deleted file with Wrangler: {object_name}")
+                    return True, f"Deleted {object_name} with Wrangler"
+                else:
+                    logger.error(f"Wrangler delete failed for file: {object_name}")
+                    return False, f"Failed to delete file with Wrangler"
+            except Exception as e:
+                logger.error(f"Wrangler delete failed: {str(e)}")
+                return False, f"Failed to delete file with Wrangler: {str(e)}"
+        
+        # Neither method available
+        else:
+            error_msg = "Neither S3 API nor Wrangler client is available for deletion"
+            logger.error(error_msg)
+            return False, error_msg
+
+    async def get_file_url(self, object_name: str, expiration: int = None) -> Optional[str]:
+        """
+        Generate a presigned URL for an object.
+
+        Args:
+            object_name: The object to generate a URL for
+            expiration: The time in seconds that the URL is valid for
+
+        Returns:
+            The presigned URL, or None if there was an error
+        """
+        # Default expiration
+        if expiration is None:
+            expiration = settings.R2_URL_EXPIRATION
+        
+        # Need S3 API for presigned URLs
+        if not self.s3_available:
+            logger.error("S3 client is not available for generating URLs")
+            # Return a basic URL as fallback
+            return f"https://{self.bucket_name}.r2.cloudflarestorage.com/{object_name}"
+        
+        try:
+            url = self.s3.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket_name, 'Key': object_name},
+                ExpiresIn=expiration
+            )
+            logger.info(f"Generated presigned URL for {object_name}")
+            return url
+        except Exception as e:
+            logger.error(f"Failed to generate presigned URL: {str(e)}")
+            logger.error(traceback.format_exc())
+            return None
+
+    async def check_files_exist(self, prefix: str) -> Any:
+        """
+        Check if files with the given prefix exist.
+
+        Args:
+            prefix: The prefix to check for
+
+        Returns:
+            List of objects or None
+        """
+        # Try to optimize with HEAD request if it's a specific file
+        if '.' in prefix and '/' not in prefix.split('.')[-1]:
+            try:
+                if self.s3_available:
+                    self.s3.head_object(Bucket=self.bucket_name, Key=prefix)
+                    return [{'Key': prefix}]  # File exists
+                elif self.wrangler_client:
+                    if self.wrangler_client.object_exists(prefix):
+                        return [{'Key': prefix}]  # File exists
+            except Exception:
+                pass  # Fall back to listing
+        
+        # List objects with prefix
+        try:
+            if self.s3_available:
+                response = self.s3.list_objects_v2(Bucket=self.bucket_name, Prefix=prefix)
+                return response.get('Contents', [])
+            elif self.wrangler_client:
+                # Use limited WranglerR2Client listing
+                objects = self.wrangler_client.list_objects(prefix=prefix)
+                if objects and any(obj.get('exists', False) for obj in objects):
+                    return [{'Key': prefix}]  # At least one match
+                return []
+            else:
+                logger.error("Neither S3 API nor Wrangler client is available for checking files")
+                return []
+        except Exception as e:
+            logger.error(f"Failed to check if files exist: {str(e)}")
+            logger.error(traceback.format_exc())
+            return []
+
+    async def list_directory(self, prefix: str) -> Tuple[bool, Union[List[Dict[str, Any]], str]]:
+        """
+        List all objects in a 'directory' (with a common prefix).
+
+        Args:
+            prefix: The directory prefix to list
+
+        Returns:
+            Tuple of (success, list of objects or error message)
+        """
+        try:
+            # Try S3 API first with improved error handling
+            if self.s3_available:
+                try:
+                    logger.info(f"Listing directory with S3 API: {prefix}")
+                    response = self.s3.list_objects_v2(Bucket=self.bucket_name, Prefix=prefix)
+                    
+                    if 'Contents' in response:
+                        # Format objects consistently
+                        objects = []
+                        for obj in response['Contents']:
+                            objects.append({
+                                'key': obj.get('Key', ''),
+                                'size': obj.get('Size', 0),
+                                'etag': obj.get('ETag', '').strip('"'),
+                                'last_modified': obj.get('LastModified', ''),
+                            })
+                        
+                        logger.info(f"Listed {len(objects)} objects with prefix {prefix}")
+                        return True, objects
+                    else:
+                        logger.info(f"No objects found with prefix {prefix}")
+                        return True, []
+                        
+                except Exception as s3_error:
+                    logger.error(f"S3 API listing failed: {str(s3_error)}")
+                    # Continue to fallback rather than immediately returning
+            
+            # Fall back to Wrangler client with improved robustness
+            if self.wrangler_client:
+                try:
+                    logger.info(f"Listing directory with Wrangler client: {prefix}")
+                    raw_objects = self.wrangler_client.list_objects(prefix=prefix)
+                    
+                    # Process objects and filter out access test objects
+                    objects = []
+                    for obj in raw_objects:
+                        # Skip dummy test objects
+                        if obj.get('key', '') == '__bucket_access_test__':
+                            continue
+                            
+                        # Include only objects with the right prefix
+                        if obj.get('key', '').startswith(prefix):
+                            objects.append({
+                                'key': obj.get('key', ''),
+                                'size': obj.get('size', 0),
+                                'etag': obj.get('etag', ''),
+                                'last_modified': obj.get('last_modified', ''),
+                            })
+                    
+                    if objects:
+                        logger.info(f"Listed {len(objects)} objects with Wrangler for prefix {prefix}")
+                        return True, objects
+                    else:
+                        # Extra check - try with S3 client again but with slash-terminated prefix
+                        # This helps with directory-style lookups
+                        if self.s3_available and not prefix.endswith('/'):
+                            try:
+                                slash_prefix = f"{prefix}/"
+                                logger.info(f"Retrying with slash-terminated prefix: {slash_prefix}")
+                                response = self.s3.list_objects_v2(Bucket=self.bucket_name, Prefix=slash_prefix)
+                                
+                                if 'Contents' in response:
+                                    slash_objects = []
+                                    for obj in response['Contents']:
+                                        slash_objects.append({
+                                            'key': obj.get('Key', ''),
+                                            'size': obj.get('Size', 0),
+                                            'etag': obj.get('ETag', '').strip('"'),
+                                            'last_modified': obj.get('LastModified', ''),
+                                        })
+                                    
+                                    logger.info(f"Listed {len(slash_objects)} objects with slash-prefix {slash_prefix}")
+                                    return True, slash_objects
+                            except Exception as slash_error:
+                                logger.error(f"Slash prefix retry failed: {str(slash_error)}")
+                        
+                        logger.info(f"No objects found with Wrangler for prefix {prefix}")
+                        return True, []
+                        
+                except Exception as wrangler_error:
+                    logger.error(f"Wrangler client listing failed: {str(wrangler_error)}")
+                    # Last resort fallback - return empty list
+                    return True, []
+            
+            # Neither method available
+            error_msg = "Neither S3 API nor Wrangler client is available for listing"
+            logger.error(error_msg)
+            return False, error_msg
+                
+        except Exception as e:
+            error_msg = f"Failed to list directory: {str(e)}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            return False, error_msg
+
+    async def delete_directory(self, prefix: str) -> Dict[str, Any]:
+        """
+        Delete all objects in a 'directory' (with a common prefix).
+
+        Args:
+            prefix: The directory prefix to delete
+
+        Returns:
+            Dict with deletion results
+        """
+        result = {
+            'success': False,
+            'deleted': 0,
+            'failed': 0,
+            'errors': [],
+            'message': ''
+        }
+        
+        if not prefix:
+            result['message'] = "No prefix provided"
+            return result
+        
+        logger.info(f"Attempting to delete directory with prefix: {prefix}")
+        
+        # Get all objects with the prefix
+        success, objects_or_error = await self.list_directory(prefix)
+        
+        if not success:
+            result['message'] = f"Failed to list objects: {objects_or_error}"
+            return result
+        
+        objects = objects_or_error
+        
+        if not objects:
+            logger.info(f"No objects found with prefix {prefix}")
+            result['success'] = True
+            result['message'] = f"No objects found with prefix {prefix}"
+            return result
+        
+        logger.info(f"Found {len(objects)} objects to delete with prefix {prefix}")
+        
+        # Use Wrangler client for batch deletion if available (more reliable)
+        if self.wrangler_client:
+            try:
+                object_keys = [obj['key'] for obj in objects]
+                success_count, failure_count, failed_keys = self.wrangler_client.batch_delete_objects(object_keys)
+                
+                result['success'] = success_count > 0
+                result['deleted'] = success_count
+                result['failed'] = failure_count
+                
+                if failed_keys:
+                    result['errors'] = [f"Failed to delete: {key}" for key in failed_keys]
+                
+                result['message'] = f"Deleted {success_count} objects, {failure_count} failed"
+                logger.info(result['message'])
+                
+                return result
+            
+            except Exception as e:
+                logger.error(f"Wrangler batch delete failed: {str(e)}")
+                # Continue with S3 API as fallback
+        
+        # Delete objects one by one with S3 API
+        if self.s3_available:
+            try:
+                # Use S3 batch delete
+                delete_objects = {'Objects': [{'Key': obj['key']} for obj in objects]}
+                
+                # Batch delete can handle up to 1000 objects at a time
+                if len(objects) <= 1000:
+                    response = self.s3.delete_objects(
+                        Bucket=self.bucket_name,
+                        Delete=delete_objects
+                    )
+                    
+                    deleted = len(response.get('Deleted', []))
+                    errors = response.get('Errors', [])
+                    
+                    result['success'] = deleted > 0
+                    result['deleted'] = deleted
+                    result['failed'] = len(errors)
+                    
+                    if errors:
+                        result['errors'] = [f"{e.get('Key', '')}: {e.get('Message', '')}" for e in errors]
+                    
+                    result['message'] = f"Deleted {deleted} objects, {len(errors)} failed"
+                    logger.info(result['message'])
+                    
+                    return result
+                else:
+                    # Split into batches of 1000
+                    batches = [objects[i:i+1000] for i in range(0, len(objects), 1000)]
+                    total_deleted = 0
+                    total_failed = 0
+                    all_errors = []
+                    
+                    for batch in batches:
+                        delete_batch = {'Objects': [{'Key': obj['key']} for obj in batch]}
+                        response = self.s3.delete_objects(
+                            Bucket=self.bucket_name,
+                            Delete=delete_batch
+                        )
+                        
+                        deleted = len(response.get('Deleted', []))
+                        errors = response.get('Errors', [])
+                        
+                        total_deleted += deleted
+                        total_failed += len(errors)
+                        
+                        if errors:
+                            all_errors.extend([f"{e.get('Key', '')}: {e.get('Message', '')}" for e in errors])
+                    
+                    result['success'] = total_deleted > 0
+                    result['deleted'] = total_deleted
+                    result['failed'] = total_failed
+                    result['errors'] = all_errors
+                    
+                    result['message'] = f"Deleted {total_deleted} objects in batches, {total_failed} failed"
+                    logger.info(result['message'])
+                    
+                    return result
+                    
+            except Exception as e:
+                logger.error(f"S3 API batch delete failed: {str(e)}")
+                logger.error(traceback.format_exc())
+                
+                # Fall back to individual deletes
+                deleted = 0
+                failed = 0
+                errors = []
+                
+                for obj in objects:
+                    try:
+                        success, message = await self.delete_file(obj['key'])
+                        if success:
+                            deleted += 1
+                        else:
+                            failed += 1
+                            errors.append(f"{obj['key']}: {message}")
+                    except Exception as obj_error:
+                        failed += 1
+                        errors.append(f"{obj['key']}: {str(obj_error)}")
+                
+                result['success'] = deleted > 0
+                result['deleted'] = deleted
+                result['failed'] = failed
+                result['errors'] = errors
+                
+                result['message'] = f"Deleted {deleted} objects individually, {failed} failed"
+                logger.info(result['message'])
+                
+                return result
+        
+        # If we reach here, neither method worked
+        result['message'] = "Could not delete objects - no working delete method available"
+        logger.error(result['message'])
+        
+        return result
+
+    async def upload_file_content(
+        self, file_content: BinaryIO, object_name: str,
+        user_id: Optional[str] = None, project_id: Optional[str] = None,
+        scene_id: Optional[str] = None, file_type: Optional[str] = None
+    ) -> Tuple[bool, str]:
+        """
+        Upload file content directly to R2 storage without a local file.
+
+        Args:
+            file_content: The binary content to upload
+            object_name: S3 object name
+            user_id: Optional user ID for structured storage path
+            project_id: Optional project ID for structured storage path
+            scene_id: Optional scene ID for structured storage path
+            file_type: Optional file type category for structured storage path
+
+        Returns:
+            Tuple of (success, url or error message)
+        """
+        # If we have user_id and project_id, use structured paths
+        if user_id and project_id:
+            object_name = self.get_file_path(user_id, project_id, scene_id, file_type, object_name)
+        
+        logger.info(f"Attempting to upload file content to R2 as {object_name}")
+        
+        # Need S3 API for direct content upload
+        if not self.s3_available:
+            error_msg = "S3 client is not available for content upload"
+            logger.error(error_msg)
+            return False, error_msg
+        
+        try:
+            # Upload the content directly
+            self.s3.put_object(
+                Bucket=self.bucket_name,
+                Key=object_name,
+                Body=file_content
+            )
+            
+            # Create a proper URL for the uploaded content
+            url = self.s3.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket_name, 'Key': object_name},
+                ExpiresIn=settings.R2_URL_EXPIRATION
+            )
+            
+            logger.info(f"Successfully uploaded content to R2: {url}")
+            return True, url
+            
+        except Exception as e:
+            error_msg = f"Failed to upload content: {str(e)}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            return False, error_msg
+
+    async def delete_project_files(self, user_id: str, project_id: str) -> Dict[str, Any]:
+        """
+        Delete all files associated with a project.
+
+        Args:
+            user_id: The user ID
+            project_id: The project ID
+
+        Returns:
+            Dict with deletion results
+        """
+        logger.info(f"Deleting all files for project: {project_id}")
+        
+        # Use the more reliable WranglerR2Client for project deletion if available
+        if self.wrangler_client:
+            # Try with the hybrid approach first
+            try:
+                results = self.wrangler_client.delete_objects_by_project_id(project_id=project_id)
+                logger.info(f"Project file deletion completed with WranglerR2Client: {results}")
+                
+                return {
+                    'success': results.get('total_deleted', 0) > 0,
+                    'deleted': results.get('total_deleted', 0),
+                    'failed': results.get('total_failed', 0),
+                    'errors': [],
+                    'message': f"Deleted {results.get('total_deleted', 0)} files with WranglerR2Client"
+                }
+            except Exception as e:
+                logger.error(f"WranglerR2Client deletion failed: {str(e)}")
+                # Fall back to regular directory deletion
+        
+        # If wrangler method failed or isn't available, fall back to traditional method
+        prefix = f"users/{user_id}/projects/{project_id}/"
+        return await self.delete_directory(prefix)
+
+    async def delete_scene_files(self, user_id: str, project_id: str, scene_id: str) -> Dict[str, Any]:
+        """
+        Delete all files associated with a scene.
+
+        Args:
+            user_id: The user ID
+            project_id: The project ID
+            scene_id: The scene ID
+
+        Returns:
+            Dict with deletion results
+        """
+        logger.info(f"Deleting all files for scene: {scene_id} in project: {project_id}")
+        
+        # Try flat format
+        success1, objects1 = await self.list_directory(f"proj_{project_id}_{scene_id}_")
+        
+        # Also try hierarchical format
+        prefix = f"users/{user_id}/projects/{project_id}/scenes/{scene_id}/"
+        success2, objects2 = await self.list_directory(prefix)
+        
+        # Combine the results
+        all_objects = []
+        if success1 and objects1:
+            all_objects.extend(objects1)
+        if success2 and objects2:
+            all_objects.extend(objects2)
+        
+        if not all_objects:
+            logger.info(f"No files found for scene: {scene_id}")
+            return {
+                'success': True,
+                'deleted': 0,
+                'failed': 0,
+                'errors': [],
+                'message': f"No files found for scene: {scene_id}"
+            }
+        
+        # Delete the objects
+        deleted = 0
+        failed = 0
+        errors = []
+        
+        for obj in all_objects:
+            success, message = await self.delete_file(obj.get('key', ''))
+            if success:
+                deleted += 1
+            else:
+                failed += 1
+                errors.append(message)
+        
+        result = {
+            'success': deleted > 0,
+            'deleted': deleted,
+            'failed': failed,
+            'errors': errors,
+            'message': f"Deleted {deleted} files, {failed} failed"
+        }
+        
+        logger.info(result['message'])
+        return result
+
+    async def get_s3_client(self):
+        """
+        Get the S3 client for direct operations.
+
+        Returns:
+            The S3 client
+        """
+        return self.s3
+
+
+def get_storage():
+    """
+    Get a storage instance.
+
+    Returns:
+        R2Storage instance
+    """
+    return R2Storage()
