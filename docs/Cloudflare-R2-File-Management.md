@@ -1,213 +1,155 @@
-# Cloudflare R2 File Management Guide
+# Cloudflare R2 File Management
 
-## Table of Contents
-1. [Current Status](#current-status)
-2. [File Naming Convention](#file-naming-convention)
-3. [Key Findings](#key-findings)
-4. [Implemented Solutions](#implemented-solutions)
-5. [File Operations](#file-operations)
-6. [Deletion Process](#deletion-process)
-7. [Next Steps](#next-steps)
-8. [Troubleshooting](#troubleshooting)
+This document provides an overview of how files are managed in Cloudflare R2 storage within the Auto Shorts Web App.
 
-## Current Status
+## Background
 
-The Auto Shorts Web App uses Cloudflare R2 for storing media files, including videos, images, audio clips, and thumbnails. We have identified and addressed several issues related to file naming inconsistencies and deletion challenges.
+Previously, the application experienced several issues with Cloudflare R2 storage:
 
-**Main Accomplishments**:
-- Created reliable scripts for cleaning up R2 storage
-- Identified root cause of deletion problems (inconsistent file naming patterns)
-- Implemented solution for better file management
-- Created documentation and guidelines for R2 operations
+1. **Inconsistent File Naming**: Files were stored with multiple formats:
+   - `proj_proj_{project_id}_{scene_id}_media.mp4` (double prefix)
+   - `projects/proj_{project_id}/scenes/{scene_id}/media/{filename}.ext` (hierarchical paths)
+   - `audio/proj_{project_id}/{scene_id}/{filename}.ext` (content-specific paths)
 
-**Current Challenges**:
-- Historical files use multiple naming patterns
-- Deletion process needs improvement for reliability
-- Need better tracking of file paths during creation
+2. **No Path Tracking**: We didn't track which files were created in R2, making it impossible to reliably delete them later.
 
-## File Naming Convention
+This resulted in orphaned files when projects were deleted, consuming storage and causing potential data privacy issues.
 
-### Current Implementation (Simplified)
+## Solution
 
-We're implementing a simplified file naming approach:
+We've implemented a comprehensive R2 file path tracking system that:
+
+1. **Stores File Paths During Upload**: When files are uploaded to R2, we record their exact paths in MongoDB
+2. **Associates Paths with Projects**: Each file path is linked to a specific project ID
+3. **Uses These Paths for Deletion**: When a project is deleted, we use the stored paths for reliable deletion
+4. **Fallback Mechanism**: If no tracked paths exist, we use pattern-based discovery as a fallback
+
+### Implementation Details
+
+#### 1. Database Model
+
+We created a new MongoDB collection called `r2_file_paths` with the following schema:
+
 ```
-proj_{project_id}_{file_type}.{extension}
+R2FilePath {
+    id: ObjectId,                   // MongoDB ID
+    project_id: string,             // Project ID this file belongs to
+    object_key: string,             // Exact path in R2 storage
+    scene_id: string (optional),    // Scene ID if applicable
+    file_type: string (optional),   // File type (media, audio, etc.)
+    user_id: string (optional),     // User ID if applicable
+    size_bytes: number (optional),  // File size in bytes
+    content_type: string (optional),// MIME type
+    metadata: object (optional),    // Additional metadata
+    created_at: datetime,           // Record creation time
+    updated_at: datetime (optional) // Record update time
+}
 ```
 
-Examples:
-- `proj_m8rzcejd_media.mp4` - Project media file
-- `proj_m8rzcejd_audio.mp3` - Project audio file
-- `proj_m8rzcejd_thumbnail.jpg` - Project thumbnail
+#### 2. File Path Tracking Service
 
-### Historical Patterns
+We implemented a service (`r2_file_tracking.py`) that provides:
 
-Previous implementations used various patterns:
-1. **Double Prefix**: `proj_proj_{project_id}_{scene_id}_media.mp4`
-2. **Hierarchical Paths**: `projects/proj_{project_id}/scenes/{scene_id}/media/{filename}.ext`
-3. **Content-Type Structure**: `audio/proj_{project_id}/{scene_id}/{filename}.ext`
+- **Creating file records**: When files are uploaded, their paths are stored
+- **Retrieving project files**: Get all files associated with a project
+- **Deleting project files**: Remove tracking records when projects are deleted
 
-These inconsistent patterns made reliable deletion difficult.
+#### 3. Storage Service Integration
 
-## Key Findings
+We modified the `upload_file` and `upload_file_content` methods in the storage service to:
 
-1. **The Missing Link**: We weren't tracking which files were being created in R2. If we control the naming during file writing, we should track these names for deletion.
+- Use a consistent file naming strategy
+- Track the file paths in MongoDB after successful upload
+- Handle tracking failures gracefully without affecting the upload process
 
-2. **The `--remote` Flag**: Critical discovery - all Wrangler CLI commands must use the `--remote` flag to affect the actual cloud bucket:
-   ```bash
-   # This affects the actual cloud bucket:
-   wrangler r2 object delete autoshorts-media/test_file.txt --remote
-   ```
+#### 4. Two-Phased Cleanup
 
-3. **No Real Directories**: R2 doesn't have directories - just keys with slashes, making "deleting a directory" more complex.
+When a project is deleted, the cleanup process now:
 
-4. **Silent Failures**: Many R2 operations fail silently, requiring explicit verification.
+1. First tries to use tracked file paths from the database for exact deletion
+2. Falls back to pattern-based discovery if no tracked paths exist or if an error occurs
+3. Reports comprehensive statistics about the cleanup process
 
-## Implemented Solutions
+### Usage
 
-### 1. Simplified File Naming
+#### Uploading Files
 
-The root solution focuses on simplifying file naming by:
-- Modifying `get_file_path` in `storage.py` to use consistent naming patterns
-- Making file names predictable based on project ID
-- Reducing reliance on scene IDs in file paths
-
-### 2. Storage Service Improvements
-
-Our storage service now:
-- Uses a centralized path generation function
-- Ensures consistent naming across all upload points
-- Provides better error handling and reporting
-
-### 3. Cleanup Scripts
-
-We've created multiple scripts for R2 management:
-- `clear_all_r2_files.py` - Delete all files in bucket
-- `manual_deletion.sh` - Command-line tool for specific deletions
-
-## File Operations
-
-### Uploading Files
-
-When uploading files to R2, we now use a consistent approach:
+When uploading files to R2, the system automatically tracks the file paths:
 
 ```python
-# In storage.py
-def get_file_path(project_id, file_type, filename=None):
-    """Generate consistent file path for R2 storage."""
-    # Ensure project_id has proj_ prefix only once
-    if not project_id.startswith("proj_"):
-        project_id = f"proj_{project_id}"
-    
-    if filename:
-        return f"{project_id}_{file_type}_{filename}"
-    else:
-        return f"{project_id}_{file_type}"
-
-# Usage in upload function
+# Upload a file - path tracking is handled automatically
 success, url = await storage.upload_file(
     file_path=temp_path,
     object_name=filename,
+    user_id=user_id,
     project_id=project_id,
-    file_type="media"
+    scene_id=scene_id,
+    file_type=file_type
 )
 ```
 
-### File Path Tracking
+#### Project Deletion
 
-**Critical Insight**: We should be tracking file paths at creation time for reliable deletion.
+When a project is deleted through the API, the system:
 
-Proposed implementation:
+1. Deletes the project from MongoDB
+2. Retrieves tracked file paths for the project
+3. Deletes the files from R2 storage
+4. Removes the tracking records
+
 ```python
-async def upload_file(self, file_path, object_name, project_id, file_type, **kwargs):
-    """Upload file to R2 storage and track its path."""
-    # Generate storage key
-    storage_key = self.get_file_path(project_id, file_type, object_name)
+# Delete project endpoint
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(project_id: str, background_tasks: BackgroundTasks):
+    # Delete project from database
+    # ...
     
-    # Upload file
-    success, url = await self._upload_to_r2(file_path, storage_key)
+    # Add R2 cleanup to background task
+    background_tasks.add_task(cleanup_project_storage, storage_project_id)
     
-    if success:
-        # Track file path in database or project metadata
-        await self.add_file_to_project_record(project_id, storage_key)
-        
-    return success, url
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 ```
 
-## Deletion Process
+## Debug Endpoints
 
-### Current Process
+For testing and verification, we've added debug endpoints:
 
-When a project is deleted, we attempt to clean up associated R2 files:
+### List Tracked File Paths
 
-1. User triggers project deletion in UI
-2. Backend endpoint processes deletion request
-3. Storage cleanup runs as background task
-4. Cleanup attempts to find all files associated with project
-5. Files are deleted using direct R2 API calls
+```
+GET /api/v1/debug/r2-file-paths/{project_id}
+```
 
-### Improved Deletion Approach
+Returns all tracked file paths for a specific project.
 
-Our new approach focuses on:
+### Test Project Cleanup
 
-1. **Direct Pattern Matching**: Using the simplified naming scheme makes it easier to match files
-2. **File Path Tracking**: Storing paths when files are created ensures we know what to delete
-3. **Verification**: Checking that files were actually deleted
-4. **Detailed Logging**: Recording each step of the deletion process
+```
+POST /api/v1/debug/cleanup-project/{project_id}?dry_run=true&delete_records_only=false
+```
 
-## Next Steps
+Parameters:
+- `dry_run`: If true, only show what would be deleted without actually deleting (default: true)
+- `delete_records_only`: If true, only delete tracking records without touching R2 files (default: false)
 
-1. **Implement File Path Tracking**:
-   - Store R2 file paths in project metadata or a dedicated table
-   - Update the project deletion process to use these exact paths
+This endpoint allows testing the cleanup process without affecting real data.
 
-2. **Complete Simplified Naming**:
-   - Ensure all new file uploads use the simplified scheme
-   - Remove redundant scene IDs from paths where not needed
+## Benefits
 
-3. **Migration Strategy**:
-   - Develop a plan for handling historical files 
-   - Consider migration scripts for standardizing older files
+This implementation provides several benefits:
 
-4. **Enhanced Verification**:
-   - Add explicit verification steps in the deletion process
-   - Implement retry logic for failed deletions
+1. **Reliable Deletion**: Files are consistently deleted when projects are removed
+2. **Reduced Storage Costs**: No more orphaned files consuming storage
+3. **Enhanced Tracking**: Better visibility into storage usage
+4. **Backward Compatibility**: Still works with existing files through pattern-based fallback
+5. **Simplified Debugging**: Clear logs and debug endpoints for troubleshooting
 
-## Troubleshooting
+## Future Improvements
 
-### Common Issues
+Potential future enhancements:
 
-1. **Files Not Deleting**:
-   - Check if the correct file pattern is being used
-   - Verify the `--remote` flag is included in Wrangler commands
-   - Check authentication status with Cloudflare
-
-2. **Can't Find Files**:
-   - Use S3 API listing to see all objects in the bucket
-   - Try case-insensitive searching if file names have mixed case
-   - Check for special characters in file names
-
-3. **Authentication Errors**:
-   - Verify Cloudflare API token has correct permissions
-   - Check that environment variables are properly set
-
-4. **Wrangler Commands Failing**:
-   - Ensure Wrangler is installed and in PATH
-   - Verify proper command syntax
-   - Check Wrangler authentication
-
-### Debugging Tips
-
-1. Use the dry-run option to see what would be deleted:
-   ```bash
-   python scripts/clear_all_r2_files.py --dry-run
-   ```
-
-2. List all objects in the bucket to verify content:
-   ```bash
-   wrangler r2 object list autoshorts-media --remote
-   ```
-
-3. Test deletion of a specific file:
-   ```bash
-   wrangler r2 object delete autoshorts-media/test_file.txt --remote
-   ``` 
+1. **Migration Tool**: A tool to scan R2 storage and create tracking records for existing files
+2. **Storage Analytics**: Enhanced reporting on storage usage by project/user
+3. **File Deduplication**: Identify and remove duplicate files
+4. **Lifecycle Rules**: Implement automatic cleanup of temporary files
+5. **User Storage Quotas**: Track and enforce storage limits per user 

@@ -8,6 +8,9 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 
 from app.core.config import settings
+from app.models.storage import R2FilePathCreate
+from app.services.r2_file_tracking import r2_file_tracking
+from app.services.worker_client import worker_client
 
 logger = logging.getLogger(__name__)
 
@@ -221,6 +224,7 @@ class R2Storage:
         logger.info(f"Attempting to upload file {file_path} to R2 as {object_name}")
         
         # Add file size info for debugging
+        file_size = 0
         try:
             file_size = os.path.getsize(file_path)
             logger.info(f"File size: {file_size} bytes")
@@ -242,6 +246,28 @@ class R2Storage:
                 Params={'Bucket': self.bucket_name, 'Key': object_name},
                 ExpiresIn=settings.R2_URL_EXPIRATION  # Use the expiration setting from config
             )
+            
+            # Track the file in the database if project_id is provided
+            if project_id:
+                # Create file tracking record
+                file_data = R2FilePathCreate(
+                    project_id=project_id,
+                    object_key=object_name,
+                    scene_id=scene_id,
+                    file_type=file_type, 
+                    user_id=user_id,
+                    size_bytes=file_size,
+                    content_type=None,  # We don't have this information yet
+                    metadata={"url": url}
+                )
+                
+                # Create record asynchronously
+                try:
+                    await r2_file_tracking.create_file_record(file_data)
+                    logger.info(f"Successfully tracked file path for {object_name}")
+                except Exception as e:
+                    # Don't fail the upload if tracking fails
+                    logger.error(f"Failed to track file path for {object_name}: {str(e)}")
             
             logger.info(f"Successfully uploaded file to R2: {url}")
             return True, url
@@ -634,85 +660,81 @@ class R2Storage:
         scene_id: Optional[str] = None, file_type: Optional[str] = None
     ) -> Tuple[bool, str]:
         """
-        Upload file content directly to R2 storage.
-        
+        Upload binary content directly to R2 storage.
+
         Args:
-            file_content: Content bytes to upload
-            object_name: S3 object name or filename
-            user_id: Optional user ID for structured storage path (default: "default")
+            file_content: Binary content to upload
+            object_name: S3 object name
+            user_id: Optional user ID for structured storage path
             project_id: Optional project ID for structured storage path
             scene_id: Optional scene ID for structured storage path
             file_type: Optional file type category for structured storage path
-            
+
         Returns:
             Tuple of (success, url or error message)
         """
-        # Log request info with clear separation
-        logger.info("=" * 50)
-        logger.info(f"UPLOAD REQUEST: object_name={object_name}, user_id={user_id}, project_id={project_id}, scene_id={scene_id}, file_type={file_type}")
+        # Get structured path if we have user_id and project_id
+        if user_id and project_id:
+            object_name_structured = self.get_file_path(user_id, project_id, scene_id, file_type, object_name)
+        else:
+            object_name_structured = object_name
         
-        # Check if we have the parameters to use the new path structure
-        using_new_structure = False
-        original_object_name = object_name
+        logger.info(f"Attempting to upload content to R2 as {object_name_structured}")
         
         try:
-            # If we have user_id and project_id, use structured paths
-            if user_id and project_id:
-                using_new_structure = True
-                filename = object_name if '/' not in object_name else os.path.basename(object_name)
-                
-                # Generate structured path
-                object_name = self.get_file_path(user_id, project_id, scene_id, file_type, filename)
-                logger.info(f"UPLOAD PATH: Using new structure: {object_name}")
+            # Check file size 
+            content_size = len(file_content.read())
+            file_content.seek(0)  # Reset file pointer after reading
+            logger.info(f"Content size: {content_size} bytes")
+
+            # Upload the content
+            self.s3.upload_fileobj(
+                file_content, 
+                self.bucket_name, 
+                object_name_structured
+            )
             
-            # Handle backward compatibility with old path patterns
-            elif object_name.startswith("projects/"):
-                # This is an old format path (projects/{project_id}/scenes/{scene_id}/media/{filename})
-                # We keep it as is for backward compatibility
-                logger.info(f"UPLOAD PATH: Using legacy path format: {object_name}")
-            
-            elif object_name.startswith("scenes/"):
-                # This is the original flat format (scenes/{scene_id}/media/{filename})
-                # We keep it as is for backward compatibility
-                logger.info(f"UPLOAD PATH: Using original flat path format: {object_name}")
-            
-            logger.info(f"UPLOAD PATH: Final object name: {object_name}")
-            
-            # Upload the file content directly
-            self.s3.upload_fileobj(file_content, self.bucket_name, object_name)
-            
-            # NEW: Verify if the file exists in storage after upload
-            try:
-                head_response = self.s3.head_object(
-                    Bucket=self.bucket_name,
-                    Key=object_name
-                )
-                logger.info(f"UPLOAD VERIFICATION: File exists in R2. Size: {head_response.get('ContentLength', 'unknown')} bytes")
-            except Exception as e:
-                logger.warning(f"UPLOAD VERIFICATION: Could not verify file exists: {str(e)}")
-                
-            # Generate a URL for accessing the file
+            # Create a proper URL for the uploaded file
             url = self.s3.generate_presigned_url(
                 'get_object',
-                Params={'Bucket': self.bucket_name, 'Key': object_name},
+                Params={'Bucket': self.bucket_name, 'Key': object_name_structured},
                 ExpiresIn=settings.R2_URL_EXPIRATION
             )
             
-            logger.info(f"UPLOAD SUCCESS: {url}")
-            logger.info("=" * 50)
+            # Track the file in the database if project_id is provided
+            if project_id:
+                # Create file tracking record
+                file_data = R2FilePathCreate(
+                    project_id=project_id,
+                    object_key=object_name_structured,
+                    scene_id=scene_id,
+                    file_type=file_type, 
+                    user_id=user_id,
+                    size_bytes=content_size,
+                    content_type=None,  # We don't have this information yet
+                    metadata={"url": url}
+                )
+                
+                # Create record asynchronously
+                try:
+                    await r2_file_tracking.create_file_record(file_data)
+                    logger.info(f"Successfully tracked file path for {object_name_structured}")
+                except Exception as e:
+                    # Don't fail the upload if tracking fails
+                    logger.error(f"Failed to track file path for {object_name_structured}: {str(e)}")
+            
+            logger.info(f"Successfully uploaded content to R2: {url}")
             return True, url
-        
+            
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code')
             error_msg = e.response.get('Error', {}).get('Message', str(e))
             logger.error(f"UPLOAD ERROR: R2 client error: {error_code} - {error_msg}")
-            logger.error("=" * 50)
             return False, f"R2 error: {error_msg}"
             
         except Exception as e:
             logger.error(f"UPLOAD ERROR: General error: {str(e)}")
             logger.error(traceback.format_exc())
-            logger.error("=" * 50)
             return False, str(e)
 
     async def delete_project_files(self, user_id: str, project_id: str) -> Dict[str, Any]:
@@ -1016,6 +1038,59 @@ class R2Storage:
                 "error": str(e),
                 "success": False
             }
+
+    async def cleanup_project_storage_via_worker(self, project_id: str) -> Dict[str, Any]:
+        """
+        Clean up all files associated with a project using the Cloudflare Worker.
+
+        Args:
+            project_id: The project ID to clean up storage for
+
+        Returns:
+            Dict containing deletion results
+        """
+        if not settings.use_worker_for_deletion:
+            logger.info(f"Worker deletion disabled, using fallback method for project {project_id}")
+            return await self.cleanup_project_storage(project_id)
+        
+        logger.info(f"Cleaning up R2 storage for project {project_id} via Worker")
+        
+        try:
+            # Get file paths from database tracking
+            file_records = await r2_file_tracking.get_project_files(project_id)
+            
+            if not file_records:
+                logger.warning(f"No tracked file records found for project {project_id}")
+                # Fall back to pattern-based discovery if no tracked files
+                return await self.cleanup_project_storage(project_id)
+            
+            # Extract object keys from records
+            object_keys = [record.get("object_key") for record in file_records if record.get("object_key")]
+            
+            if not object_keys:
+                logger.warning(f"No valid object keys found in tracked files for project {project_id}")
+                return {"deleted": 0, "errors": ["No valid object keys found"]}
+            
+            logger.info(f"Found {len(object_keys)} tracked files to delete for project {project_id}")
+            
+            # Use Worker to delete files
+            worker_result = await worker_client.delete_r2_objects(object_keys)
+            
+            # Delete tracking records regardless of deletion success
+            # This ensures we don't leave orphaned tracking records
+            deleted_count = await r2_file_tracking.delete_project_files(project_id)
+            logger.info(f"Deleted {deleted_count} tracking records for project {project_id}")
+            
+            # Add tracking record count to worker result
+            worker_result["tracking_records_deleted"] = deleted_count
+            
+            return worker_result
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up storage via Worker for project {project_id}: {str(e)}")
+            # Fall back to traditional method if Worker method fails
+            logger.info(f"Falling back to traditional cleanup method for project {project_id}")
+            return await self.cleanup_project_storage(project_id)
 
 
 # Create a singleton storage instance

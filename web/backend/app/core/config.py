@@ -47,6 +47,13 @@ class Settings(BaseModel):
     # URL expires in 7 days by default for public URLs
     R2_URL_EXPIRATION: int = 3600 * 24 * 7
 
+    # Cloudflare Workers
+    worker_url: str = Field(default_factory=lambda: os.getenv("CF_WORKER_URL", ""))
+    worker_api_token: str = Field(default_factory=lambda: os.getenv("CF_WORKER_API_TOKEN", ""))
+    use_worker_for_deletion: bool = Field(
+        default_factory=lambda: os.getenv("USE_WORKER_FOR_DELETION", "false").lower() in ["true", "1", "t", "yes", "y"]
+    )
+
     # Storage Configuration
     USE_MOCK_STORAGE: bool = Field(default_factory=lambda: os.getenv("USE_MOCK_STORAGE", "true").lower() in ["true", "1", "t", "yes", "y"])
 
@@ -69,6 +76,13 @@ class Settings(BaseModel):
         """Additional validation for MongoDB URI format"""
         if v and not validate_mongodb_uri(v):
             logger.warning("Invalid MongoDB URI format detected")
+        return v
+        
+    @validator("worker_url")
+    def validate_worker_url(cls, v, values):
+        """Validate worker URL if worker deletion is enabled"""
+        if values.get("use_worker_for_deletion", False) and not v:
+            logger.warning("Worker deletion is enabled but worker_url is not set")
         return v
 
 
