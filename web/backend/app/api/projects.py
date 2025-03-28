@@ -382,8 +382,9 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
                     detail=error_response
                 )
             
-            # Add R2 cleanup to background task
-            background_tasks.add_task(cleanup_project_storage, project_id)
+            # Add R2 cleanup to background task - note we're using the enhanced implementation
+            # The dry_run parameter is set to False to actually perform the deletion
+            background_tasks.add_task(cleanup_project_storage, project_id, dry_run=False)
             
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         except Exception as e:
@@ -398,41 +399,184 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
             )
     else:
         # Mock deletion always succeeds, but still run cleanup
-        background_tasks.add_task(cleanup_project_storage, project_id)
+        background_tasks.add_task(cleanup_project_storage, project_id, dry_run=False)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-async def cleanup_project_storage(project_id: str):
+async def cleanup_project_storage(project_id: str, dry_run: bool = False):
     """
-    Clean up all R2 storage for a deleted project.
-    This runs as a background task after successful project deletion.
+    Remove all files for a project from storage using direct project ID matching.
+    
+    This function uses the project ID directly as a prefix to find and delete files.
     
     Args:
-        project_id: ID of the deleted project
+        project_id: The project ID to clean up
+        dry_run: If True, will log what would be deleted without actually deleting
+    
+    Returns:
+        Dict containing deletion results and stats
     """
-    logger.info(f"Starting R2 storage cleanup for deleted project: {project_id}")
+    # Import the storage service correctly
+    from app.services.storage import storage as storage_service
+    
+    logger.info(f"[CLEANUP-PROJECT] Beginning storage cleanup for project_id={project_id}")
+    logger.info(f"[CLEANUP-PROJECT] Project ID type: {type(project_id)}, value: '{project_id}'")
+    logger.info(f"[CLEANUP-PROJECT] Dry run mode: {dry_run}")
+    
+    # Track deletion results
+    results = {
+        "deleted_files": [],
+        "failed_files": [],
+        "total_files_deleted": 0,
+        "total_bytes_freed": 0,
+        "dry_run": dry_run
+    }
+    
+    # Ensure the project ID has the proj_ prefix (if it doesn't already)
+    project_id_with_prefix = project_id
+    if not project_id.startswith("proj_"):
+        project_id_with_prefix = f"proj_{project_id}"
+    
+    logger.info(f"[CLEANUP-PROJECT] Using project ID with prefix: {project_id_with_prefix}")
     
     try:
-        # Get storage service
-        from app.services.storage import get_storage
-        storage = get_storage()
+        # Get S3 client
+        s3_client = await storage_service.get_s3_client()
+        bucket_name = storage_service.bucket_name
         
-        # Directory prefix for project
-        project_prefix = f"projects/{project_id}/"
+        # List all objects in the bucket
+        logger.info(f"[CLEANUP-PROJECT] Listing objects in bucket with prefix: {project_id_with_prefix}_")
         
-        # Delete all project files
-        result = storage.delete_directory(project_prefix)
+        # Use a direct prefix search for files starting with the project ID followed by underscore
+        paginator = s3_client.get_paginator('list_objects_v2')
+        page_iterator = paginator.paginate(
+            Bucket=bucket_name,
+            Prefix=f"{project_id_with_prefix}_"  # This is key - we're searching for exact prefix match
+        )
         
-        if result["failed_count"] == 0:
-            logger.info(f"Successfully cleaned up R2 storage for project {project_id}: Deleted {result['deleted_count']} files ({result['total_bytes']/1024/1024:.2f} MB)")
+        # Collect files that match our prefix exactly
+        files_to_delete = []
+        
+        # Check objects with our prefix
+        async for page in page_iterator:
+            if "Contents" not in page:
+                continue
+                
+            for obj in page["Contents"]:
+                obj_key = obj["Key"]
+                obj_size = obj.get("Size", 0)
+                
+                # These files match our exact prefix, so we'll delete them
+                files_to_delete.append({
+                    "Key": obj_key,
+                    "Size": obj_size
+                })
+                logger.info(f"[CLEANUP-PROJECT] Found matching file: {obj_key}")
+        
+        # Log summary of found files
+        logger.info(f"[CLEANUP-PROJECT] Found {len(files_to_delete)} files with prefix {project_id_with_prefix}_")
+        
+        # Skip deletion if in dry run mode
+        if dry_run:
+            logger.info(f"[CLEANUP-PROJECT] DRY RUN - would delete {len(files_to_delete)} files:")
+            for file in files_to_delete:
+                logger.info(f"[CLEANUP-PROJECT] - Would delete: {file['Key']} ({file['Size']/1024:.2f} KB)")
+            
+            results["dry_run_matches"] = [f["Key"] for f in files_to_delete]
+            results["dry_run_total_bytes"] = sum(f["Size"] for f in files_to_delete)
+            
+            return results
+        
+        # Process files in batches (S3 delete_objects has a limit of 1000 objects per request)
+        batch_size = 500
+        for i in range(0, len(files_to_delete), batch_size):
+            batch = files_to_delete[i:i + batch_size]
+            
+            # Skip empty batches
+            if not batch:
+                continue
+                
+            logger.info(f"[CLEANUP-PROJECT] Deleting batch of {len(batch)} files (batch {i//batch_size + 1})")
+            
+            # Log the first few files in this batch
+            for j, file in enumerate(batch[:5]):
+                logger.info(f"[CLEANUP-PROJECT] Batch {i//batch_size + 1}, file {j+1}: {file['Key']}")
+            
+            if len(batch) > 5:
+                logger.info(f"[CLEANUP-PROJECT] ... and {len(batch) - 5} more files")
+            
+            # Prepare objects for deletion
+            objects_to_delete = [{"Key": file["Key"]} for file in batch]
+            
+            # Add to bytes total
+            batch_bytes = sum(file["Size"] for file in batch)
+            results["total_bytes_freed"] += batch_bytes
+            
+            try:
+                # Perform the deletion
+                delete_response = await s3_client.delete_objects(
+                    Bucket=bucket_name,
+                    Delete={"Objects": objects_to_delete}
+                )
+                
+                # Record successful deletions
+                if "Deleted" in delete_response:
+                    for deleted in delete_response["Deleted"]:
+                        results["deleted_files"].append(deleted["Key"])
+                    
+                    results["total_files_deleted"] += len(delete_response["Deleted"])
+                    logger.info(f"[CLEANUP-PROJECT] Successfully deleted {len(delete_response['Deleted'])} files in batch")
+                
+                # Record failed deletions
+                if "Errors" in delete_response:
+                    for error in delete_response["Errors"]:
+                        results["failed_files"].append({
+                            "key": error.get("Key", "unknown"),
+                            "code": error.get("Code", "unknown"),
+                            "message": error.get("Message", "unknown")
+                        })
+                        logger.error(f"[CLEANUP-PROJECT] Failed to delete {error.get('Key')}: {error.get('Message')}")
+            
+            except Exception as e:
+                logger.error(f"[CLEANUP-PROJECT] Error during batch deletion: {str(e)}")
+                # Mark all files in this batch as failed
+                for file in batch:
+                    results["failed_files"].append({
+                        "key": file["Key"],
+                        "code": "BatchError",
+                        "message": str(e)
+                    })
+        
+        # Log summary of cleanup
+        logger.info(f"[CLEANUP-PROJECT] Project cleanup summary for {project_id}:")
+        logger.info(f"[CLEANUP-PROJECT] - Total files deleted: {results['total_files_deleted']}")
+        logger.info(f"[CLEANUP-PROJECT] - Total storage freed: {results['total_bytes_freed']/1024/1024:.2f} MB")
+        
+        if results["deleted_files"]:
+            logger.info(f"[CLEANUP-PROJECT] - First few deleted files:")
+            for file in results["deleted_files"][:5]:
+                logger.info(f"[CLEANUP-PROJECT]   - {file}")
+            
+            if len(results["deleted_files"]) > 5:
+                logger.info(f"[CLEANUP-PROJECT]   - ... and {len(results['deleted_files']) - 5} more files")
         else:
-            logger.warning(f"Partial cleanup of R2 storage for project {project_id}: Deleted {result['deleted_count']} files, failed to delete {result['failed_count']} files")
-            for error in result["errors"][:5]:  # Log first 5 errors
-                logger.warning(f"Error during cleanup: {error}")
+            logger.info("[CLEANUP-PROJECT] - No files were deleted")
+        
+        if results["failed_files"]:
+            logger.warning(f"[CLEANUP-PROJECT] - Failed to delete {len(results['failed_files'])} files")
+            for failure in results["failed_files"][:5]:
+                logger.warning(f"[CLEANUP-PROJECT]   - {failure['key']}: {failure['message']}")
+            
+            if len(results["failed_files"]) > 5:
+                logger.warning(f"[CLEANUP-PROJECT]   - ... and {len(results['failed_files']) - 5} more failures")
+        
+        return results
             
     except Exception as e:
-        logger.error(f"Failed to clean up R2 storage for project {project_id}: {str(e)}")
-        logger.exception("Full traceback:")
+        logger.error(f"[CLEANUP-PROJECT] Unexpected error during cleanup: {str(e)}")
+        logger.exception("[CLEANUP-PROJECT] Exception details:")
+        results["error"] = str(e)
+        return results
 
 
 @router.post("/{project_id}/process", response_model=ApiResponse[Dict[str, Any]])
@@ -685,3 +829,52 @@ async def process_project_background(task_id: str, project_id: str, mode: str):
         except Exception as db_error:
             print(f"Failed to update project error status: {db_error}")
             pass
+
+
+@router.get("/{project_id}/debug-cleanup", response_model=ApiResponse[Dict[str, Any]])
+async def debug_cleanup_storage(project_id: str):
+    """
+    Debug endpoint to preview what files would be deleted during project cleanup.
+    Performs a dry run of the storage cleanup functionality.
+    """
+    try:
+        # Validate project ID format if needed
+        try:
+            obj_id = ObjectId(project_id)
+        except InvalidId:
+            # If it's not a valid ObjectId, proceed with the string version
+            logger.warning(f"Project ID {project_id} is not a valid ObjectId, proceeding with string value")
+            pass
+        
+        # Run cleanup with dry run enabled (no actual deletions)
+        cleanup_results = await cleanup_project_storage(project_id, dry_run=True)
+        
+        # We need a simplified summary for the API response
+        api_result = {
+            "project_id": project_id,
+            "files_found": len(cleanup_results.get("dry_run_matches", [])),
+            "potential_storage_freed_bytes": cleanup_results.get("dry_run_total_bytes", 0),
+            "potential_storage_freed_mb": cleanup_results.get("dry_run_total_bytes", 0) / (1024 * 1024),
+            "is_dry_run": True,
+            "first_few_files": cleanup_results.get("dry_run_matches", [])[:5]
+        }
+        
+        # Add indication if there are more files
+        if len(cleanup_results.get("dry_run_matches", [])) > 5:
+            api_result["additional_files_count"] = len(cleanup_results.get("dry_run_matches", [])) - 5
+        
+        return ApiResponse(
+            success=True,
+            message=f"Found {api_result['files_found']} files that would be deleted for project {project_id}",
+            data=api_result
+        )
+    except Exception as e:
+        error_response = create_error_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to perform cleanup dry run: {str(e)}",
+            error_code=ErrorCodes.INTERNAL_SERVER_ERROR
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response
+        )

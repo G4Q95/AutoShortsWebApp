@@ -412,19 +412,38 @@ async def persist_voice_audio(request: SaveAudioRequest):
                 detail={"message": f"Failed to write audio data to file: {str(e)}", "code": "file_write_error"}
             )
         
-        # Generate a unique storage key for the audio
+        # Generate a unique filename with timestamp
         filename_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        storage_key = f"audio/{request.project_id}/{request.scene_id}/{filename_timestamp}_{request.voice_id}.mp3"
-        logger.info(f"Generated storage key: {storage_key}")
+        filename = f"{filename_timestamp}_{request.voice_id}.mp3"
+        logger.info(f"Generated filename: {filename}")
         
         # Get storage service
         from app.services.storage import get_storage
         storage = get_storage()
         
-        # Upload to R2
-        logger.info(f"Uploading audio to storage with key: {storage_key}")
-        success, url = await storage.upload_file(temp_path, storage_key)
+        # User ID is set to "default" for now - all users share the same content
+        user_id = "default"
         
+        # Upload to R2 using structured path generation
+        logger.info(f"Uploading audio to storage with structured path")
+        success, url = await storage.upload_file(
+            file_path=temp_path,
+            object_name=filename,
+            user_id=user_id,
+            project_id=request.project_id,
+            scene_id=request.scene_id,
+            file_type="audio"
+        )
+        
+        # Get the actual storage key used
+        try:
+            storage_key = url.split('/')[-1].split('?')[0]
+            logger.info(f"Extracted storage key from URL: {storage_key}")
+        except Exception as e:
+            logger.warning(f"Could not extract storage key from URL: {str(e)}")
+            storage_key = f"proj_{request.project_id}_{request.scene_id}_audio_{filename}"
+            logger.info(f"Using constructed storage key: {storage_key}")
+            
         # Clean up temporary file
         try:
             os.unlink(temp_path)

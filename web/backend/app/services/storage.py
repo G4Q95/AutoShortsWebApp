@@ -85,33 +85,106 @@ class R2Storage:
             logger.error(f"Error testing R2 connection: {str(e)}")
             logger.error(traceback.format_exc())
 
-    def get_file_path(self, user_id: str, project_id: str, scene_id: str = None, 
-                     file_type: str = None, filename: str = None) -> str:
+    def get_file_path(
+        self, 
+        user_id: str, 
+        project_id: str, 
+        scene_id: Optional[str] = None, 
+        file_type: Optional[str] = None, 
+        filename: Optional[str] = None,
+        use_simplified_structure: bool = True
+    ) -> str:
         """
-        Generate a consistent file path for storage using the standard structure.
+        Generate a structured file path for storage.
         
         Args:
-            user_id: The user's unique identifier
-            project_id: The project's unique identifier
-            scene_id: Optional scene identifier within the project
-            file_type: Optional file type (e.g., "audio", "image", "video")
+            user_id: User ID for the file owner
+            project_id: Project ID the file belongs to
+            scene_id: Optional scene ID
+            file_type: Optional file type (e.g., 'video', 'audio', 'image')
             filename: Optional filename
+            use_simplified_structure: Whether to use the new simplified flat structure
             
         Returns:
-            Structured path string for R2 storage
+            Structured file path
         """
-        path = f"users/{user_id}/projects/{project_id}/"
+        # Log input parameters for debugging
+        logger.info(f"[STORAGE-PATH-DEBUG] Called with: user_id={user_id}, project_id={project_id}, scene_id={scene_id}, file_type={file_type}, filename={filename}, use_simplified={use_simplified_structure}")
         
-        if scene_id:
-            path += f"scenes/{scene_id}/"
-            
-            if file_type:
-                path += f"{file_type}/"
+        # Simplified flat structure
+        if use_simplified_structure:
+            # Ensure we have the basic components needed
+            if not project_id:
+                logger.warning(f"[STORAGE-PATH] Missing project_id, falling back to hierarchical structure")
+                use_simplified_structure = False
+            else:
+                # Check if project_id already starts with "proj_" to avoid double prefix
+                prefix = ""
+                if not project_id.startswith("proj_"):
+                    prefix = "proj_"
+                    logger.info(f"[STORAGE-PATH-DEBUG] Adding 'proj_' prefix to project_id")
+                else:
+                    logger.info(f"[STORAGE-PATH-DEBUG] Project ID already has 'proj_' prefix, not adding again")
                 
+                # Build simplified path with conditional prefix
+                path_components = [f"{prefix}{project_id}"]
+                logger.info(f"[STORAGE-PATH-DEBUG] First path component: {path_components[0]}")
+                
+                # Add scene component if available
+                if scene_id:
+                    path_components.append(scene_id)
+                else:
+                    path_components.append("general")
+                    
+                # Add file type component if available
+                if file_type:
+                    path_components.append(file_type)
+                else:
+                    path_components.append("media")
+                
+                # Process filename
                 if filename:
-                    path += filename
-        
-        return path
+                    # Extract extension if present
+                    if '.' in filename:
+                        name_part, ext = os.path.splitext(filename)
+                    else:
+                        name_part, ext = filename, ''
+                        
+                    # Combine all components with the filename
+                    final_filename = f"{'_'.join(path_components)}{ext}"
+                    
+                    logger.info(f"[STORAGE-PATH] Using simplified path: {final_filename}")
+                    return final_filename
+                    
+                # If we don't have a filename, we can't use the simplified structure
+                logger.warning(f"[STORAGE-PATH] Missing filename for simplified structure, falling back to hierarchical")
+                use_simplified_structure = False
+                
+        # Traditional hierarchical structure (fallback)
+        if not use_simplified_structure:
+            # Default user ID if not provided
+            if not user_id:
+                user_id = "default"
+                
+            # Build hierarchical path components
+            path_parts = ["users", user_id, "projects", project_id]
+            
+            # Add scene component if available
+            if scene_id:
+                path_parts.extend(["scenes", scene_id])
+                
+            # Add file type component if available
+            if file_type:
+                path_parts.append(file_type)
+                
+            # Add filename component if available
+            if filename:
+                path_parts.append(filename)
+                
+            # Join path components with forward slashes
+            path = '/'.join(path_parts)
+            logger.info(f"[STORAGE-PATH] Using hierarchical path: {path}")
+            return path
 
     async def upload_file(
         self, file_path: str, object_name: Optional[str] = None,
@@ -373,76 +446,186 @@ class R2Storage:
             logger.error(error_msg)
             return False, error_msg
 
-    async def delete_directory(self, prefix: str) -> Tuple[bool, Dict[str, int]]:
+    async def delete_directory(self, prefix: str) -> Dict[str, Any]:
         """
-        Delete all objects with the given prefix (simulating a directory).
-        Uses batch deletion to minimize API calls.
+        Delete all objects with the given prefix, simulating directory deletion.
         
         Args:
-            prefix: The prefix/directory to delete
+            prefix: The prefix to delete (e.g., 'users/123/projects/456/')
             
         Returns:
-            Tuple containing (success, result_dict)
-                - success: Whether all objects were deleted successfully
-                - result_dict: Dictionary with counts of deleted and failed objects
+            Dict containing deletion results and stats
         """
-        logger.info(f"Deleting all objects with prefix: {prefix}")
+        # Check if this is a flat structure pattern (without trailing slash)
+        is_flat_pattern = prefix.startswith("proj_") and not prefix.endswith("/")
         
-        # First, list all objects with this prefix
-        success, objects_or_error = await self.list_directory(prefix)
+        # Original prefix for logging
+        original_prefix = prefix
         
-        if not success:
-            return False, {"deleted": 0, "failed": 0, "error": objects_or_error}
+        # Add trailing slash for directory-style prefixes if not a flat pattern
+        if not is_flat_pattern and not prefix.endswith('/'):
+            prefix = f"{prefix}/"
+            logger.info(f"[DELETE-DIR] Added trailing slash to directory prefix: {original_prefix} -> {prefix}")
         
-        objects = objects_or_error
+        logger.info(f"[DELETE-DIR] Starting deletion with prefix pattern: '{prefix}'")
+        logger.info(f"[DELETE-DIR] Is flat pattern: {is_flat_pattern}")
         
-        if not objects:
-            logger.info(f"No objects found with prefix {prefix}")
-            return True, {"deleted": 0, "failed": 0}
-        
-        deleted_count = 0
-        failed_count = 0
+        result = {
+            "prefix": prefix,
+            "success": False,
+            "deleted_count": 0,
+            "failed_count": 0,
+            "total_bytes": 0,
+            "errors": [],
+            "empty_directory": False,
+            "matched_objects": []  # Track the specific object names that matched
+        }
         
         try:
-            # Process in batches of 1000 (S3 API limit)
-            batch_size = 1000
+            s3_client = await self.get_s3_client()
             
-            for i in range(0, len(objects), batch_size):
-                batch = objects[i:i + batch_size]
-                
-                # Prepare delete objects request
-                delete_dict = {
-                    'Objects': [{'Key': obj['Key']} for obj in batch]
-                }
-                
-                # Delete the batch
-                logger.info(f"Deleting batch of {len(batch)} objects")
-                response = self.s3.delete_objects(
+            # First, check if directory exists by listing objects
+            list_response = await s3_client.list_objects_v2(
+                Bucket=self.bucket_name,
+                Prefix=prefix,
+                MaxKeys=1
+            )
+            
+            # If no contents found, try with delimiter to check if it's an empty folder
+            if "Contents" not in list_response or len(list_response.get("Contents", [])) == 0:
+                delimiter_response = await s3_client.list_objects_v2(
                     Bucket=self.bucket_name,
-                    Delete=delete_dict
+                    Prefix=prefix,
+                    Delimiter='/',
+                    MaxKeys=1
                 )
                 
-                # Count successful deletions
-                if 'Deleted' in response:
-                    deleted_count += len(response['Deleted'])
-                
-                # Count and log errors
-                if 'Errors' in response and response['Errors']:
-                    for error in response['Errors']:
-                        logger.error(f"Failed to delete {error.get('Key')}: {error.get('Code')} - {error.get('Message')}")
+                # Check if it has common prefixes (subfolders)
+                if "CommonPrefixes" in delimiter_response and len(delimiter_response["CommonPrefixes"]) > 0:
+                    result["empty_directory"] = True
+                    logger.info(f"[DELETE-DIR] Directory {prefix} exists but appears empty (has subfolders only)")
+                else:
+                    logger.info(f"[DELETE-DIR] No objects found with prefix: {prefix}")
+                    return result
                     
-                    failed_count += len(response['Errors'])
+                # If it's an empty directory, create and delete a marker object
+                marker_key = f"{prefix}.empty_folder_marker"
+                logger.info(f"[DELETE-DIR] Creating empty folder marker: {marker_key}")
+                
+                try:
+                    await s3_client.put_object(
+                        Bucket=self.bucket_name,
+                        Key=marker_key,
+                        Body=b''
+                    )
+                    
+                    await s3_client.delete_object(
+                        Bucket=self.bucket_name,
+                        Key=marker_key
+                    )
+                    logger.info(f"[DELETE-DIR] Successfully created and deleted marker for empty directory: {prefix}")
+                except Exception as e:
+                    logger.error(f"[DELETE-DIR] Error handling empty directory marker: {str(e)}")
             
-            success = failed_count == 0
-            result = {"deleted": deleted_count, "failed": failed_count}
+            # Get all objects with the prefix
+            paginator = s3_client.get_paginator('list_objects_v2')
+            page_iterator = paginator.paginate(
+                Bucket=self.bucket_name,
+                Prefix=prefix
+            )
             
-            logger.info(f"Deletion results for prefix {prefix}: {result}")
-            return success, result
+            # Collect all matching objects for logging first
+            all_matching_objects = []
+            
+            logger.info(f"[DELETE-DIR] Searching for objects with prefix: '{prefix}'")
+            
+            # First pass to collect and log matching objects
+            async for page in page_iterator:
+                if "Contents" in page:
+                    # Log each object found for detailed troubleshooting
+                    for obj in page["Contents"]:
+                        obj_key = obj["Key"]
+                        obj_size = obj.get("Size", 0)
+                        all_matching_objects.append(obj)
+                        result["matched_objects"].append(obj_key)  # Track matched object
+                        logger.info(f"[DELETE-DIR] Found matching object: '{obj_key}' ({obj_size} bytes)")
+                else:
+                    logger.info(f"[DELETE-DIR] No objects found in this page for prefix: '{prefix}'")
+            
+            # If no objects found, log and exit early
+            if not all_matching_objects:
+                logger.info(f"[DELETE-DIR] No objects found with prefix: '{prefix}'")
+                return result
+            
+            # Log summary of found objects
+            logger.info(f"[DELETE-DIR] Found total of {len(all_matching_objects)} objects " +
+                        f"with prefix '{prefix}' to delete")
+            
+            # Reset paginator for actual deletion
+            page_iterator = paginator.paginate(
+                Bucket=self.bucket_name,
+                Prefix=prefix
+            )
+            
+            # Delete each object
+            async for page in page_iterator:
+                if "Contents" not in page:
+                    continue
+                    
+                objects_to_delete = [{"Key": obj["Key"]} for obj in page["Contents"]]
+                
+                if objects_to_delete:
+                    logger.info(f"[DELETE-DIR] Deleting batch of {len(objects_to_delete)} objects with prefix: {prefix}")
+                    
+                    # Log all keys in this batch
+                    for i, obj_to_delete in enumerate(objects_to_delete):
+                        logger.info(f"[DELETE-DIR] Batch item {i+1}: Deleting '{obj_to_delete['Key']}'")
+                    
+                    # Collect size information before deleting
+                    for obj in page["Contents"]:
+                        result["total_bytes"] += obj.get("Size", 0)
+                    
+                    # Delete objects in batch
+                    try:
+                        delete_response = await s3_client.delete_objects(
+                            Bucket=self.bucket_name,
+                            Delete={"Objects": objects_to_delete}
+                        )
+                        
+                        # Record successful deletions
+                        if "Deleted" in delete_response:
+                            result["deleted_count"] += len(delete_response["Deleted"])
+                            
+                        # Record failed deletions
+                        if "Errors" in delete_response:
+                            result["failed_count"] += len(delete_response["Errors"])
+                            for error in delete_response["Errors"]:
+                                result["errors"].append({
+                                    "key": error.get("Key", "unknown"),
+                                    "code": error.get("Code", "unknown"),
+                                    "message": error.get("Message", "unknown")
+                                })
+                                logger.error(f"[DELETE-DIR] Failed to delete object {error.get('Key')}: {error.get('Message')}")
+                            
+                    except Exception as e:
+                        logger.error(f"[DELETE-DIR] Error during batch deletion: {str(e)}")
+                        result["errors"].append({"message": str(e)})
+            
+            # Update success status based on deletion results
+            result["success"] = result["failed_count"] == 0
+            
+            # Log summary of deletion
+            logger.info(f"[DELETE-DIR] Directory deletion complete for {prefix}:")
+            logger.info(f"[DELETE-DIR] - {result['deleted_count']} objects deleted successfully")
+            logger.info(f"[DELETE-DIR] - {result['failed_count']} objects failed to delete")
+            logger.info(f"[DELETE-DIR] - {result['total_bytes']/1024/1024:.2f} MB freed")
+            
+            return result
             
         except Exception as e:
-            error_msg = f"Error during batch deletion for prefix {prefix}: {str(e)}"
-            logger.error(error_msg)
-            return False, {"deleted": deleted_count, "failed": len(objects) - deleted_count, "error": str(e)}
+            logger.error(f"[DELETE-DIR] Error deleting directory {prefix}: {str(e)}")
+            result["errors"].append({"message": str(e)})
+            return result
 
     async def upload_file_content(
         self, file_content: BinaryIO, object_name: str,
@@ -450,42 +633,85 @@ class R2Storage:
         scene_id: Optional[str] = None, file_type: Optional[str] = None
     ) -> Tuple[bool, str]:
         """
-        Upload a file from its content to R2 storage.
-
+        Upload file content directly to R2 storage.
+        
         Args:
-            file_content: Binary content of the file to upload
-            object_name: S3 object name (required)
-            user_id: Optional user ID for structured storage path
+            file_content: Content bytes to upload
+            object_name: S3 object name or filename
+            user_id: Optional user ID for structured storage path (default: "default")
             project_id: Optional project ID for structured storage path
             scene_id: Optional scene ID for structured storage path
             file_type: Optional file type category for structured storage path
-
+            
         Returns:
             Tuple of (success, url or error message)
         """
-        # If we have user_id and project_id, use structured paths
-        if user_id and project_id:
-            object_name = self.get_file_path(user_id, project_id, scene_id, file_type, object_name)
-
-        logger.info(f"Attempting to upload file content to R2 as {object_name}")
+        # Log request info with clear separation
+        logger.info("=" * 50)
+        logger.info(f"UPLOAD REQUEST: object_name={object_name}, user_id={user_id}, project_id={project_id}, scene_id={scene_id}, file_type={file_type}")
+        
+        # Check if we have the parameters to use the new path structure
+        using_new_structure = False
+        original_object_name = object_name
         
         try:
-            # Upload the file directly from content
+            # If we have user_id and project_id, use structured paths
+            if user_id and project_id:
+                using_new_structure = True
+                filename = object_name if '/' not in object_name else os.path.basename(object_name)
+                
+                # Generate structured path
+                object_name = self.get_file_path(user_id, project_id, scene_id, file_type, filename)
+                logger.info(f"UPLOAD PATH: Using new structure: {object_name}")
+            
+            # Handle backward compatibility with old path patterns
+            elif object_name.startswith("projects/"):
+                # This is an old format path (projects/{project_id}/scenes/{scene_id}/media/{filename})
+                # We keep it as is for backward compatibility
+                logger.info(f"UPLOAD PATH: Using legacy path format: {object_name}")
+            
+            elif object_name.startswith("scenes/"):
+                # This is the original flat format (scenes/{scene_id}/media/{filename})
+                # We keep it as is for backward compatibility
+                logger.info(f"UPLOAD PATH: Using original flat path format: {object_name}")
+            
+            logger.info(f"UPLOAD PATH: Final object name: {object_name}")
+            
+            # Upload the file content directly
             self.s3.upload_fileobj(file_content, self.bucket_name, object_name)
             
-            # Create a proper URL for the uploaded file
+            # NEW: Verify if the file exists in storage after upload
+            try:
+                head_response = self.s3.head_object(
+                    Bucket=self.bucket_name,
+                    Key=object_name
+                )
+                logger.info(f"UPLOAD VERIFICATION: File exists in R2. Size: {head_response.get('ContentLength', 'unknown')} bytes")
+            except Exception as e:
+                logger.warning(f"UPLOAD VERIFICATION: Could not verify file exists: {str(e)}")
+                
+            # Generate a URL for accessing the file
             url = self.s3.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': self.bucket_name, 'Key': object_name},
                 ExpiresIn=settings.R2_URL_EXPIRATION
             )
             
-            logger.info(f"Successfully uploaded file content to R2: {url}")
+            logger.info(f"UPLOAD SUCCESS: {url}")
+            logger.info("=" * 50)
             return True, url
+        
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code')
+            error_msg = e.response.get('Error', {}).get('Message', str(e))
+            logger.error(f"UPLOAD ERROR: R2 client error: {error_code} - {error_msg}")
+            logger.error("=" * 50)
+            return False, f"R2 error: {error_msg}"
             
         except Exception as e:
-            logger.error(f"Error uploading file content to R2: {str(e)}")
+            logger.error(f"UPLOAD ERROR: General error: {str(e)}")
             logger.error(traceback.format_exc())
+            logger.error("=" * 50)
             return False, str(e)
 
     async def delete_project_files(self, user_id: str, project_id: str) -> Dict[str, Any]:
@@ -518,6 +744,16 @@ class R2Storage:
         prefix = self.get_file_path(user_id, project_id, scene_id)
         result = await self.delete_directory(prefix)
         return result
+
+    async def get_s3_client(self):
+        """
+        Get the boto3 S3 client for direct operations.
+        
+        Returns:
+            The initialized S3 client
+        """
+        # Use the existing client from the instance
+        return self.s3
 
 
 # Create a singleton storage instance

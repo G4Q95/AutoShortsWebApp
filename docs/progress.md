@@ -353,6 +353,17 @@ The current focus is on improving code stability, API connectivity, and refactor
   - ✅ Created manual cleanup utility for orphaned files
   - ✅ Added unit tests for R2 storage operations
   - ✅ Created comprehensive documentation for R2 operations and costs
+- ✅ Enhanced R2 Storage Cleanup Functionality
+  - Fixed file deletion issue with double "proj_" prefix
+  - Implemented direct file listing approach for more reliable deletion
+  - Added comprehensive pattern matching for all historical file naming patterns
+  - Implemented a dry run mode for safe testing
+  - Created detailed debugging endpoint for cleanup validation
+  - Added ability to match files by project ID regardless of path structure
+  - Enhanced error handling and robust batch processing
+  - Created R2 storage patterns documentation
+  - Implemented better cleanup summary reporting
+  - Added safeguards to ensure both legacy and current storage patterns are properly cleaned
 
 ### In Progress
 - 🔄 Scene Component Refactoring (Phase 1 - 85% Complete):

@@ -297,18 +297,38 @@ async def store_media_content(
                 detail={"message": f"Failed to write media data to file: {str(e)}", "code": "file_write_error"}
             )
         
-        # Generate a storage key for the media
+        # Generate a filename with timestamp for uniqueness
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         filename = f"{timestamp}{extension}"
-        storage_key = f"projects/{project_id}/scenes/{scene_id}/media/{filename}"
         
         # Get storage service
         from app.services.storage import get_storage
         storage = get_storage()
         
-        # Upload to R2
-        logger.info(f"Uploading media to storage with key: {storage_key}")
-        success, url = await storage.upload_file(temp_path, storage_key)
+        # User ID is set to "default" for now - all users share the same content
+        user_id = "default"
+        file_type = "media"
+        
+        # Let the storage service handle the path structure
+        # The upload_file method will call get_file_path internally
+        logger.info(f"Uploading media to storage with simplified structure")
+        success, url = await storage.upload_file(
+            file_path=temp_path, 
+            object_name=filename,
+            user_id=user_id, 
+            project_id=project_id, 
+            scene_id=scene_id, 
+            file_type=file_type
+        )
+        
+        # Get the actual storage key used
+        # Split the URL to extract the key from the end
+        try:
+            storage_key = url.split('/')[-1].split('?')[0]
+            logger.info(f"Extracted storage key: {storage_key}")
+        except Exception as e:
+            logger.warning(f"Could not extract storage key from URL: {str(e)}")
+            storage_key = filename  # Fallback to just using the filename
         
         # Clean up temporary file
         try:
