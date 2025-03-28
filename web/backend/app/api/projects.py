@@ -341,23 +341,47 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
     Delete a project by ID and clean up associated R2 storage.
     Returns no content on success.
     """
+    is_object_id = False
+    
+    # First try to treat the ID as a MongoDB ObjectId
     try:
         obj_id = ObjectId(project_id)
+        is_object_id = True
     except InvalidId:
-        error_response = create_error_response(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            message="Invalid project ID format",
-            error_code=ErrorCodes.VALIDATION_ERROR
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_response
-        )
+        # Not a valid ObjectId, but could be a project identifier like "proj_abc123"
+        logger.info(f"Project ID {project_id} is not a valid ObjectId, will try to find by proj_id field")
+        is_object_id = False
 
     if not db.is_mock:
         try:
-            # First verify project exists
-            project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
+            # Attempt to find the project
+            project = None
+            
+            if is_object_id:
+                # Find by ObjectId
+                project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
+            else:
+                # Try to find by proj_id or name fields if it starts with 'proj_'
+                if project_id.startswith("proj_"):
+                    # Try to find by proj_id or name fields
+                    project = await db.client[db.db_name].projects.find_one({
+                        "$or": [
+                            {"proj_id": project_id},
+                            {"name": project_id}
+                        ]
+                    })
+                
+                # If not found and doesn't start with 'proj_', try with the prefix added
+                if not project and not project_id.startswith("proj_"):
+                    prefixed_id = f"proj_{project_id}"
+                    project = await db.client[db.db_name].projects.find_one({
+                        "$or": [
+                            {"proj_id": prefixed_id},
+                            {"name": prefixed_id}
+                        ]
+                    })
+            
+            # If we still couldn't find the project, return a 404
             if not project:
                 error_response = create_error_response(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -368,13 +392,16 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=error_response
                 )
-                
+            
+            # Now that we have the project, we can delete it
+            project_mongodb_id = project["_id"]  # This is the ObjectId
+            
             # Delete from database
-            result = await db.client[db.db_name].projects.delete_one({"_id": obj_id})
+            result = await db.client[db.db_name].projects.delete_one({"_id": project_mongodb_id})
             if result.deleted_count == 0:
                 error_response = create_error_response(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Project {project_id} not found",
+                    message=f"Project {project_id} not found or could not be deleted",
                     error_code=ErrorCodes.RESOURCE_NOT_FOUND
                 )
                 raise HTTPException(
@@ -382,29 +409,33 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
                     detail=error_response
                 )
             
-            # Get the actual project ID format used in storage (the one with proj_ prefix)
-            # This might be different from the MongoDB ObjectId string
-            from app.services.project import cleanup_project_storage
-            
-            # Get the project ID used in storage from the project data
+            # Get the storage project ID from the project data
             storage_project_id = project.get('proj_id')
             
-            # If no proj_id field exists, try to determine from other fields or use the ObjectId
+            # If no proj_id field exists, try to determine from other fields
             if not storage_project_id:
                 if 'name' in project and project['name'].startswith('proj_'):
-                    storage_project_id = project['name'].split('_')[0]
+                    storage_project_id = project['name']
                 else:
-                    # Fallback to using the ObjectId string
-                    storage_project_id = str(obj_id)
+                    # If we don't have a proper project ID, use the input ID with proj_ prefix
+                    # if it doesn't already have it
+                    if project_id.startswith('proj_'):
+                        storage_project_id = project_id
+                    else:
+                        storage_project_id = f"proj_{project_id}"
                     
             logger.info(f"Deleting project with storage ID: {storage_project_id}")
             
             # Add R2 cleanup to background task using the project service implementation
-            # This uses the WranglerR2Client for more reliable operations with --remote flag
+            from app.services.project import cleanup_project_storage
             background_tasks.add_task(cleanup_project_storage, storage_project_id, dry_run=False)
             
             return Response(status_code=status.HTTP_204_NO_CONTENT)
+        except HTTPException:
+            raise
         except Exception as e:
+            logger.error(f"Failed to delete project: {str(e)}")
+            logger.exception("Full traceback:")
             error_response = create_error_response(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 message=f"Failed to delete project: {str(e)}",
@@ -417,7 +448,13 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
     else:
         # Mock deletion always succeeds, but still run cleanup
         from app.services.project import cleanup_project_storage
-        background_tasks.add_task(cleanup_project_storage, f"proj_{project_id}", dry_run=False)
+        
+        # Make sure storage_project_id has proj_ prefix
+        storage_project_id = project_id
+        if not storage_project_id.startswith("proj_"):
+            storage_project_id = f"proj_{project_id}"
+            
+        background_tasks.add_task(cleanup_project_storage, storage_project_id, dry_run=False)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

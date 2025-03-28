@@ -48,6 +48,33 @@ Once authentication is implemented:
 
 ## Technical Implementation Details
 
+### File Naming Patterns
+
+During storage cleanup, we must account for different file pattern variations found in the R2 bucket:
+
+1. **Standard Pattern** - `proj_[project_id]_media.mp4`
+2. **Indexed Pattern** - `proj_[project_id]_[index]_media.mp4`
+3. **Scene Pattern** - `proj_[project_id]_scene_[number].mp4`
+4. **Scene ID Pattern** - `proj_[project_id]_[scene_id]_media.mp4` (where scene_id is a unique identifier)
+
+The newest pattern we've added to the cleanup routine is the Scene ID Pattern, which follows the format:
+```
+proj_[project_id]_[scene_id]_media.mp4
+```
+
+For example: `proj_m8t162ri_fs5rs83yh1mvf49m6cqcw_media.mp4`
+
+This pattern was missing from previous cleanup implementations, which is why some files remained in the bucket after project deletion.
+
+### Enhanced Cleanup Method
+
+Our updated approach uses both pattern matching and direct S3 API listing to ensure all files are found:
+
+1. Generate pattern variations (with and without proj_ prefix)
+2. Use wildcards to match scene ID patterns (`proj_[project_id]_*_media.mp4`)
+3. Use S3 API to list all objects with the project ID prefix and include their exact keys
+4. Delete all matching patterns, including those found through direct listing
+
 ### Phase 1: R2Storage Class Enhancements
 
 ```python
@@ -214,6 +241,11 @@ async def cleanup_project_storage(project_id: str):
    - Test error handling during cleanup
    - Verify cleanup results are properly logged
 
+3. **Test Pattern Matching**
+   - Verify all file naming patterns are correctly detected
+   - Test with scene ID patterns specifically
+   - Confirm direct API listing finds files that pattern matching might miss
+
 ### Manual Testing
 
 1. **Project Deletion Flow**
@@ -299,3 +331,7 @@ This implementation will:
 - Dry-run mode will be mandatory before actual deletion to prevent accidental data loss
 - Detailed logging will ensure full auditability of all deletion operations
 - Background tasks ensure deletion occurs after confirming database operation success 
+
+## Update History
+
+- **2025-03-28**: Updated file pattern matching to include scene ID pattern (`proj_[project_id]_[scene_id]_media.mp4`). Added direct S3 API listing to find files that pattern matching might miss. 

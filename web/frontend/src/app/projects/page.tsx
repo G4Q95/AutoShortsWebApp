@@ -8,15 +8,16 @@ import {
   Copy as CopyIcon,
   Trash as TrashIcon,
 } from 'lucide-react';
-import { Project } from '@/components/project/ProjectProvider';
+import { ProjectMetadata } from '@/components/project/ProjectTypes';
 import {
   getProjectsList,
   deleteProject as deleteProjectUtil,
   clearAllProjects,
 } from '@/lib/storage-utils';
+import { deleteProject as deleteProjectFromAPI } from '@/lib/api/projects';
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,16 +27,7 @@ export default function ProjectsPage() {
       try {
         setIsLoading(true);
         const projectsMetadata = await getProjectsList();
-        setProjects(
-          projectsMetadata.map((metadata) => ({
-            id: metadata.id,
-            title: metadata.title,
-            scenes: [],
-            createdAt: metadata.createdAt,
-            updatedAt: metadata.updatedAt,
-            status: 'draft',
-          }))
-        );
+        setProjects(projectsMetadata);
       } catch (err) {
         console.error('Failed to load projects:', err);
         setError('Failed to load projects. Please try again.');
@@ -54,10 +46,21 @@ export default function ProjectsPage() {
 
     if (confirm('Are you sure you want to delete this project?')) {
       try {
+        // First delete from backend API to clean up R2 storage
+        console.log(`[ProjectsPage] Deleting project ${projectId} from backend API...`);
+        const apiResponse = await deleteProjectFromAPI(projectId);
+        console.log(`[ProjectsPage] API response:`, apiResponse);
+        
+        // Then remove from local storage
+        console.log(`[ProjectsPage] Deleting project ${projectId} from local storage...`);
         await deleteProjectUtil(projectId);
+        console.log(`[ProjectsPage] Local storage deletion complete`);
+        
+        // Update UI
         setProjects(projects.filter((project) => project.id !== projectId));
+        console.log(`[ProjectsPage] UI updated, project removed`);
       } catch (error) {
-        console.error('Failed to delete project:', error);
+        console.error('[ProjectsPage] Failed to delete project:', error);
         setError('Failed to delete project. Please try again.');
       }
     }
@@ -67,7 +70,20 @@ export default function ProjectsPage() {
   const handleDeleteAll = async () => {
     if (confirm('Are you sure you want to delete ALL projects? This cannot be undone.')) {
       try {
+        // First delete each project from the API
+        const promises = projects.map(async (project) => {
+          console.log(`Deleting project ${project.id} from backend API`);
+          await deleteProjectFromAPI(project.id);
+        });
+        
+        // Wait for all API deletions to complete
+        await Promise.all(promises);
+        
+        // Then clear local storage
+        console.log('Clearing all projects from local storage');
         await clearAllProjects();
+        
+        // Update UI
         setProjects([]);
       } catch (error) {
         console.error('Failed to delete all projects:', error);
@@ -135,17 +151,9 @@ export default function ProjectsPage() {
                   <div className="flex justify-between items-start">
                     <h3 className="text-xl font-semibold text-gray-800 mb-2">{project.title}</h3>
                     <span
-                      className={`text-xs px-2 py-1 rounded-full ${
-                        project.status === 'draft'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : project.status === 'processing'
-                            ? 'bg-blue-100 text-blue-800'
-                            : project.status === 'completed'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                      }`}
+                      className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800"
                     >
-                      {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                      Draft
                     </span>
                   </div>
                   <p className="text-gray-500 text-sm mb-4">

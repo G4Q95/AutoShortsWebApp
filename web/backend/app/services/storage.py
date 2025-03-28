@@ -1,6 +1,7 @@
 import logging
 import os
 import traceback
+import asyncio
 from typing import BinaryIO, Optional, Tuple, Any, List, Dict, Union
 
 import boto3
@@ -754,6 +755,267 @@ class R2Storage:
         """
         # Use the existing client from the instance
         return self.s3
+
+    async def list_project_files(self, project_id: str) -> List[Dict[str, Any]]:
+        """
+        List all files associated with a project in R2 storage.
+        
+        Args:
+            project_id: The project ID to list files for
+            
+        Returns:
+            List of files with their metadata
+        """
+        logger.info(f"[LIST-PROJECT] Listing files for project: {project_id}")
+        
+        # Ensure project ID has the correct format
+        if not project_id.startswith("proj_"):
+            project_id = f"proj_{project_id}"
+            logger.info(f"[LIST-PROJECT] Added 'proj_' prefix to project ID: {project_id}")
+        
+        # Get an S3 client for listing objects
+        s3_client = self.s3
+        
+        # Define patterns to search for based on known path structures
+        search_patterns = []
+        
+        # Check if project_id already has the 'proj_' prefix
+        project_id_clean = project_id
+        if project_id.startswith("proj_"):
+            project_id_clean = project_id[5:]  # Remove 'proj_' prefix
+            # Add pattern with double prefix (known issue)
+            search_patterns.append(f"proj_proj_{project_id_clean}")
+        
+        # Add standard patterns
+        search_patterns.append(project_id)  # Original form
+        search_patterns.append(f"proj_{project_id_clean}")  # With prefix
+        
+        # Add hierarchical path patterns
+        search_patterns.append(f"projects/{project_id}/")  # Traditional hierarchical
+        search_patterns.append(f"users/default/projects/{project_id}/")  # Full hierarchical
+        
+        # Add content-specific paths
+        search_patterns.append(f"audio/{project_id}/")  # Audio content
+        search_patterns.append(f"video/{project_id}/")  # Video content
+        search_patterns.append(f"media/{project_id}/")  # Media content
+        search_patterns.append(f"thumbnails/{project_id}/")  # Thumbnail content
+        
+        logger.info(f"[LIST-PROJECT] Searching with patterns: {search_patterns}")
+        
+        # Initialize result
+        matching_files = []
+        
+        try:
+            # List all objects in the bucket with pagination
+            paginator = s3_client.get_paginator('list_objects_v2')
+            
+            # Check each pattern
+            for pattern in search_patterns:
+                logger.info(f"[LIST-PROJECT] Checking pattern: {pattern}")
+                
+                try:
+                    # List objects with this prefix
+                    page_iterator = paginator.paginate(
+                        Bucket=self.bucket_name,
+                        Prefix=pattern
+                    )
+                    
+                    # Process each page of results
+                    async for page in page_iterator:
+                        if "Contents" in page:
+                            for obj in page["Contents"]:
+                                # Create a simplified object representation
+                                file_info = {
+                                    "key": obj["Key"],
+                                    "size": obj.get("Size", 0),
+                                    "last_modified": obj.get("LastModified", "").isoformat() if obj.get("LastModified") else "",
+                                    "etag": obj.get("ETag", "").strip('"'),
+                                    "pattern": pattern
+                                }
+                                
+                                # Add the file if not already in results
+                                if not any(f["key"] == file_info["key"] for f in matching_files):
+                                    matching_files.append(file_info)
+                                    logger.info(f"[LIST-PROJECT] Found file: {file_info['key']}")
+                
+                except Exception as e:
+                    logger.error(f"[LIST-PROJECT] Error listing objects with pattern {pattern}: {str(e)}")
+            
+            # Also search for files that contain the project ID anywhere in the key
+            # This is a more comprehensive approach but might be slower
+            try:
+                # List all objects
+                all_objects_iterator = paginator.paginate(
+                    Bucket=self.bucket_name
+                )
+                
+                # Look for project ID in any part of the key
+                async for page in all_objects_iterator:
+                    if "Contents" in page:
+                        for obj in page["Contents"]:
+                            key = obj["Key"]
+                            
+                            # Check if this key contains any variant of the project ID
+                            # but wasn't already found by the prefix searches
+                            if (project_id in key or project_id_clean in key) and \
+                               not any(f["key"] == key for f in matching_files):
+                                
+                                file_info = {
+                                    "key": key,
+                                    "size": obj.get("Size", 0),
+                                    "last_modified": obj.get("LastModified", "").isoformat() if obj.get("LastModified") else "",
+                                    "etag": obj.get("ETag", "").strip('"'),
+                                    "pattern": "substring_match"
+                                }
+                                
+                                matching_files.append(file_info)
+                                logger.info(f"[LIST-PROJECT] Found file via substring match: {file_info['key']}")
+            
+            except Exception as e:
+                logger.error(f"[LIST-PROJECT] Error during substring search: {str(e)}")
+            
+            # Log summary
+            logger.info(f"[LIST-PROJECT] Found total of {len(matching_files)} files for project {project_id}")
+            
+            return matching_files
+            
+        except Exception as e:
+            logger.error(f"[LIST-PROJECT] Error listing project files: {str(e)}")
+            logger.error(traceback.format_exc())
+            return []
+            
+    async def cleanup_project_storage(
+        self, 
+        project_id: str, 
+        dry_run: bool = False,
+        use_wrangler: bool = True,
+        sequential: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Clean up all files associated with a project in R2 storage.
+        
+        Args:
+            project_id: The project ID to clean up files for
+            dry_run: If True, only list what would be deleted without actually deleting
+            use_wrangler: If True, use Wrangler CLI for deletion, otherwise use S3 API
+            sequential: If True, delete files sequentially instead of in parallel
+            
+        Returns:
+            Dictionary with deletion results
+        """
+        logger.info(f"[CLEANUP] Starting storage cleanup for project: {project_id} (dry_run: {dry_run}, use_wrangler: {use_wrangler}, sequential: {sequential})")
+        
+        # If using Wrangler, delegate to the project service
+        if use_wrangler:
+            # Import locally to avoid circular imports
+            from app.services.project import cleanup_project_storage as wrangler_cleanup
+            
+            try:
+                result = await wrangler_cleanup(project_id, dry_run)
+                logger.info(f"[CLEANUP] Wrangler cleanup completed for {project_id}: {result}")
+                return result
+            except Exception as e:
+                logger.error(f"[CLEANUP] Error during Wrangler cleanup: {str(e)}")
+                return {
+                    "error": str(e),
+                    "success": False
+                }
+        
+        # Otherwise use S3 API for deletion
+        try:
+            # First list all files for this project
+            files = await self.list_project_files(project_id)
+            
+            if not files:
+                logger.info(f"[CLEANUP] No files found for project {project_id}")
+                return {
+                    "success": True,
+                    "files_deleted": 0,
+                    "message": "No files found"
+                }
+            
+            logger.info(f"[CLEANUP] Found {len(files)} files to delete for project {project_id}")
+            
+            # If dry run, just return what would be deleted
+            if dry_run:
+                logger.info(f"[CLEANUP] DRY RUN - Would delete {len(files)} files")
+                return {
+                    "success": True,
+                    "dry_run": True,
+                    "files_to_delete": [f["key"] for f in files],
+                    "file_count": len(files)
+                }
+            
+            # Extract keys for deletion
+            keys_to_delete = [f["key"] for f in files]
+            
+            # Process deletions
+            if sequential:
+                # Delete sequentially
+                success_count = 0
+                error_messages = []
+                
+                for key in keys_to_delete:
+                    try:
+                        await self.s3.delete_object(
+                            Bucket=self.bucket_name,
+                            Key=key
+                        )
+                        logger.info(f"[CLEANUP] Deleted file: {key}")
+                        success_count += 1
+                    except Exception as e:
+                        error_message = f"Error deleting {key}: {str(e)}"
+                        logger.error(f"[CLEANUP] {error_message}")
+                        error_messages.append(error_message)
+                
+                result = {
+                    "success": len(error_messages) == 0,
+                    "files_deleted": success_count,
+                    "files_failed": len(keys_to_delete) - success_count,
+                    "errors": error_messages
+                }
+            else:
+                # Use batch delete for better performance
+                try:
+                    # Prepare objects for deletion
+                    objects_to_delete = [{"Key": key} for key in keys_to_delete]
+                    
+                    # Execute batch delete
+                    response = await self.s3.delete_objects(
+                        Bucket=self.bucket_name,
+                        Delete={"Objects": objects_to_delete}
+                    )
+                    
+                    # Parse response
+                    deleted_count = len(response.get("Deleted", []))
+                    errors = response.get("Errors", [])
+                    
+                    logger.info(f"[CLEANUP] Batch deletion results: {deleted_count} deleted, {len(errors)} errors")
+                    
+                    result = {
+                        "success": len(errors) == 0,
+                        "files_deleted": deleted_count,
+                        "files_failed": len(errors),
+                        "errors": [f"{e.get('Key', '')}: {e.get('Message', '')}" for e in errors]
+                    }
+                except Exception as e:
+                    logger.error(f"[CLEANUP] Error during batch deletion: {str(e)}")
+                    result = {
+                        "success": False,
+                        "error": str(e),
+                        "files_deleted": 0,
+                        "files_failed": len(keys_to_delete)
+                    }
+            
+            logger.info(f"[CLEANUP] S3 API cleanup completed for {project_id}: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"[CLEANUP] Error during S3 API cleanup: {str(e)}")
+            return {
+                "error": str(e),
+                "success": False
+            }
 
 
 # Create a singleton storage instance

@@ -26,6 +26,7 @@ import {
   projectExists,
   clearAllProjects,
 } from '../../lib/storage-utils';
+import { deleteProject as deleteProjectFromAPI } from '../../lib/api/projects';
 import { determineMediaType, generateVideoThumbnail } from '../../lib/media-utils';
 
 import { 
@@ -989,6 +990,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     try {
       const projectId = state.currentProject.id;
+      
+      // First delete from backend API to clean up R2 storage
+      console.log(`Deleting project ${projectId} from backend API`);
+      await deleteProjectFromAPI(projectId);
+      
+      // Then remove from local storage
+      console.log(`Deleting project ${projectId} from local storage`);
       await deleteProject(projectId);
       
       // Only refresh projects after successful deletion

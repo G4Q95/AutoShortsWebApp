@@ -240,6 +240,7 @@ from app.api.projects import router as projects_router
 from app.api.voice import router as voice_router
 from app.api.test import router as test_router
 from app.api.media import router as media_router
+from app.api.debug import router as debug_router  # Add import for debug router
 
 # Include routers
 app.include_router(content_router, prefix="/api/v1/content")
@@ -247,6 +248,7 @@ app.include_router(projects_router, prefix="/api/v1/projects")
 app.include_router(voice_router, prefix="/api/v1/voice")
 app.include_router(test_router, prefix="/api/v1")
 app.include_router(media.router, prefix="/api/v1")  # Media router with correct name
+app.include_router(debug_router, prefix="/api/v1")  # Add debug router
 
 # Register API routers for legacy endpoints (deprecated, to be removed)
 app.include_router(test_router, prefix="/api/test")

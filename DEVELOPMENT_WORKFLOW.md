@@ -213,6 +213,7 @@ This document outlines the development workflow for the Auto Shorts Web App proj
    - Browser Tools server for frontend testing
    - MongoDB for data storage
    - Visual Studio Code (or preferred IDE) with recommended extensions
+   - See [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for detailed Docker setup, including Wrangler integration
 
 2. **Testing Tools**
    - Playwright for E2E testing

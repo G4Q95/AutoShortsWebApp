@@ -73,6 +73,7 @@ Auto Shorts Web App/
 - Docker Desktop
 - Docker Compose (included with Docker Desktop)
 - Git
+- Cloudflare account with R2 bucket (for production storage)
 
 ### Quick Start with Docker
 
@@ -86,6 +87,7 @@ Auto Shorts Web App/
    ```bash
    cp .env.example .env
    # Edit .env with your configuration details
+   # Important: Set your CLOUDFLARE_API_TOKEN for Wrangler authentication
    ```
 
 3. **Start the application**
@@ -97,6 +99,17 @@ Auto Shorts Web App/
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8000
    - API Documentation: http://localhost:8000/docs
+
+5. **Verify Wrangler setup** (optional)
+   ```bash
+   # Check Wrangler version in the backend container
+   docker-compose exec backend wrangler --version
+   
+   # Verify Wrangler authentication
+   docker-compose exec backend wrangler whoami
+   ```
+
+For detailed Docker setup instructions, including Wrangler integration for Cloudflare R2 management, see [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md).
 
 ### Running Tests
 

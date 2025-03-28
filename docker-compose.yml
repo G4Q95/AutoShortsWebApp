@@ -34,11 +34,17 @@ services:
       - CLOUDFLARE_R2_ACCESS_KEY_ID=da9b059548252aba175a3464f1f3926a
       - CLOUDFLARE_R2_SECRET_ACCESS_KEY=9c3aa5ce21a1ff09c3e63a8e4bd7c81bfd4c383eeb5edc1f8650731ca301d344
       - CLOUDFLARE_R2_ENDPOINT=https://68b1765fe971ce074e1a3bad853b4031.r2.cloudflarestorage.com
+      # R2 bucket name (explicitly set for multiple methods of access)
       - R2_BUCKET_NAME=autoshorts-media
+      - BUCKET_NAME=autoshorts-media
+      - CLOUDFLARE_R2_BUCKET_NAME=autoshorts-media
       # AWS environment variables for boto3 - match R2 credentials
       - AWS_ACCESS_KEY_ID=da9b059548252aba175a3464f1f3926a
       - AWS_SECRET_ACCESS_KEY=9c3aa5ce21a1ff09c3e63a8e4bd7c81bfd4c383eeb5edc1f8650731ca301d344
       - AWS_DEFAULT_REGION=auto
+      # Cloudflare credentials for Wrangler
+      - CLOUDFLARE_ACCOUNT_ID=68b1765fe971ce074e1a3bad853b4031
+      - CLOUDFLARE_API_TOKEN=KN7W8QlwW8NbUW0yxMSo77DwHZMfytl07zST5vS9
       # Set to false to use Cloudflare R2 (not mock storage)
       - USE_MOCK_STORAGE=false
       # ElevenLabs Configuration

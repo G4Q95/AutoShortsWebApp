@@ -116,7 +116,6 @@ The current focus is on improving code stability, API connectivity, and refactor
   - Fixed media router registration in main.py
   - Ensured proper endpoint prefixes (/api/v1/media/store)
   - Confirmed functionality for storing media in R2
-  - Integrated with frontend automatic media storage
 - ✅ Fixed Image Rendering Issues in VideoContextScenePreviewPlayer (March 2025)
   - Resolved black screen issues with image media by implementing direct image rendering
   - Added reliable fallback mechanism when VideoContext fails to initialize
@@ -141,6 +140,13 @@ The current focus is on improving code stability, API connectivity, and refactor
 - ✅ Project creation and management functionality
 - ✅ Scene addition and management
 - ✅ Local storage implementation
+- ✅ Fixed Cloudflare R2 File Cleanup Issues
+  - Resolved project deletion not properly cleaning up R2 files
+  - Fixed project ID format mismatch between frontend and backend
+  - Ensured consistent environment variable recognition
+  - Implemented proper verification of cleanup operations
+  - Enhanced error handling and logging for R2 operations
+  - Created comprehensive documentation of R2 configuration and troubleshooting
 - ✅ Docker implementation for development environment
   - Created Dockerfiles for frontend and backend
   - Set up docker-compose.yml for all services
@@ -379,6 +385,18 @@ The current focus is on improving code stability, API connectivity, and refactor
   - Documented multiple path formats for legacy compatibility
   - Added script documentation with detailed usage instructions
   - Implemented file deletion verification with improved logging
+- ✅ Cloudflare R2 Storage Cleanup Implementation (June 2025)
+  - Added Wrangler CLI to Docker container for native R2 operations
+  - Fixed double prefix issue in R2 object keys (proj_proj_ vs proj_)
+  - Implemented reliable cleanup mechanism for deleted projects
+  - Created diagnostic endpoints to verify execution environment
+  - Added comprehensive pattern matching for historical file formats
+  - Documented solution in Cloudflare-R2-Reconfig-Part-3.md
+  - Created DOCKER_SETUP.md guide for Docker and Wrangler configuration
+  - Added proper environment variable handling for Cloudflare credentials
+  - Enhanced existing debug endpoints for R2 operation testing
+  - Implemented fallback mechanism using S3 API for environments without Wrangler
+  - Updated all documentation to reflect the solution
 
 ### In Progress
 
