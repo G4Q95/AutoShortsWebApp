@@ -141,7 +141,10 @@ export default function ProjectsPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"
+            data-testid="projects-list"
+          >
             {projects.map((project) => (
               <div
                 key={project.id}

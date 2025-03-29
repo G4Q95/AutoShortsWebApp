@@ -10,7 +10,31 @@
         *   Ensure robustness and consistent error handling for R2 operations.
         *   Update documentation to accurately reflect the final, cleaned-up implementation.
 
-**2. Assessment of Current State**
+**2. Incremental Refactoring Approach (Revised)**
+    *   **Strategy:** We will follow a cautious, incremental approach, starting with the lowest-risk changes and performing testing + user commits after each step.
+    *   **Steps:**
+        1.  **(Completed)** **Delete Temporary Root Test Scripts:**
+            *   **Action:** Delete `test_*.py` and `diagnose_issues.py` files from the project root.
+            *   **Risk:** Very Low.
+            *   **Verification:** Test (optional), User Commit.
+        2.  **(Next)** **Remove Unused Debug Endpoints (Carefully):**
+            *   **Action:** Delete specific unused debug endpoints (`/wrangler-auth`, `/r2-access`, `/env-vars`, `/test-worker`) and related imports from `web/backend/app/api/debug.py`.
+            *   **Risk:** Low.
+            *   **Verification:** Run tests, User Commit.
+        3.  **Clean Up Unused Configuration (`docker-compose.yml`):**
+            *   **Action:** Remove Wrangler-specific env vars (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) from `docker-compose.yml`.
+            *   **Risk:** Low-Medium.
+            *   **Verification:** Restart docker-compose, Test basic functionality, Run tests, User Commit.
+        4.  **Clean Up Dockerfile:**
+            *   **Action:** Remove Node.js/Wrangler install steps from `web/backend/Dockerfile`.
+            *   **Risk:** Medium-High.
+            *   **Verification:** Rebuild backend, Restart docker-compose, Test basic functionality, Run tests, User Commit.
+        5.  **Refactor Core Logic (Higher Risk - One by one):**
+            *   **Action:** Address items from the original "Refactoring & Improvement Phase" individually.
+            *   **Risk:** Varies per item.
+            *   **Verification:** Run tests after each change, User Commit frequently.
+
+**3. Assessment of Current State (Original - Reference Only)**
     *   **Review Code:** Systematically review all files involved in R2 operations and project cleanup:
         *   `web/backend/app/services/storage.py`
         *   `web/backend/app/services/project.py` (specifically `cleanup_project_storage`)
@@ -31,7 +55,7 @@
     *   **Configuration Review:** Check `Dockerfile` (backend), `docker-compose.yml`, `.env`, `.env.example` for remnants of Node.js, Wrangler, or unnecessary R2-related variables.
     *   **Documentation Audit:** Review `README.md`, `DOCKER_SETUP.md`, and the `Cloudflare-R2-Reconfig-Part-*.md` series for consistency and accuracy regarding the *current* working solution.
 
-**3. Cleanup Phase**
+**4. Cleanup Phase (Original - Superseded by Incremental Approach)**
     *   **Remove Unused Code:**
         *   Delete code related to Wrangler CLI execution (e.g., related debug endpoints in `debug.py`).
         *   Delete `worker_client.py` and any code attempting to use it. (Decision: Stick with the S3 API approach for now; Worker code can be re-implemented later if needed, but remove it now to reduce complexity).
@@ -43,7 +67,7 @@
         *   Clean up `docker-compose.yml` environment variables related to unused methods (Wrangler `CLOUDFLARE_API_TOKEN`, Worker variables like `CF_WORKER_URL`, `CF_WORKER_API_TOKEN`, `USE_WORKER_FOR_DELETION`). Ensure necessary S3/R2 vars remain.
         *   Ensure `.env` and `.env.example` only contain necessary R2 variables (Account ID, Key ID, Secret Key, Endpoint URL, Bucket Name, URL Expiration). Add any missing ones like `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_URL_EXPIRATION` to `.env.example`.
 
-**4. Refactoring & Improvement Phase**
+**5. Refactoring & Improvement Phase (Original - Now Step 5 in Incremental Approach)**
     *   **Centralize R2 Logic:** Ensure all direct R2 interactions (upload, download, delete, list, head) reside within `storage.py`. `project.py` should *use* the storage service, not contain direct S3 calls.
     *   **Simplify Cleanup Orchestration:** Review `project.py`'s `cleanup_project_storage`. Can the logic for checking tracked files vs. pattern fallback be clearer?
     *   **Streamline `list_project_files`:** Evaluate the necessity and efficiency of all the patterns and the substring search in `storage.py`. Can it be simplified while remaining effective?
@@ -51,12 +75,12 @@
     *   **Consistent Error Handling:** Standardize how `ClientError` and other exceptions from `boto3` are caught, logged, and reported back within `storage.py`.
     *   **Code Quality:** Apply PEP 8, add type hints, improve docstrings for all modified functions.
 
-**5. Testing Phase**
+**6. Testing Phase (Original - Integrated into Incremental Approach)**
     *   **Unit Tests (Optional but Recommended):** Consider if mocking `boto3` calls is feasible to add unit tests for parts of `storage.py`.
     *   **Integration Tests:** Ensure debug endpoints (if kept) function correctly after refactoring.
     *   **End-to-End Tests:** Rigorously re-test the full project lifecycle: Create -> Upload Media -> Verify in R2 -> Delete Project (UI) -> Verify R2 is empty. Test with different file types/scenarios if possible.
 
-**6. Documentation Update Phase**
+**7. Documentation Update Phase (Original - Integrated into Incremental Approach)**
     *   **Update Core Docs:** Modify `README.md`, `DOCKER_SETUP.md`, etc., to reflect the simplified setup and cleaned configuration.
     *   **Refine `R2-Deletion-Fix.md`:** Ensure it clearly explains the *final, refactored* solution.
     *   **Archive Historical Docs:** Clearly mark `Cloudflare-R2-Reconfig-Part-2, 3, 4` as "Historical" or "Outdated" in their titles or introduction, explaining they document the *process* but not the final implementation state after refactoring. Add a link to the updated `R2-Deletion-Fix.md` or relevant README section.
