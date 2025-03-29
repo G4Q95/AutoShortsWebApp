@@ -341,6 +341,12 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
     Delete a project by ID and clean up associated R2 storage.
     Returns no content on success.
     """
+    # ===== DIAGNOSTIC LOGGING =====
+    # Generate a unique request ID for tracking this deletion operation
+    deletion_request_id = str(uuid.uuid4())[:8]
+    logger.info(f"[DELETION-{deletion_request_id}] Starting project deletion for {project_id}")
+    # =============================
+    
     is_object_id = False
     
     # First try to treat the ID as a MongoDB ObjectId
@@ -349,7 +355,7 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
         is_object_id = True
     except InvalidId:
         # Not a valid ObjectId, but could be a project identifier like "proj_abc123"
-        logger.info(f"Project ID {project_id} is not a valid ObjectId, will try to find by proj_id field")
+        logger.info(f"[DELETION-{deletion_request_id}] Project ID {project_id} is not a valid ObjectId, will try to find by proj_id field")
         is_object_id = False
 
     if not db.is_mock:
@@ -383,6 +389,7 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
             
             # If we still couldn't find the project, return a 404
             if not project:
+                logger.warning(f"[DELETION-{deletion_request_id}] Project {project_id} not found in database")
                 error_response = create_error_response(
                     status_code=status.HTTP_404_NOT_FOUND,
                     message=f"Project {project_id} not found",
@@ -396,9 +403,14 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
             # Now that we have the project, we can delete it
             project_mongodb_id = project["_id"]  # This is the ObjectId
             
+            # ===== DIAGNOSTIC LOGGING =====
+            logger.info(f"[DELETION-{deletion_request_id}] Found project, MongoDB ID: {project_mongodb_id}")
+            # =============================
+            
             # Delete from database
             result = await db.client[db.db_name].projects.delete_one({"_id": project_mongodb_id})
             if result.deleted_count == 0:
+                logger.warning(f"[DELETION-{deletion_request_id}] Project {project_id} could not be deleted from database")
                 error_response = create_error_response(
                     status_code=status.HTTP_404_NOT_FOUND,
                     message=f"Project {project_id} not found or could not be deleted",
@@ -408,6 +420,10 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=error_response
                 )
+            
+            # ===== DIAGNOSTIC LOGGING =====
+            logger.info(f"[DELETION-{deletion_request_id}] Successfully deleted project from database")
+            # =============================
             
             # Get the storage project ID from the project data
             storage_project_id = project.get('proj_id')
@@ -424,17 +440,41 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
                     else:
                         storage_project_id = f"proj_{project_id}"
                     
-            logger.info(f"Deleting project with storage ID: {storage_project_id}")
+            logger.info(f"[DELETION-{deletion_request_id}] Deleting project with storage ID: {storage_project_id}")
             
             # Add R2 cleanup to background task using the project service implementation
             from app.services.project import cleanup_project_storage
+            
+            # ===== DIAGNOSTIC LOGGING =====
+            # Check if there are any tracked files for this project first
+            from app.services.r2_file_tracking import r2_file_tracking
+            tracked_files = await r2_file_tracking.get_project_files(storage_project_id)
+            logger.info(f"[DELETION-{deletion_request_id}] Found {len(tracked_files)} tracked files in database for project {storage_project_id}")
+            
+            # Check if we're using a mock database
+            logger.info(f"[DELETION-{deletion_request_id}] Using mock database: {db.is_mock}")
+            
+            # Log the worker status
+            logger.info(f"[DELETION-{deletion_request_id}] Worker deletion enabled: {settings.use_worker_for_deletion}")
+            # =============================
+            
+            # ===== MODIFICATION: Use direct synchronous call instead of background task =====
+            logger.info(f"[DELETION-{deletion_request_id}] Starting SYNCHRONOUS R2 cleanup")
+            cleanup_result = await cleanup_project_storage(storage_project_id, dry_run=False)
+            logger.info(f"[DELETION-{deletion_request_id}] Synchronous R2 cleanup completed with result: {cleanup_result}")
+            # ==========================================================================
+            
+            # ===== ALSO keep the background task for compatibility =====
+            # This ensures any code expecting the background task will still work
             background_tasks.add_task(cleanup_project_storage, storage_project_id, dry_run=False)
+            logger.info(f"[DELETION-{deletion_request_id}] Also scheduled background task for R2 cleanup (redundant)")
+            # ==========================================================
             
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to delete project: {str(e)}")
+            logger.error(f"[DELETION-{deletion_request_id}] Failed to delete project: {str(e)}")
             logger.exception("Full traceback:")
             error_response = create_error_response(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -454,7 +494,21 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
         if not storage_project_id.startswith("proj_"):
             storage_project_id = f"proj_{project_id}"
             
+        # ===== DIAGNOSTIC LOGGING =====
+        logger.info(f"[DELETION-{deletion_request_id}] Mock database: Running cleanup for {storage_project_id}")
+        # =============================
+        
+        # ===== MODIFICATION: Use direct synchronous call instead of background task =====
+        logger.info(f"[DELETION-{deletion_request_id}] Starting SYNCHRONOUS R2 cleanup (mock database)")
+        cleanup_result = await cleanup_project_storage(storage_project_id, dry_run=False)
+        logger.info(f"[DELETION-{deletion_request_id}] Synchronous R2 cleanup completed with result: {cleanup_result}")
+        # ==========================================================================
+        
+        # ===== ALSO keep the background task for compatibility =====
         background_tasks.add_task(cleanup_project_storage, storage_project_id, dry_run=False)
+        logger.info(f"[DELETION-{deletion_request_id}] Also scheduled background task for R2 cleanup (redundant, mock database)")
+        # ==========================================================
+        
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -516,8 +570,8 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False):
         logger.info(f"[CLEANUP-PROJECT] Project ID variation ({key}): '{value}'")
     
     try:
-        # Get S3 client
-        s3_client = await storage_service.get_s3_client()
+        # Get S3 client - remove await
+        s3_client = storage_service.get_s3_client()
         bucket_name = storage_service.bucket_name
         
         # We'll collect all files to delete in this set (to avoid duplicates)
@@ -535,7 +589,8 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False):
         )
         
         strategy1_count = 0
-        async for page in page_iterator:
+        # Change to regular for loop since paginator is not async
+        for page in page_iterator:
             if "Contents" not in page:
                 logger.info(f"[CLEANUP-PROJECT] No objects found with prefix: '{prefix}'")
                 continue
@@ -584,12 +639,14 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False):
             
             count = 0
             try:
+                # Use the paginator to scan all objects
                 pattern_iterator = paginator.paginate(
                     Bucket=bucket_name,
                     Prefix=pattern
                 )
                 
-                async for page in pattern_iterator:
+                # Change to regular for loop since paginator is not async
+                for page in pattern_iterator:
                     if "Contents" not in page:
                         continue
                         
@@ -628,7 +685,8 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False):
         # Keep track of which objects match which patterns
         strategy3_counts = {key: 0 for key in project_id_variations.keys()}
         
-        async for page in all_objects_iterator:
+        # Change to regular for loop since paginator is not async
+        for page in all_objects_iterator:
             if "Contents" not in page:
                 continue
                 
@@ -722,8 +780,8 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False):
             results["total_bytes_freed"] += batch_bytes
             
             try:
-                # Perform the deletion
-                delete_response = await s3_client.delete_objects(
+                # Perform the deletion - remove await
+                delete_response = s3_client.delete_objects(
                     Bucket=bucket_name,
                     Delete={"Objects": objects_to_delete}
                 )

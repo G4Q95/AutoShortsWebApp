@@ -5,6 +5,8 @@ This module provides functions for managing projects.
 
 import logging
 from typing import Dict, List, Any, Optional
+import uuid
+import traceback
 
 from app.services.wrangler_r2 import WranglerR2Client
 from app.core.config import settings
@@ -21,7 +23,7 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False) -> dic
     This function uses a multi-strategy approach:
     1. If Worker deletion is enabled, it tries to use the Cloudflare Worker
     2. If Worker isn't available or fails, it uses tracked file paths from the database
-    3. If no tracked files are found, it falls back to the pattern-based approach
+    3. If no tracked files are found, it falls back to listing all project files directly
     
     Args:
         project_id: The project ID to clean up files for
@@ -30,12 +32,14 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False) -> dic
     Returns:
         Dictionary with deletion results
     """
-    logger.info(f"[CLEANUP] Starting R2 storage cleanup for project: {project_id} (dry_run: {dry_run})")
+    # Generate a unique ID for tracking this cleanup operation
+    cleanup_id = str(uuid.uuid4())[:8]
+    logger.info(f"[CLEANUP-{cleanup_id}] Starting R2 storage cleanup for project: {project_id} (dry_run: {dry_run})")
     
     # Ensure project ID has the correct format
     if not project_id.startswith("proj_"):
         project_id = f"proj_{project_id}"
-        logger.info(f"[CLEANUP] Added 'proj_' prefix to project ID: {project_id}")
+        logger.info(f"[CLEANUP-{cleanup_id}] Added 'proj_' prefix to project ID: {project_id}")
     
     # Initialize tracking results
     results = {
@@ -45,13 +49,14 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False) -> dic
         "total_deleted": 0,
         "total_failed": 0,
         "deletion_strategy": None,
-        "dry_run": dry_run
+        "dry_run": dry_run,
+        "cleanup_id": cleanup_id  # Store the cleanup ID in results
     }
     
     # PHASE 0: Try Worker-based deletion if enabled and not in dry run mode
     if settings.use_worker_for_deletion and not dry_run:
         try:
-            logger.info(f"[CLEANUP] Attempting Worker-based deletion for project {project_id}")
+            logger.info(f"[CLEANUP-{cleanup_id}] Attempting Worker-based deletion for project {project_id}")
             results["deletion_strategy"] = "worker"
             
             # Use the worker for deletion
@@ -59,32 +64,36 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False) -> dic
             
             # If worker was successful, return results
             if worker_result and worker_result.get("successful", 0) > 0:
-                logger.info(f"[CLEANUP] Worker deletion successful: {worker_result.get('successful')} files deleted")
+                logger.info(f"[CLEANUP-{cleanup_id}] Worker deletion successful: {worker_result.get('successful')} files deleted")
                 results["tracked_files_deleted"] = worker_result.get("successful", 0)
                 results["total_deleted"] = worker_result.get("successful", 0)
                 results["total_failed"] = worker_result.get("failed", 0)
                 results["worker_result"] = worker_result
                 return results
             else:
-                logger.warning(f"[CLEANUP] Worker deletion unsuccessful, falling back to tracked files")
+                logger.warning(f"[CLEANUP-{cleanup_id}] Worker deletion unsuccessful, falling back to tracked files")
         except Exception as e:
-            logger.error(f"[CLEANUP] Error during Worker-based cleanup: {str(e)}")
+            logger.error(f"[CLEANUP-{cleanup_id}] Error during Worker-based cleanup: {str(e)}")
             # Fall through to tracked files approach
     
     # PHASE 1: Use tracked file paths from database
     try:
         # Get tracked file paths for this project
         tracked_files = await r2_file_tracking.get_project_files(project_id)
-        logger.info(f"[CLEANUP] Found {len(tracked_files)} tracked files for project {project_id}")
+        logger.info(f"[CLEANUP-{cleanup_id}] Found {len(tracked_files)} tracked files for project {project_id}")
         
         if tracked_files:
             # We have tracked files, use direct deletion
-            logger.info(f"[CLEANUP] Using tracked files for deletion")
+            logger.info(f"[CLEANUP-{cleanup_id}] Using tracked files for deletion")
             results["deletion_strategy"] = "tracked_files"
             
             if not dry_run:
                 # Extract object keys
                 object_keys = [file["object_key"] for file in tracked_files]
+                
+                # Log the object keys we're going to delete
+                logger.info(f"[CLEANUP-{cleanup_id}] Object keys to delete: {object_keys[:5]}..." + 
+                          f"({len(object_keys) - 5} more)" if len(object_keys) > 5 else "")
                 
                 # Delete files in batches
                 batch_size = 100
@@ -93,63 +102,125 @@ async def cleanup_project_storage(project_id: str, dry_run: bool = False) -> dic
                 
                 for i in range(0, len(object_keys), batch_size):
                     batch = object_keys[i:i + batch_size]
-                    logger.info(f"[CLEANUP] Deleting batch {i//batch_size + 1} with {len(batch)} files")
+                    logger.info(f"[CLEANUP-{cleanup_id}] Deleting batch {i//batch_size + 1} with {len(batch)} files")
                     
                     # Delete batch
                     for key in batch:
                         try:
-                            success, _ = await storage.delete_file(key)
+                            logger.info(f"[CLEANUP-{cleanup_id}] Attempting to delete file: {key}")
+                            success, msg = await storage.delete_file(key)
                             if success:
+                                logger.info(f"[CLEANUP-{cleanup_id}] Successfully deleted file: {key}")
                                 success_count += 1
                             else:
+                                logger.warning(f"[CLEANUP-{cleanup_id}] Failed to delete file: {key} - {msg}")
                                 failed_keys.append(key)
                         except Exception as e:
-                            logger.error(f"[CLEANUP] Error deleting file {key}: {str(e)}")
+                            logger.error(f"[CLEANUP-{cleanup_id}] Error deleting file {key}: {str(e)}")
                             failed_keys.append(key)
                 
                 # Update results
                 results["tracked_files_deleted"] = success_count
                 results["total_deleted"] = success_count
                 results["total_failed"] = len(failed_keys)
+                results["failed_keys"] = failed_keys[:10]  # Include first 10 failed keys
+                
+                # Log the results
+                logger.info(f"[CLEANUP-{cleanup_id}] Tracked files deletion results: {success_count} successful, {len(failed_keys)} failed")
                 
                 # Clean up tracking records regardless of whether files were successfully deleted
                 # This prevents orphaned records in case files were already removed
                 deleted_records = await r2_file_tracking.delete_project_files(project_id)
-                logger.info(f"[CLEANUP] Deleted {deleted_records} tracking records for project {project_id}")
+                logger.info(f"[CLEANUP-{cleanup_id}] Deleted {deleted_records} tracking records from database")
+                results["tracking_records_deleted"] = deleted_records
                 
-                logger.info(f"[CLEANUP] Successfully deleted {success_count} tracked files, failed to delete {len(failed_keys)}")
-                return results
+        else:
+            # No tracked files found, fall back to direct pattern listing
+            logger.warning(f"[CLEANUP-{cleanup_id}] No tracked files found, falling back to pattern-based discovery")
+            results["deletion_strategy"] = "pattern_based"
+            
+            # Use list_project_files from storage service to find files
+            project_files = await storage.list_project_files(project_id)
+            
+            # Log how many files found
+            if project_files:
+                logger.info(f"[CLEANUP-{cleanup_id}] Found {len(project_files)} files via pattern search")
+                
+                # If dry run, just return what would be deleted
+                if dry_run:
+                    results["pattern_files_found"] = len(project_files)
+                    results["pattern_files"] = [f["key"] for f in project_files][:20]  # First 20 files for reference
+                    logger.info(f"[CLEANUP-{cleanup_id}] DRY RUN - Would delete {len(project_files)} files")
+                else:
+                    # Extract keys for deletion
+                    keys_to_delete = [f["key"] for f in project_files]
+                    
+                    # Use S3 client directly for batch deletion
+                    s3_client = storage.get_s3_client()
+                    
+                    # Check if we have keys to delete
+                    if keys_to_delete:
+                        try:
+                            # Prepare objects for deletion
+                            objects_to_delete = [{"Key": key} for key in keys_to_delete]
+                            
+                            # Batch size for deletion (S3 API limit)
+                            batch_size = 1000
+                            deleted_count = 0
+                            errors = []
+                            
+                            # Process in batches if needed
+                            for i in range(0, len(objects_to_delete), batch_size):
+                                batch = objects_to_delete[i:i + batch_size]
+                                logger.info(f"[CLEANUP-{cleanup_id}] Deleting batch {i//batch_size + 1} with {len(batch)} files")
+                                
+                                try:
+                                    # Perform the deletion - remove await
+                                    delete_response = s3_client.delete_objects(
+                                        Bucket=settings.R2_BUCKET_NAME,
+                                        Delete={"Objects": batch}
+                                    )
+                                    
+                                    # Count deleted files
+                                    batch_deleted = len(delete_response.get("Deleted", []))
+                                    deleted_count += batch_deleted
+                                    
+                                    # Track errors
+                                    batch_errors = delete_response.get("Errors", [])
+                                    if batch_errors:
+                                        for err in batch_errors:
+                                            errors.append(f"{err.get('Key', '')}: {err.get('Message', '')}")
+                                    
+                                    logger.info(f"[CLEANUP-{cleanup_id}] Batch {i//batch_size + 1} complete: {batch_deleted} deleted, {len(batch_errors)} errors")
+                                    
+                                except Exception as e:
+                                    logger.error(f"[CLEANUP-{cleanup_id}] Error deleting batch: {str(e)}")
+                                    errors.append(f"Batch error: {str(e)}")
+                            
+                            # Update results
+                            results["pattern_files_deleted"] = deleted_count
+                            results["total_deleted"] += deleted_count
+                            results["total_failed"] = len(errors)
+                            results["pattern_errors"] = errors[:10]  # First 10 errors for reference
+                            logger.info(f"[CLEANUP-{cleanup_id}] Pattern-based deletion complete: {deleted_count} deleted, {len(errors)} errors")
+                            
+                        except Exception as e:
+                            logger.error(f"[CLEANUP-{cleanup_id}] Error during pattern-based deletion: {str(e)}")
+                            logger.error(traceback.format_exc())
+                            results["pattern_error"] = str(e)
+                    else:
+                        logger.info(f"[CLEANUP-{cleanup_id}] No files found for deletion after processing keys")
             else:
-                # Dry run - just report what would be deleted
-                logger.info(f"[CLEANUP] DRY RUN: Would delete {len(tracked_files)} tracked files")
-                results["tracked_files_deleted"] = len(tracked_files)
-                results["total_deleted"] = len(tracked_files)
-                return results
+                logger.info(f"[CLEANUP-{cleanup_id}] No files found via pattern search")
+    
     except Exception as e:
-        logger.error(f"[CLEANUP] Error during tracked file cleanup: {str(e)}")
-        # Fall through to pattern-based approach
+        logger.error(f"[CLEANUP-{cleanup_id}] Error during file cleanup: {str(e)}")
+        logger.error(f"[CLEANUP-{cleanup_id}] {traceback.format_exc()}")
+        results["error"] = str(e)
+        results["success"] = False
     
-    # PHASE 2: Fall back to pattern-based approach if no tracked files or error
-    logger.info(f"[CLEANUP] Falling back to pattern-based deletion")
-    results["deletion_strategy"] = "pattern_based"
-    
-    # Initialize the Wrangler R2 client
-    bucket_name = settings.R2_BUCKET_NAME
-    wrangler_client = WranglerR2Client(bucket_name)
-    
-    # Use the Wrangler client to find and delete files
-    wrangler_results = wrangler_client.delete_objects_by_project_id(project_id, dry_run=dry_run)
-    
-    # Update results with pattern-based deletion results
-    if dry_run:
-        results["pattern_files_deleted"] = len(wrangler_results.get("would_delete", []))
-        results["total_deleted"] = results["pattern_files_deleted"]
-        logger.info(f"[CLEANUP] DRY RUN completed for {project_id}: Would delete {results['pattern_files_deleted']} files")
-    else:
-        results["pattern_files_deleted"] = wrangler_results.get("total_deleted", 0)
-        results["total_deleted"] = results["tracked_files_deleted"] + results["pattern_files_deleted"]
-        results["total_failed"] = wrangler_results.get("total_failed", 0)
-        logger.info(f"[CLEANUP] Completed for {project_id}: Deleted {results['total_deleted']} files, Failed {results['total_failed']} files")
+    # Log final results
+    logger.info(f"[CLEANUP-{cleanup_id}] Final cleanup results for project {project_id}: {results}")
     
     return results
 

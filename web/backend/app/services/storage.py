@@ -2,6 +2,8 @@ import logging
 import os
 import traceback
 import asyncio
+import uuid
+import time
 from typing import BinaryIO, Optional, Tuple, Any, List, Dict, Union
 
 import boto3
@@ -336,19 +338,54 @@ class R2Storage:
         Returns:
             Tuple of (success, message)
         """
-        logger.info(f"Attempting to delete file {object_name} from R2")
+        # Generate a unique ID for tracking this specific deletion
+        delete_id = str(uuid.uuid4())[:6]
+        logger.info(f"[DELETE-{delete_id}] Starting deletion for {object_name} from R2")
         
         try:
+            logger.info(f"[DELETE-{delete_id}] Sending delete request to R2 for {object_name}")
+            
+            # Measure performance for diagnostics
+            start_time = time.time()
+            
+            # Make the actual delete call - without await since boto3 is not async
             self.s3.delete_object(Bucket=self.bucket_name, Key=object_name)
-            logger.info(f"Successfully deleted file from R2: {object_name}")
+            
+            # Get elapsed time
+            elapsed = time.time() - start_time
+            logger.info(f"[DELETE-{delete_id}] Delete operation took {elapsed:.2f}s for {object_name}")
+            
+            # Verify deletion by attempting to check if the object still exists
+            try:
+                logger.info(f"[DELETE-{delete_id}] Verifying deletion of {object_name}")
+                head_start = time.time()
+                # Don't use await here either
+                self.s3.head_object(Bucket=self.bucket_name, Key=object_name)
+                # If we reach here, the object still exists
+                verify_elapsed = time.time() - head_start
+                logger.warning(f"[DELETE-{delete_id}] Object still exists after deletion: {object_name} (check took {verify_elapsed:.2f}s)")
+                return False, f"Delete operation completed but object still exists"
+            except ClientError as e:
+                # If we get a 404, that means the deletion worked
+                if e.response.get('Error', {}).get('Code') == '404':
+                    verify_elapsed = time.time() - head_start
+                    logger.info(f"[DELETE-{delete_id}] Successfully verified deletion of {object_name} (verification took {verify_elapsed:.2f}s)")
+                    return True, f"Deleted and verified {object_name}"
+                else:
+                    # Some other error occurred
+                    logger.warning(f"[DELETE-{delete_id}] Error verifying deletion: {str(e)}")
+                    # But we'll still consider it a success since the delete operation didn't throw an error
+                    return True, f"Deleted {object_name} but could not verify deletion"
+            
+            logger.info(f"[DELETE-{delete_id}] Successfully deleted file from R2: {object_name}")
             return True, f"Deleted {object_name}"
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code')
             error_msg = e.response.get('Error', {}).get('Message', str(e))
-            logger.error(f"R2 client error during deletion: {error_code} - {error_msg}")
+            logger.error(f"[DELETE-{delete_id}] R2 client error during deletion: {error_code} - {error_msg}")
             return False, f"R2 error: {error_msg}"
         except Exception as e:
-            logger.error(f"Error deleting file from R2: {str(e)}")
+            logger.error(f"[DELETE-{delete_id}] Error deleting file from R2: {str(e)}")
             logger.error(traceback.format_exc())
             return False, str(e)
 
@@ -509,10 +546,10 @@ class R2Storage:
         }
         
         try:
-            s3_client = await self.get_s3_client()
+            s3_client = self.get_s3_client()
             
-            # First, check if directory exists by listing objects
-            list_response = await s3_client.list_objects_v2(
+            # First, check if directory exists by listing objects - remove await
+            list_response = s3_client.list_objects_v2(
                 Bucket=self.bucket_name,
                 Prefix=prefix,
                 MaxKeys=1
@@ -520,7 +557,8 @@ class R2Storage:
             
             # If no contents found, try with delimiter to check if it's an empty folder
             if "Contents" not in list_response or len(list_response.get("Contents", [])) == 0:
-                delimiter_response = await s3_client.list_objects_v2(
+                # Remove await
+                delimiter_response = s3_client.list_objects_v2(
                     Bucket=self.bucket_name,
                     Prefix=prefix,
                     Delimiter='/',
@@ -540,13 +578,15 @@ class R2Storage:
                 logger.info(f"[DELETE-DIR] Creating empty folder marker: {marker_key}")
                 
                 try:
-                    await s3_client.put_object(
+                    # Remove await
+                    s3_client.put_object(
                         Bucket=self.bucket_name,
                         Key=marker_key,
                         Body=b''
                     )
                     
-                    await s3_client.delete_object(
+                    # Remove await
+                    s3_client.delete_object(
                         Bucket=self.bucket_name,
                         Key=marker_key
                     )
@@ -567,7 +607,7 @@ class R2Storage:
             logger.info(f"[DELETE-DIR] Searching for objects with prefix: '{prefix}'")
             
             # First pass to collect and log matching objects
-            async for page in page_iterator:
+            for page in page_iterator:
                 if "Contents" in page:
                     # Log each object found for detailed troubleshooting
                     for obj in page["Contents"]:
@@ -595,7 +635,7 @@ class R2Storage:
             )
             
             # Delete each object
-            async for page in page_iterator:
+            for page in page_iterator:
                 if "Contents" not in page:
                     continue
                     
@@ -614,7 +654,8 @@ class R2Storage:
                     
                     # Delete objects in batch
                     try:
-                        delete_response = await s3_client.delete_objects(
+                        # Remove await since boto3 is not async
+                        delete_response = s3_client.delete_objects(
                             Bucket=self.bucket_name,
                             Delete={"Objects": objects_to_delete}
                         )
@@ -768,14 +809,13 @@ class R2Storage:
         result = await self.delete_directory(prefix)
         return result
 
-    async def get_s3_client(self):
+    def get_s3_client(self):
         """
-        Get the boto3 S3 client for direct operations.
+        Get the S3 client for interacting with R2.
         
         Returns:
-            The initialized S3 client
+            boto3 S3 client
         """
-        # Use the existing client from the instance
         return self.s3
 
     async def list_project_files(self, project_id: str) -> List[Dict[str, Any]]:
@@ -842,8 +882,8 @@ class R2Storage:
                         Prefix=pattern
                     )
                     
-                    # Process each page of results
-                    async for page in page_iterator:
+                    # Process each page of results - use regular for loop not async for
+                    for page in page_iterator:
                         if "Contents" in page:
                             for obj in page["Contents"]:
                                 # Create a simplified object representation
@@ -872,7 +912,7 @@ class R2Storage:
                 )
                 
                 # Look for project ID in any part of the key
-                async for page in all_objects_iterator:
+                for page in all_objects_iterator:
                     if "Contents" in page:
                         for obj in page["Contents"]:
                             key = obj["Key"]
@@ -910,40 +950,22 @@ class R2Storage:
         self, 
         project_id: str, 
         dry_run: bool = False,
-        use_wrangler: bool = True,
         sequential: bool = False
     ) -> Dict[str, Any]:
         """
-        Clean up all files associated with a project in R2 storage.
+        Clean up all files associated with a project in R2 storage using S3 API.
         
         Args:
             project_id: The project ID to clean up files for
             dry_run: If True, only list what would be deleted without actually deleting
-            use_wrangler: If True, use Wrangler CLI for deletion, otherwise use S3 API
             sequential: If True, delete files sequentially instead of in parallel
             
         Returns:
             Dictionary with deletion results
         """
-        logger.info(f"[CLEANUP] Starting storage cleanup for project: {project_id} (dry_run: {dry_run}, use_wrangler: {use_wrangler}, sequential: {sequential})")
+        logger.info(f"[CLEANUP] Starting storage cleanup for project: {project_id} (dry_run: {dry_run}, sequential: {sequential})")
         
-        # If using Wrangler, delegate to the project service
-        if use_wrangler:
-            # Import locally to avoid circular imports
-            from app.services.project import cleanup_project_storage as wrangler_cleanup
-            
-            try:
-                result = await wrangler_cleanup(project_id, dry_run)
-                logger.info(f"[CLEANUP] Wrangler cleanup completed for {project_id}: {result}")
-                return result
-            except Exception as e:
-                logger.error(f"[CLEANUP] Error during Wrangler cleanup: {str(e)}")
-                return {
-                    "error": str(e),
-                    "success": False
-                }
-        
-        # Otherwise use S3 API for deletion
+        # Use S3 API for deletion
         try:
             # First list all files for this project
             files = await self.list_project_files(project_id)
@@ -979,7 +1001,8 @@ class R2Storage:
                 
                 for key in keys_to_delete:
                     try:
-                        await self.s3.delete_object(
+                        # Remove await since boto3 is not async
+                        self.s3.delete_object(
                             Bucket=self.bucket_name,
                             Key=key
                         )
@@ -1002,8 +1025,8 @@ class R2Storage:
                     # Prepare objects for deletion
                     objects_to_delete = [{"Key": key} for key in keys_to_delete]
                     
-                    # Execute batch delete
-                    response = await self.s3.delete_objects(
+                    # Execute batch delete - remove await since boto3 is not async
+                    response = self.s3.delete_objects(
                         Bucket=self.bucket_name,
                         Delete={"Objects": objects_to_delete}
                     )
@@ -1051,7 +1074,11 @@ class R2Storage:
         """
         if not settings.use_worker_for_deletion:
             logger.info(f"Worker deletion disabled, using fallback method for project {project_id}")
-            return await self.cleanup_project_storage(project_id)
+            return {
+                "success": False,
+                "message": "Worker deletion disabled",
+                "worker_enabled": False
+            }
         
         logger.info(f"Cleaning up R2 storage for project {project_id} via Worker")
         
@@ -1061,15 +1088,23 @@ class R2Storage:
             
             if not file_records:
                 logger.warning(f"No tracked file records found for project {project_id}")
-                # Fall back to pattern-based discovery if no tracked files
-                return await self.cleanup_project_storage(project_id)
+                # Signal caller to use alternate deletion method
+                return {
+                    "success": False,
+                    "message": "No tracked file records found",
+                    "fallback_to_pattern": True
+                }
             
             # Extract object keys from records
             object_keys = [record.get("object_key") for record in file_records if record.get("object_key")]
             
             if not object_keys:
                 logger.warning(f"No valid object keys found in tracked files for project {project_id}")
-                return {"deleted": 0, "errors": ["No valid object keys found"]}
+                return {
+                    "success": False, 
+                    "message": "No valid object keys found",
+                    "errors": ["No valid object keys found"]
+                }
             
             logger.info(f"Found {len(object_keys)} tracked files to delete for project {project_id}")
             
@@ -1088,9 +1123,12 @@ class R2Storage:
             
         except Exception as e:
             logger.error(f"Error cleaning up storage via Worker for project {project_id}: {str(e)}")
-            # Fall back to traditional method if Worker method fails
-            logger.info(f"Falling back to traditional cleanup method for project {project_id}")
-            return await self.cleanup_project_storage(project_id)
+            # Return error rather than falling back, let caller decide what to do
+            return {
+                "success": False,
+                "error": str(e),
+                "message": "Error in worker deletion"
+            }
 
 
 # Create a singleton storage instance

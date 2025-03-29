@@ -5,10 +5,13 @@ compatibility_date = "2023-09-04"
 # Use the latest Workers runtime
 compatibility_flags = [ "nodejs_compat" ]
 
+# Configure custom workers.dev subdomain
+workers_dev = true
+
 # Routes are handled via custom domains in the Cloudflare dashboard
 # route = { pattern = "your-custom-domain.com/api/r2-delete", zone_name = "your-custom-domain.com" }
 
 [[r2_buckets]]
 binding = "AUTO_SHORTS_BUCKET"
 bucket_name = "autoshorts-media"
-preview_bucket_name = "autoshorts-media" 
+preview_bucket_name = "autoshorts-media"

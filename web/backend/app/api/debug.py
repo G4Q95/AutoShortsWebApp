@@ -6,6 +6,8 @@ import os
 import subprocess
 import uuid
 import logging
+import time
+import shutil
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query, BackgroundTasks, Depends, HTTPException, status
@@ -16,6 +18,7 @@ from app.services.storage import get_storage
 from app.services.r2_file_tracking import r2_file_tracking
 from app.services.project import cleanup_project_storage
 from app.services.worker_client import worker_client
+from app.models.storage import R2FilePathCreate
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -174,13 +177,40 @@ async def verify_cleanup(project_id: str):
     storage = get_storage()
     
     try:
-        # List remaining files
-        remaining_files = await storage.list_project_files(project_id)
+        # First check with the actual pattern being used for uploaded files
+        # by directly using list_directory
+        list_result = await storage.list_directory(project_id)
+        direct_files = []
+        if isinstance(list_result, tuple) and list_result[0]:
+            direct_files = list_result[1]
+            
+        # Also check using list_project_files which has more comprehensive pattern checking
+        project_files = await storage.list_project_files(project_id)
+        
+        # Combine the results
+        all_files = direct_files.copy()
+        
+        # Add the project files if they have different keys
+        if project_files:
+            for pf in project_files:
+                if not any(df.get('Key') == pf.get('key') for df in direct_files):
+                    # Convert to match the format of direct_files
+                    all_files.append({
+                        'Key': pf.get('key'),
+                        'Size': pf.get('size', 0),
+                        'LastModified': pf.get('last_modified', ''),
+                        'Pattern': pf.get('pattern', '')
+                    })
+        
+        logger.info(f"Verify cleanup found {len(all_files)} total files for project {project_id}")
         
         return {
             "project_id": project_id,
-            "files_remaining": remaining_files,
-            "is_clean": len(remaining_files) == 0
+            "files_remaining": all_files,
+            "direct_files_count": len(direct_files),
+            "project_files_count": len(project_files),
+            "total_files_count": len(all_files),
+            "is_clean": len(all_files) == 0
         }
     except Exception as e:
         logger.error(f"Error verifying cleanup: {str(e)}")
@@ -347,4 +377,167 @@ async def get_worker_status():
         "worker_token_configured": bool(settings.worker_api_token),
         "worker_deletion_enabled": settings.use_worker_for_deletion,
         "worker_url": settings.worker_url[:20] + "..." if settings.worker_url else None,
-    } 
+    }
+
+
+@router.post("/test-delete-sync")
+async def test_delete_sync():
+    """Test endpoint to test synchronous file deletion."""
+    import tempfile
+    import os
+    import uuid
+    from app.core.config import settings
+    from app.services.storage import get_storage
+
+    # Create a test project ID with timestamp to ensure uniqueness
+    import time
+    project_id = f"test_proj_{int(time.time())}"
+
+    # Create a temporary directory to store test files
+    temp_dir = tempfile.mkdtemp()
+    try:
+        # Get storage instance
+        storage = get_storage()
+        
+        # Create test files (5 small text files)
+        files_created = []
+        for i in range(5):
+            file_path = os.path.join(temp_dir, f"test_file_{i}.txt")
+            with open(file_path, "w") as f:
+                f.write(f"This is test file {i} for project {project_id}")
+            
+            # Upload the file to R2
+            object_key = f"{project_id}/test_file_{i}.txt"
+            upload_result = await storage.upload_file(file_path, object_key)
+            
+            # Handle upload result based on its type
+            upload_success = False
+            if isinstance(upload_result, tuple):
+                upload_success = upload_result[0]  # First element is success boolean
+            elif isinstance(upload_result, dict):
+                upload_success = upload_result.get("success", False)
+            
+            if upload_success:
+                files_created.append(object_key)
+                logger.info(f"Successfully uploaded test file: {object_key}")
+            else:
+                logger.error(f"Failed to upload test file: {object_key}")
+                if isinstance(upload_result, tuple) and len(upload_result) > 1:
+                    logger.error(f"Upload error: {upload_result[1]}")
+                elif isinstance(upload_result, dict) and "error" in upload_result:
+                    logger.error(f"Upload error: {upload_result.get('error')}")
+        
+        # List files in the project directory before deletion
+        list_result = await storage.list_directory(project_id)
+        files_before = []
+        if isinstance(list_result, tuple) and list_result[0]:  # Check if success is True
+            files_before = list_result[1]
+        
+        # Delete the files
+        errors = []
+        files_deleted = 0
+        for file_key in files_created:
+            try:
+                result = await storage.delete_file(file_key)
+                # Check result properly based on the return type from delete_file
+                if isinstance(result, tuple):
+                    # Handle tuple return (success, message)
+                    if result[0]:
+                        files_deleted += 1
+                    else:
+                        errors.append(f"Failed to delete {file_key}: {result[1]}")
+                elif isinstance(result, dict):
+                    # Handle dict return
+                    if result.get("success", False):
+                        files_deleted += 1
+                    else:
+                        errors.append(f"Failed to delete {file_key}: {result.get('error', 'Unknown error')}")
+                elif result is True:
+                    # Handle boolean success
+                    files_deleted += 1
+                else:
+                    errors.append(f"Failed to delete {file_key}: Unexpected result type {type(result)}")
+            except Exception as e:
+                errors.append(f"Failed to delete {file_key}: {str(e)}")
+        
+        # List files after deletion
+        list_result_after = await storage.list_directory(project_id)
+        files_after = []
+        if isinstance(list_result_after, tuple) and list_result_after[0]:  # Check if success is True
+            files_after = list_result_after[1]
+        
+        return {
+            "project_id": project_id,
+            "files_created": len(files_created),
+            "files_deleted": files_deleted,
+            "files_remaining": len(files_after),
+            "files_before": files_before,
+            "files_after": files_after,
+            "errors": errors,
+            "success": len(errors) == 0
+        }
+    finally:
+        # Clean up the temporary directory
+        import shutil
+        shutil.rmtree(temp_dir)
+        logger.info(f"TEST-SYNC: Cleaned up temporary directory: {temp_dir}")
+
+
+@router.post("/test-upload")
+async def test_upload(project_id: str, num_files: int = 3):
+    """Test endpoint to upload test files to a project."""
+    import tempfile
+    import os
+    import time
+    from app.core.config import settings
+    from app.services.storage import get_storage
+
+    # Create a temporary directory to store test files
+    temp_dir = tempfile.mkdtemp()
+    try:
+        # Get storage instance
+        storage = get_storage()
+        
+        # Create test files
+        files_created = []
+        for i in range(num_files):
+            file_path = os.path.join(temp_dir, f"test_file_{i}_{int(time.time())}.txt")
+            with open(file_path, "w") as f:
+                f.write(f"This is test file {i} for project {project_id}")
+            
+            # Upload the file to R2
+            object_key = f"{project_id}/test_file_{i}_{int(time.time())}.txt"
+            
+            # Handle the upload result based on its type
+            upload_result = await storage.upload_file(file_path, object_key)
+            upload_success = False
+            
+            if isinstance(upload_result, tuple):
+                upload_success = upload_result[0]  # First element is success boolean
+            elif isinstance(upload_result, dict):
+                upload_success = upload_result.get("success", False)
+                
+            if upload_success:
+                files_created.append(object_key)
+                logger.info(f"Successfully uploaded test file: {object_key}")
+            else:
+                logger.error(f"Failed to upload test file: {object_key}")
+        
+        # List files in the project directory
+        list_result = await storage.list_directory(project_id)
+        files_in_project = []
+        if isinstance(list_result, tuple) and list_result[0]:  # Check if success is True
+            files_in_project = list_result[1]
+        
+        return {
+            "project_id": project_id,
+            "files_created": len(files_created),
+            "files_in_project": files_in_project,
+            "total_files": len(files_in_project),
+            "success": len(files_created) == num_files
+        }
+    finally:
+        # Clean up the temporary directory
+        import shutil
+        shutil.rmtree(temp_dir)
+        logger.info(f"TEST-UPLOAD: Cleaned up temporary directory: {temp_dir}") 

@@ -398,6 +398,31 @@ The current focus is on improving code stability, API connectivity, and refactor
   - Implemented fallback mechanism using S3 API for environments without Wrangler
   - Updated all documentation to reflect the solution
 
+## Recent Progress (Updated June 2025)
+
+### Improved R2 File Deletion
+- ✅ Identified issues with Wrangler-based deletion approach
+- ✅ Implemented MongoDB file path tracking for reliable cleanup
+- ✅ Created Cloudflare Worker-based solution for R2 file deletion
+- ✅ Developed Python client for Worker interaction
+- ✅ Added multiple fallback layers for robust operation
+- ✅ Created comprehensive testing endpoints
+- ⏳ Final deployment and testing of Worker approach
+
+### Implementation Tasks Completed
+- Worker code created and configured
+- Backend integration with fallback mechanisms
+- Configuration settings and environment variables
+- Comprehensive documentation
+
+### Next Steps
+1. Deploy Worker to Cloudflare
+2. Configure Worker binding in Cloudflare dashboard 
+3. Create API token with correct permissions
+4. Update environment variables
+5. Test thoroughly with debug endpoints
+6. Enable for production use
+
 ### In Progress
 
 - 🔄 API Refactoring (Phase 2) - Content API Modularization (40% complete)

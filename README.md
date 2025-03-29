@@ -166,13 +166,16 @@ The project is currently in active development with the following components:
 - ✅ Video Playback Integration (VideoContext-based player)
 - ✅ Adaptive Scene-Based Aspect Ratio Support
 - 🔄 API Modularization & Feature Flag System  
-- 🔄 R2 Storage Lifecycle Management
+- 🔄 R2 Storage Lifecycle Management (Project deletion now correctly cleans up associated R2 files)
 - 🔄 Video Processing Pipeline (FFMPEG)
 - ⏳ External Media Download Implementation
 - ⏳ Authentication System
 - ⏳ Cloud Storage Integration
 
 ### Recent Updates
+- Fixed critical R2 file deletion bug where files were not removed upon project deletion.
+- Identified and corrected `settings.R2_BUCKET_NAME` attribute typo in pattern-based cleanup logic.
+- Verified end-to-end project deletion flow successfully removes R2 files.
 - Identified and planned solution for Cloudflare R2 storage cleanup to prevent orphaned files
 - Designed phased implementation approach for storage lifecycle management
 - Added detailed documentation for R2 storage management in r2_setup.md

@@ -6,13 +6,14 @@ import json
 import logging
 import os
 import re
+import ssl
 from contextlib import asynccontextmanager
 from datetime import datetime
 
 from bson import ObjectId
 from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import ServerSelectionTimeoutError, ConnectionFailure
+from pymongo.errors import ServerSelectionTimeoutError, ConnectionFailure, ConfigurationError
 
 from app.core.config import settings
 from app.core.json_encoder import MongoJSONEncoder
@@ -61,20 +62,37 @@ class Database:
                 hostname = match.group(1)
                 logger.info(f"Extracted hostname: {hostname}")
             
+            # Add SSL parameters to URI if not already present
+            mongo_uri = settings.MONGODB_URI
+            if "?" not in mongo_uri:
+                mongo_uri += "?"
+            elif not mongo_uri.endswith("&") and not mongo_uri.endswith("?"):
+                mongo_uri += "&"
+                
+            # Add TLS parameters to ensure secure but compatible connection
+            if "tlsInsecure=true" not in mongo_uri:
+                mongo_uri += "tlsInsecure=true&"
+            if "retryWrites=true" not in mongo_uri:
+                mongo_uri += "retryWrites=true&"
+                
+            logger.info("Using modified connection string with TLS parameters")
+            
             # Configure client with improved connection settings
             self.client = AsyncIOMotorClient(
-                settings.MONGODB_URI,
+                mongo_uri,
                 serverSelectionTimeoutMS=30000,  # Increase timeout to 30 seconds
                 connectTimeoutMS=30000,
                 socketTimeoutMS=30000,
                 maxPoolSize=10,
-                retryWrites=True,
                 w="majority",
                 maxIdleTimeMS=30000,
-                appName="autoshorts-app"
+                appName="autoshorts-app",
+                ssl=True,
+                tlsAllowInvalidCertificates=True  # Allow invalid certs for troubleshooting
             )
             
             # Validate connection
+            logger.info("Attempting to ping MongoDB server...")
             await self.client.admin.command("ping")
             logger.info(
                 f"Connected to MongoDB successfully. Using database: {self.db_name}"
@@ -86,8 +104,28 @@ class Database:
             logger.info(f"Available collections: {collections}")
 
             self.is_mock = False
+        except ServerSelectionTimeoutError as e:
+            logger.error(f"MongoDB server selection timeout: {e}")
+            logger.error(f"Connection parameters: {self.client.options if self.client else 'No client'}")
+            logger.warning("Using mock database instead")
+            self.is_mock = True
+            self._setup_mock_database()
+        except ConnectionFailure as e:
+            logger.error(f"MongoDB connection failure: {e}")
+            logger.error(f"Connection parameters: {self.client.options if self.client else 'No client'}")
+            logger.warning("Using mock database instead")
+            self.is_mock = True
+            self._setup_mock_database()
+        except ConfigurationError as e:
+            logger.error(f"MongoDB configuration error: {e}")
+            logger.error(f"Connection parameters: {self.client.options if self.client else 'No client'}")
+            logger.warning("Using mock database instead")
+            self.is_mock = True
+            self._setup_mock_database()
         except Exception as e:
-            logger.warning(f"Could not connect to MongoDB: {e}")
+            logger.error(f"Could not connect to MongoDB: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Connection parameters: {self.client.options if self.client else 'No client'}")
             logger.warning("Using mock database instead")
             self.is_mock = True
             self._setup_mock_database()
