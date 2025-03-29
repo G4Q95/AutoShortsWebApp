@@ -33,15 +33,15 @@
 
 **3. Cleanup Phase**
     *   **Remove Unused Code:**
-        *   Delete code related to Wrangler CLI execution.
-        *   Delete `worker_client.py` and any code attempting to use it (confirming we stick with the S3 API approach for now).
-        *   Delete identified temporary test scripts.
-        *   Remove non-essential debug endpoints from `debug.py`.
-        *   Clean up comments and logging.
+        *   Delete code related to Wrangler CLI execution (e.g., related debug endpoints in `debug.py`).
+        *   Delete `worker_client.py` and any code attempting to use it. (Decision: Stick with the S3 API approach for now; Worker code can be re-implemented later if needed, but remove it now to reduce complexity).
+        *   Delete identified temporary test scripts in the root directory: `simple_test.py`, `test_elevenlabs_official.py`, `test_elevenlabs.py`, `test_fast_deletion.py`, `test_mongo.py`, `test_tls_connection.py`, `test_tls.py`, `test_wrangler.py`.
+        *   Remove non-essential debug endpoints from `debug.py`, especially those related to Wrangler or Workers (e.g., `verify_wrangler_auth`, `verify_r2_access`, `test_worker`, `get_worker_status`). Keep essential ones like `verify-cleanup` for now.
+        *   Clean up comments and logging related to deprecated approaches.
     *   **Docker & Environment:**
-        *   Remove Node.js/Wrangler installation steps from the backend `Dockerfile` if they still exist.
-        *   Clean up `docker-compose.yml` environment variables related to unused methods.
-        *   Ensure `.env` and `.env.example` only contain necessary R2 variables (Account ID, Key ID, Secret Key, Endpoint URL, Bucket Name, URL Expiration).
+        *   Remove Node.js/Wrangler installation steps from the backend `Dockerfile`.
+        *   Clean up `docker-compose.yml` environment variables related to unused methods (Wrangler `CLOUDFLARE_API_TOKEN`, Worker variables like `CF_WORKER_URL`, `CF_WORKER_API_TOKEN`, `USE_WORKER_FOR_DELETION`). Ensure necessary S3/R2 vars remain.
+        *   Ensure `.env` and `.env.example` only contain necessary R2 variables (Account ID, Key ID, Secret Key, Endpoint URL, Bucket Name, URL Expiration). Add any missing ones like `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_URL_EXPIRATION` to `.env.example`.
 
 **4. Refactoring & Improvement Phase**
     *   **Centralize R2 Logic:** Ensure all direct R2 interactions (upload, download, delete, list, head) reside within `storage.py`. `project.py` should *use* the storage service, not contain direct S3 calls.
