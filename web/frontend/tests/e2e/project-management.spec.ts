@@ -381,7 +381,34 @@ test.describe('Project Management', () => {
     
     console.log('Existing project test completed');
   });
-});
+
+  // ADDED: Cleanup hook to remove test projects after all tests in this file run
+  test.afterAll(async ({ request }) => {
+    console.log('Running afterAll hook to clean up test projects...');
+    try {
+      const response = await request.post('http://localhost:8000/api/v1/debug/cleanup-test-data', {
+        data: {
+          prefix: TEST_PROJECT_NAME // Use the constant defined in test-utils
+        },
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok()) {
+        const result = await response.json();
+        console.log(`Cleanup successful: Deleted ${result.deleted_count} projects with prefix "${TEST_PROJECT_NAME}".`);
+      } else {
+        console.error(`Cleanup failed: API returned status ${response.status()} ${response.statusText()}`);
+        const errorBody = await response.text();
+        console.error('Cleanup error details:', errorBody);
+      }
+    } catch (error) {
+      console.error('Error during cleanup API call:', error);
+    }
+  });
+
+}); // End of describe block
 
 // Find the project in the list - improved implementation
 async function findAndClickProject(page: Page, projectName: string) {

@@ -152,6 +152,18 @@ If you prefer not to use Docker:
    npx browser-tools-server
    ```
 
+4. **R2 Bucket Purge Utility**
+
+A standalone script, `r2_purger.py`, is available in the project root for completely emptying the configured Cloudflare R2 bucket. This is useful for clearing test data or resetting the storage.
+
+**Usage:**
+1. Ensure the script has valid R2 credentials (ACCESS_KEY_ID, SECRET_ACCESS_KEY) configured within it.
+2. Open a terminal in the project root directory.
+3. Run: `python r2_purger.py`
+4. Follow the prompts to confirm the deletion (it asks twice).
+
+**Note:** This script operates independently of the main application and its normal project deletion flow. Use with caution as it deletes *all* objects in the bucket.
+
 ## Current Development Status
 
 The project is currently in active development with the following components:
@@ -173,6 +185,10 @@ The project is currently in active development with the following components:
 - ⏳ Cloud Storage Integration
 
 ### Recent Updates
+- Fixed R2 authentication issues causing 401 Unauthorized errors when accessing bucket storage.
+- Updated R2 credentials in environment files with valid API token.
+- Verified successful media uploads and storage operations through backend logs.
+- Created standalone `r2_purger.py` script for bulk cleaning of R2 bucket.
 - Fixed critical R2 file deletion bug where files were not removed upon project deletion.
 - Identified and corrected `settings.R2_BUCKET_NAME` attribute typo in pattern-based cleanup logic.
 - Verified end-to-end project deletion flow successfully removes R2 files.

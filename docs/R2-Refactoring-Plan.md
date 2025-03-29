@@ -1,5 +1,27 @@
 # R2 Refactoring Plan
 
+## Progress Update (June 25, 2024)
+
+**Authentication Issue Resolution:**
+- Successfully diagnosed and fixed a 401 Unauthorized error when accessing the R2 bucket.
+- The issue was caused by invalid or expired R2 credentials in the environment files.
+- Updated both root `.env` and `web/backend/.env` files with the correct API credentials from the new `PermanentR2fulldelete` token.
+- Rebuilt and restarted Docker containers to apply the new credentials.
+- Verified success through backend logs showing:
+  - Successful connection to the R2 bucket `autoshorts-media`
+  - Successful media uploads to R2
+  - No more 401 Unauthorized errors
+
+**Current Status:**
+- R2 file storage and deletion is now functioning correctly.
+- Media uploads work successfully with the current credentials.
+- The standalone `r2_purger.py` script is operational for bulk bucket cleanup.
+- Docker setup properly loads all required environment variables.
+
+**Next Steps:**
+- Continue with the refactoring steps outlined below, starting with step 2 (Remove unused debug endpoints).
+- Further consolidate environment variable naming for consistency.
+
 **1. Introduction & Goals**
     *   **Context:** Briefly state that the R2 file deletion functionality is now working after extensive debugging (ref Parts 2, 3, 4, and R2-Deletion-Fix). Acknowledge that this process likely introduced complexity, redundant code, and potential inconsistencies.
     *   **Goals:**
@@ -85,3 +107,9 @@
     *   **Refine `R2-Deletion-Fix.md`:** Ensure it clearly explains the *final, refactored* solution.
     *   **Archive Historical Docs:** Clearly mark `Cloudflare-R2-Reconfig-Part-2, 3, 4` as "Historical" or "Outdated" in their titles or introduction, explaining they document the *process* but not the final implementation state after refactoring. Add a link to the updated `R2-Deletion-Fix.md` or relevant README section.
     *   **Code Documentation:** Ensure docstrings and comments in the code itself are accurate. 
+
+**8. Bulk Purge Solution (Conclusion)**
+    *   **Problem:** Initial attempts to create a reliable method for bulk purging the R2 bucket via debug endpoints or docker exec commands failed due to credential loading issues and timeouts.
+    *   **Solution:** A standalone Python script, `r2_purger.py`, was created in the project root. This script uses dedicated, permanent API credentials ("R2 Admin Token") configured directly within it.
+    *   **Usage:** The script can be run manually (`python r2_purger.py`) whenever a full bucket purge is needed. It prompts for confirmation twice before deleting.
+    *   **Status:** This provides a robust, independent method for bulk deletion without interfering with the application's normal R2 operations. 

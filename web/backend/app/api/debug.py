@@ -18,8 +18,10 @@ from app.services.storage import get_storage
 from app.services.r2_file_tracking import r2_file_tracking
 from app.services.project import cleanup_project_storage
 from app.models.storage import R2FilePathCreate
-from app.db.database import get_db_client
+from app.core.database import db  # Changed to use the database instance directly
 from app.models.project import Project
+from botocore.exceptions import ClientError
+import asyncio # Added for sleep in background task
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -29,6 +31,10 @@ router = APIRouter(prefix="/debug", tags=["debug"])
 # Define Pydantic model for the request body
 class CleanupTestDataRequest(BaseModel):
     prefix: Optional[str] = "Test Project"
+
+# --- Store for background job statuses (simple in-memory dict for debug) --- 
+# In a real production scenario, use Redis or a database for persistence
+purge_jobs: Dict[str, Dict[str, Any]] = {}
 
 
 @router.get("/list-project-files/{project_id}", response_model=Dict[str, Any])
@@ -450,14 +456,24 @@ async def test_upload(project_id: str, num_files: int = 3):
 async def cleanup_test_data(
     request: CleanupTestDataRequest,
     background_tasks: BackgroundTasks,
-    # Assuming get_db_client dependency injection or similar mechanism
-    db = Depends(get_db_client) 
+    # db = Depends(get_db_client)  # Using direct database instance instead
 ):
     """
-    Finds projects by name prefix, deletes their DB entries, 
-    and schedules R2 cleanup via background task.
+    Clean up test data (projects) with prefix.
+    
+    Args:
+        request: Cleanup request with prefix
+        background_tasks: Background tasks
+        
+    Returns:
+        Dict with job ID and status
     """
     prefix = request.prefix
+    job_id = str(uuid.uuid4())
+    
+    # Get database
+    database = db.get_db()  # Get the database directly from our db instance
+    
     logger.info(f"Starting test data cleanup for projects with prefix: '{prefix}'")
     
     projects_found = 0
@@ -471,7 +487,7 @@ async def cleanup_test_data(
         # You'll need to replace this with your actual DB query logic.
         
         # Example using MongoDB (adjust collection name and field as needed)
-        project_collection = db["projects"] 
+        project_collection = database["projects"]  # Use the database we got from db.get_db()
         # Find projects where 'name' starts with the prefix (case-insensitive)
         project_cursor = project_collection.find(
             {"name": {"$regex": f"^{prefix}", "$options": "i"}}
@@ -536,7 +552,181 @@ async def cleanup_test_data(
 
     except Exception as e:
         logger.exception(f"An unexpected error occurred during test data cleanup for prefix '{prefix}': {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Cleanup failed: {str(e)}"
-        ) 
+        return {
+            "error": f"An unexpected error occurred: {str(e)}",
+            "prefix": prefix,
+            "projects_found": projects_found,
+            "projects_deleted_db": projects_deleted_db,
+            "r2_cleanup_scheduled": r2_cleanup_scheduled,
+        }
+
+
+# --- MODIFIED: Endpoint to START R2 bucket purge (Asynchronous with Job ID) --- 
+@router.post("/purge-r2-bucket", response_model=Dict[str, str], status_code=status.HTTP_202_ACCEPTED)
+async def start_purge_r2_bucket(background_tasks: BackgroundTasks, storage: Any = Depends(get_storage)):
+    """
+    *** DANGEROUS: Initiates background task to delete ALL objects in the configured R2 bucket. ***
+    Use with extreme caution.
+    Returns a job ID to track progress via /purge-r2-status/{job_id}.
+    """
+    job_id = str(uuid.uuid4())
+    
+    # Initialize job status
+    purge_jobs[job_id] = {
+        "status": "pending",
+        "start_time": time.time(),
+        "end_time": None,
+        "total_targeted": 0,
+        "total_deleted": 0,
+        "errors": [],
+        "last_error_batch": None
+    }
+    
+    logger.info(f"Starting R2 purge job with ID: {job_id}")
+    background_tasks.add_task(run_purge_task, job_id, storage)
+    
+    return {"message": "R2 bucket purge job initiated.", "job_id": job_id}
+
+async def run_purge_task(job_id: str, storage: Any):
+    """The actual background task performing the R2 purge."""
+    purge_jobs[job_id]["status"] = "running"
+    logger.warning(f"--- R2 Bucket Purge Task [{job_id}] Started --- ")
+    
+    bucket_name = storage.bucket_name
+    
+    # Get S3 client instance
+    s3_client = None
+    if hasattr(storage, 'get_s3_client'):
+        s3_client = storage.get_s3_client()
+    elif hasattr(storage, 's3'):
+        s3_client = storage.s3
+    else:
+        err_msg = "Could not get S3 client from storage service."
+        logger.error(f"[{job_id}] {err_msg}")
+        purge_jobs[job_id]["status"] = "failed"
+        purge_jobs[job_id]["errors"].append(err_msg)
+        purge_jobs[job_id]["end_time"] = time.time()
+        return
+         
+    objects_to_delete = []
+    total_deleted_count = 0
+    errors = []
+    
+    try:
+        logger.info(f"[{job_id}] Listing all objects in bucket: {bucket_name}")
+        paginator = s3_client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=bucket_name)
+
+        object_count = 0
+        for page in pages:
+            if 'Contents' in page:
+                page_objects = [{'Key': obj['Key']} for obj in page['Contents']]
+                objects_to_delete.extend(page_objects)
+                object_count += len(page_objects)
+                logger.debug(f"[{job_id}] Found {len(page_objects)} objects in page. Total found: {object_count}")
+                # Update total count for status reporting
+                purge_jobs[job_id]["total_targeted"] = object_count
+            else:
+                logger.info(f"[{job_id}] No objects found in this page.")
+
+        if not objects_to_delete:
+            logger.info(f"[{job_id}] Bucket is already empty. No objects to delete.")
+            purge_jobs[job_id]["status"] = "completed"
+            purge_jobs[job_id]["end_time"] = time.time()
+            return
+
+        logger.info(f"[{job_id}] Preparing to delete {len(objects_to_delete)} objects...")
+        purge_jobs[job_id]["total_targeted"] = len(objects_to_delete) # Final target count
+
+        # Delete objects in batches
+        batch_size = 1000 # S3 limit
+        for i in range(0, len(objects_to_delete), batch_size):
+            batch = objects_to_delete[i:i + batch_size]
+            logger.info(f"[{job_id}] Deleting batch {i // batch_size + 1}/{ (len(objects_to_delete) + batch_size - 1)//batch_size } ({len(batch)} objects)..." )
+            try:
+                response = s3_client.delete_objects(
+                    Bucket=bucket_name,
+                    Delete={'Objects': batch, 'Quiet': False} # Get detailed results
+                )
+                    
+                if 'Deleted' in response:
+                    deleted_count_batch = len(response['Deleted'])
+                    total_deleted_count += deleted_count_batch
+                    logger.info(f"[{job_id}] Successfully deleted {deleted_count_batch} objects in this batch.")
+                    purge_jobs[job_id]["total_deleted"] = total_deleted_count # Update progress
+
+                if 'Errors' in response and response['Errors']:
+                    logger.error(f"[{job_id}] Errors occurred during deletion batch:")
+                    purge_jobs[job_id]["last_error_batch"] = i // batch_size + 1
+                    for error in response['Errors']:
+                        err_msg = f"Error deleting {error['Key']}: {error['Code']} - {error['Message']}"
+                        logger.error(f"[{job_id}]   - {err_msg}")
+                        errors.append(err_msg)
+                        purge_jobs[job_id]["errors"].append(err_msg)
+                        
+            except ClientError as e:
+                err_msg = f"ClientError during batch deletion: {e}"
+                logger.error(f"[{job_id}] {err_msg}")
+                errors.append(err_msg)
+                purge_jobs[job_id]["errors"].append(err_msg)
+                purge_jobs[job_id]["status"] = "failed"
+                purge_jobs[job_id]["end_time"] = time.time()
+                return # Stop processing on batch error
+            except Exception as e:
+                err_msg = f"Unexpected error during batch deletion: {e}"
+                logger.error(f"[{job_id}] {err_msg}")
+                errors.append(err_msg)
+                purge_jobs[job_id]["errors"].append(err_msg)
+                purge_jobs[job_id]["status"] = "failed"
+                purge_jobs[job_id]["end_time"] = time.time()
+                return # Stop processing on batch error
+            
+            # Optional: add a small sleep between batches if rate limiting is suspected
+            # await asyncio.sleep(0.1)
+
+        # If loop completes without returning early due to error
+        purge_jobs[job_id]["status"] = "completed"
+        purge_jobs[job_id]["end_time"] = time.time()
+        duration = purge_jobs[job_id]["end_time"] - purge_jobs[job_id]["start_time"]
+        logger.warning(f"--- R2 Bucket Purge Task [{job_id}] Complete --- ")
+        logger.info(f"Duration: {duration:.2f} seconds")
+        logger.info(f"Targeted: {len(objects_to_delete)}, Successfully Deleted: {total_deleted_count}, Errors: {len(errors)}")
+        
+        return
+
+    except ClientError as e:
+        logger.error(f"[{job_id}] {err_msg}")
+        purge_jobs[job_id]["errors"].append(err_msg)
+        purge_jobs[job_id]["status"] = "failed"
+        purge_jobs[job_id]["end_time"] = time.time()
+    except Exception as e:
+        err_msg = f"Unexpected error during purge operation: {e}"
+        logger.error(f"[{job_id}] {err_msg}")
+        purge_jobs[job_id]["errors"].append(err_msg)
+        purge_jobs[job_id]["status"] = "failed"
+        purge_jobs[job_id]["end_time"] = time.time()
+
+# --- ADDED: Endpoint to check status of R2 bucket purge job --- 
+@router.get("/purge-r2-status/{job_id}", response_model=Dict[str, Any])
+async def get_purge_r2_status(job_id: str):
+    """
+    Check the status of an R2 bucket purge job initiated via POST /purge-r2-bucket.
+    """
+    job_status = purge_jobs.get(job_id)
+    if not job_status:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Purge job with ID '{job_id}' not found.")
+    
+    # Calculate duration dynamically for the response
+    current_status = job_status.copy() # Avoid modifying the original dict directly
+    start_time = current_status.get("start_time")
+    end_time = current_status.get("end_time")
+    status_val = current_status.get("status")
+    
+    if end_time and start_time:
+        current_status["duration_seconds"] = end_time - start_time
+    elif status_val == "running" and start_time:
+         current_status["duration_seconds"] = time.time() - start_time
+    else:
+         current_status["duration_seconds"] = None
+         
+    return current_status

@@ -34,6 +34,14 @@
     *   Updated `verify_cleanup` endpoint for better accuracy.
     *   **Final Fix:** Corrected `settings.r2_bucket_name` typo to `settings.R2_BUCKET_NAME` in the pattern-based deletion fallback within `project.py`'s `cleanup_project_storage` function.
     *   **Current Strategy:** Backend uses S3 API directly. Primary: Database tracked files. Fallback: Pattern matching. Worker/Wrangler are not the active methods. 
+- ✅ Fixed Cloudflare R2 Authentication Issues (June 2024)
+  - Diagnosed and resolved 401 Unauthorized errors when accessing the R2 bucket
+  - Updated R2 credentials in both root and backend .env files with valid API token
+  - Verified successful uploads and storage operations through backend logs
+  - Ensured proper initialization of the R2 client in the application
+  - Rebuilt Docker containers to properly apply updated environment variables
+  - Created standalone `r2_purger.py` script for bulk cleaning of R2 bucket
+- ✅ Fixed the Not-Found page component error
 
 ## Progress Update (YYYY-MM-DD)
 
