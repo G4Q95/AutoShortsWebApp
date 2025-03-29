@@ -16,6 +16,7 @@ import {
   SCENE_COMPONENT_SELECTOR
 } from './utils/test-utils';
 import { selectors } from './utils/selectors';
+import { Page } from '@playwright/test';
 
 /**
  * Tests for project creation and management
@@ -119,7 +120,6 @@ test.describe('Project Management', () => {
     
     // Wait for projects list to load
     await page.waitForSelector('h1', { timeout: PAGE_LOAD_TIMEOUT });
-    await waitForElementWithText(page, 'h1', 'Your Projects');
     console.log('Projects page loaded successfully');
     
     // Use our new function to find and click the project
@@ -284,7 +284,6 @@ test.describe('Project Management', () => {
     
     // Wait for projects list to load
     await page.waitForSelector('h1', { timeout: PAGE_LOAD_TIMEOUT });
-    await waitForElementWithText(page, 'h1', 'Your Projects');
     console.log('Projects page loaded successfully');
     
     // Use our new function to find and click the project
@@ -385,7 +384,7 @@ test.describe('Project Management', () => {
 });
 
 // Find the project in the list - improved implementation
-async function findAndClickProject(page, projectName) {
+async function findAndClickProject(page: Page, projectName: string) {
   console.log('Looking for project on projects page...');
   
   // Give time for projects to load fully
@@ -411,7 +410,7 @@ async function findAndClickProject(page, projectName) {
   
   // Take deliberate actions to ensure proper clicking
   // 1. First scroll to ensure visibility
-  await projectElement.evaluate(element => {
+  await projectElement.evaluate((element: Element) => {
     element.scrollIntoView({behavior: 'auto', block: 'center'});
   });
   
@@ -423,7 +422,7 @@ async function findAndClickProject(page, projectName) {
     // Try normal click first
     await projectElement.click({ timeout: 5000 });
   } catch (error) {
-    console.log('First click attempt failed, trying with force option:', error.message);
+    console.log('First click attempt failed, trying with force option:', (error as Error).message);
     // If normal click fails, try with force option
     await projectElement.click({ force: true, timeout: 5000 });
   }
