@@ -37,10 +37,47 @@
 
 ## Progress Update (YYYY-MM-DD)
 
-### Current Status
-- **Test Suite:** All Playwright tests (10/10) are passing after fixing issues with project heading detection and scene deletion waits. Mock audio mode is used (`NEXT_PUBLIC_MOCK_AUDIO=true npm test`).
-- **Refactoring:** Backend refactoring has begun.
-- **Console Errors:** Some console errors (Imgur fetch, NaN warning) still appear during tests, though tests pass. These are lower priority for now.
+**Test Suite Status:**
+- ✅ All 10 Playwright E2E tests passing (`NEXT_PUBLIC_MOCK_AUDIO=true npm test`).
+- 🟡 Some browser console errors persist (CORS, NaN, VideoContext init) - need investigation later.
+
+**Current Focus:**
+- Backend Refactoring (R2 Cleanup Logic) & Test Environment Improvement.
+
+**Completed Tasks:**
+- ✅ Fixed Playwright test failures (`project-management.spec.ts`, `scene-operations.spec.ts`).
+- ✅ Refactor: Removed unused debug endpoints (`verify_wrangler_auth`, `verify_r2_access`, etc.) from `web/backend/app/api/debug.py`.
+- ✅ Refactor: Removed unused Cloudflare env vars (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) from `docker-compose.yml`.
+- ✅ Backend: Added debug endpoint `/api/v1/debug/cleanup-test-data` to delete test projects by prefix.
+
+**In Progress:**
+- **Robust Playwright Cleanup:**
+    - Backend endpoint created.
+    - *Paused:* Implementing `afterAll` hook in Playwright tests (`project-management.spec.ts`) to call the backend cleanup endpoint.
+
+**Next Steps:**
+1.  Implement `afterAll` hook in `project-management.spec.ts` to call `/api/v1/debug/cleanup-test-data`.
+2.  Refactor: Clean up `web/backend/Dockerfile` by removing Node.js/Wrangler install steps.
+3.  Continue with R2 Refactoring Plan (Step 5 - Core Logic).
+4.  Investigate remaining browser console errors (post-refactoring).
+
+**Implementation Plan Status:**
+*   **Frontend Setup (Next.js, Tailwind):** 95% (Core setup complete, styling ongoing)
+*   **Backend API (FastAPI):** 85% (Core endpoints done, R2 logic refactoring in progress)
+*   **Database (MongoDB):** 90% (Models defined, R2 tracking added)
+*   **Content Retrieval:** 80% (Reddit implemented, needs robust error handling)
+*   **Media Processing (Audio/Video):** 70% (Basic generation working, needs optimization)
+*   **R2 Storage Integration:** 80% (Uploads working, cleanup refactoring in progress)
+*   **Docker Setup:** 85% (Services running, backend image needs cleanup)
+*   **Testing (Playwright):** 75% (Core flows tested, cleanup needs improvement)
+*   **UI/UX:** 70% (Basic layout, needs refinement)
+
+**Blockers:**
+- None currently.
+
+**Notes:**
+- Prioritizing R2 refactoring and test cleanup before tackling minor console errors or new features.
+- Need to verify the DB interaction logic within the new `/cleanup-test-data` endpoint.
 
 ### Completed Tasks
 - Fixed Playwright test failure related to finding 'Your Projects' heading (`project-management.spec.ts`).

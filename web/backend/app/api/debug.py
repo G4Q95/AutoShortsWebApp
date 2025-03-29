@@ -18,11 +18,17 @@ from app.services.storage import get_storage
 from app.services.r2_file_tracking import r2_file_tracking
 from app.services.project import cleanup_project_storage
 from app.models.storage import R2FilePathCreate
+from app.db.database import get_db_client
+from app.models.project import Project
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/debug", tags=["debug"])
+
+# Define Pydantic model for the request body
+class CleanupTestDataRequest(BaseModel):
+    prefix: Optional[str] = "Test Project"
 
 
 @router.get("/list-project-files/{project_id}", response_model=Dict[str, Any])
@@ -436,4 +442,101 @@ async def test_upload(project_id: str, num_files: int = 3):
         # Clean up the temporary directory
         import shutil
         shutil.rmtree(temp_dir)
-        logger.info(f"TEST-UPLOAD: Cleaned up temporary directory: {temp_dir}") 
+        logger.info(f"TEST-UPLOAD: Cleaned up temporary directory: {temp_dir}")
+
+
+# New endpoint for cleaning up test data
+@router.post("/cleanup-test-data", response_model=Dict[str, Any])
+async def cleanup_test_data(
+    request: CleanupTestDataRequest,
+    background_tasks: BackgroundTasks,
+    # Assuming get_db_client dependency injection or similar mechanism
+    db = Depends(get_db_client) 
+):
+    """
+    Finds projects by name prefix, deletes their DB entries, 
+    and schedules R2 cleanup via background task.
+    """
+    prefix = request.prefix
+    logger.info(f"Starting test data cleanup for projects with prefix: '{prefix}'")
+    
+    projects_found = 0
+    projects_deleted_db = 0
+    r2_cleanup_scheduled = 0
+    errors = []
+
+    try:
+        # --- Database Interaction Logic ---
+        # This part is conceptual and depends on your DB interaction setup.
+        # You'll need to replace this with your actual DB query logic.
+        
+        # Example using MongoDB (adjust collection name and field as needed)
+        project_collection = db["projects"] 
+        # Find projects where 'name' starts with the prefix (case-insensitive)
+        project_cursor = project_collection.find(
+            {"name": {"$regex": f"^{prefix}", "$options": "i"}}
+        )
+        
+        projects_to_delete = await project_cursor.to_list(length=None) # Get all matching projects
+        projects_found = len(projects_to_delete)
+        logger.info(f"Found {projects_found} projects matching prefix '{prefix}'.")
+
+        if not projects_to_delete:
+            logger.info("No projects found to delete.")
+            return {
+                "message": "No projects found matching the prefix.",
+                "prefix": prefix,
+                "projects_found": 0,
+                "projects_deleted_db": 0,
+                "r2_cleanup_scheduled": 0,
+            }
+
+        for project_data in projects_to_delete:
+            project_id = str(project_data.get("_id")) # Assuming '_id' is the primary key
+            project_name = project_data.get("name", "Unknown")
+            
+            if not project_id:
+                logger.warning(f"Skipping project with missing ID: {project_data}")
+                errors.append(f"Project missing ID: {project_name}")
+                continue
+
+            # 1. Delete project document from DB
+            try:
+                delete_result = await project_collection.delete_one({"_id": project_data["_id"]})
+                if delete_result.deleted_count == 1:
+                    logger.info(f"Deleted project document '{project_name}' (ID: {project_id}) from database.")
+                    projects_deleted_db += 1
+                    
+                    # 2. Schedule R2 cleanup
+                    # Use the correct project_id format if needed (e.g., adding "proj_")
+                    storage_project_id = project_id 
+                    if not storage_project_id.startswith("proj_"):
+                         storage_project_id = f"proj_{project_id}" # Adjust if your cleanup needs this format
+
+                    logger.info(f"Scheduling R2 cleanup for project ID: {storage_project_id}")
+                    background_tasks.add_task(cleanup_project_storage, storage_project_id)
+                    r2_cleanup_scheduled += 1
+                else:
+                    logger.warning(f"Failed to delete project document '{project_name}' (ID: {project_id}) from database.")
+                    errors.append(f"DB delete failed for: {project_name} ({project_id})")
+            except Exception as db_err:
+                logger.error(f"Error deleting project document '{project_name}' (ID: {project_id}): {db_err}")
+                errors.append(f"DB error for {project_name} ({project_id}): {db_err}")
+
+        logger.info(f"Test data cleanup finished for prefix '{prefix}'.")
+        summary = {
+            "message": "Test data cleanup process initiated.",
+            "prefix": prefix,
+            "projects_found": projects_found,
+            "projects_deleted_db": projects_deleted_db,
+            "r2_cleanup_scheduled": r2_cleanup_scheduled,
+            "errors": errors,
+        }
+        return summary
+
+    except Exception as e:
+        logger.exception(f"An unexpected error occurred during test data cleanup for prefix '{prefix}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Cleanup failed: {str(e)}"
+        ) 
