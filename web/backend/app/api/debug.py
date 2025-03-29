@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
+from bson import ObjectId # Import ObjectId for MongoDB ID conversion
 
 from app.core.config import settings
 from app.services.storage import get_storage
@@ -30,7 +31,7 @@ router = APIRouter(prefix="/debug", tags=["debug"])
 
 # Define Pydantic model for the request body
 class CleanupTestDataRequest(BaseModel):
-    prefix: Optional[str] = "Test Project"
+    project_ids: List[str] # Changed from prefix to project_ids
 
 # --- Store for background job statuses (simple in-memory dict for debug) --- 
 # In a real production scenario, use Redis or a database for persistence
@@ -459,106 +460,95 @@ async def cleanup_test_data(
     # db = Depends(get_db_client)  # Using direct database instance instead
 ):
     """
-    Clean up test data (projects) with prefix.
-    
+    Clean up test data (projects) by specific IDs.
+
     Args:
-        request: Cleanup request with prefix
+        request: Cleanup request with project_ids list
         background_tasks: Background tasks
-        
+
     Returns:
-        Dict with job ID and status
+        Dict summarizing the cleanup operation
     """
-    prefix = request.prefix
-    job_id = str(uuid.uuid4())
-    
+    project_ids_to_clean = request.project_ids
+    if not project_ids_to_clean:
+        return {"message": "No project IDs provided for cleanup.", "deleted_count": 0, "errors": []}
+
+    job_id = str(uuid.uuid4()) # Keep job ID for logging context if needed
+
     # Get database
-    database = db.get_db()  # Get the database directly from our db instance
-    
-    logger.info(f"Starting test data cleanup for projects with prefix: '{prefix}'")
-    
-    projects_found = 0
-    projects_deleted_db = 0
-    r2_cleanup_scheduled = 0
+    database = db.get_db()
+    project_collection = database["projects"]
+
+    logger.info(f"[{job_id}] Starting test data cleanup for {len(project_ids_to_clean)} project IDs.")
+
+    projects_found_count = 0
+    projects_deleted_db_count = 0
+    r2_cleanup_scheduled_count = 0
     errors = []
 
-    try:
-        # --- Database Interaction Logic ---
-        # This part is conceptual and depends on your DB interaction setup.
-        # You'll need to replace this with your actual DB query logic.
+    for project_id in project_ids_to_clean:
+        logger.debug(f"[{job_id}] Processing project ID: {project_id}")
         
-        # Example using MongoDB (adjust collection name and field as needed)
-        project_collection = database["projects"]  # Use the database we got from db.get_db()
-        # Find projects where 'name' starts with the prefix (case-insensitive)
-        project_cursor = project_collection.find(
-            {"name": {"$regex": f"^{prefix}", "$options": "i"}}
-        )
-        
-        projects_to_delete = await project_cursor.to_list(length=None) # Get all matching projects
-        projects_found = len(projects_to_delete)
-        logger.info(f"Found {projects_found} projects matching prefix '{prefix}'.")
-
-        if not projects_to_delete:
-            logger.info("No projects found to delete.")
-            return {
-                "message": "No projects found matching the prefix.",
-                "prefix": prefix,
-                "projects_found": 0,
-                "projects_deleted_db": 0,
-                "r2_cleanup_scheduled": 0,
-            }
-
-        for project_data in projects_to_delete:
-            project_id = str(project_data.get("_id")) # Assuming '_id' is the primary key
-            project_name = project_data.get("name", "Unknown")
+        # Ensure project ID has correct format if necessary (e.g., MongoDB ObjectId)
+        try:
+            # Attempt to convert to ObjectId for MongoDB lookup
+            # If your IDs are just strings, remove this conversion
+            object_id = ObjectId(project_id) 
+        except Exception:
+            logger.warning(f"[{job_id}] Invalid project ID format: {project_id}. Skipping.")
+            errors.append(f"Invalid ID format: {project_id}")
+            continue
             
-            if not project_id:
-                logger.warning(f"Skipping project with missing ID: {project_data}")
-                errors.append(f"Project missing ID: {project_name}")
+        try:
+            # Find the project by ID
+            project_data = await project_collection.find_one({"_id": object_id})
+
+            if not project_data:
+                logger.warning(f"[{job_id}] Project not found in DB for ID: {project_id}. Might have been deleted already.")
+                # errors.append(f"DB project not found: {project_id}") # Optional: Don't report error if already deleted
                 continue
+                
+            projects_found_count += 1 # Count as found even if delete fails later
+            project_name = project_data.get("name", "Unknown")
 
             # 1. Delete project document from DB
             try:
-                delete_result = await project_collection.delete_one({"_id": project_data["_id"]})
+                delete_result = await project_collection.delete_one({"_id": object_id})
                 if delete_result.deleted_count == 1:
-                    logger.info(f"Deleted project document '{project_name}' (ID: {project_id}) from database.")
-                    projects_deleted_db += 1
-                    
-                    # 2. Schedule R2 cleanup
-                    # Use the correct project_id format if needed (e.g., adding "proj_")
-                    storage_project_id = project_id 
-                    if not storage_project_id.startswith("proj_"):
-                         storage_project_id = f"proj_{project_id}" # Adjust if your cleanup needs this format
+                    logger.info(f"[{job_id}] Deleted project document '{project_name}' (ID: {project_id}) from database.")
+                    projects_deleted_db_count += 1
 
-                    logger.info(f"Scheduling R2 cleanup for project ID: {storage_project_id}")
+                    # 2. Schedule R2 cleanup
+                    # Use the correct project_id format for storage cleanup (e.g., adding "proj_")
+                    # Assuming cleanup_project_storage expects the string ID, possibly with "proj_"
+                    storage_project_id = project_id
+                    if not storage_project_id.startswith("proj_"):
+                         storage_project_id = f"proj_{project_id}" # Ensure format matches what cleanup_project_storage expects
+
+                    logger.info(f"[{job_id}] Scheduling R2 cleanup for storage project ID: {storage_project_id}")
                     background_tasks.add_task(cleanup_project_storage, storage_project_id)
-                    r2_cleanup_scheduled += 1
+                    r2_cleanup_scheduled_count += 1
                 else:
-                    logger.warning(f"Failed to delete project document '{project_name}' (ID: {project_id}) from database.")
+                    logger.warning(f"[{job_id}] Failed to delete project document '{project_name}' (ID: {project_id}) from database (deleted_count=0).")
                     errors.append(f"DB delete failed for: {project_name} ({project_id})")
             except Exception as db_err:
-                logger.error(f"Error deleting project document '{project_name}' (ID: {project_id}): {db_err}")
+                logger.error(f"[{job_id}] Error deleting project document '{project_name}' (ID: {project_id}): {db_err}")
                 errors.append(f"DB error for {project_name} ({project_id}): {db_err}")
 
-        logger.info(f"Test data cleanup finished for prefix '{prefix}'.")
-        summary = {
-            "message": "Test data cleanup process initiated.",
-            "prefix": prefix,
-            "projects_found": projects_found,
-            "projects_deleted_db": projects_deleted_db,
-            "r2_cleanup_scheduled": r2_cleanup_scheduled,
-            "errors": errors,
-        }
-        return summary
+        except Exception as find_err:
+            logger.error(f"[{job_id}] Error finding project with ID {project_id}: {find_err}")
+            errors.append(f"DB find error for {project_id}: {find_err}")
 
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred during test data cleanup for prefix '{prefix}': {e}")
-        return {
-            "error": f"An unexpected error occurred: {str(e)}",
-            "prefix": prefix,
-            "projects_found": projects_found,
-            "projects_deleted_db": projects_deleted_db,
-            "r2_cleanup_scheduled": r2_cleanup_scheduled,
-        }
+    logger.info(f"[{job_id}] Test data cleanup finished for {len(project_ids_to_clean)} IDs.")
+    summary = {
+        "message": "Test data cleanup process completed.",
+        "ids_processed": len(project_ids_to_clean),
+        # "projects_found_in_db": projects_found_count, # Optional detail
+        "projects_deleted_db": projects_deleted_db_count,
+        "r2_cleanup_scheduled": r2_cleanup_scheduled_count,
+        "errors": errors,
+    }
+    return summary
 
 
 # --- MODIFIED: Endpoint to START R2 bucket purge (Asynchronous with Job ID) --- 

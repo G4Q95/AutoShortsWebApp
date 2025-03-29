@@ -46,6 +46,13 @@ export async function addScene(page: Page, url: string, waitForExtraction = true
       throw new Error('URL input field not found');
     }
     
+    // Wait for input to be ready before clearing
+    console.log('Waiting for URL input to be ready (visible and enabled)...');
+    await expect(urlInput, 'URL input should be visible').toBeVisible({ timeout: 7000 }); 
+    await expect(urlInput, 'URL input should be enabled').toBeEnabled({ timeout: 7000 }); 
+    // No need for separate editable check, enabled usually covers it for inputs
+    console.log('URL input is ready.');
+    
     // Clear the input and enter the URL
     await urlInput.clear();
     await urlInput.fill(url);
