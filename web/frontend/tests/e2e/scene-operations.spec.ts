@@ -393,35 +393,42 @@ test.describe('Scene Operations', () => {
       }
     }
     
-    // Take a screenshot after deletion attempt
-    await page.screenshot({ path: 'debug-after-deletion.png' });
-    
-    // Wait a moment for deletion to complete
-    await page.waitForTimeout(1000);
-    
-    // Verify the scene is gone by checking scene count
-    const finalSceneCount = await page.locator(SCENE_COMPONENT_SELECTOR).count();
-    console.log(`Scene count after deletion attempt: ${finalSceneCount} (was ${initialSceneCount})`);
-    
-    if (finalSceneCount < initialSceneCount) {
-      console.log('✓ Scene deletion verified - scene count decreased');
-      sceneDeleted = true;
-    } else {
-      console.warn('⚠️ WARNING: Scene count did not decrease after deletion attempt');
+    if (buttonClicked) {
+      console.log('Successfully clicked delete button with fallback selectors');
+      // Add wait here for animation and state update
+      await page.waitForTimeout(500);
       
-      // Check if the scene content is different, which could also indicate deletion success
-      // Sometimes the component might still be there but emptied
-      const hasContent = await page.locator(`${SCENE_COMPONENT_SELECTOR} ${MEDIA_SELECTOR}`).count() > 0;
-      if (!hasContent) {
-        console.log('✓ Although count didn\'t change, scene appears to be empty now');
-        sceneDeleted = true;
-      }
+      // Explicitly wait for the scene count to decrease
+      await expect.poll(async () => {
+        return await page.locator(SCENE_COMPONENT_SELECTOR).count();
+      }, {
+        message: 'Polling: Expected scene count to decrease after deletion click and timeout',
+        timeout: CRITICAL_STEP_TIMEOUT // Use a reasonable timeout
+      }).toBeLessThan(initialSceneCount);
+      console.log('✓ Scene count confirmed decreased after polling');
+
+    } else {
+      console.error('Failed to click delete button using any strategy');
+      await page.screenshot({ path: 'debug-delete-button-fail.png' });
+      throw new Error('Could not find or click the scene delete button');
     }
+
+    // Verify scene count decreased (This might become redundant but keeping for now)
+    console.log(`Scene count after deletion attempt: ${await page.locator(SCENE_COMPONENT_SELECTOR).count()} (was ${initialSceneCount})`);
+    await expect.poll(async () => {
+      return await page.locator(SCENE_COMPONENT_SELECTOR).count();
+    }, {
+      message: 'Expected scene count to decrease after deletion',
+      timeout: CRITICAL_STEP_TIMEOUT
+    }).toBeLessThan(initialSceneCount);
     
-    // Assert the deletion was successful or display a helpful message
-    expect(sceneDeleted, 
-      'Scene was not deleted. This could be due to the delete button not being found or clicked, or the deletion operation failing').toBe(true);
-    
+    console.log('✓ Scene deletion verified - scene count decreased');
     console.log('Scene deletion test completed');
+    
+    // Final screenshot after successful deletion
+    await page.screenshot({ path: 'debug-after-deletion.png' });
+
+    // Clean up the created project after the test
+    await cleanupTestProjects(page, [projectNameDelete]);
   });
 }); 

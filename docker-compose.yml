@@ -11,48 +11,60 @@ services:
       - ./web/frontend:/app
       # Exclude node_modules from volume mounting
       - /app/node_modules
-    environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
-      - NEXT_PUBLIC_BROWSER_API_URL=http://localhost:8000
-    networks:
-      - app-network
+      - /app/.next
+    env_file:
+      - ./web/frontend/.env
     depends_on:
       - backend
+    command: npm run dev
+    networks:
+      - auto-shorts-network
 
   backend:
-    build: 
+    build:
       context: ./web/backend
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
     volumes:
       - ./web/backend:/app
+      - r2_credentials:/root/.wrangler/config # Persistent Wrangler config (if needed)
+      - backend_venv:/app/venv # Persistent virtual environment
+    env_file:
+      - ./web/backend/.env
     environment:
-      - MONGODB_URI=mongodb+srv://goodgodgeorge:cXNSvmHkIOsHjUt4@autoshortsdb.f7asv.mongodb.net/?retryWrites=true&w=majority&appName=autoshortsdb
-      - R2_ACCOUNT_ID=68b1765fe971ce074e1a3bad853b4031
-      # R2 credentials (updated with new token values)
-      - CLOUDFLARE_R2_ACCESS_KEY_ID=da9b059548252aba175a3464f1f3926a
-      - CLOUDFLARE_R2_SECRET_ACCESS_KEY=9c3aa5ce21a1ff09c3e63a8e4bd7c81bfd4c383eeb5edc1f8650731ca301d344
-      - CLOUDFLARE_R2_ENDPOINT=https://68b1765fe971ce074e1a3bad853b4031.r2.cloudflarestorage.com
-      # R2 bucket name (explicitly set for multiple methods of access)
-      - R2_BUCKET_NAME=autoshorts-media
-      - BUCKET_NAME=autoshorts-media
-      - CLOUDFLARE_R2_BUCKET_NAME=autoshorts-media
-      # AWS environment variables for boto3 - match R2 credentials
-      - AWS_ACCESS_KEY_ID=da9b059548252aba175a3464f1f3926a
-      - AWS_SECRET_ACCESS_KEY=9c3aa5ce21a1ff09c3e63a8e4bd7c81bfd4c383eeb5edc1f8650731ca301d344
-      - AWS_DEFAULT_REGION=auto
-      # Cloudflare credentials for Wrangler
-      - CLOUDFLARE_ACCOUNT_ID=68b1765fe971ce074e1a3bad853b4031
-      - CLOUDFLARE_API_TOKEN=KN7W8QlwW8NbUW0yxMSo77DwHZMfytl07zST5vS9
-      # Set to false to use Cloudflare R2 (not mock storage)
-      - USE_MOCK_STORAGE=false
-      # ElevenLabs Configuration
-      - ELEVENLABS_API_KEY=sk_2661fc8844c2ffc280fb47b44b061d425c156ce09a47a9dc
-      - ELEVENLABS_MODEL_ID=eleven_monolingual_v1
-      - ELEVENLABS_API_URL=https://api.elevenlabs.io/v1
+      - MONGODB_URI=${MONGODB_URI}
+      - DATABASE_NAME=${DATABASE_NAME}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - CELERY_BROKER_URL=redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/0
+      - CELERY_RESULT_BACKEND=redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/0
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ENDPOINT_URL=${R2_ENDPOINT_URL}
+      - R2_URL_EXPIRATION=${R2_URL_EXPIRATION:-3600}
+      - BASE_URL=${BASE_URL:-http://localhost:3000} # Add BASE_URL for backend tasks
+      # Remove unused Cloudflare variables
+      # - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
+      # - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      # Worker related (keep commented out for now as they might be revisited)
+      # - CF_WORKER_URL=${CF_WORKER_URL}
+      # - CF_WORKER_API_TOKEN=${CF_WORKER_API_TOKEN}
+      # - USE_WORKER_FOR_DELETION=${USE_WORKER_FOR_DELETION:-false}
+      - MOCK_AUDIO=${MOCK_AUDIO:-false} # Pass mock audio setting
+    depends_on:
+      - db
+      - redis
     networks:
-      - app-network
+      - auto-shorts-network
+    command: >
+      sh -c "pip install -r requirements.txt &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   browser-tools:
     image: node:20-slim

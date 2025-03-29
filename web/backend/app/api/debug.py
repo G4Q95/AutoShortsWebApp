@@ -17,72 +17,12 @@ from app.core.config import settings
 from app.services.storage import get_storage
 from app.services.r2_file_tracking import r2_file_tracking
 from app.services.project import cleanup_project_storage
-from app.services.worker_client import worker_client
 from app.models.storage import R2FilePathCreate
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/debug", tags=["debug"])
-
-
-class WorkerTestRequest(BaseModel):
-    """Request model for testing the Cloudflare Worker"""
-    object_keys: List[str]
-    dry_run: bool = False
-
-
-@router.get("/wrangler-auth", response_model=Dict[str, Any])
-async def verify_wrangler_auth():
-    """Verify Wrangler authentication status from application context."""
-    try:
-        result = subprocess.run(["wrangler", "whoami"], capture_output=True, text=True)
-        return {
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "exit_code": result.returncode,
-            "is_authenticated": "You are logged in" in result.stdout
-        }
-    except Exception as e:
-        logger.error(f"Error verifying Wrangler auth: {str(e)}")
-        return {
-            "error": str(e),
-            "exit_code": -1,
-            "is_authenticated": False
-        }
-
-
-@router.get("/r2-access", response_model=Dict[str, Any])
-async def verify_r2_access():
-    """Verify R2 bucket access from application context."""
-    try:
-        result = subprocess.run(["wrangler", "r2", "bucket", "list", "--remote"], 
-                            capture_output=True, text=True)
-        return {
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "exit_code": result.returncode,
-            "buckets": [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        }
-    except Exception as e:
-        logger.error(f"Error verifying R2 access: {str(e)}")
-        return {
-            "error": str(e),
-            "exit_code": -1,
-            "buckets": []
-        }
-
-
-@router.get("/env-vars", response_model=Dict[str, str])
-async def get_r2_env_vars():
-    """Return R2-related environment variables (redacted for security)."""
-    env_vars = {
-        "CLOUDFLARE_ACCOUNT_ID": "✓ Set" if os.environ.get("CLOUDFLARE_ACCOUNT_ID") else "❌ Not Set",
-        "CLOUDFLARE_API_TOKEN": "✓ Set" if os.environ.get("CLOUDFLARE_API_TOKEN") else "❌ Not Set",
-        "R2_BUCKET_NAME": settings.r2_bucket_name if hasattr(settings, 'r2_bucket_name') else "Not Set",
-        "WRANGLER_PATH": os.environ.get("PATH", "Not Set")
-    }
-    return env_vars
 
 
 @router.get("/list-project-files/{project_id}", response_model=Dict[str, Any])
@@ -247,35 +187,6 @@ async def get_project_file_paths(project_id: str):
     }
 
 
-@router.post("/test-worker", response_model=Dict[str, Any])
-async def test_worker(request: WorkerTestRequest):
-    """
-    Test the Cloudflare Worker for R2 deletion.
-    
-    This endpoint allows testing the Worker with specific object keys.
-    In dry_run mode, it will only log what would be deleted.
-    """
-    logger.info(f"Testing Worker with {len(request.object_keys)} keys (dry_run: {request.dry_run})")
-    
-    if not settings.worker_url or not settings.worker_api_token:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Worker settings not configured"
-        )
-    
-    if request.dry_run:
-        logger.info(f"DRY RUN: Would delete these keys: {request.object_keys}")
-        return {
-            "dry_run": True,
-            "keys": request.object_keys,
-            "count": len(request.object_keys)
-        }
-    
-    # Use the Worker client to delete files
-    result = await worker_client.delete_r2_objects(request.object_keys)
-    return result
-
-
 @router.post("/cleanup-project/{project_id}", response_model=Dict[str, Any])
 async def debug_cleanup_project(
     project_id: str,
@@ -363,21 +274,6 @@ async def debug_cleanup_project(
     else:
         # Set worker mode based on settings
         return await cleanup_project_storage(project_id, dry_run)
-
-
-@router.get("/worker-status", response_model=Dict[str, Any])
-async def get_worker_status():
-    """
-    Get the status of the Cloudflare Worker integration.
-    
-    This endpoint checks the worker configuration and credentials.
-    """
-    return {
-        "worker_url_configured": bool(settings.worker_url),
-        "worker_token_configured": bool(settings.worker_api_token),
-        "worker_deletion_enabled": settings.use_worker_for_deletion,
-        "worker_url": settings.worker_url[:20] + "..." if settings.worker_url else None,
-    }
 
 
 @router.post("/test-delete-sync")

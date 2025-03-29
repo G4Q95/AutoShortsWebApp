@@ -449,4 +449,45 @@ async function findAndClickProject(page: Page, projectName: string) {
   
   console.log('Successfully navigated to project workspace:', page.url());
   return true;
+}
+
+/**
+ * Cleans up test projects created during the E2E tests.
+ * @param {Page} page - The Playwright page object.
+ * @param {string[]} projectNamesToClean - An array of project names to delete.
+ * @param {number} [maxAttempts=3] - Maximum number of attempts to find and delete each project.
+ */
+export async function cleanupTestProjects(page: Page, projectNamesToClean: string[], maxAttempts = 3) {
+  console.log('Cleaning up test projects after test...');
+  
+  // Navigate to the projects page if not already there
+  if (!page.url().endsWith('/projects')) {
+    await page.goto('/projects', { timeout: NAVIGATION_TIMEOUT });
+  }
+  
+  for (const projectName of projectNamesToClean) {
+    console.log(`Cleaning up project: ${projectName}`);
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`Attempt ${attempt} of ${maxAttempts} to find and delete project: ${projectName}`);
+      
+      // Try to find and delete the project
+      await findAndClickProject(page, projectName);
+      
+      // Wait for the project to be deleted
+      await page.waitForTimeout(500);
+      
+      // Check if the project still exists
+      const projectExists = await findAndClickProject(page, projectName);
+      
+      if (!projectExists) {
+        console.log(`Project ${projectName} deleted successfully`);
+        break;
+      } else {
+        console.log(`Project ${projectName} still exists, retrying...`);
+      }
+    }
+  }
+  
+  console.log('All test projects cleaned up');
 } 
