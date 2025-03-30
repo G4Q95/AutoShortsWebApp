@@ -1,6 +1,6 @@
 # R2 Refactoring Plan
 
-## Progress Update (June 25, 2024)
+## Progress Update (March 30, 2025)
 
 **Authentication Issue Resolution:**
 - Successfully diagnosed and fixed a 401 Unauthorized error when accessing the R2 bucket.
@@ -13,14 +13,17 @@
   - No more 401 Unauthorized errors
 
 **Current Status:**
-- R2 file storage and deletion is now functioning correctly.
+- Currently on stable commit `d782e56` ("All Working!") where all E2E tests pass.
+- R2 file storage and deletion via the standard project delete flow is functioning correctly.
 - Media uploads work successfully with the current credentials.
-- The standalone `r2_purger.py` script is operational for bulk bucket cleanup.
+- The standalone `r2_purger.py` script is operational and is the **current method for bulk bucket cleanup** after testing.
 - Docker setup properly loads all required environment variables.
 
-**Next Steps:**
-- Continue with the refactoring steps outlined below, starting with step 2 (Remove unused debug endpoints).
-- Further consolidate environment variable naming for consistency.
+**Next Steps (Refactoring On Hold):**
+- The refactoring steps outlined below (Steps 2-5) are currently **On Hold**. 
+- The immediate priority is resuming core feature development (e.g., Video Generation).
+- R2 refactoring and test cleanup automation will be revisited in the future.
+- Further consolidate environment variable naming for consistency (Low Priority / Future).
 
 **1. Introduction & Goals**
     *   **Context:** Briefly state that the R2 file deletion functionality is now working after extensive debugging (ref Parts 2, 3, 4, and R2-Deletion-Fix). Acknowledge that this process likely introduced complexity, redundant code, and potential inconsistencies.
@@ -39,19 +42,19 @@
             *   **Action:** Delete `test_*.py` and `diagnose_issues.py` files from the project root.
             *   **Risk:** Very Low.
             *   **Verification:** Test (optional), User Commit.
-        2.  **(Next)** **Remove Unused Debug Endpoints (Carefully):**
+        2.  **(On Hold)** **Remove Unused Debug Endpoints (Carefully):**
             *   **Action:** Delete specific unused debug endpoints (`/wrangler-auth`, `/r2-access`, `/env-vars`, `/test-worker`) and related imports from `web/backend/app/api/debug.py`.
             *   **Risk:** Low.
             *   **Verification:** Run tests, User Commit.
-        3.  **Clean Up Unused Configuration (`docker-compose.yml`):**
+        3.  **(On Hold)** **Clean Up Unused Configuration (`docker-compose.yml`):**
             *   **Action:** Remove Wrangler-specific env vars (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) from `docker-compose.yml`.
             *   **Risk:** Low-Medium.
             *   **Verification:** Restart docker-compose, Test basic functionality, Run tests, User Commit.
-        4.  **Clean Up Dockerfile:**
+        4.  **(On Hold)** **Clean Up Dockerfile:**
             *   **Action:** Remove Node.js/Wrangler install steps from `web/backend/Dockerfile`.
             *   **Risk:** Medium-High.
             *   **Verification:** Rebuild backend, Restart docker-compose, Test basic functionality, Run tests, User Commit.
-        5.  **Refactor Core Logic (Higher Risk - One by one):**
+        5.  **(On Hold)** **Refactor Core Logic (Higher Risk - One by one):**
             *   **Action:** Address items from the original "Refactoring & Improvement Phase" individually.
             *   **Risk:** Varies per item.
             *   **Verification:** Run tests after each change, User Commit frequently.
