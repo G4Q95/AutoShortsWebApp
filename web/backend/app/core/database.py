@@ -45,10 +45,13 @@ class Database:
         Connect to MongoDB Atlas, or use a mock if not available
         """
         try:
+            # Fix potential line break issues in the URI
+            mongo_uri = settings.MONGODB_URI.replace("\n", "").replace("\r", "").strip()
+            
             # Create a sanitized URI for logging (hide password)
-            if '@' in settings.MONGODB_URI:
-                uri_prefix = settings.MONGODB_URI.split('@')[0]
-                uri_suffix = settings.MONGODB_URI.split('@')[1]
+            if '@' in mongo_uri:
+                uri_prefix = mongo_uri.split('@')[0]
+                uri_suffix = mongo_uri.split('@')[1]
                 sanitized_uri = f"{uri_prefix.rsplit(':', 1)[0]}:***@{uri_suffix}"
             else:
                 sanitized_uri = "..."
@@ -57,13 +60,12 @@ class Database:
             
             # Extract hostname for logging
             hostname = None
-            match = re.search(r'@([^/?]+)', settings.MONGODB_URI)
+            match = re.search(r'@([^/?]+)', mongo_uri)
             if match:
                 hostname = match.group(1)
                 logger.info(f"Extracted hostname: {hostname}")
             
             # Add SSL parameters to URI if not already present
-            mongo_uri = settings.MONGODB_URI
             if "?" not in mongo_uri:
                 mongo_uri += "?"
             elif not mongo_uri.endswith("&") and not mongo_uri.endswith("?"):

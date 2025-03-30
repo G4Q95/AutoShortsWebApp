@@ -1,3 +1,38 @@
+# Project Progress
+
+## Overview
+This document tracks the development progress of the Auto Shorts Web App.
+
+## Current Implementation Status (Approximate)
+- **Core Functionality:** 75%
+- **UI/UX:** 70%
+- **Testing:** 60% (E2E tests written, but blocked by DB issue)
+- **Deployment Setup:** 40%
+
+## Completed Tasks
+- **[Date TBD]** Fixed R2 authentication issues.
+- **[Date TBD]** Resolved R2 file deletion problems.
+- **[Date TBD]** Implemented core project creation and media upload functionality.
+- **[Date TBD]** Set up basic Docker environment for frontend and backend.
+- **[Date TBD]** Integrated basic ElevenLabs API for audio generation (mockable).
+- **[Date TBD]** Added Playwright E2E test suite structure.
+- **[March 30, 2024]** Implemented alternative test cleanup mechanism using a separate Node.js script and name-pattern matching in the backend API.
+- **[March 30, 2024]** Added NPM scripts for running tests and cleanup (`cleanup`, `test-and-cleanup`).
+- **[March 30, 2024]** Documented the new test cleanup process.
+
+## In Progress
+- **Debugging MongoDB Connection:** Investigating and fixing the MongoDB URI configuration error that forces the backend into mock database mode.
+
+## Next Steps
+1.  **Resolve MongoDB Connection:** Fix the configuration error preventing a real database connection.
+2.  **Verify Test Suite:** Run the full Playwright test suite against the real database to ensure tests pass.
+3.  **Verify Cleanup:** Confirm the `npm run cleanup` script successfully deletes test projects and associated R2 files using the real database connection.
+4.  **Continue R2 Refactoring:** Proceed with the steps outlined in `docs/R2-Refactoring-Plan.md` (e.g., removing unused debug endpoints).
+5.  **UI/UX Refinements:** Address UI feedback and improve user flows.
+
+## Blockers
+- **MongoDB Connection Issue:** The primary blocker preventing further testing and full verification of features like content processing and cleanup.
+
 ## 2023-11-07
 
 - Created initial project setup with Next.js, FastAPI, MongoDB

@@ -18,7 +18,9 @@
     "test:all": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 playwright test",
     "test:debug": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 PWDEBUG=1 playwright test",
     "test:watch": "NEXT_PUBLIC_TESTING_MODE=true NEXT_PUBLIC_API_URL=http://localhost:8000 playwright test --watch",
-    "cleanup-tests": "./scripts/cleanup-test-artifacts.sh"
+    "cleanup-tests": "./scripts/cleanup-test-artifacts.sh",
+    "cleanup": "node cleanup-test-files.js",
+    "test-and-cleanup": "npm test && npm run cleanup"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

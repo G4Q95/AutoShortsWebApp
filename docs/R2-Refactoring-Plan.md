@@ -1,5 +1,27 @@
 # R2 Refactoring Plan
 
+## Progress Update (March 30, 2024)
+
+**Cleanup Process Implementation:**
+- Implemented a new, more robust cleanup process for test files
+- Created a Node.js script (`cleanup-test-files.js`) to clean up test projects by name pattern
+- Added support for name-based cleanup to the backend endpoint
+- Added graceful handling for mock database mode
+- Documented the cleanup process in `web/frontend/README.test-cleanup.md`
+- Added NPM script commands (`npm run cleanup` and `npm run test-and-cleanup`)
+
+**Current Status:**
+- The backend `/api/v1/debug/cleanup-test-data` endpoint now accepts both:
+  - `project_ids`: For specific project ID cleanup
+  - `name_patterns`: For pattern-based project cleanup (e.g., "Test Project", "Playwright")
+- The cleanup script can be run after tests to remove test data
+- MongoDB connection issues still need to be addressed (currently running in mock mode)
+
+**Next Steps:**
+- Fix MongoDB connection string issues to enable real database connections
+- Test the cleanup process with real database connections
+- Continue with additional refactoring steps as outlined below
+
 ## Progress Update (June 25, 2024)
 
 **Authentication Issue Resolution:**
@@ -112,4 +134,14 @@
     *   **Problem:** Initial attempts to create a reliable method for bulk purging the R2 bucket via debug endpoints or docker exec commands failed due to credential loading issues and timeouts.
     *   **Solution:** A standalone Python script, `r2_purger.py`, was created in the project root. This script uses dedicated, permanent API credentials ("R2 Admin Token") configured directly within it.
     *   **Usage:** The script can be run manually (`python r2_purger.py`) whenever a full bucket purge is needed. It prompts for confirmation twice before deleting.
-    *   **Status:** This provides a robust, independent method for bulk deletion without interfering with the application's normal R2 operations. 
+    *   **Status:** This provides a robust, independent method for bulk deletion without interfering with the application's normal R2 operations.
+
+**9. Test Cleanup Process (New)**
+    *   **Problem:** Playwright tests were creating test projects and files that weren't being properly cleaned up after test runs.
+    *   **Solution:** Implemented a new cleanup system with:
+        *   Enhanced backend endpoint for name-pattern based cleanup
+        *   Frontend Node.js script for easy test cleanup
+        *   NPM commands for running cleanup after tests
+    *   **Usage:** Run `npm run cleanup` after tests, or `npm run test-and-cleanup` to run tests and clean up in one command.
+    *   **Status:** The system is operational even with mock database, and will work fully when MongoDB connection issues are resolved.
+    *   **Documentation:** Process is documented in `web/frontend/README.test-cleanup.md`. 
