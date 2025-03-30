@@ -115,4 +115,4 @@
     *   **Problem:** Initial attempts to create a reliable method for bulk purging the R2 bucket via debug endpoints or docker exec commands failed due to credential loading issues and timeouts.
     *   **Solution:** A standalone Python script, `r2_purger.py`, was created in the project root. This script uses dedicated, permanent API credentials ("R2 Admin Token") configured directly within it.
     *   **Usage:** The script can be run manually (`python r2_purger.py`) whenever a full bucket purge is needed. It prompts for confirmation twice before deleting.
-    *   **Status:** This provides a robust, independent method for bulk deletion without interfering with the application's normal R2 operations. 
+    *   **Status:** This provides a robust, independent method for bulk deletion without interfering with the application's normal R2 operations.
