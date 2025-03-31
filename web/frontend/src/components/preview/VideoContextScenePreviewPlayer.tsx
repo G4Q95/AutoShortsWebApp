@@ -413,16 +413,17 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Handle audio separately
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = currentTime;
-      
+    // *** ADD CHECK: Only run this effect for VIDEO types ***
+    if (audioRef.current && !isImageType(mediaType)) { 
       if (isPlaying) {
-        audioRef.current.play().catch(err => console.error("Audio play error:", err));
+        console.log(`[AudioDiag][Effect VIDEO] Calling audio.play() due to isPlaying=true`);
+        audioRef.current.play().catch(err => console.error("[AudioDiag] Effect Play Error:", err));
       } else {
+        console.log(`[AudioDiag][Effect VIDEO] Calling audio.pause() due to isPlaying=false`);
         audioRef.current.pause();
       }
     }
-  }, [isPlaying, currentTime, audioUrl]);
+  }, [isPlaying, audioUrl, audioRef, mediaType]); // Added mediaType dependency
   
   // Initialize VideoContext with proper null checking
   useEffect(() => {
@@ -1003,8 +1004,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       
       // Play the audio if available
       if (audioRef.current && audioUrl) {
+        console.log(`[AudioDiag][handlePlay IMAGE] Setting time to ${currentTime.toFixed(3)} and calling play()`);
         audioRef.current.currentTime = currentTime;
-        audioRef.current.play().catch(err => console.error("Error playing audio:", err));
+        audioRef.current.play().catch(err => console.error("[AudioDiag] Error playing audio for image:", err));
       }
       
       // If we're at the end already, loop back to start
@@ -1041,15 +1043,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         const elapsedSeconds = (Date.now() - startRealTime) / 1000;
         const newTime = Math.min(startTime + elapsedSeconds, getEffectiveTrimEnd());
         
-        console.log(`[DEBUG-TIMER] Timer tick: elapsed=${elapsedSeconds.toFixed(2)}s, newTime=${newTime.toFixed(2)}s`);
+        // console.log(`[DEBUG-TIMER] Timer tick: elapsed=${elapsedSeconds.toFixed(2)}s, newTime=${newTime.toFixed(2)}s`);
         
-        // Update time
+        // Update time state for UI
         setCurrentTime(newTime);
         
-        // Update audio position
-        if (audioRef.current) {
-          audioRef.current.currentTime = newTime;
-        }
+        // *** REMOVE/COMMENT OUT: Avoid rapid seeking of audio element ***
+        // if (audioRef.current) {
+        //   audioRef.current.currentTime = newTime;
+        // }
         
         // Check if we've reached the end
         if (newTime >= getEffectiveTrimEnd() - 0.05) {
@@ -1091,8 +1093,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Play the audio in sync
     if (audioRef.current && audioUrl) {
-      audioRef.current.currentTime = videoContext.currentTime;
-      audioRef.current.play().catch(err => console.error("Error playing audio:", err));
+      const targetTime = videoContext.currentTime;
+      console.log(`[AudioDiag][handlePlay VIDEO] Setting time to ${targetTime.toFixed(3)} and calling play()`);
+      audioRef.current.currentTime = targetTime;
+      audioRef.current.play().catch(err => console.error("[AudioDiag] Error playing synced audio for video:", err));
     }
   };
   
@@ -1106,6 +1110,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       
       // Pause audio if available
       if (audioRef.current) {
+        console.log(`[AudioDiag][handlePause IMAGE] Calling pause()`);
         audioRef.current.pause();
       }
       
@@ -1140,6 +1145,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Pause the audio too
     if (audioRef.current) {
+      console.log(`[AudioDiag][handlePause VIDEO] Calling pause()`);
       audioRef.current.pause();
     }
   };
