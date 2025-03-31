@@ -104,6 +104,18 @@ These are supplementary ideas that could enhance the application but haven't bee
   - Abstracted media interface for seamless provider switching
   - Hybrid approaches combining browser caching and streaming
 
+## Advanced Features & Potential Improvements
+
+*   **Multiple Audio Tracks:** Allow adding background music or sound effects alongside voiceover.
+*   **Video Transitions:** Add simple transitions (e.g., crossfade) between scenes.
+*   **Text Overlay Customization:** More control over font, size, color, position, and animation of text overlays.
+*   **Integration with More Content Sources:** Support for platforms like Twitter, TikTok, Instagram Reels.
+*   **AI Content Summarization/Highlighting:** Automatically suggest key points from source content for scenes.
+*   **Automated Scene Splitting:** AI-based suggestions for splitting longer content into logical scenes.
+*   **Visual Enhancements:** Ken Burns effect for images, animated backgrounds, more dynamic visual templates.
+*   **Audio Blocks Timeline:** Provide a visual timeline within each scene to allow precise placement and layering of multiple audio clips (voiceover, SFX, music). See [Audio Blocks Timeline Feature Plan](./Audio_Blocks_Timeline_Feature.md).
+*   **Improved Media Handling:** More robust error handling, background fetching, caching.
+
 ## How to Use This Document
 
 - **Project Ideas**: Represent core concepts that align with the project vision

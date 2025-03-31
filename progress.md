@@ -28,10 +28,13 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 
 ## Completed Milestones (Recent First)
 
-*   **March 30:**
+*   **March 30 (Continued):**
+    *   **Fixed Choppy Audio Playback (Bug):** Resolved issue where ElevenLabs audio for *image* scenes was cutting in/out rapidly. Identified and fixed a conflict between a general `useEffect` hook managing audio based on `isPlaying` state and the specific timer/playback logic used for image scenes. Simplified image audio handling to use only `handlePlay`/`handlePause`.
     *   **Achieved Stable State:** Identified commit `d782e56` ("All Working!") as stable base where all E2E tests pass.
     *   **R2 Purge Confirmed:** Successfully ran the `r2_purger.py` script to empty the bucket.
     *   **(Reverted) Debug Test Cleanup Attempts:** Reverted recent attempts to implement automated test cleanup in Playwright due to unexpected test failures.
+*   **March 30:**
+    *   **Achieved Stable State:** Identified commit `d782e56` ("All Working!") as stable base where all E2E tests pass.
 *   **June 2024:**
     *   **Fixed Cloudflare R2 Authentication Issues:** Diagnosed and resolved 401 Unauthorized errors when accessing the R2 bucket
     *   **Updated R2 credentials in both root and backend .env files with valid API token**
