@@ -22,6 +22,7 @@ from app.core.database import db  # Changed to use the database instance directl
 from app.models.project import Project
 from botocore.exceptions import ClientError
 import asyncio # Added for sleep in background task
+from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorCollection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -472,7 +473,9 @@ async def cleanup_test_data(
     job_id = str(uuid.uuid4())
     
     # Get database
-    database = db.get_db()  # Get the database directly from our db instance
+    # MODIFIED: Added type hint and logging
+    database: AsyncIOMotorDatabase = db.get_db()  # Get the database directly from our db instance
+    logger.info(f"[CLEANUP DEBUG] Type of database object: {type(database)}")
     
     logger.info(f"Starting test data cleanup for projects with prefix: '{prefix}'")
     
@@ -487,13 +490,25 @@ async def cleanup_test_data(
         # You'll need to replace this with your actual DB query logic.
         
         # Example using MongoDB (adjust collection name and field as needed)
-        project_collection = database["projects"]  # Use the database we got from db.get_db()
+        # MODIFIED: Added type hint and logging
+        project_collection: AsyncIOMotorCollection = database["projects"]  # Use the database we got from db.get_db()
+        logger.info(f"[CLEANUP DEBUG] Type of project_collection object: {type(project_collection)}")
+
         # Find projects where 'name' starts with the prefix (case-insensitive)
-        project_cursor = project_collection.find(
+        # MODIFIED: Await the find() call itself, as the mock returns a coroutine
+        project_cursor = await project_collection.find(
             {"name": {"$regex": f"^{prefix}", "$options": "i"}}
         )
+        logger.info(f"[CLEANUP DEBUG] Type of project_cursor object AFTER await find: {type(project_cursor)}")
         
-        projects_to_delete = await project_cursor.to_list(length=None) # Get all matching projects
+        # Now try to get the list - the cursor *might* be the list if it's the mock,
+        # or it might be a real cursor needing to_list.
+        # We need to handle both cases, but let's first see if awaiting find fixes the immediate error
+        # Assuming the awaited cursor now behaves like a MotorCursor OR the mock returns a list directly
+        # Let's try calling to_list on the awaited result. If it's already a list, this might fail differently.
+        # If it's a MotorCursor, this should work.
+        projects_to_delete = await project_cursor.to_list(length=None) # Keep this await for the real MotorCursor case
+
         projects_found = len(projects_to_delete)
         logger.info(f"Found {projects_found} projects matching prefix '{prefix}'.")
 

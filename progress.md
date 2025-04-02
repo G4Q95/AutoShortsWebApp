@@ -66,6 +66,11 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 4.  **(Future) R2 Refactoring:**
     *   **Status:** On Hold. (See `docs/R2-Refactoring-Plan.md`)
     *   **Goal:** Simplify and clean up R2 interaction code, remove unused config/code.
+5.  **Fix Flaky Tests (Backend Connection):** Investigate and resolve the intermittent `service_unavailable` errors occurring during Playwright tests, preventing the frontend from reliably communicating with the backend. (0%)
+6.  **Refactor Media Handling & R2 Integration:** Complete the refactoring of media downloading, storage (R2), and preview logic across frontend and backend. (Est. 75% complete)
+  - Frontend context and download manager improvements.
+  - Backend R2 upload endpoints.
+  - Ensuring smooth preview playback with R2 URLs.
 
 ---
 
