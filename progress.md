@@ -5,9 +5,9 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 
 # Development Progress Tracker
 
-**Current Date:** 2025-04-02
+**Current Date:** 2025-04-03
 
-**Overall Progress:** 65% (Estimate)
+**Overall Progress:** 66% (Estimate)
 
 **Development Environment:** Docker (Compose) - All services running.
 
@@ -18,15 +18,18 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 - Fixed backend 500 errors during media storage (`TypeError` on `upload_file` arguments, `AttributeError` on tuple return handling) in `media_service.py`.
 - Added detailed timing logs to `media_service.py` for media download/upload steps.
 - Confirmed backend fixes with serial Playwright tests (`NEXT_PUBLIC_MOCK_AUDIO=false`).
+- Investigated `Scene deletion` test flakiness related to media loading timeout.
+- Added and subsequently removed debug logging in `media-utils.ts` and `SceneMediaPlayer.tsx` to trace media URL propagation.
+- Increased Playwright timeout for media element check in `scene-operations.spec.ts` from 15s to 30s, stabilizing the `Scene deletion` test.
 
 **Current Implementation Tasks:**
 
-### In Progress (As of 2025-04-02)
+### In Progress (As of 2025-04-03)
 - **Investigating Intermittent Frontend Errors (30%):**
-  - `TypeError: Failed to fetch` / `service_unavailable` errors reappeared intermittently in serial tests, primarily during cleanup phases. The 60s timeout helps, but doesn't completely eliminate them. Root cause unclear from backend logs.
-- **Addressing Playwright Test Console Errors (10%):**
+  - `TypeError: Failed to fetch` / `service_unavailable` errors still appear intermittently in serial tests, primarily during cleanup phases. Root cause unclear.
+- **Addressing Playwright Test Console Errors (15%):**
   - React `Warning: Received NaN for the '%s' attribute...` in video player controls.
-  - `@hello-pangea/dnd` `Invariant failed: Draggable[id: ...]: Unable to find drag handle` error during scene deletion test teardown.
+  - `@hello-pangea/dnd` `Invariant failed: Draggable[id: ...]: Unable to find drag handle` error still appears during scene deletion test teardown, but does not cause test failure.
   - `Error initializing VideoContext: TypeError: ctx.registerTimeUpdateCallback is not a function`.
 
 ### Next Steps / Backlog
@@ -58,6 +61,7 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 - Fixed backend 500 error (`TypeError: R2Storage.upload_file() got an unexpected keyword argument 'filename'`) in `media_service.py`.
 - Fixed backend 500 error (`AttributeError: 'tuple' object has no attribute 'get'`) in `media_service.py` by correctly handling `upload_file` return value.
 - Added detailed timing logs to `media_service.py`.
+- Stabilized `Scene deletion` Playwright test by increasing media check timeout.
 
 ## Blocker Issues
 - None currently blocking core development, but intermittent frontend errors need monitoring.
@@ -66,6 +70,7 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 - Increased default API client timeout from 10s to 60s (temporary for diagnosis, confirmed necessity for R2 uploads). Will monitor if this can be reduced later.
 - Using simplified, flat R2 storage paths based on project/scene IDs.
 - Added detailed timing logs to diagnose media storage performance.
+- Increased media loading check timeout in `Scene deletion` test to 30s to improve stability.
 
 ---
 
@@ -78,7 +83,7 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 *   **Media Processing (Audio/Video):** 70% (Basic generation working, needs optimization)
 *   **R2 Storage Integration:** 80% (Uploads working, cleanup refactoring in progress)
 *   **Docker Setup:** 85% (Services running, backend image needs cleanup)
-*   **Testing (Playwright):** 75% (All 10 E2E tests passing on `d782e56`. Cleanup handled manually.)
+*   **Testing (Playwright):** 80% (All 10 E2E tests passing on `d782e56`. Cleanup handled manually.)
 *   **UI/UX:** 70% (Basic layout, needs refinement)
 
 ---

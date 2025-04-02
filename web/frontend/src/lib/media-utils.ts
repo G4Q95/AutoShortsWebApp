@@ -170,12 +170,19 @@ export const storeSceneMedia = async (
       create_thumbnail: true
     });
 
+    // Add detailed logging after API call returns
+    // console.log(`[MEDIA-UTILS-STORE] API call storeMediaContent returned for scene ${scene.id}. Result:`, result);
+
     if (result.error || !result.data) {
       console.error('[MEDIA-DEBUG] Failed to store media content:', result.error);
       return false;
     }
 
     const storageData = result.data;
+    // Add logging for the received data
+    // console.log(`[MEDIA-UTILS-STORE] Received storageData for scene ${scene.id}:`, storageData);
+    // console.log(`[MEDIA-UTILS-STORE] Media URL from backend: ${storageData.url}`);
+
     console.log('[MEDIA-DEBUG] Media stored successfully. Response:', JSON.stringify(storageData));
     console.log('[MEDIA-DEBUG] Storage URL received:', storageData.url);
 

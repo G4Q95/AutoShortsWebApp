@@ -3,7 +3,7 @@
  * Wrapper around media player for scene media display with view mode toggle
  * Now using VideoContextScenePreviewPlayer for improved timeline scrubbing
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
 import { Maximize, Minimize } from 'lucide-react';
 
@@ -99,7 +99,7 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   console.log(`[SceneMediaPlayer] Media object:`, media);
   
   // Add more specific logging about the aspect ratio props
-  React.useEffect(() => {
+  useEffect(() => {
     console.log(`[SceneMediaPlayer] PROPS CHANGED: projectAspectRatio=${projectAspectRatio}, showLetterboxing=${showLetterboxing}`);
   }, [projectAspectRatio, showLetterboxing]);
   

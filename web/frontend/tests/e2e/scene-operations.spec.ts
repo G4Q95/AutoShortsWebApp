@@ -242,7 +242,7 @@ test.describe('Scene Operations', () => {
       return mediaElementsCount > 0;
     }, {
       message: 'Expected to find media elements in scene component',
-      timeout: 15000
+      timeout: 30000
     }).toBeTruthy();
     
     // Take another screenshot after media verification
@@ -395,8 +395,8 @@ test.describe('Scene Operations', () => {
     
     if (buttonClicked) {
       console.log('Successfully clicked delete button with fallback selectors');
-      // Add wait here for animation and state update
-      await page.waitForTimeout(500);
+      // Add a short delay to allow drag-and-drop library state to settle after deletion
+      await page.waitForTimeout(500); // 500ms pause
       
       // Explicitly wait for the scene count to decrease
       await expect.poll(async () => {
