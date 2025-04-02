@@ -5,10 +5,67 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 
 # Development Progress Tracker
 
-**Current Date:** March 30, 2025
-**Project Status:** Stable / Feature Development (Video Generation - Phase 3)
-**Current Focus:** Resuming Video Generation features on stable commit `d782e56`.
-**Current Stable Commit:** `d782e56` ("All Working!")
+**Current Date:** 2025-04-02
+
+**Overall Progress:** 65% (Estimate)
+
+**Development Environment:** Docker (Compose) - All services running.
+
+**Recent Accomplishments:**
+- Successfully connected backend to MongoDB Atlas (real database).
+- Fixed database connection logic in `database.py`.
+- Corrected test cleanup logic in `debug.py` to handle real MongoDB cursors.
+- Fixed backend 500 errors during media storage (`TypeError` on `upload_file` arguments, `AttributeError` on tuple return handling) in `media_service.py`.
+- Added detailed timing logs to `media_service.py` for media download/upload steps.
+- Confirmed backend fixes with serial Playwright tests (`NEXT_PUBLIC_MOCK_AUDIO=false`).
+
+**Current Implementation Tasks:**
+
+### In Progress (As of 2025-04-02)
+- **Investigating Intermittent Frontend Errors (30%):**
+  - `TypeError: Failed to fetch` / `service_unavailable` errors reappeared intermittently in serial tests, primarily during cleanup phases. The 60s timeout helps, but doesn't completely eliminate them. Root cause unclear from backend logs.
+- **Addressing Playwright Test Console Errors (10%):**
+  - React `Warning: Received NaN for the '%s' attribute...` in video player controls.
+  - `@hello-pangea/dnd` `Invariant failed: Draggable[id: ...]: Unable to find drag handle` error during scene deletion test teardown.
+  - `Error initializing VideoContext: TypeError: ctx.registerTimeUpdateCallback is not a function`.
+
+### Next Steps / Backlog
+- Stabilize Playwright E2E tests (address remaining console errors and potential flakiness).
+- Investigate the intermittent frontend fetch/service_unavailable errors further if they persist or block development.
+- Implement robust thumbnail generation for various media types.
+- Refine UI/UX based on testing feedback (e.g., loading states, error display).
+- Implement full gallery support (currently only processes first image).
+- Complete direct file upload functionality (`/api/v1/media/upload`).
+- Enhance error handling consistency across frontend/backend.
+- Add integration tests for backend services.
+- Configure production deployment pipeline (Google Cloud Run / Vercel).
+
+## Completed Tasks
+- Setup base project structure (Next.js Frontend, FastAPI Backend).
+- Dockerized development environment.
+- Implemented core project/scene state management (frontend).
+- Implemented basic UI layout (header, sidebar, main content).
+- Integrated Cloudflare R2 storage via backend service (`storage.py`).
+- Implemented content extraction service (`content_retrieval.py`).
+- Implemented media download and storage service (`media_service.py`).
+- Implemented API endpoints for content extraction and media storage.
+- Integrated basic Monaco editor for scene text editing.
+- Setup Playwright for E2E testing.
+- Implemented basic project creation and scene addition tests.
+- Integrated MongoDB Atlas connection.
+- Fixed database connection logic (`database.py`).
+- Corrected test data cleanup (`debug.py`) for real MongoDB.
+- Fixed backend 500 error (`TypeError: R2Storage.upload_file() got an unexpected keyword argument 'filename'`) in `media_service.py`.
+- Fixed backend 500 error (`AttributeError: 'tuple' object has no attribute 'get'`) in `media_service.py` by correctly handling `upload_file` return value.
+- Added detailed timing logs to `media_service.py`.
+
+## Blocker Issues
+- None currently blocking core development, but intermittent frontend errors need monitoring.
+
+## Key Decisions Made
+- Increased default API client timeout from 10s to 60s (temporary for diagnosis, confirmed necessity for R2 uploads). Will monitor if this can be reduced later.
+- Using simplified, flat R2 storage paths based on project/scene IDs.
+- Added detailed timing logs to diagnose media storage performance.
 
 ---
 

@@ -64,10 +64,10 @@ console.log('Using API URL:', API_BASE_URL, 'isBrowser:', isBrowser);
 const API_VERSION = '/api/v1';
 
 /**
- * Default timeout for API requests in milliseconds (10 seconds)
+ * Default timeout for API requests in milliseconds (60 seconds)
  * @constant
  */
-const DEFAULT_TIMEOUT_MS = 10000;
+const DEFAULT_TIMEOUT_MS = 60000;
 
 /**
  * Global API health state

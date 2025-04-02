@@ -236,6 +236,9 @@ async def store_media_content(
     Raises:
         HTTPException: If processing fails
     """
+    logger.info(f"[TIMING_MEDIA_STORE] Starting media processing for {project_id}/{scene_id} from {url}")
+    overall_start_time = time.time()
+    
     try:
         # Validate input
         if not url:
@@ -248,122 +251,117 @@ async def store_media_content(
         logger.info(f"Processing media from {url} for project {project_id}, scene {scene_id}")
         
         # Download the media
-        try:
-            content, content_type, metadata = await download_media(url, media_type, timeout)
-        except MediaDownloadError as e:
-            logger.error(f"Failed to download media: {str(e)}")
-            raise HTTPException(
-                status_code=e.status_code or 500,
-                detail={"message": str(e), "code": "media_download_failed"}
-            )
-        
-        # Determine file extension
-        extension = CONTENT_TYPE_TO_EXT.get(
-            content_type, 
-            DEFAULT_EXT.get(media_type, FileExt.JPEG)
+        download_start_time = time.time()
+        logger.info(f"[TIMING_MEDIA_STORE] Starting download for {project_id}/{scene_id}")
+        content, content_type, metadata = await download_media(
+            url=url,
+            media_type=media_type,
+            timeout=timeout
         )
+        download_end_time = time.time()
+        download_duration = download_end_time - download_start_time
+        logger.info(f"[TIMING_MEDIA_STORE] Download finished for {project_id}/{scene_id}. Duration: {download_duration:.2f}s. Size: {len(content)} bytes.")
         
-        # Adjust media type based on content type if not specified
-        if media_type == MediaType.UNKNOWN:
-            if content_type.startswith("image/"):
-                media_type = MediaType.IMAGE
-            elif content_type.startswith("video/"):
-                media_type = MediaType.VIDEO
-        
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=extension) as temp_file:
-            temp_path = temp_file.name
-        
-        # Write content to temp file
-        try:
-            async with aiofiles.open(temp_path, "wb") as f:
-                await f.write(content)
-                
-            # Verify file was written correctly
-            file_size = os.path.getsize(temp_path)
-            logger.info(f"Written {file_size} bytes to temporary file")
-            
-            if file_size == 0:
-                raise ValueError("Written file is empty")
-                
-        except Exception as e:
-            logger.error(f"Error writing media data to file: {str(e)}")
-            try:
-                os.unlink(temp_path)
-            except:
-                pass
-            raise HTTPException(
-                status_code=500,
-                detail={"message": f"Failed to write media data to file: {str(e)}", "code": "file_write_error"}
-            )
-        
-        # Generate a filename with timestamp for uniqueness
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"{timestamp}{extension}"
-        
-        # Get storage service
-        from app.services.storage import get_storage
+        # Save to temporary file
+        write_start_time = time.time()
+        logger.info(f"[TIMING_MEDIA_STORE] Writing to temp file for {project_id}/{scene_id}")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=metadata.get("extension", ".tmp")) as temp_file:
+            async with aiofiles.open(temp_file.name, mode='wb') as afp:
+                await afp.write(content)
+            temp_file_path = temp_file.name
+        write_end_time = time.time()
+        write_duration = write_end_time - write_start_time
+        logger.info(f"[TIMING_MEDIA_STORE] Temp file write finished for {project_id}/{scene_id}. Duration: {write_duration:.2f}s. Path: {temp_file_path}")
+
+        # Get storage instance
         storage = get_storage()
         
-        # User ID is set to "default" for now - all users share the same content
-        user_id = "default"
-        file_type = "media"
+        # Generate filename
+        now = datetime.now().strftime("%Y%m%d%H%M%S")
+        filename = f"{now}{metadata.get('extension', '.tmp')}"
         
-        # Let the storage service handle the path structure
-        # The upload_file method will call get_file_path internally
-        logger.info(f"Uploading media to storage with simplified structure")
-        success, url = await storage.upload_file(
-            file_path=temp_path, 
-            object_name=filename,
-            user_id=user_id, 
-            project_id=project_id, 
-            scene_id=scene_id, 
-            file_type=file_type
+        # Upload to R2
+        logger.info(f"[TIMING_MEDIA_STORE] Starting R2 upload for {project_id}/{scene_id}. Filename: {filename}")
+        upload_start_time = time.time()
+        storage_result = await storage.upload_file(
+            file_path=temp_file_path,
+            project_id=project_id,
+            scene_id=scene_id,
+            file_type=media_type,
+            user_id="default_user"  # Using a default user ID
         )
-        
-        # Get the actual storage key used
-        # Split the URL to extract the key from the end
-        try:
-            storage_key = url.split('/')[-1].split('?')[0]
-            logger.info(f"Extracted storage key: {storage_key}")
-        except Exception as e:
-            logger.warning(f"Could not extract storage key from URL: {str(e)}")
-            storage_key = filename  # Fallback to just using the filename
-        
+        upload_duration = time.time() - upload_start_time
+        logger.info(f"[TIMING_MEDIA_STORE] R2 upload finished for {project_id}/{scene_id}. Duration: {upload_duration:.2f}s")
+
+        # Check the result tuple: (success, url_or_error)
+        upload_success, url_or_error = storage_result
+
+        if not upload_success:
+            # Handle upload failure
+            logger.error(f"R2 upload failed for {filename}. Reason: {url_or_error}")
+            # Attempt to clean up temp file even on failure
+            try:
+                os.remove(temp_file_path)
+                logger.info(f"[TIMING_MEDIA_STORE] Cleaned up temp file after failed upload: {temp_file_path}")
+            except OSError as e:
+                logger.error(f"Error removing temporary file {temp_file_path} after failed upload: {e}")
+            # Return an error structure
+            return {
+                "success": False,
+                "error": f"Failed to upload to R2: {url_or_error}"
+            }
+
+        # If upload was successful, url_or_error contains the URL
+        media_url = url_or_error
+        # The object_name used for the upload is the storage_key
+        storage_key = filename
+
         # Clean up temporary file
+        cleanup_start_time = time.time()
         try:
-            os.unlink(temp_path)
-            logger.info(f"Removed temporary file: {temp_path}")
-        except Exception as e:
-            logger.warning(f"Error removing temporary file {temp_path}: {str(e)}")
-        
-        if not success:
-            logger.error(f"Failed to upload media to storage: {url}")
-            raise HTTPException(
-                status_code=500,
-                detail={"message": f"Failed to upload media to storage: {url}", "code": "storage_upload_failed"}
-            )
+            os.remove(temp_file_path)
+            logger.info(f"[TIMING_MEDIA_STORE] Removed temporary file: {temp_file_path}")
+        except OSError as e:
+            logger.error(f"Error removing temporary file {temp_file_path}: {e}")
+        cleanup_duration = time.time() - cleanup_start_time
             
-        # Prepare result
+        # Thumbnail generation (placeholder)
+        if create_thumbnail:
+            logger.info("Thumbnail creation requested but not yet implemented.")
+            metadata["thumbnail_status"] = "pending"
+
+        overall_end_time = time.time()
+        overall_duration = overall_end_time - overall_start_time
+        logger.info(f"[TIMING_MEDIA_STORE] Finished media processing for {project_id}/{scene_id}. Overall duration: {overall_duration:.2f}s")
+        
+        # Construct the success response using the tuple results
         result = {
             "success": True,
-            "url": url,
+            "media_url": media_url, # Use the URL from the tuple
             "storage_key": storage_key,
             "media_type": media_type,
             "content_type": content_type,
-            "file_size": file_size,
-            "original_url": metadata["url"],
-            "metadata": metadata
+            "file_size": metadata.get("download_size"),
+            "original_url": media_url,
+            "metadata": {
+                "download_duration": download_duration,
+                "temp_write_duration": write_duration,
+                "upload_duration": upload_duration,
+                "cleanup_duration": cleanup_duration,
+                "total_duration": overall_duration,
+                "temp_file_path": temp_file_path,
+                "r2_object_key": storage_key,
+            },
         }
         
-        # Add thumbnail generation here if needed
-        # This would be implemented in a future update
-        
-        logger.info(f"Successfully stored media for project {project_id}, scene {scene_id}")
         return result
         
-    except HTTPException:
-        raise
+    except MediaDownloadError as e:
+        logger.error(f"Failed to download media: {str(e)}")
+        raise HTTPException(
+            status_code=e.status_code or 500,
+            detail={"message": str(e), "code": "media_download_failed"}
+        )
     except Exception as e:
         logger.error(f"Unexpected error storing media: {str(e)}")
         logger.error(traceback.format_exc())
