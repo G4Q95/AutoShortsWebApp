@@ -515,14 +515,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         console.log(`[VideoContext] Canvas resized to ${canvas.width}x${canvas.height}`);
         
         // Create VideoContext instance after setting canvas dimensions
-        let ctx = new VideoContext(canvas);
-        console.log(`[VideoContext] VideoContext instance created for ${sceneId}:`, 
-                    { hasReset: typeof ctx.reset === 'function', 
-                      hasDispose: typeof ctx.dispose === 'function' });
-        setVideoContext(ctx);
-        
-        // Create source node (using local media URL)
-        let source: any; // Explicitly type as any since we're accessing non-standard properties
+        const ctx = new VideoContext(canvas); // Create the VideoContext instance
+        console.log('[VideoContext DEBUG] Created ctx object:', ctx);
+        console.log('[VideoContext DEBUG] typeof ctx.registerTimeUpdateCallback:', typeof ctx.registerTimeUpdateCallback);
+
+        // Determine media type and create appropriate source node
+        let source: any; // Use 'any' type for now to avoid linter errors
         console.log(`[VideoContext] Creating source node for ${mediaType} media: ${localMediaUrl.substring(0, 50)}...`);
 
         if (mediaType === 'video') {
@@ -869,25 +867,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           });
           
           // Set up time update callback
+          console.log('[VideoContext DEBUG] Entering time update callback registration for video. ctx:', ctx);
+          console.log('[VideoContext DEBUG] typeof ctx.registerTimeUpdateCallback before call:', typeof ctx.registerTimeUpdateCallback);
           ctx.registerTimeUpdateCallback((time: number) => {
-            console.warn(`[VideoContext] Time update: ${time.toFixed(2)}`);
-            
             // Ensure we're updating state with the latest time
             setCurrentTime(time);
-            
-            // Request an animation frame to ensure smooth updates
-            requestAnimationFrame(() => {
-              setCurrentTime(time);
-            });
-            
-            // Auto-pause at trim end
-            if (time >= trimEnd) {
-              ctx.pause();
-              setIsPlaying(false);
-              if (audioRef.current) {
-                audioRef.current.pause();
-              }
-            }
           });
         }
         

@@ -84,12 +84,16 @@ export async function addScene(page: Page, url: string, waitForExtraction = true
     await page.screenshot({ path: `before-add-scene-${Date.now()}.png` });
     
     // Click the Add button
+    console.log('Using Add button selector:', addButtonSelectors[0]);
     await addButton.click();
     console.log('Clicked Add button');
     
-    // Wait for the button to not be disabled (loading finished) -- REVERTED
-    // await expect(addButton).not.toBeDisabled({ timeout: 10000 }); // Wait up to 10 seconds
-    // console.log('Add button enabled, loading finished.');
+    // Clear the input AFTER clicking add, preparing for the next potential add
+    // (This also helps ensure the input is interactable again if the test adds multiple scenes)
+    console.log('Attempting to clear URL input after add');
+    await expect(urlInput).toBeEnabled({ timeout: 20000 });
+    console.log('URL input is enabled, proceeding to clear.');
+    await urlInput.clear();
     
     if (waitForExtraction) {
       // Wait for a new scene to appear

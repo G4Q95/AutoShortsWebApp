@@ -375,34 +375,31 @@ export default function ProjectWorkspace({
 
     try {
       // Add the scene
-      console.log(`Attempting to add scene to project ${projectToUse}`);
       await addScene(url.trim());
-      setUrl('');
-      
+      setUrl(''); // Clear input after addScene returns
+
       // Direct approach: Get the fresh project data from localStorage
-      console.log(`Scene added, now fetching updated project ${projectToUse} from storage`);
       try {
         const updatedProject = await getProject(projectToUse);
         if (updatedProject) {
-          console.log(`Successfully fetched updated project with ${updatedProject.scenes.length} scenes`);
           // Update both local state and context
           setLocalProject(updatedProject);
-          
+
           // Explicitly load the project into context
           if (loadProject) {
             await loadProject(projectToUse);
           }
         } else {
-          console.error(`Failed to fetch updated project ${projectToUse} after adding scene`);
+          console.error(`[WORKSPACE] Failed to fetch updated project ${projectToUse} after adding scene`);
         }
       } catch (fetchErr) {
-        console.error('Error fetching updated project:', fetchErr);
+        console.error('[WORKSPACE] Error fetching updated project:', fetchErr);
       }
-      
+
       // Explicitly mark this action in debug info
       setDebugInfo({ lastAction: `Successfully added scene with URL: ${url.trim()}` });
     } catch (error) {
-      console.error('Error adding scene:', error);
+      console.error('[WORKSPACE] Error adding scene:', error);
       setAddSceneError(error instanceof Error ? error.message : 'Failed to add scene');
       setDebugInfo({ lastAction: `Error adding scene: ${error instanceof Error ? error.message : 'Unknown error'}` });
     } finally {
@@ -805,10 +802,10 @@ export default function ProjectWorkspace({
                               preview={scene.url || null}
                               index={i}
                               onSceneRemove={handleRemoveScene}
-                              onSceneMove={(id, newIndex) => console.log(`Move scene ${id} to position ${newIndex}`)}
-                              onSceneReorder={(id, newIndex) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
+                              _onSceneMove={(id: string, newIndex: number) => console.log(`Move scene ${id} to position ${newIndex}`)}
+                              onSceneReorder={(id: string, newIndex: number) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
                               isDragging={snapshot.isDragging}
-                              dragHandleProps={provided.dragHandleProps}
+                              dragHandleProps={provided.dragHandleProps || undefined}
                               projectAspectRatio={(effectiveProject as any)?.aspectRatio || '9:16'}
                               showLetterboxing={(effectiveProject as any)?.showLetterboxing || true}
                             />
