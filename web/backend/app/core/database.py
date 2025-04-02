@@ -51,7 +51,7 @@ class Database:
                 uri_suffix = settings.MONGODB_URI.split('@')[1]
                 sanitized_uri = f"{uri_prefix.rsplit(':', 1)[0]}:***@{uri_suffix}"
             else:
-                sanitized_uri = "..."
+                sanitized_uri = "(URI format seems unusual or missing credentials)"
             
             logger.info(f"Connecting to MongoDB using URI: {sanitized_uri}")
             
@@ -62,33 +62,18 @@ class Database:
                 hostname = match.group(1)
                 logger.info(f"Extracted hostname: {hostname}")
             
-            # Add SSL parameters to URI if not already present
-            mongo_uri = settings.MONGODB_URI
-            if "?" not in mongo_uri:
-                mongo_uri += "?"
-            elif not mongo_uri.endswith("&") and not mongo_uri.endswith("?"):
-                mongo_uri += "&"
-                
-            # Add TLS parameters to ensure secure but compatible connection
-            if "tlsInsecure=true" not in mongo_uri:
-                mongo_uri += "tlsInsecure=true&"
-            if "retryWrites=true" not in mongo_uri:
-                mongo_uri += "retryWrites=true&"
-                
-            logger.info("Using modified connection string with TLS parameters")
-            
             # Configure client with improved connection settings
             self.client = AsyncIOMotorClient(
-                mongo_uri,
-                serverSelectionTimeoutMS=30000,  # Increase timeout to 30 seconds
+                settings.MONGODB_URI,
+                serverSelectionTimeoutMS=30000,
                 connectTimeoutMS=30000,
                 socketTimeoutMS=30000,
                 maxPoolSize=10,
                 w="majority",
-                maxIdleTimeMS=30000,
+                retryWrites=True,
                 appName="autoshorts-app",
-                ssl=True,
-                tlsAllowInvalidCertificates=True  # Allow invalid certs for troubleshooting
+                tls=True,
+                tlsAllowInvalidCertificates=True
             )
             
             # Validate connection
@@ -118,7 +103,8 @@ class Database:
             self._setup_mock_database()
         except ConfigurationError as e:
             logger.error(f"MongoDB configuration error: {e}")
-            logger.error(f"Connection parameters: {self.client.options if self.client else 'No client'}")
+            logger.error(f"Original MONGODB_URI: {sanitized_uri}")
+            logger.error(f"Connection parameters passed: {self.client.options if self.client else 'Client not fully created'}")
             logger.warning("Using mock database instead")
             self.is_mock = True
             self._setup_mock_database()

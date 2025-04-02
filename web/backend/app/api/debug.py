@@ -495,19 +495,15 @@ async def cleanup_test_data(
         logger.info(f"[CLEANUP DEBUG] Type of project_collection object: {type(project_collection)}")
 
         # Find projects where 'name' starts with the prefix (case-insensitive)
-        # MODIFIED: Await the find() call itself, as the mock returns a coroutine
-        project_cursor = await project_collection.find(
+        # MODIFIED: Removed await from find() as real DB returns cursor directly
+        project_cursor = project_collection.find(
             {"name": {"$regex": f"^{prefix}", "$options": "i"}}
         )
-        logger.info(f"[CLEANUP DEBUG] Type of project_cursor object AFTER await find: {type(project_cursor)}")
+        # MODIFIED: Changed logging message slightly
+        logger.info(f"[CLEANUP DEBUG] Type of project_cursor object: {type(project_cursor)}") 
         
-        # Now try to get the list - the cursor *might* be the list if it's the mock,
-        # or it might be a real cursor needing to_list.
-        # We need to handle both cases, but let's first see if awaiting find fixes the immediate error
-        # Assuming the awaited cursor now behaves like a MotorCursor OR the mock returns a list directly
-        # Let's try calling to_list on the awaited result. If it's already a list, this might fail differently.
-        # If it's a MotorCursor, this should work.
-        projects_to_delete = await project_cursor.to_list(length=None) # Keep this await for the real MotorCursor case
+        # Await the to_list() method on the cursor
+        projects_to_delete = await project_cursor.to_list(length=None) 
 
         projects_found = len(projects_to_delete)
         logger.info(f"Found {projects_found} projects matching prefix '{prefix}'.")
