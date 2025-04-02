@@ -1,3 +1,41 @@
+# Auto Shorts Web App Frontend
+
+## Environment Variables
+
+The frontend requires certain environment variables to function correctly. When checking out a repository or switching branches, follow these steps:
+
+1. **Create a .env file**: Copy the template from `.env.example`:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Required Variables**:
+   - `NEXT_PUBLIC_API_URL`: URL to the backend API (default: http://localhost:8000)
+   - `NEXT_PUBLIC_BROWSER_API_URL`: URL for browser-based API requests (default: http://localhost:8000)
+
+3. **Optional Variables**:
+   - `NEXT_PUBLIC_TESTING_MODE`: Set to "true" to enable testing mode
+   - `NEXT_PUBLIC_MOCK_AUDIO`: Set to "true" to use mock audio instead of real API calls
+
+## Starting the Development Server
+
+First ensure you have the proper environment variables set up as described above, then:
+
+```bash
+npm run dev
+```
+
+## Using Docker
+
+When using Docker, environment variables are passed through both:
+1. The `.env` file (through the `env_file` specification in docker-compose.yml)
+2. The `environment` section in docker-compose.yml
+
+Make sure to restart the frontend container whenever you change environment variables:
+```bash
+docker-compose restart frontend
+```
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

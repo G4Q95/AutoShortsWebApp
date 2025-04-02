@@ -12,6 +12,9 @@ services:
       - /app/.next
     env_file:
       - ./web/frontend/.env
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_BROWSER_API_URL=http://localhost:8000
     depends_on:
       - backend
     command: npm run dev

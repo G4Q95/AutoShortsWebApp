@@ -87,6 +87,10 @@ export async function addScene(page: Page, url: string, waitForExtraction = true
     await addButton.click();
     console.log('Clicked Add button');
     
+    // Wait for the button to not be disabled (loading finished) -- REVERTED
+    // await expect(addButton).not.toBeDisabled({ timeout: 10000 }); // Wait up to 10 seconds
+    // console.log('Add button enabled, loading finished.');
+    
     if (waitForExtraction) {
       // Wait for a new scene to appear
       console.log('Waiting for scene to appear...');
