@@ -20,7 +20,10 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 - Confirmed backend fixes with serial Playwright tests (`NEXT_PUBLIC_MOCK_AUDIO=false`).
 - Investigated `Scene deletion` test flakiness related to media loading timeout.
 - Added and subsequently removed debug logging in `media-utils.ts` and `SceneMediaPlayer.tsx` to trace media URL propagation.
-- Increased Playwright timeout for media element check in `scene-operations.spec.ts` from 15s to 30s, stabilizing the `Scene deletion` test.
+- Increased Playwright timeout for media element check in `Scene deletion` test from 15s to 30s, stabilizing the `Scene deletion` test.
+- Fixed critical video playback issues in `VideoContextScenePreviewPlayer` (resolved initialization, state management, and race condition bugs).
+- Resolved complex scene rendering issues after URL addition (identified and removed duplicate API calls in `ProjectProvider`, fixed state update timing in `ProjectReducer`).
+- Resolved Git detached HEAD state after commit `3a8563f` and successfully merged changes onto `r2-refactoring` branch.
 
 **Current Implementation Tasks:**
 
@@ -30,7 +33,10 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 - **Addressing Playwright Test Console Errors (15%):**
   - React `Warning: Received NaN for the '%s' attribute...` in video player controls.
   - `@hello-pangea/dnd` `Invariant failed: Draggable[id: ...]: Unable to find drag handle` error still appears during scene deletion test teardown, but does not cause test failure.
-  - `Error initializing VideoContext: TypeError: ctx.registerTimeUpdateCallback is not a function`.
+- **Refactor Media Handling & R2 Integration:** Complete the refactoring of media downloading, storage (R2), and preview logic across frontend and backend. (Est. 85% complete)
+  - Frontend context and download manager improvements.
+  - Backend R2 upload endpoints.
+  - Ensuring smooth preview playback with R2 URLs.
 
 ### Next Steps / Backlog
 - Stabilize Playwright E2E tests (address remaining console errors and potential flakiness).
@@ -62,15 +68,19 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 - Fixed backend 500 error (`AttributeError: 'tuple' object has no attribute 'get'`) in `media_service.py` by correctly handling `upload_file` return value.
 - Added detailed timing logs to `media_service.py`.
 - Stabilized `Scene deletion` Playwright test by increasing media check timeout.
+- Fixed video playback in `VideoContextScenePreviewPlayer`.
+- Debugged and fixed scene rendering after URL addition (duplicate API calls, state management).
+- Corrected Git state (detached HEAD) and merged changes to `r2-refactoring`.
 
 ## Blocker Issues
 - None currently blocking core development, but intermittent frontend errors need monitoring.
 
-## Key Decisions Made
+## Key Decisions Made / Debugging Insights
 - Increased default API client timeout from 10s to 60s (temporary for diagnosis, confirmed necessity for R2 uploads). Will monitor if this can be reduced later.
 - Using simplified, flat R2 storage paths based on project/scene IDs.
 - Added detailed timing logs to diagnose media storage performance.
 - Increased media loading check timeout in `Scene deletion` test to 30s to improve stability.
+- Scene rendering debug highlighted the fragility of state updates across `Provider` -> `Reducer` -> `Component`. Duplicate API calls (`storeSceneMedia` in `addScene`) were found to be a major cause of timing issues and incorrect loading states. Simplified `SceneComponent` rendering logic to rely more directly on `media.url` presence.
 
 ---
 
@@ -80,11 +90,11 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 *   **Backend API (FastAPI):** 85% (Core endpoints done, R2 logic refactoring in progress)
 *   **Database (MongoDB):** 90% (Models defined, R2 tracking added)
 *   **Content Retrieval:** 80% (Reddit implemented, needs robust error handling)
-*   **Media Processing (Audio/Video):** 70% (Basic generation working, needs optimization)
-*   **R2 Storage Integration:** 80% (Uploads working, cleanup refactoring in progress)
+*   **Media Processing (Audio/Video):** 75% (Basic generation working, player fixed, needs optimization)
+*   **R2 Storage Integration:** 85% (Uploads working, cleanup refactoring in progress)
 *   **Docker Setup:** 85% (Services running, backend image needs cleanup)
-*   **Testing (Playwright):** 80% (All 10 E2E tests passing on `d782e56`. Cleanup handled manually.)
-*   **UI/UX:** 70% (Basic layout, needs refinement)
+*   **Testing (Playwright):** 85% (All 10 E2E tests passing after player fixes. Cleanup handled manually.)
+*   **UI/UX:** 75% (Basic layout, key components functional, needs refinement)
 
 ---
 
@@ -129,10 +139,6 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
     *   **Status:** On Hold. (See `docs/R2-Refactoring-Plan.md`)
     *   **Goal:** Simplify and clean up R2 interaction code, remove unused config/code.
 5.  **Fix Flaky Tests (Backend Connection):** Investigate and resolve the intermittent `service_unavailable` errors occurring during Playwright tests, preventing the frontend from reliably communicating with the backend. (0%)
-6.  **Refactor Media Handling & R2 Integration:** Complete the refactoring of media downloading, storage (R2), and preview logic across frontend and backend. (Est. 75% complete)
-  - Frontend context and download manager improvements.
-  - Backend R2 upload endpoints.
-  - Ensuring smooth preview playback with R2 URLs.
 
 ---
 
