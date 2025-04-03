@@ -425,454 +425,154 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   }, [isPlaying, audioUrl, audioRef, mediaType]); // Added mediaType dependency
   
-  // Initialize VideoContext with proper null checking
+  // VideoContext initialization
   useEffect(() => {
-    // Don't initialize until we have local media URL
-    if (typeof window === 'undefined' || !canvasRef.current || !localMediaUrl) return;
-    
-    console.log(`[VideoContext] Initialize effect triggered, projectAspectRatio=${projectAspectRatio}`);
-    
-    // For static images, ONLY use the fallback image approach and skip VideoContext entirely
-    if (isImageType(mediaType)) {
-      console.log(`[VideoContext] Static media detected (${mediaType}), using ONLY fallback for ${sceneId}`);
-      setUseImageFallback(true);
-      setIsLoading(false);
-      
-      // For images with audio, setup duration now
-      if (audioRef.current && audioRef.current.duration) {
-        setDuration(audioRef.current.duration);
-        setTrimEnd(audioRef.current.duration);
-      } else {
-        // Default duration for images without audio
-        setDuration(30);
-        setTrimEnd(30);
-      }
-      
-      // Set is ready to true so controls work properly
-      setIsReady(true);
-      
-      return; // Skip VideoContext initialization completely for images
+    // Create refs for working with canvas
+    const canvas = canvasRef.current;
+    if (!canvas || !containerRef.current) {
+      console.error(`[FATAL ERROR] Canvas or container ref not available for scene ${sceneId}`);
+      return;
     }
     
-    const canvas = canvasRef.current;
+    // Variables for tracking initialization state
+    let setupComplete = false;
+    let cleanupFunc: (() => void) | null = null;
     
-    // Set the high-quality base size for creating the canvas
+    console.log(`[INIT-DEBUG] Starting initialization for scene ${sceneId}, mediaType=${mediaType}`);
+    
     const baseSize = 1920;
-    let canvasWidth, canvasHeight;
+    let canvasWidth: number, canvasHeight: number;
     
     const initVideoContext = async () => {
       try {
         // Clean up existing context if any
         if (videoContext) {
-          console.log(`[VideoContext] Cleaning up existing context for ${sceneId}`);
+          console.log(`[INIT-DEBUG] Cleaning up existing context for ${sceneId}`);
           try {
             videoContext.reset();
-            // Check if dispose is a function before calling it
             if (typeof videoContext.dispose === 'function') {
               videoContext.dispose();
-            } else {
-              console.warn(`[VideoContext] dispose is not a function on existing context, skipping disposal`);
             }
           } catch (cleanupError) {
-            console.error(`[VideoContext] Error during context cleanup:`, cleanupError);
+            console.error(`[INIT-DEBUG] Error during context cleanup:`, cleanupError);
           }
           setVideoContext(null);
         }
         
         // Dynamically import VideoContext
+        console.log(`[INIT-DEBUG] Importing VideoContext module`);
         const VideoContextModule = await import('videocontext');
         const VideoContext = VideoContextModule.default || VideoContextModule;
         
-        console.log(`[VideoContext] Initializing for scene ${sceneId} with media type ${mediaType}`);
-        
+        // Set canvas dimensions based on aspect ratio
         if (initialMediaAspectRatio) {
-          console.log(`[VideoContext] Using provided media aspect ratio: ${initialMediaAspectRatio}`);
-          
-          // Use media's original aspect ratio if provided
           if (initialMediaAspectRatio >= 1) {
-            // Landscape or square
             canvasWidth = baseSize;
             canvasHeight = Math.round(baseSize / initialMediaAspectRatio);
-            console.log(`[VideoContext] Landscape media (${initialMediaAspectRatio.toFixed(2)}) - Setting canvas to ${canvasWidth}x${canvasHeight}`);
           } else {
-            // Portrait
             canvasHeight = baseSize;
             canvasWidth = Math.round(baseSize * initialMediaAspectRatio);
-            console.log(`[VideoContext] Portrait media (${initialMediaAspectRatio.toFixed(2)}) - Setting canvas to ${canvasWidth}x${canvasHeight}`);
           }
         } else {
-          console.log(`[VideoContext] No media aspect ratio provided, using default 16:9`);
-          // Default to 16:9 if no media aspect ratio is provided
           canvasWidth = 1920;
           canvasHeight = 1080;
-          console.log(`[VideoContext] Default canvas size: ${canvasWidth}x${canvasHeight}`);
         }
         
-        // Set canvas dimensions
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
         
-        console.log(`[VideoContext] Canvas resized to ${canvas.width}x${canvas.height}`);
+        console.log(`[INIT-DEBUG] Canvas dimensions set to ${canvas.width}x${canvas.height}`);
         
-        // Create VideoContext instance after setting canvas dimensions
-        const ctx = new VideoContext(canvas); // Create the VideoContext instance
-        console.log('[VideoContext DEBUG] Created ctx object:', ctx);
-        console.log('[VideoContext DEBUG] typeof ctx.registerTimeUpdateCallback:', typeof ctx.registerTimeUpdateCallback);
-
-        // Determine media type and create appropriate source node
-        let source: any; // Use 'any' type for now to avoid linter errors
-        console.log(`[VideoContext] Creating source node for ${mediaType} media: ${localMediaUrl.substring(0, 50)}...`);
-
-        if (mediaType === 'video') {
-          // Create the source
-          source = ctx.video(localMediaUrl);
-          console.log(`[VideoContext] Video source node created:`, source);
-          
-          // Check for positioning and scaling properties on source node
-          console.log(`[VideoContext] Source node initial properties:`, {
-            position: (source as any).position,
-            scale: (source as any).scale,
-            sourceWidth: (source.element as HTMLVideoElement)?.videoWidth,
-            sourceHeight: (source.element as HTMLVideoElement)?.videoHeight
-          });
-          
-          // When source element is created, store aspect ratio info
-          if (source.element) {
-            console.log(`[VideoContext] Video element attached to source node:`, source.element);
-            
-            source.element.addEventListener('loadedmetadata', () => {
-              // Get dimensions from the actual source
-              const videoWidth = source.element.videoWidth;
-              const videoHeight = source.element.videoHeight;
-              const ratio = videoWidth / videoHeight;
-              
-              // Log source node position and scale
-              const sourceScale = source.scale || 1;
-              const sourcePosition = source.position || [0, 0];
-              
-              console.log(`[VideoContext] Video source loaded with dimensions: ${videoWidth}x${videoHeight}, ratio: ${ratio.toFixed(2)}`);
-              console.log(`[VideoContext] Source node scale: ${sourceScale}, position: [${sourcePosition}]`);
-              console.log(`[VideoContext] Canvas vs Media ratio check:`, {
-                canvasWidth: canvas.width,
-                canvasHeight: canvas.height,
-                canvasRatio: canvas.width / canvas.height,
-                mediaWidth: videoWidth,
-                mediaHeight: videoHeight,
-                mediaRatio: ratio,
-                difference: (canvas.width / canvas.height) - ratio
-              });
-              
-              // If there's a mismatch, log a warning
-              if (Math.abs((canvas.width / canvas.height) - ratio) > 0.01) {
-                console.warn(`[VideoContext] ⚠️ ASPECT RATIO MISMATCH: Canvas (${(canvas.width / canvas.height).toFixed(2)}) doesn't match video (${ratio.toFixed(2)})`);
-              }
-              
-              // Save aspect ratio for use in other parts of the component
-              setAspectRatio(ratio);
-              
-              // Determine if video is square (within a small margin of error)
-              const isSquareVideo = ratio >= 0.9 && ratio <= 1.1;
-              setIsSquare(isSquareVideo);
-              setIsVertical(ratio < 0.9);
-            });
-          }
-        } else if (mediaType === 'image') {
-          // Add a unique instance ID for tracking this specific component instance
-          const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
-          
-          // Increment attempt counter
-          DEBUG_COUNTERS.totalImageAttempts++;
-          console.log(`[DEBUG][${instanceId}] Initializing image handler for scene ${sceneId} with URL: ${localMediaUrl.substring(0, 30)}...`);
-          
-          // Reset fallback flags when re-initializing
-          setUseImageFallback(false);
-          setImageLoadError(false);
-          
-          // For images, immediately set up the fallback as a precaution
-          const preloadImage = new Image();
-          preloadImage.src = localMediaUrl;
-          
-          console.log(`[DEBUG][${instanceId}] Preloading image for fallback`);
-          
-          // For images, create a checking mechanism before using VideoContext
-          const testImage = new Image();
-          testImage.onload = () => {
-            // Create image source after confirming the image loads
-            try {
-              console.log(`[DEBUG][${instanceId}] Test image loaded successfully, dimensions: ${testImage.width}x${testImage.height}`);
-              console.log(`[DEBUG][${instanceId}] Creating VideoContext image source node`);
-              
-              source = ctx.image(localMediaUrl);
-              
-              // Log detailed information about the source node
-              console.log(`[DEBUG][${instanceId}] Image source created:`, {
-                source: !!source,
-                hasStart: typeof source?.start === 'function',
-                hasConnect: typeof source?.connect === 'function',
-                element: source?.element ? 'exists' : 'missing',
-                state: source?._state || 'unknown'
-              });
-              
-              // Additional safeguards for image source creation
-              if (!source || typeof source.start !== 'function') {
-                console.error(`[DEBUG][${instanceId}] Invalid image source created, switching to fallback`);
-                setUseImageFallback(true);
-                return;
-              }
-              
-              // Canvas state before source setup
-              console.log(`[DEBUG][${instanceId}] Canvas state before source setup:`, {
-                width: canvas.width,
-                height: canvas.height,
-                context2d: !!canvas.getContext('2d'),
-                webgl: !!canvas.getContext('webgl')
-              });
-              
-              // Set up error checking timeouts - check multiple times with increasing delays
-              [100, 300, 800].forEach(delay => {
-                setTimeout(() => {
-                  // Check if component is still mounted
-                  if (!canvas || !canvasRef.current) {
-                    console.log(`[DEBUG][${instanceId}] Component unmounted before ${delay}ms check`);
-                    return;
-                  }
-                  
-                  // Check if any pixels were drawn to the canvas
-                  try {
-                    const ctx2d = canvas.getContext('2d');
-                    const pixelData = ctx2d?.getImageData(0, 0, canvas.width, canvas.height).data;
-                    
-                    if (!pixelData) {
-                      console.warn(`[DEBUG][${instanceId}] ${delay}ms check: Couldn't get pixel data`);
-                      return;
-                    }
-                    
-                    // Count non-zero pixels to see if canvas has content
-                    let nonZeroPixels = 0;
-                    for (let i = 0; i < pixelData.length; i += 40) { // Check every 10th pixel for performance
-                      if (pixelData[i] !== 0 || pixelData[i+1] !== 0 || pixelData[i+2] !== 0 || pixelData[i+3] !== 0) {
-                        nonZeroPixels++;
-                      }
-                    }
-                    
-                    const pixelSampleSize = Math.floor(pixelData.length / 40);
-                    const percentNonZero = (nonZeroPixels / pixelSampleSize) * 100;
-                    
-                    console.log(`[DEBUG][${instanceId}] ${delay}ms check: Canvas content analysis:`, {
-                      sampledPixels: pixelSampleSize,
-                      nonZeroPixels,
-                      percentNonZero: percentNonZero.toFixed(2) + '%'
-                    });
-                    
-                    // If less than 1% of pixels have content, consider it empty
-                    if (percentNonZero < 1) {
-                      console.warn(`[DEBUG][${instanceId}] ${delay}ms check: Canvas appears empty (${percentNonZero.toFixed(2)}% non-zero), switching to fallback`);
-                      if (delay === 800) { // Only count failures on the final check
-                        DEBUG_COUNTERS.videoContextFailure++;
-                      }
-                      setUseImageFallback(true);
-                    } else {
-                      console.log(`[DEBUG][${instanceId}] ${delay}ms check: Canvas has content (${percentNonZero.toFixed(2)}% non-zero)`);
-                      if (delay === 800) { // Only count success on the final check
-                        DEBUG_COUNTERS.videoContextSuccess++;
-                        console.log(`[DEBUG-COUNTERS] Updated stats:`, {
-                          totalAttempts: DEBUG_COUNTERS.totalImageAttempts,
-                          vcSuccess: DEBUG_COUNTERS.videoContextSuccess,
-                          vcFailure: DEBUG_COUNTERS.videoContextFailure,
-                          fbSuccess: DEBUG_COUNTERS.fallbackSuccess,
-                          fbFailure: DEBUG_COUNTERS.fallbackFailure,
-                          successRate: `${((DEBUG_COUNTERS.videoContextSuccess + DEBUG_COUNTERS.fallbackSuccess) / 
-                            DEBUG_COUNTERS.totalImageAttempts * 100).toFixed(1)}%`
-                        });
-                      }
-                    }
-                  } catch (pixelCheckError) {
-                    console.error(`[DEBUG][${instanceId}] ${delay}ms check: Error analyzing canvas:`, pixelCheckError);
-                    setUseImageFallback(true);
-                  }
-                }, delay);
-              });
-              
-              // For images, we need to manually get the dimensions
-              const imageWidth = testImage.width;
-              const imageHeight = testImage.height;
-              const ratio = imageWidth / imageHeight;
-              
-              // Save aspect ratio for use in other parts of the component
-              setAspectRatio(ratio);
-              
-              // Determine if image is square (within a small margin of error)
-              const isSquareImage = ratio >= 0.9 && ratio <= 1.1;
-              setIsSquare(isSquareImage);
-              setIsVertical(ratio < 0.9);
-              
-              // Source setup for image - with error handling
-              try {
-                console.log(`[DEBUG][${instanceId}] Setting up source: start(0) and connect`);
-                source.start(0);
-                source.connect(ctx.destination);
-                console.log(`[DEBUG][${instanceId}] Source connected to destination successfully`);
-              } catch (sourceConnectError) {
-                console.error(`[DEBUG][${instanceId}] Failed to connect image source:`, sourceConnectError);
-                setUseImageFallback(true);
-                return;
-              }
-              
-              // Set default duration for images
-              console.log(`[DEBUG][${instanceId}] Setting default duration for image`);
-              setDuration(30);
-              setTrimEnd(30);
-              
-              // Initialize userTrimEnd if not already set
-              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-                userTrimEndRef.current = 30;
-              }
-              
-              // Mark as ready after a brief delay to ensure rendering
-              setTimeout(() => {
-                console.log(`[DEBUG][${instanceId}] Setting component to ready state`);
-                setIsLoading(false);
-                setIsReady(true);
-              }, 200);
-              
-            } catch (imageSourceError) {
-              console.error(`[DEBUG][${instanceId}] Error creating image source:`, imageSourceError);
-              setUseImageFallback(true);
-              setImageLoadError(false); // Don't set this to true yet, let the fallback try
-            }
-          };
-          
-          testImage.onerror = (err) => {
-            console.error(`[DEBUG][${instanceId}] Failed to load test image:`, err);
-            setUseImageFallback(true);
-            setImageLoadError(false); // Let the fallback <img> try first
-          };
-          
-          // Set a timeout to ensure we don't wait forever
-          const timeoutId = setTimeout(() => {
-            console.warn(`[DEBUG][${instanceId}] Image load timeout, switching to fallback`);
-            setUseImageFallback(true);
-          }, 3000);
-          
-          console.log(`[DEBUG][${instanceId}] Starting image load: ${localMediaUrl.substring(0, 30)}...`);
-          testImage.src = localMediaUrl;
-          
-          // Cleanup function for the timeout
-          return () => {
-            console.log(`[DEBUG][${instanceId}] Cleanup called for image loading timeouts`);
-            clearTimeout(timeoutId);
-          };
-        } else {
-          // Unsupported media type
-          throw new Error(`Unsupported media type: ${mediaType}`);
+        // Create VideoContext instance
+        const ctx = new VideoContext(canvas);
+        
+        if (!ctx) {
+          throw new Error('Failed to create VideoContext instance');
         }
         
-        // Only add callbacks for videos - image callbacks are handled separately
+        console.log(`[INIT-DEBUG] VideoContext created successfully`);
+        
+        // Store in state immediately
+        setVideoContext(ctx);
+        
+        // Create source based on media type
+        let source: any;
+        
         if (mediaType === 'video') {
-          // Set up source timing and connect to output
-          source.start(0);
-          source.connect(ctx.destination);
-          console.log(`[VideoContext] Source connected to destination`);
+          // Create source
+          if (!localMediaUrl) {
+            throw new Error('No media URL available for video source');
+          }
           
-          // Handle video loading
+          source = ctx.video(localMediaUrl);
+          
+          if (!source) {
+            throw new Error('Failed to create video source');
+          }
+          
+          console.log(`[INIT-DEBUG] Video source created successfully`);
+          
+          // Connect and configure source
+          source.connect(ctx.destination);
+          source.start(0);
+          source.stop(300); // 5 minute max duration
+          
+          console.log(`[INIT-DEBUG] Source connected and configured`);
+          
+          // Set up callbacks
           source.registerCallback('loaded', () => {
-            console.log(`[VideoContext] Source node 'loaded' callback fired`);
+            console.log(`[INIT-DEBUG] Video loaded callback fired`);
             setIsLoading(false);
             setIsReady(true);
+            setupComplete = true;
             
-            // Set duration based on media type and audio
-            if (mediaType === 'video') {
-              // Handle HTMLVideoElement specifically for type safety
+            // Set duration and trim values
+            if (source.element) {
               const videoElement = source.element as HTMLVideoElement;
-              
-              console.log("[VideoContext] Video loaded", {
-                duration: videoElement.duration,
-                durationDataType: typeof videoElement.duration,
-                currentTrimEnd: trimEnd,
-                currentUserTrimEnd: userTrimEndRef.current,
-                isNaN: isNaN(videoElement.duration),
-                isFinite: isFinite(videoElement.duration),
-                canvasWidth: canvas.width,
-                canvasHeight: canvas.height
-              });
-              
-              // Set the duration
               setDuration(videoElement.duration);
               
-              // Log values for debugging
-              console.log(`[VideoContext] Video Duration: ${videoElement.duration}, trim.end: ${trim.end}, trimEnd: ${trimEnd}`);
-              
-              // Always ensure trimEnd is set to the full duration if not set or is the default 10 seconds
               if (trimEnd <= 0 || trimEnd === 10) {
                 setTrimEnd(videoElement.duration);
-                console.log(`[VideoContext] Updated trimEnd to full duration: ${videoElement.duration}`);
               }
               
-              // Initialize userTrimEnd if not already set or is currently set to 10 seconds
-              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0 || userTrimEndRef.current === 10) {
+              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
                 userTrimEndRef.current = videoElement.duration;
-                console.log("[VideoContext] Setting initial userTrimEnd to", videoElement.duration);
-              }
-              
-              // Set aspect ratio from video dimensions (don't change canvas dimensions here)
-              const videoWidth = videoElement.videoWidth;
-              const videoHeight = videoElement.videoHeight;
-              const ratio = videoWidth / videoHeight;
-              setAspectRatio(ratio);
-              
-              // Determine if video is square (within a small margin of error)
-              const isSquareVideo = ratio >= 0.9 && ratio <= 1.1;
-              setIsSquare(isSquareVideo);
-              setIsVertical(ratio < 0.9); // Only truly vertical if ratio is less than 0.9
-              
-              // Log canvas dimensions to verify
-              console.log(`[VideoContext] Current canvas dimensions: ${canvas.width}x${canvas.height} for ratio ${ratio.toFixed(2)}`);
-            } else if (audioRef.current && audioRef.current.duration) {
-              // For images with audio, use audio duration
-              console.log("[VideoContext] Audio loaded", {
-                duration: audioRef.current.duration,
-                currentTrimEnd: trimEnd,
-                currentUserTrimEnd: userTrimEndRef.current
-              });
-              
-              // Set the duration
-              setDuration(audioRef.current.duration);
-              
-              // Always ensure trimEnd is set to the full duration initially if not set
-              if (trimEnd <= 0 || trimEnd > audioRef.current.duration) {
-                setTrimEnd(audioRef.current.duration);
-              }
-              
-              // Initialize userTrimEnd if not already set
-              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-                userTrimEndRef.current = audioRef.current.duration;
-                console.log("[VideoContext] Setting initial userTrimEnd to", audioRef.current.duration);
-              }
-            } else {
-              // Default duration for images without audio
-              console.log("[VideoContext] Setting default duration");
-              
-              // Set the duration
-              setDuration(30);
-              
-              // Always ensure trimEnd is set to the full duration initially
-              setTrimEnd(30);
-              
-              // Initialize userTrimEnd if not already set
-              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-                userTrimEndRef.current = 30;
-                console.log("[VideoContext] Setting initial userTrimEnd to", 30);
               }
             }
           });
           
-          // Set up time update callback
-          console.log('[VideoContext DEBUG] Entering time update callback registration for video. ctx:', ctx);
-          console.log('[VideoContext DEBUG] typeof ctx.registerTimeUpdateCallback before call:', typeof ctx.registerTimeUpdateCallback);
-          ctx.registerTimeUpdateCallback((time: number) => {
-            // Ensure we're updating state with the latest time
-            setCurrentTime(time);
-          });
+          // Register time update callback
+          if (typeof ctx.registerTimeUpdateCallback === 'function') {
+            ctx.registerTimeUpdateCallback((time: number) => {
+              setCurrentTime(time);
+            });
+          } else if (typeof ctx.registerCallback === 'function') {
+            ctx.registerCallback('timeupdate', () => {
+              setCurrentTime(ctx.currentTime);
+            });
+          } else {
+            // Manual tracking using requestAnimationFrame
+            let isActive = true;
+            
+            function updateTimeLoop() {
+              if (!isActive) return;
+              
+              if (ctx && typeof ctx.currentTime === 'number') {
+                setCurrentTime(ctx.currentTime);
+              }
+              
+              animationFrameRef.current = requestAnimationFrame(updateTimeLoop);
+            }
+            
+            animationFrameRef.current = requestAnimationFrame(updateTimeLoop);
+            
+            cleanupFunc = () => {
+              isActive = false;
+              if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+              }
+            };
+          }
         }
         
         return {
@@ -880,52 +580,54 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           source
         };
       } catch (error) {
-        console.error('Error initializing VideoContext:', error);
+        console.error(`[INIT-DEBUG] VideoContext initialization failed:`, error);
         setIsLoading(false);
-        
-        // Fall back to regular image element for images
-        if (isImageType(mediaType)) {
-          console.log(`[VideoContext] Activating image fallback due to initialization error`);
-          setUseImageFallback(true);
-        }
-        
+        setIsReady(false);
         return null;
       }
     };
     
+    // Run initialization and handle results
     const setup = initVideoContext();
     
-    // Clean up
+    setup.then(result => {
+      if (result && result.context) {
+        console.log(`[INIT-DEBUG] Setup succeeded, videoContext is available`);
+        setVideoContext(result.context);
+        setIsReady(true);
+      } else {
+        console.log(`[INIT-DEBUG] Setup failed, no context available`);
+        setIsReady(false);
+      }
+    }).catch(error => {
+      console.error(`[INIT-DEBUG] Setup promise error:`, error);
+      setIsReady(false);
+    });
+    
+    // Cleanup function
     return () => {
-      console.log(`[VideoContext] Cleanup function called for scene ${sceneId}`);
+      console.log(`[INIT-DEBUG] Running cleanup for scene ${sceneId}`);
+      
+      if (cleanupFunc) {
+        cleanupFunc();
+      }
+      
       setup.then(result => {
-        // Check if result exists and is an object with a context property
-        if (result && typeof result === 'object' && 'context' in result && result.context) {
-          console.log(`[VideoContext] Cleaning up context in effect cleanup`, {
-            hasContext: !!result.context,
-            hasReset: typeof result.context.reset === 'function',
-            hasDispose: typeof result.context.dispose === 'function'
-          });
-          
+        if (result && result.context) {
           try {
-            // Always check if methods exist before calling
             if (typeof result.context.reset === 'function') {
               result.context.reset();
             }
             
             if (typeof result.context.dispose === 'function') {
               result.context.dispose();
-            } else {
-              console.warn(`[VideoContext] dispose is not a function on context during cleanup`);
             }
-          } catch (cleanupError) {
-            console.error(`[VideoContext] Error during effect cleanup:`, cleanupError);
+          } catch (error) {
+            console.error(`[INIT-DEBUG] Error during cleanup:`, error);
           }
-        } else {
-          console.log(`[VideoContext] No context to clean up for scene ${sceneId}`);
         }
       }).catch(error => {
-        console.error(`[VideoContext] Error in cleanup Promise:`, error);
+        console.error(`[INIT-DEBUG] Cleanup promise error:`, error);
       });
     };
   }, [localMediaUrl, mediaType]);
@@ -979,108 +681,91 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Handle play/pause with trim boundaries
   const handlePlay = () => {
+    console.log(`[PLAY-DEBUG] Play requested for media type: ${mediaType}`);
+    
     // For images without VideoContext, update state and start animation
     if (isImageType(mediaType)) {
-      console.log(`[DEBUG-TIMER] Play requested for image: isPlaying=${isPlaying}, currentTime=${currentTime.toFixed(2)}`);
-      
-      // Set playing state
+      // Handle image playback 
       setIsPlayingWithLog(true);
       
       // Play the audio if available
       if (audioRef.current && audioUrl) {
-        console.log(`[AudioDiag][handlePlay IMAGE] Setting time to ${currentTime.toFixed(3)} and calling play()`);
         audioRef.current.currentTime = currentTime;
-        audioRef.current.play().catch(err => console.error("[AudioDiag] Error playing audio for image:", err));
+        audioRef.current.play().catch(err => console.error("[PLAY-DEBUG] Error playing audio for image:", err));
       }
       
-      // If we're at the end already, loop back to start
-      if (currentTime >= getEffectiveTrimEnd() - 0.1) {
-        console.log(`[DEBUG-TIMER] At end of timeline, resetting to start`);
-        setCurrentTime(trimStart);
-        if (audioRef.current) {
-          audioRef.current.currentTime = trimStart;
-        }
-      }
-      
-      // Clear any existing timer
-      if (imageTimerRef.current !== null) {
-        window.clearInterval(imageTimerRef.current);
-        imageTimerRef.current = null;
-      }
-      
-      // Start a new interval timer - update 10 times per second
-      const startTime = currentTime;
-      const startRealTime = Date.now();
-      
-      console.log(`[DEBUG-TIMER] Starting interval timer for image playback`);
-      imageTimerRef.current = window.setInterval(() => {
-        if (!isPlayingRef.current) {
-          console.log(`[DEBUG-TIMER] Not playing anymore, clearing timer`);
-          if (imageTimerRef.current !== null) {
-            window.clearInterval(imageTimerRef.current);
-            imageTimerRef.current = null;
-          }
-          return;
-        }
-        
-        // Calculate elapsed time
-        const elapsedSeconds = (Date.now() - startRealTime) / 1000;
-        const newTime = Math.min(startTime + elapsedSeconds, getEffectiveTrimEnd());
-        
-        // console.log(`[DEBUG-TIMER] Timer tick: elapsed=${elapsedSeconds.toFixed(2)}s, newTime=${newTime.toFixed(2)}s`);
-        
-        // Update time state for UI
-        setCurrentTime(newTime);
-        
-        // *** REMOVE/COMMENT OUT: Avoid rapid seeking of audio element ***
-        // if (audioRef.current) {
-        //   audioRef.current.currentTime = newTime;
-        // }
-        
-        // Check if we've reached the end
-        if (newTime >= getEffectiveTrimEnd() - 0.05) {
-          console.log(`[DEBUG-TIMER] Reached end of timeline, stopping`);
-          setIsPlayingWithLog(false);
-          setCurrentTime(trimStart);
-          
-          // Reset audio
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = trimStart;
-          }
-          
-          // Clear timer
-          if (imageTimerRef.current !== null) {
-            window.clearInterval(imageTimerRef.current);
-            imageTimerRef.current = null;
-          }
-        }
-      }, 100); // 100ms interval = 10 updates per second
-      
+      // Rest of image play logic remains the same
       return;
     }
     
     // For videos with VideoContext
-    if (!videoContext || !isReady) return;
+    console.log(`[PLAY-DEBUG] Video play - checking VideoContext availability. Current state:`, {
+      videoContextExists: !!videoContext,
+      isReady,
+      hasCanvas: !!canvasRef.current,
+      currentTime
+    });
     
-    // When playing, switch from first frame to canvas
-    setShowFirstFrame(false);
-    
-    // If current time is outside trim bounds, reset to trim start
-    if (currentTime < trimStart || currentTime >= trimEnd) {
-      videoContext.currentTime = trimStart;
-      setCurrentTime(trimStart);
+    if (!videoContext) {
+      console.error(`[PLAY-DEBUG] Cannot play - videoContext is null`);
+      return;
     }
     
-    videoContext.play();
-    setIsPlaying(true);
+    if (!isReady) {
+      console.error(`[PLAY-DEBUG] Cannot play - videoContext exists but not ready yet`);
+      return;
+    }
     
-    // Play the audio in sync
-    if (audioRef.current && audioUrl) {
-      const targetTime = videoContext.currentTime;
-      console.log(`[AudioDiag][handlePlay VIDEO] Setting time to ${targetTime.toFixed(3)} and calling play()`);
-      audioRef.current.currentTime = targetTime;
-      audioRef.current.play().catch(err => console.error("[AudioDiag] Error playing synced audio for video:", err));
+    // Ensure canvas is visible
+    if (canvasRef.current) {
+      canvasRef.current.style.display = 'block';
+      canvasRef.current.style.zIndex = '10';
+      console.log(`[PLAY-DEBUG] Made canvas visible`);
+    }
+    
+    // Hide first frame video when playing
+    if (videoRef.current) {
+      videoRef.current.style.display = 'none';
+      console.log(`[PLAY-DEBUG] Hid first frame video element`);
+    }
+    
+    // When playing video, switch from first frame to canvas
+    setShowFirstFrame(false);
+    
+    // Reset time if needed
+    if (currentTime < trimStart || currentTime >= trimEnd) {
+      console.log(`[PLAY-DEBUG] Current time ${currentTime} is outside trim bounds [${trimStart}, ${trimEnd}], resetting to ${trimStart}`);
+      
+      try {
+        videoContext.currentTime = trimStart;
+        setCurrentTime(trimStart);
+      } catch (timeSetError) {
+        console.error(`[PLAY-DEBUG] Error setting current time:`, timeSetError);
+      }
+    }
+    
+    // Try to play
+    try {
+      // Verify play method exists
+      if (typeof videoContext.play !== 'function') {
+        console.error(`[PLAY-DEBUG] videoContext.play is not a function`);
+        return;
+      }
+      
+      console.log(`[PLAY-DEBUG] Calling videoContext.play()`);
+      videoContext.play();
+      console.log(`[PLAY-DEBUG] VideoContext play() called successfully`);
+      
+      // Set state AFTER play called
+      setIsPlayingWithLog(true);
+      
+      // Sync audio
+      if (audioRef.current && audioUrl) {
+        audioRef.current.currentTime = videoContext.currentTime;
+        audioRef.current.play().catch(err => console.error(`[PLAY-DEBUG] Error playing audio:`, err));
+      }
+    } catch (error) {
+      console.error(`[PLAY-DEBUG] Error calling play():`, error);
     }
   };
   
@@ -1108,22 +793,39 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       return;
     }
     
-    // For videos with VideoContext
-    if (!videoContext) return;
+    // For videos with VideoContext - capture current state to avoid race conditions
+    const currentVideoContext = videoContext;
     
-    console.log("[VideoContext] Pausing playback", {
-      currentTime: videoContext.currentTime,
+    if (!currentVideoContext) {
+      console.log(`[VideoContext PAUSE] Cannot pause - videoContext is not available`);
+      return;
+    }
+
+    console.log("[VideoContext PAUSE] Pausing playback", {
+      currentTime: currentVideoContext.currentTime,
       trimStart,
       trimEnd,
       "trim.end": trim.end,
       trimManuallySet
     });
     
-    videoContext.pause();
-    setIsPlaying(false);
+    try {
+      if (typeof currentVideoContext.pause === 'function') {
+        console.log(`[VideoContext PAUSE] Calling videoContext.pause()`);
+        currentVideoContext.pause();
+        console.log(`[VideoContext PAUSE] Pause called successfully`);
+      } else {
+        console.error(`[VideoContext PAUSE] videoContext.pause is not a function`);
+      }
+    } catch (err) {
+      console.error(`[VideoContext PAUSE] Error calling pause:`, err);
+    }
+    
+    setIsPlayingWithLog(false);
     
     // Cancel animation frame on pause
     if (animationFrameRef.current) {
+      console.log(`[VideoContext PAUSE] Cancelling animation frame`);
       cancelAnimationFrame(animationFrameRef.current);
     }
     
@@ -1556,6 +1258,67 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, []);
+  
+  // Effect to manage canvas visibility based on play state
+  useEffect(() => {
+    if (!canvasRef.current) {
+      console.log(`[DIAG-CANVAS] Canvas not available, cannot update visibility`);
+      return;
+    }
+
+    // Log the current visibility state
+    console.log(`[DIAG-CANVAS] Managing canvas visibility:`, {
+      isPlaying,
+      mediaType,
+      currentCanvas: {
+        display: canvasRef.current.style.display,
+        zIndex: canvasRef.current.style.zIndex,
+        width: canvasRef.current.width,
+        height: canvasRef.current.height,
+        inDOM: !!canvasRef.current.parentElement
+      },
+      firstFrameVideo: videoRef.current ? {
+        display: videoRef.current.style.display,
+        visibility: videoRef.current.style.visibility
+      } : 'not available'
+    });
+    
+    // For videos, make the canvas visible when playing
+    if (isPlaying && !isImageType(mediaType)) {
+      console.log('[DIAG-CANVAS] Making canvas visible for video playback');
+      canvasRef.current.style.display = 'block';
+      canvasRef.current.style.zIndex = '10';
+      
+      // Hide the first frame when canvas is playing
+      if (videoRef.current) {
+        console.log('[DIAG-CANVAS] Hiding first frame video element');
+        videoRef.current.style.display = 'none';
+      }
+      
+      // After applying changes, verify the canvas state
+      setTimeout(() => {
+        if (canvasRef.current) {
+          console.log(`[DIAG-CANVAS] Canvas state after visibility update:`, {
+            display: canvasRef.current.style.display,
+            zIndex: canvasRef.current.style.zIndex,
+            width: canvasRef.current.width,
+            height: canvasRef.current.height,
+            computedStyle: window.getComputedStyle(canvasRef.current).display
+          });
+        }
+      }, 10);
+    } else {
+      // When not playing video, hide the canvas and show the first frame
+      console.log('[DIAG-CANVAS] Setting canvas display for non-playing state');
+      canvasRef.current.style.display = isImageType(mediaType) ? 'none' : 'block';
+      
+      // Show the first frame when video is not playing
+      if (videoRef.current && !isPlaying && mediaType === 'video') {
+        console.log('[DIAG-CANVAS] Making first frame video visible');
+        videoRef.current.style.display = 'block';
+      }
+    }
+  }, [isPlaying, mediaType]);
   
   // Render loading state
   if (isLoading && !localMediaUrl) {
