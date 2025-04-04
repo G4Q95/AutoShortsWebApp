@@ -187,6 +187,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isDraggingScrubber, setIsDraggingScrubber] = useState<boolean>(false);
+  // Ref to force reset on next play
+  const forceResetOnPlayRef = useRef<boolean>(false);
   
   // State for hover and trim controls
   const [isHovering, setIsHovering] = useState<boolean>(false);
@@ -218,6 +220,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add state for local media
   const [localMediaUrl, setLocalMediaUrl] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  
+  // Add state to store time before dragging trim handles
+  const [timeBeforeDrag, setTimeBeforeDrag] = useState<number | null>(null);
   
   // Add state for fallback image rendering
   const [useImageFallback, setUseImageFallback] = useState<boolean>(false);
@@ -576,6 +581,17 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const handlePlay = useCallback(() => {
     console.log(`[PLAY-DEBUG] Play requested for media type: ${mediaType}`);
     
+    // --- Check force reset flag --- 
+    if (forceResetOnPlayRef.current) {
+        console.warn(`[PLAY-DEBUG] Force reset flag is true. Resetting time to trimStart (${trimStart}) before playing.`);
+        if (videoContext) {
+            videoContext.currentTime = trimStart;
+        }
+        setCurrentTime(trimStart); // Update React state too
+        forceResetOnPlayRef.current = false; // Reset the flag
+    }
+    // --- END Check force reset flag --- 
+    
     // For images without VideoContext, update state and start animation
     if (isImageType(mediaType)) {
       // Handle image playback 
@@ -660,7 +676,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     } catch (error) {
       console.error(`[PLAY-DEBUG] Error calling play():`, error);
     }
-  }, [isPlaying, videoContext, isReady, currentTime, trimStart, trimEnd, setIsPlayingWithLog, audioRef, audioUrl, videoRef, setShowFirstFrame]);
+  }, [isPlaying, videoContext, isReady, currentTime, trimStart, trimEnd, setIsPlayingWithLog, audioRef, audioUrl, videoRef, setShowFirstFrame, setCurrentTime]); // Added setCurrentTime
   
   const handlePause = useCallback(() => {
     // For images without VideoContext, just update the state
@@ -681,6 +697,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         console.log(`[DEBUG-TIMER] Clearing interval timer`);
         window.clearInterval(imageTimerRef.current);
         imageTimerRef.current = null;
+      }
+      
+      // Reset the force reset flag on pause
+      if (forceResetOnPlayRef.current) {
+        console.log("[PAUSE-DEBUG] Resetting forceResetOnPlayRef flag.");
+        forceResetOnPlayRef.current = false;
       }
       
       return;
@@ -740,6 +762,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       if (audioRef.current) {
         audioRef.current.currentTime = clampedTime;
       }
+      
+      // Reset the force reset flag on manual scrub
+      if (forceResetOnPlayRef.current) {
+        console.log("[SCRUB-DEBUG] Resetting forceResetOnPlayRef flag.");
+        forceResetOnPlayRef.current = false;
+      }
+      
       return;
     }
     
@@ -1003,11 +1032,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       userTrimEndRef.current = newEnd;
       if (onTrimChange) onTrimChange(trimStart, newEnd);
       visualUpdateTime = newEnd;
-      // --- REMOVE/COMMENT OUT VideoContext time update when dragging END handle ---
-      // if (videoContext) {
-      //   // DO NOT update actual currentTime when dragging end handle
-      //   // videoContext.currentTime = visualUpdateTime; 
-      // }
+      // --- RE-ENABLE VideoContext time update for visual scrubbing --- 
+      if (videoContext) {
+        // Update currentTime during drag for visual feedback
+        videoContext.currentTime = visualUpdateTime; 
+      }
       // --- END CHANGE ---
     }
 
@@ -1029,37 +1058,38 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setActiveHandle(null);
     document.body.style.cursor = 'default';
 
-    // --- ADD CHECK: Snap currentTime back to trimStart if end handle moved past it --- 
-    const finalTrimEnd = userTrimEndRef.current ?? trimEnd; // Get the final committed trim end
-    const currentValidTrimStart = trimStart; // Get the current trim start
-    const currentPlayheadTime = videoContext ? videoContext.currentTime : currentTime; // Get current playhead position
+    // --- ALWAYS Snap back if RIGHT handle was dragged --- 
+    const finalTrimEnd = userTrimEndRef.current ?? trimEnd; // Still useful for logging maybe
+    const currentValidTrimStart = trimStart; 
+    const currentPlayheadTime = videoContext ? videoContext.currentTime : currentTime;
+    console.log(`[TrimDragEnd DEBUG] Values Before Snap Check:`, { /* ... logging object ... */ });
     
-    if (wasHandleActive === 'end' && finalTrimEnd < currentPlayheadTime) {
-        console.warn(`[TrimDragEnd] End handle (${finalTrimEnd}) finished before current playhead (${currentPlayheadTime}). Snapping playhead to start (${currentValidTrimStart}).`);
+    if (wasHandleActive === 'end') {
+        // ALWAYS snap back if the right handle was the one released
+        console.warn(`[TrimDragEnd] Right handle released. Forcing pause, setting state, setting reset flag, and snapping playhead to start (${currentValidTrimStart}).`);
+        
+        // --- Force Pause, State Update, and Set Flag --- 
+        handlePause(); 
+        setIsPlayingWithLog(false); // Explicitly set playing state to false
+        forceResetOnPlayRef.current = true; // Set the flag for the next play
+        // --- END Force Pause, State Update, and Set Flag --- 
+        
+        // Now set the time back to start
         if (videoContext) {
             videoContext.currentTime = currentValidTrimStart;
         }
-        setCurrentTime(currentValidTrimStart); // Update React state as well
-        setVisualTime(currentValidTrimStart); // Also reset visual time representation
+        setCurrentTime(currentValidTrimStart); 
+        setVisualTime(currentValidTrimStart); 
+    } else {
+      // Left handle was dragged - ensure flag is false
+      console.log(`[TrimDragEnd] Left handle released. No snap needed.`);
+      forceResetOnPlayRef.current = false;
     }
-    // --- END ADDED CHECK --- 
     
-    // Restore currentTime only if dragging the start handle while paused
-    // --- REMOVED this logic as it's now handled by the check above or implicitly correct --- 
-    // if (!isPlaying && wasHandleActive === 'start') {
-    //     // Restore the actual playhead to where the visual time was left
-    //     setCurrentTime(visualTime);
-    //     if (videoContext) {
-    //         videoContext.currentTime = visualTime; // Ensure VideoContext is also set
-    //     }
-    //     console.log(`[TrimDrag] Restored currentTime to visualTime: ${visualTime}`);
-    // } else {
-    //     // If dragging end handle, or if playing, currentTime remains where it was
-    //     console.log(`[TrimDrag] Drag end, currentTime remains: ${currentTime}`);
-    // }
-    // --- END REMOVAL --- 
-
-  }, [activeHandle, setActiveHandle, isPlaying, visualTime, videoContext, currentTime, trimStart, trimEnd, userTrimEndRef]); // Added dependencies
+    setTimeBeforeDrag(null);
+    // --- END MODIFIED SNAP LOGIC --- 
+    
+  }, [activeHandle, setActiveHandle, videoContext, currentTime, trimStart, trimEnd, userTrimEndRef, timeBeforeDrag, setCurrentTime, setVisualTime, setTimeBeforeDrag, handlePause, setIsPlayingWithLog]);
 
   // --- Effects ---
 
@@ -1672,6 +1702,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                         e.stopPropagation();
                         setActiveHandle('start');
                         console.log('[VideoContext] Trim start handle activated');
+                        // --- Store time before drag --- 
+                        setTimeBeforeDrag(videoContext ? videoContext.currentTime : currentTime);
+                        // --- END Store time --- 
                         // Store original playback position
                         if (videoContext) {
                           setOriginalPlaybackTime(videoContext.currentTime);
@@ -1758,6 +1791,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                         e.stopPropagation();
                         setActiveHandle('end');
                         console.log('[VideoContext] Trim end handle activated');
+                        // --- Store time before drag --- 
+                        setTimeBeforeDrag(videoContext ? videoContext.currentTime : currentTime);
+                        // --- END Store time --- 
                         // Store original playback position
                         if (videoContext) {
                           setOriginalPlaybackTime(videoContext.currentTime);
