@@ -24,26 +24,44 @@ Investigation revealed the following:
 *   **Increase Testability:** Make the component robust enough for reliable interaction in automated tests.
 *   **Maintain Functionality:** Ensure all existing features (playback, trimming, aspect ratio handling) continue to work correctly.
 
-## 3. Initial Refactoring Approach (Basic Outline)
+## 3. Refactoring Approach: Incremental Hook/Utility Extraction
 
-*(This is a preliminary plan and subject to change based on code analysis)*
+We will refactor the component incrementally using the following methodology to minimize disruption and risk:
 
-1.  **Code Analysis & Understanding:**
-    *   Deep dive into `VideoContextScenePreviewPlayer.tsx` and its interaction with `VideoContext`.
-    *   Identify the primary triggers for the frequent re-renders (state changes, prop changes, effects).
-    *   Map out the state flow related to video properties.
-    *   Understand the purpose of the repetitive calculations (aspect ratio, position, etc.) and if they can be optimized or memoized.
-2.  **Identify Core Responsibilities:** Break down the component's tasks (e.g., rendering video/image, handling playback state, managing trim controls, calculating layout).
-3.  **Optimize Rendering:**
-    *   Investigate usage of `React.memo`, `useMemo`, `useCallback` to prevent unnecessary re-renders of the component or its children.
-    *   Analyze `useEffect` dependencies to ensure effects only run when necessary.
-4.  **Simplify State:**
-    *   Review state variables within the component and context. Can any state be derived? Can updates be batched?
-    *   Examine prop drilling. Can context or alternative patterns simplify data flow?
-5.  **Isolate Video Logic:** Consider if video-specific logic can be further encapsulated or handled by more specialized hooks/components.
-6.  **Incremental Changes & Testing:** Apply changes incrementally and use manual testing (and eventually, the Playwright test) to verify stability improvements.
+1.  **Keep Core Component Structure:** The main `VideoContextScenePreviewPlayer` and `VideoContextScenePreviewPlayerContent` components will remain.
+2.  **Extract Logic, Not Components:** Instead of breaking the UI into smaller components, we will extract related logic (state, effects, calculations, handlers) into custom hooks (e.g., `useMediaAspectRatio`) or utility functions placed in separate files.
+3.  **Maintain Functionality & DOM:** The goal is zero visual or functional impact. The rendered DOM structure and event flow should remain identical after each step.
+4.  **Organize Extracted Code:** Create a clear directory structure (e.g., `src/hooks/`, `src/utils/video/`) for the extracted modules.
+5.  **Frequent Manual Testing:** Due to the current inability to rely on automated tests for this component (especially video interactions), **manual testing after each significant refactoring step is crucial** to ensure functionality remains intact.
 
-## 4. Open Questions / Areas to Investigate
+**First Step: Extract Aspect Ratio Logic**
+
+*   **Target:** Logic related to calculating and applying styles based on media aspect ratio, project aspect ratio, and letterboxing.
+*   **Action:** Create a new custom hook: `useMediaAspectRatio`.
+*   **Details:** This hook will encapsulate state variables (`aspectRatio`, `isVertical`, `isSquare`) and the logic for calculating the `mediaStyle` (CSSProperties object). It will take necessary props like `initialMediaAspectRatio`, `projectAspectRatio`, `showLetterboxing`, and potentially container dimensions.
+*   **Goal:** Simplify the main component by removing this state and calculation logic, replacing it with a call to the new hook.
+
+## 4. Code Analysis & Understanding (Ongoing)
+
+*(This section can be updated as we analyze specific parts)*
+
+*   Deep dive into `VideoContextScenePreviewPlayer.tsx` and its interaction with `VideoContext`.
+*   Identify the primary triggers for the frequent re-renders (state changes, prop changes, effects).
+*   Map out the state flow related to video properties (time, duration, trim, playback).
+*   Understand the purpose of the repetitive calculations (aspect ratio, position, etc.) and if they can be optimized or memoized.
+*   Analyze the `[FATAL ERROR] Canvas or container ref not available...` error.
+
+## 5. Subsequent Steps (Potential Order)
+
+*(Based on initial analysis, subject to change)*
+
+1.  **Refactor Trim Logic:** Extract trim state (`trimStart`, `trimEnd`, `trimActive`, etc.) and related handlers/effects into a `useTrimControls` hook.
+2.  **Refactor Playback/Time Logic:** Consolidate state (`isPlaying`, `currentTime`, `duration`, `visualTime`) and the time update loop (`updateTimeLoop`) potentially into a `usePlaybackState` hook, coordinating with `VideoContext`.
+3.  **Address VideoContext Interaction:** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
+4.  **Optimize Rendering:** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
+5.  **Investigate Canvas/Fallback Logic:** Understand the conditions leading to the canvas errors and the image fallback mechanism.
+
+## 6. Open Questions / Areas to Investigate
 
 *   What specifically causes the `[FATAL ERROR] Canvas or container ref not available...` error seen intermittently?
 *   Can the aspect ratio and positioning calculations be performed less frequently or only when relevant properties change?

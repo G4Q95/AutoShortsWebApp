@@ -15,6 +15,7 @@ import { VideoContextProvider } from '@/contexts/VideoContextProvider';
 import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
 import EditHistoryManager, { ActionType } from '@/utils/video/editHistoryManager';
 import { CSSProperties } from 'react';
+import { useMediaAspectRatio } from '@/hooks/useMediaAspectRatio';
 
 // Add global tracking counters to help debug the issue
 const DEBUG_COUNTERS = {
@@ -144,7 +145,7 @@ interface VideoContextScenePreviewPlayerProps {
   className?: string;
   isCompactView?: boolean;
   thumbnailUrl?: string;
-  mediaAspectRatio?: number;           // Media's original aspect ratio
+  mediaAspectRatio?: number;           // Media's original aspect ratio (will be passed to hook as initialMediaAspectRatio)
   projectAspectRatio?: '9:16' | '16:9' | '1:1' | '4:5'; // Project-wide setting
   showLetterboxing?: boolean;          // Whether to show letterboxing/pillarboxing
 }
@@ -214,10 +215,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   console.log(`[VideoContext] Initial state values: trimStart=${trimStart}, trimEnd=${trimEnd}, duration=${duration}`);
   const [isReady, setIsReady] = useState<boolean>(false);
   
-  // Add state to track media aspect ratio
-  const [aspectRatio, setAspectRatio] = useState<number>(initialMediaAspectRatio || 9/16); // Use prop if provided
-  const [isVertical, setIsVertical] = useState<boolean>(true);
-  const [isSquare, setIsSquare] = useState<boolean>(false);
+  // State for video dimensions (to pass to the hook)
+  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null);
   
   // Add state for local media
   const [localMediaUrl, setLocalMediaUrl] = useState<string | null>(null);
@@ -247,16 +246,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add video element ref for first frame capture
   const videoRef = useRef<HTMLVideoElement>(null);
   
-  // Add state to track aspect ratio display toggle
+  // State for aspect ratio display toggle
   const [showAspectRatio, setShowAspectRatio] = useState<boolean>(false);
 
   // Add a ref to track playing state
   const isPlayingRef = useRef<boolean>(false);
 
-  // After other state variables, add this new state:
   // Add state for temporary aspect ratio indicator display
   const [showTemporaryIndicator, setShowTemporaryIndicator] = useState<boolean>(true);
   
+  // Call the new hook
+  const {
+    mediaStyle,
+    calculatedAspectRatio,
+  } = useMediaAspectRatio({
+    initialMediaAspectRatio,
+    projectAspectRatio,
+    showLetterboxing,
+    mediaType,
+    videoDimensions,
+  });
+
   // Add useEffect for temporary aspect ratio display on mount
   useEffect(() => {
     // Show indicator when component mounts (new scene)
@@ -427,22 +437,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // VideoContext initialization
   useEffect(() => {
-    // Create refs for working with canvas
     const canvas = canvasRef.current;
     if (!canvas || !containerRef.current) {
       console.error(`[FATAL ERROR] Canvas or container ref not available for scene ${sceneId}`);
       return;
     }
-    
-    // Variables for tracking initialization state
+
     let setupComplete = false;
     let cleanupFunc: (() => void) | null = null;
-    
     console.log(`[INIT-DEBUG] Starting initialization for scene ${sceneId}, mediaType=${mediaType}`);
-    
+
     const baseSize = 1920;
     let canvasWidth: number, canvasHeight: number;
-    
+
     const initVideoContext = async () => {
       try {
         // Clean up existing context if any
@@ -464,79 +471,61 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         const VideoContextModule = await import('videocontext');
         const VideoContext = VideoContextModule.default || VideoContextModule;
         
-        // Set canvas dimensions based on aspect ratio
-        if (initialMediaAspectRatio) {
-          if (initialMediaAspectRatio >= 1) {
-            canvasWidth = baseSize;
-            canvasHeight = Math.round(baseSize / initialMediaAspectRatio);
-          } else {
-            canvasHeight = baseSize;
-            canvasWidth = Math.round(baseSize * initialMediaAspectRatio);
-          }
+        // Use initialMediaAspectRatio from props if available, otherwise use a default
+        const initialRatioForCanvas = initialMediaAspectRatio || (9 / 16);
+        if (initialRatioForCanvas >= 1) {
+          canvasWidth = baseSize;
+          canvasHeight = Math.round(baseSize / initialRatioForCanvas);
         } else {
-          canvasWidth = 1920;
-          canvasHeight = 1080;
+          canvasHeight = baseSize;
+          canvasWidth = Math.round(baseSize * initialRatioForCanvas);
         }
-        
+        // Set canvas internal resolution
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
-        
-        console.log(`[INIT-DEBUG] Canvas dimensions set to ${canvas.width}x${canvas.height}`);
-        
-        // Create VideoContext instance
+        console.log(`[INIT-DEBUG] Canvas internal dimensions set to ${canvas.width}x${canvas.height} based on initial ratio ${initialRatioForCanvas.toFixed(4)}`);
+
         const ctx = new VideoContext(canvas);
-        
-        if (!ctx) {
-          throw new Error('Failed to create VideoContext instance');
-        }
-        
+        if (!ctx) throw new Error('Failed to create VideoContext instance');
         console.log(`[INIT-DEBUG] VideoContext created successfully`);
-        
-        // Store in state immediately
         setVideoContext(ctx);
-        
-        // Create source based on media type
+
         let source: any;
-        
         if (mediaType === 'video') {
-          // Create source
-          if (!localMediaUrl) {
-            throw new Error('No media URL available for video source');
-          }
-          
+          if (!localMediaUrl) throw new Error('No media URL available for video source');
           source = ctx.video(localMediaUrl);
-          
-          if (!source) {
-            throw new Error('Failed to create video source');
-          }
-          
+          if (!source) throw new Error('Failed to create video source');
           console.log(`[INIT-DEBUG] Video source created successfully`);
-          
-          // Connect and configure source
+
           source.connect(ctx.destination);
           source.start(0);
           source.stop(300); // 5 minute max duration
-          
           console.log(`[INIT-DEBUG] Source connected and configured`);
-          
-          // Set up callbacks
+
           source.registerCallback('loaded', () => {
             console.log(`[INIT-DEBUG] Video loaded callback fired`);
             setIsLoading(false);
             setIsReady(true);
             setupComplete = true;
-            
-            // Set duration and trim values
+
             if (source.element) {
               const videoElement = source.element as HTMLVideoElement;
-              setDuration(videoElement.duration);
-              
-              if (trimEnd <= 0 || trimEnd === 10) {
-                setTrimEnd(videoElement.duration);
+              const videoDuration = videoElement.duration;
+              const videoWidth = videoElement.videoWidth;
+              const videoHeight = videoElement.videoHeight;
+              console.log(`[INIT-DEBUG] Video metadata: Duration=${videoDuration}, Dimensions=${videoWidth}x${videoHeight}`);
+              setDuration(videoDuration);
+
+              // Set video dimensions state
+              if (videoWidth > 0 && videoHeight > 0) {
+                setVideoDimensions({ width: videoWidth, height: videoHeight });
               }
-              
+
+              if (trimEnd <= 0 || trimEnd === 10) {
+                setTrimEnd(videoDuration);
+              }
               if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-                userTrimEndRef.current = videoElement.duration;
+                userTrimEndRef.current = videoDuration;
               }
             }
           });
@@ -927,24 +916,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   };
 
-  // Get project aspect ratio as a number (e.g. 9/16 or 16/9)
-  const getProjectAspectRatioNumber = useCallback(() => {
-    const [width, height] = projectAspectRatio.split(':').map(Number);
-    return width / height;
-  }, [projectAspectRatio]);
-
   // Get container style with letterboxing/pillarboxing
   const getContainerStyle = useCallback(() => {
     console.log(`[VideoContextScenePreviewPlayer] Calculating container style for scene ${sceneId}:`, {
       receivedProjectAspectRatio: projectAspectRatio,
       isCompactView
     });
-
-    // Get project aspect ratio as a number
     const [width, height] = projectAspectRatio.split(':').map(Number);
-    const projectRatio = width / height;
-    
-    // Style for container div - enforces the project aspect ratio
     const containerStyle: CSSProperties = {
       backgroundColor: '#000',
       display: 'flex',
@@ -954,20 +932,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       position: 'relative',
       width: '100%',
       height: isCompactView ? '190px' : 'auto',
-      zIndex: 1, // Add a base z-index for proper stacking
+      zIndex: 1,
     };
-
-    // Apply aspect ratio in both view modes - not just expanded view
     containerStyle.aspectRatio = projectAspectRatio.replace(':', '/');
-
     console.log(`[VideoContextScenePreviewPlayer] Final container style for scene ${sceneId}:`, {
       projectAspectRatio,
-      projectRatio,
       containerStyle,
       isCompactView,
       effectiveAspectRatio: containerStyle.aspectRatio
     });
-
     return containerStyle;
   }, [projectAspectRatio, isCompactView, sceneId]);
   
@@ -988,7 +961,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Calculate aspect ratios
     const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
     const projectRatio = projWidth / projHeight;
-    const mediaRatio = aspectRatio || projectRatio;
+    const mediaRatio = calculatedAspectRatio || projectRatio;
 
     console.log(`[AspectRatio-Debug] Scene: ${sceneId}, Project ratio: ${projectRatio.toFixed(4)}, Media ratio: ${mediaRatio.toFixed(4)}, CompactView: ${isCompactView}`);
 
@@ -1025,14 +998,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     console.log(`[AspectRatio-Scaling] Scene ${sceneId}: MediaRatio=${mediaRatio.toFixed(4)}, ProjectRatio=${projectRatio.toFixed(4)}`);
 
     return style;
-  }, [aspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
+  }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
   
   // Get media element style with letterboxing/pillarboxing
   const getMediaStyle = useCallback(() => {
     // Calculate aspect ratios
     const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
     const projectRatio = projWidth / projHeight;
-    const mediaRatio = aspectRatio || projectRatio;
+    const mediaRatio = calculatedAspectRatio || projectRatio;
 
     type MediaStyle = {
       objectFit: 'contain' | 'cover';
@@ -1093,7 +1066,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
 
     return style;
-  }, [aspectRatio, projectAspectRatio, showLetterboxing, sceneId]);
+  }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, sceneId]);
   
   // Set up mouse event listeners for trim bracket dragging
   useEffect(() => {
@@ -1405,7 +1378,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             {/* Calculate the closest standard aspect ratio */}
             {(() => {
               // Function to find closest standard aspect ratio
-              const exactRatio = aspectRatio;
+              const exactRatio = calculatedAspectRatio;
               
               // Common standard aspect ratios as [name, decimal value]
               type RatioType = [string, number];
@@ -1512,20 +1485,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               onLoad={() => {
                 const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
                 console.log(`[DEBUG-FALLBACK][${instanceId}] Image loaded successfully`);
-                
-                // If we have an img element, get the aspect ratio from it
-                if (imgRef.current) {
-                  const imgWidth = imgRef.current.naturalWidth;
-                  const imgHeight = imgRef.current.naturalHeight;
-                  const ratio = imgWidth / imgHeight;
-                  console.log(`[DEBUG-FALLBACK][${instanceId}] Image dimensions: ${imgWidth}x${imgHeight}, ratio: ${ratio.toFixed(2)}`);
-                  setAspectRatio(ratio);
-                  
-                  // Determine if image is square (within a small margin of error)
-                  const isSquareImage = ratio >= 0.9 && ratio <= 1.1;
-                  setIsSquare(isSquareImage);
-                  setIsVertical(ratio < 0.9);
-                }
                 
                 // For images with audio, use audio duration
                 if (audioRef.current && audioRef.current.duration) {
