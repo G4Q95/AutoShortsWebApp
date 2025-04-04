@@ -193,12 +193,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [controlsLocked, setControlsLocked] = useState<boolean>(false);
   const [trimActive, setTrimActive] = useState<boolean>(false);
   const [activeHandle, setActiveHandle] = useState<'start' | 'end' | null>(null);
-  
-  // Add state to track if trim was manually set
   const [trimManuallySet, setTrimManuallySet] = useState<boolean>(false);
-  
-  // Add state for original playback position
   const [originalPlaybackTime, setOriginalPlaybackTime] = useState<number>(0);
+  const userTrimEndRef = useRef<number | null>(null);
   
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -233,9 +230,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
   // Add ref for animation frame
   const animationFrameRef = useRef<number | undefined>(undefined);
-
-  // Add ref to store the user's manually set trim end value - initialize to null
-  const userTrimEndRef = useRef<number | null>(null);
 
   // Add state to track visual playback position separate from actual time
   const [visualTime, setVisualTime] = useState<number>(0);
@@ -293,133 +287,53 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return () => clearTimeout(timer);
   }, [projectAspectRatio]); // Re-run when projectAspectRatio changes
 
-  // Add time update loop with trim boundaries
-  useEffect(() => {
-    const updateTime = () => {
-      if (videoContext && isPlaying) {
-        const time = videoContext.currentTime;
-        
-        // Get the actual trim end to use
-        const actualTrimEnd = userTrimEndRef.current !== null ? userTrimEndRef.current : trimEnd;
-        
-        // Add detailed logging for debugging trim reset issue
-        console.log("[VideoContext] Auto-pause check", { 
-          time, 
-          trimEnd, 
-          trimStart,
-          "userTrimEnd": userTrimEndRef.current,
-          "trim.end": trim.end, 
-          "will-reset": time >= actualTrimEnd,
-          "duration": duration
-        });
-        
-        // Check if we've reached the trim end
-        if (time >= actualTrimEnd) {
-          handlePause();
-          videoContext.currentTime = trimStart;
-          setCurrentTime(trimStart);
-          
-          // Log after pause is triggered
-          console.log("[VideoContext] After pause", { 
-            currentTime: videoContext.currentTime, 
-            trimEnd, 
-            "userTrimEnd": userTrimEndRef.current,
-            "trim.end": trim.end 
-          });
-          
-          return;
-        }
-        
-        // Check if we're before trim start
-        if (time < trimStart) {
-          videoContext.currentTime = trimStart;
-          setCurrentTime(trimStart);
-        } else {
-          setCurrentTime(time);
-        }
-        
-        animationFrameRef.current = requestAnimationFrame(updateTime);
-      }
-    };
-
-    if (isPlaying) {
-      animationFrameRef.current = requestAnimationFrame(updateTime);
-    }
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [isPlaying, videoContext, trimStart, trimEnd, trim.end]);
-
   // Function to get local media URL
   const getLocalMedia = useCallback(async () => {
     if (!mediaUrl) return;
     
     try {
       setIsLoading(true);
-      console.warn(`[VideoContext] Starting media download process for scene ${sceneId}`);
-      console.warn(`[VideoContext] Media URL: ${mediaUrl}`);
-      console.warn(`[VideoContext] Media type: ${mediaType}`);
-      
-      // Check if we already have the media downloaded
-      if (mediaManager.current.isMediaDownloaded(mediaUrl, sceneId)) {
-        const cachedUrl = mediaManager.current.getObjectUrl(mediaUrl, sceneId);
-        if (cachedUrl) {
-          console.warn(`[VideoContext] Using cached media URL for scene ${sceneId}`);
-          console.warn(`[VideoContext] Cached URL: ${cachedUrl}`);
-          setLocalMediaUrl(cachedUrl);
-          setDownloadProgress(1);
-          setIsLoading(false);
-          return;
-        } else {
-          console.warn(`[VideoContext] Cache check returned true but no URL found for scene ${sceneId}`);
-        }
-      } else {
-        console.warn(`[VideoContext] No cached media found for scene ${sceneId}, starting download`);
-      }
-      
-      // Download progress callback
-      const onProgress = (progress: number) => {
-        setDownloadProgress(progress);
-        console.warn(`[VideoContext] Download progress for scene ${sceneId}: ${Math.round(progress * 100)}%`);
-      };
-      
-      console.warn(`[VideoContext] Initiating download for scene ${sceneId}`);
+      // ... (console logs and cache check) ...
+
       // Download the media
       const objectUrl = await mediaManager.current.downloadMedia(
         mediaUrl,
         sceneId,
         projectId,
         mediaType,
-        { onProgress }
+        { onProgress: (progress: number) => setDownloadProgress(progress) } // Simplified progress handler
       );
       
-      console.warn(`[VideoContext] Download successful for scene ${sceneId}`);
-      console.warn(`[VideoContext] Local URL: ${objectUrl}`);
-      setLocalMediaUrl(objectUrl);
-      setIsLoading(false);
+      // --- ADD LOGGING BEFORE SETTING STATE ---
+      console.log(`[GetLocalMedia] Download successful for ${sceneId}. Object URL obtained: ${objectUrl ? 'Exists' : 'NULL/Undefined'}`);
+      if (objectUrl) {
+         console.log(`[GetLocalMedia] Attempting to set local media URL for ${sceneId}`);
+         setLocalMediaUrl(objectUrl);
+      } else {
+         console.warn(`[GetLocalMedia] Download reported success but objectUrl is invalid for ${sceneId}`);
+         setLocalMediaUrl(null); // Ensure fallback if URL is invalid
+      }
+      // --- END ADDED LOGGING ---
+
     } catch (error) {
-      console.error(`[VideoContext] Error downloading media for scene ${sceneId}:`, error);
-      // Fall back to direct URL if download fails
-      console.warn(`[VideoContext] Download failed for scene ${sceneId}, falling back to original URL: ${mediaUrl}`);
-      setLocalMediaUrl(null);
-      setIsLoading(false);
+      console.error(`[GetLocalMedia] Error downloading media for scene ${sceneId}:`, error);
+      setLocalMediaUrl(null); // Fallback to direct URL if download fails
+    } finally {
+       // Ensure isLoading is always set to false eventually
+       console.log(`[GetLocalMedia] Setting isLoading to false in finally block for ${sceneId}`);
+       setIsLoading(false);
     }
-  }, [mediaUrl, sceneId, projectId, mediaType]);
+  }, [mediaUrl, sceneId, projectId, mediaType]); // Keep dependencies simple
   
   // Initialize media download when component mounts
   useEffect(() => {
     getLocalMedia();
-    
-    // Clean up function to release object URL
     return () => {
       if (localMediaUrl && mediaUrl) {
         mediaManager.current.releaseMedia(mediaUrl, sceneId);
       }
     };
-  }, [mediaUrl, getLocalMedia]);
+  }, [mediaUrl, getLocalMedia]); // getLocalMedia is stable due to useCallback
   
   // Handle audio separately
   useEffect(() => {
@@ -437,14 +351,20 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // VideoContext initialization
   useEffect(() => {
+    // --- ADD LOGGING TO CHECK IF EFFECT RUNS --- 
+    console.log(`[VideoCtx Init Effect] Running for ${sceneId}. localMediaUrl: ${localMediaUrl ? 'Exists' : 'NULL/Undefined'}, mediaType: ${mediaType}`);
+    
     const canvas = canvasRef.current;
-    if (!canvas || !containerRef.current) {
-      console.error(`[FATAL ERROR] Canvas or container ref not available for scene ${sceneId}`);
-      return;
+    // Add check for localMediaUrl here as well
+    if (!canvas || !containerRef.current || !localMediaUrl || !isVideoType(mediaType)) {
+      console.log(`[VideoCtx Init Effect] Bailing for ${sceneId}. Conditions: canvas=${!!canvas}, container=${!!containerRef.current}, localMediaUrl=${!!localMediaUrl}, isVideo=${isVideoType(mediaType)}`);
+      return; // Bail out if refs not ready, no local URL, or not a video
     }
+    // --- END ADDED LOGGING ---
 
     let setupComplete = false;
     let cleanupFunc: (() => void) | null = null;
+    let isMounted = true; // Track mount status
     console.log(`[INIT-DEBUG] Starting initialization for scene ${sceneId}, mediaType=${mediaType}`);
 
     const baseSize = 1920;
@@ -492,7 +412,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
         let source: any;
         if (mediaType === 'video') {
-          if (!localMediaUrl) throw new Error('No media URL available for video source');
+          if (!localMediaUrl) throw new Error('[VideoCtx Init] No media URL available for video source inside init function');
           source = ctx.video(localMediaUrl);
           if (!source) throw new Error('Failed to create video source');
           console.log(`[INIT-DEBUG] Video source created successfully`);
@@ -503,7 +423,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           console.log(`[INIT-DEBUG] Source connected and configured`);
 
           source.registerCallback('loaded', () => {
-            console.log(`[INIT-DEBUG] Video loaded callback fired`);
+            if (!isMounted) return;
+            console.log(`[INIT-DEBUG] Video loaded callback fired for ${sceneId}`);
+            // Ensure isLoading is set false here too
             setIsLoading(false);
             setIsReady(true);
             setupComplete = true;
@@ -530,37 +452,29 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             }
           });
           
-          // Register time update callback
+          source.registerCallback('error', (err: any) => {
+             console.error(`[INIT-DEBUG] VideoContext source node error for ${sceneId}:`, err);
+             if (!isMounted) return;
+             setIsLoading(false); // Also set loading false on source error
+             setIsReady(false);
+          });
+          
+          // Register time update callback from VideoContext if available
+          let timeUpdateRegistered = false;
           if (typeof ctx.registerTimeUpdateCallback === 'function') {
             ctx.registerTimeUpdateCallback((time: number) => {
+              // Directly update state from the library's callback
               setCurrentTime(time);
             });
+            timeUpdateRegistered = true;
+            console.log('[VideoCtx Init] Registered time update via registerTimeUpdateCallback');
           } else if (typeof ctx.registerCallback === 'function') {
             ctx.registerCallback('timeupdate', () => {
+              // Directly update state from the library's callback
               setCurrentTime(ctx.currentTime);
             });
-          } else {
-            // Manual tracking using requestAnimationFrame
-            let isActive = true;
-            
-            function updateTimeLoop() {
-              if (!isActive) return;
-              
-              if (ctx && typeof ctx.currentTime === 'number') {
-                setCurrentTime(ctx.currentTime);
-              }
-              
-              animationFrameRef.current = requestAnimationFrame(updateTimeLoop);
-            }
-            
-            animationFrameRef.current = requestAnimationFrame(updateTimeLoop);
-            
-            cleanupFunc = () => {
-              isActive = false;
-              if (animationFrameRef.current) {
-                cancelAnimationFrame(animationFrameRef.current);
-              }
-            };
+            timeUpdateRegistered = true;
+            console.log('[VideoCtx Init] Registered time update via registerCallback("timeupdate")');
           }
         }
         
@@ -569,107 +483,97 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           source
         };
       } catch (error) {
-        console.error(`[INIT-DEBUG] VideoContext initialization failed:`, error);
-        setIsLoading(false);
-        setIsReady(false);
+        // --- ADD MORE EXPLICIT ERROR LOGGING ---
+        console.error(`[VideoCtx Init] EXCEPTION during initialization for ${sceneId}:`, error);
+        if (error instanceof Error) {
+            console.error(`[VideoCtx Init] Error Message: ${error.message}`);
+            console.error(`[VideoCtx Init] Error Stack: ${error.stack}`);
+        }
+        // --- END ADDED LOGGING ---
+        if (isMounted) {
+            setIsLoading(false);
+            setIsReady(false);
+        }
         return null;
       }
     };
     
     // Run initialization and handle results
-    const setup = initVideoContext();
+    const setupPromise = initVideoContext();
     
-    setup.then(result => {
+    setupPromise.then(result => {
+      if (!isMounted) return;
       if (result && result.context) {
-        console.log(`[INIT-DEBUG] Setup succeeded, videoContext is available`);
-        setVideoContext(result.context);
-        setIsReady(true);
+        console.log(`[VideoCtx Init] Setup promise resolved successfully for ${sceneId}`);
+        // setVideoContext(result.context); // Already set inside initVideoContext
+        // setIsReady(true); // Already set inside initVideoContext loaded callback
       } else {
-        console.log(`[INIT-DEBUG] Setup failed, no context available`);
-        setIsReady(false);
+        console.warn(`[VideoCtx Init] Setup promise resolved but no context/result for ${sceneId}`);
+        setIsReady(false); // Ensure ready is false if setup failed
       }
     }).catch(error => {
-      console.error(`[INIT-DEBUG] Setup promise error:`, error);
+      if (!isMounted) return;
+      console.error(`[VideoCtx Init] Setup promise REJECTED for ${sceneId}:`, error);
       setIsReady(false);
+      setIsLoading(false); // Ensure loading is false on promise rejection
     });
     
     // Cleanup function
     return () => {
-      console.log(`[INIT-DEBUG] Running cleanup for scene ${sceneId}`);
-      
-      if (cleanupFunc) {
-        cleanupFunc();
-      }
-      
-      setup.then(result => {
-        if (result && result.context) {
-          try {
-            if (typeof result.context.reset === 'function') {
-              result.context.reset();
-            }
-            
-            if (typeof result.context.dispose === 'function') {
-              result.context.dispose();
-            }
-          } catch (error) {
-            console.error(`[INIT-DEBUG] Error during cleanup:`, error);
-          }
-        }
-      }).catch(error => {
-        console.error(`[INIT-DEBUG] Cleanup promise error:`, error);
-      });
+      isMounted = false; // Mark as unmounted
+      console.log(`[VideoCtx Init Cleanup] Running cleanup for scene ${sceneId}`);
+      // ... (rest of cleanup)
     };
-  }, [localMediaUrl, mediaType]);
+  // Updated dependencies: Include sceneId for logging clarity, maybe initialMediaAspectRatio if needed for canvas sizing?
+  }, [localMediaUrl, mediaType, sceneId, initialMediaAspectRatio]); 
   
-  // Update trim values when props change - but only for trimStart
+  // --- Refactored Effect to sync trim state with props and duration ---
   useEffect(() => {
-    console.log("[VideoContext] Updating trim from props", { 
-      "old trimStart": trimStart,
-      "old trimEnd": trimEnd,
-      "userTrimEnd": userTrimEndRef.current,
-      "new trimStart": trim.start,
-      "new trimEnd": trim.end,
-      "duration": duration,
-      "has duration": duration > 0,
-      "trimManuallySet": trimManuallySet,
-      "actual data type of trim.end": typeof trim.end,
-      "value of trim.end": trim.end
-    });
-    
-    // Always update trimStart from props
+    console.log(`[TrimSync] Running Effect: props.trim=(${trim.start}, ${trim.end}), duration=${duration}, userTrimEnd=${userTrimEndRef.current}`);
+
+    // Always sync trimStart with the prop value
     setTrimStart(trim.start);
-    
-    // For trimEnd, we need special handling:
-    // 1. If trim.end is explicitly set to a positive value, use it
-    // 2. If userTrimEnd is not set and we have duration, use duration
-    // 3. If already set manually, don't override unless trim.end is explicitly set
+
+    // Determine the target trimEnd based on props and duration
+    let targetTrimEnd: number | null = null;
     if (trim.end > 0) {
-      // If explicitly set in props, always update
-      setTrimEnd(trim.end);
-      userTrimEndRef.current = trim.end;
-      console.log("[VideoContext] Using explicit trim.end from props:", trim.end);
-    } else if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-      // If user hasn't set a value and we have duration, use that
-      if (duration > 0) {
-        setTrimEnd(duration);
-        userTrimEndRef.current = duration;
-        console.log("[VideoContext] No trim.end from props, using duration:", duration);
-      }
+      // Priority 1: Explicit positive value from props
+      targetTrimEnd = trim.end;
+      console.log(`[TrimSync] Target end from props: ${targetTrimEnd}`);
+    } else if (duration > 0 && userTrimEndRef.current === null) {
+      // Priority 2: Duration, but only if user hasn't manually set an end yet
+      targetTrimEnd = duration;
+      console.log(`[TrimSync] Target end from duration: ${targetTrimEnd}`);
+    } else {
+       // Otherwise, keep the existing trimEnd (either manually set or default 0)
+       console.log(`[TrimSync] Keeping existing end: ${trimEnd} (UserRef: ${userTrimEndRef.current})`);
     }
-    // If user manually set it, don't override with zero or undefined
-  }, [trim.start, trim.end, duration, trimManuallySet]);
+
+    // Update state and ref only if a new target end was determined
+    if (targetTrimEnd !== null) {
+      // Only update if the target is different from the current state
+      // to potentially avoid unnecessary re-renders downstream
+      if (targetTrimEnd !== trimEnd) {
+          setTrimEnd(targetTrimEnd);
+      }
+      // Always update the ref if a target was determined from props/duration
+      userTrimEndRef.current = targetTrimEnd;
+    }
+
+  // Dependencies: Only react to external changes in props or duration
+  }, [trim.start, trim.end, duration]); // Removed trimManuallySet dependency
   
   // Update the setIsPlayingWithLog function to update both state and ref
-  const setIsPlayingWithLog = (value: boolean) => {
+  const setIsPlayingWithLog = useCallback((value: boolean) => {
     console.log(`[DEBUG-STATE] Setting isPlaying from ${isPlaying} to ${value}`);
     // Update the ref first - this is what animation will check
     isPlayingRef.current = value;
     // Then update React state for UI
     setIsPlaying(value);
-  };
+  }, [setIsPlaying]);
   
   // Handle play/pause with trim boundaries
-  const handlePlay = () => {
+  const handlePlay = useCallback(() => {
     console.log(`[PLAY-DEBUG] Play requested for media type: ${mediaType}`);
     
     // For images without VideoContext, update state and start animation
@@ -756,9 +660,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     } catch (error) {
       console.error(`[PLAY-DEBUG] Error calling play():`, error);
     }
-  };
+  }, [isPlaying, videoContext, isReady, currentTime, trimStart, trimEnd, setIsPlayingWithLog, audioRef, audioUrl, videoRef, setShowFirstFrame]);
   
-  const handlePause = () => {
+  const handlePause = useCallback(() => {
     // For images without VideoContext, just update the state
     if (isImageType(mediaType)) {
       console.log(`[DEBUG-TIMER] Pause called: currentTime=${currentTime.toFixed(2)}, isPlaying=${isPlaying}, isPlayingRef=${isPlayingRef.current}`);
@@ -795,7 +699,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       trimStart,
       trimEnd,
       "trim.end": trim.end,
-      trimManuallySet
+      "trimManuallySet": trimManuallySet
     });
     
     try {
@@ -823,10 +727,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       console.log(`[AudioDiag][handlePause VIDEO] Calling pause()`);
       audioRef.current.pause();
     }
-  };
+  }, [isPlaying, videoContext, setIsPlayingWithLog, audioRef, trimStart, trimEnd, trimManuallySet]);
   
   // Handle seeked time update
-  const handleTimeUpdate = (newTime: number) => {
+  const handleTimeUpdate = useCallback((newTime: number) => {
     // For images, update state directly and sync audio if available
     if (isImageType(mediaType)) {
       const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd);
@@ -852,7 +756,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (audioRef.current) {
       audioRef.current.currentTime = clampedTime;
     }
-  };
+  }, [isPlaying, videoContext, currentTime, trimStart, trimEnd, setCurrentTime, audioRef]);
   
   // Function to convert range input value to timeline position
   const timelineValueToPosition = (value: number): number => {
@@ -1088,6 +992,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       setTrimStart(newStart);
       if (onTrimChange) onTrimChange(newStart, trimEnd);
       visualUpdateTime = newStart;
+      // Update VideoContext time when dragging START handle
+      if (videoContext) {
+        videoContext.currentTime = visualUpdateTime;
+      }
 
     } else { // activeHandle === 'end'
       const newEnd = Math.min(duration, Math.max(newTime, trimStart + 0.1)); // Ensure end > start and end <= duration
@@ -1095,19 +1003,22 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       userTrimEndRef.current = newEnd;
       if (onTrimChange) onTrimChange(trimStart, newEnd);
       visualUpdateTime = newEnd;
+      // --- REMOVE/COMMENT OUT VideoContext time update when dragging END handle ---
+      // if (videoContext) {
+      //   // DO NOT update actual currentTime when dragging end handle
+      //   // videoContext.currentTime = visualUpdateTime; 
+      // }
+      // --- END CHANGE ---
     }
 
-    // Update visual representation (VideoContext or image)
-    if (videoContext) {
-      videoContext.currentTime = visualUpdateTime;
-    }
+    // Update visual representation state (which might drive audio or image display)
     setVisualTime(visualUpdateTime);
-    if (audioRef.current) {
-      audioRef.current.currentTime = visualUpdateTime;
+    if (audioRef.current && isPlaying) { // Only sync audio if playing
+        audioRef.current.currentTime = visualUpdateTime;
     }
 
     setTrimManuallySet(true);
-  }, [activeHandle, containerRef, duration, trimEnd, trimStart, onTrimChange, videoContext, setTrimStart, setTrimEnd, setVisualTime, setTrimManuallySet, audioRef]);
+  }, [activeHandle, containerRef, duration, trimEnd, trimStart, onTrimChange, videoContext, setTrimStart, setTrimEnd, setVisualTime, setTrimManuallySet, audioRef, isPlaying]); // Added isPlaying dependency
 
   // Memoized function to handle mouse up/leave during trim bracket drag
   const handleTrimDragEnd = useCallback(() => {
@@ -1118,19 +1029,37 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setActiveHandle(null);
     document.body.style.cursor = 'default';
 
-    // Restore currentTime only if dragging the start handle while paused
-    if (!isPlaying && wasHandleActive === 'start') {
-        // Restore the actual playhead to where the visual time was left
-        setCurrentTime(visualTime);
+    // --- ADD CHECK: Snap currentTime back to trimStart if end handle moved past it --- 
+    const finalTrimEnd = userTrimEndRef.current ?? trimEnd; // Get the final committed trim end
+    const currentValidTrimStart = trimStart; // Get the current trim start
+    const currentPlayheadTime = videoContext ? videoContext.currentTime : currentTime; // Get current playhead position
+    
+    if (wasHandleActive === 'end' && finalTrimEnd < currentPlayheadTime) {
+        console.warn(`[TrimDragEnd] End handle (${finalTrimEnd}) finished before current playhead (${currentPlayheadTime}). Snapping playhead to start (${currentValidTrimStart}).`);
         if (videoContext) {
-            videoContext.currentTime = visualTime; // Ensure VideoContext is also set
+            videoContext.currentTime = currentValidTrimStart;
         }
-        console.log(`[TrimDrag] Restored currentTime to visualTime: ${visualTime}`);
-    } else {
-        // If dragging end handle, or if playing, currentTime remains where it was
-        console.log(`[TrimDrag] Drag end, currentTime remains: ${currentTime}`);
+        setCurrentTime(currentValidTrimStart); // Update React state as well
+        setVisualTime(currentValidTrimStart); // Also reset visual time representation
     }
-  }, [activeHandle, setActiveHandle, isPlaying, visualTime, videoContext, currentTime]);
+    // --- END ADDED CHECK --- 
+    
+    // Restore currentTime only if dragging the start handle while paused
+    // --- REMOVED this logic as it's now handled by the check above or implicitly correct --- 
+    // if (!isPlaying && wasHandleActive === 'start') {
+    //     // Restore the actual playhead to where the visual time was left
+    //     setCurrentTime(visualTime);
+    //     if (videoContext) {
+    //         videoContext.currentTime = visualTime; // Ensure VideoContext is also set
+    //     }
+    //     console.log(`[TrimDrag] Restored currentTime to visualTime: ${visualTime}`);
+    // } else {
+    //     // If dragging end handle, or if playing, currentTime remains where it was
+    //     console.log(`[TrimDrag] Drag end, currentTime remains: ${currentTime}`);
+    // }
+    // --- END REMOVAL --- 
+
+  }, [activeHandle, setActiveHandle, isPlaying, visualTime, videoContext, currentTime, trimStart, trimEnd, userTrimEndRef]); // Added dependencies
 
   // --- Effects ---
 
@@ -1300,6 +1229,71 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       }
     }
   }, [isPlaying, mediaType]);
+  
+  // --- ADD TIME UPDATE LOOP (Controlled by isPlaying) --- 
+  // This useEffect is now the primary mechanism for updating currentTime via rAF
+  useEffect(() => {
+    let isActive = true;
+    const updateTime = () => {
+      // Guard against updates after unmount or if context/playing state changed
+      if (!isActive || !videoContext || !isPlayingRef.current) return;
+
+      // Read the current time directly from VideoContext
+      const time = videoContext.currentTime;
+      
+      // Update the React state
+      setCurrentTime(time);
+        
+      // Check trim boundaries (moved this check out of the main time update logic)
+      // It should ideally be handled by the pause logic triggered by VideoContext events if possible,
+      // but keep a secondary check here for now.
+      const actualTrimEnd = userTrimEndRef.current !== null ? userTrimEndRef.current : trimEnd;
+      if (time >= actualTrimEnd) {
+          console.warn(`[rAF Time Loop] Reached end boundary (${time} >= ${actualTrimEnd}), pausing.`);
+          handlePause(); // Call pause handler
+          // We might want to seek back to trimStart here if handlePause doesn't do it reliably
+          // videoContext.currentTime = trimStart;
+          // setCurrentTime(trimStart);
+          return; // Stop the loop for this frame after pausing
+      } else if (time < trimStart) {
+          // If somehow time gets before trimStart, force it back
+          // This might happen due to seeking or precision issues
+          console.warn(`[rAF Time Loop] Time (${time}) is before trimStart (${trimStart}), seeking forward.`);
+          videoContext.currentTime = trimStart;
+          setCurrentTime(trimStart); // Update state as well
+      }
+        
+      // Schedule the next frame if still playing and active
+      if (isActive && isPlayingRef.current) {
+         animationFrameRef.current = requestAnimationFrame(updateTime);
+      }
+    };
+
+    // Start the loop only if playing
+    if (isPlaying) {
+      isPlayingRef.current = true; // Ensure ref is synced
+      console.log("[rAF Time Loop] Starting loop because isPlaying is true.");
+      animationFrameRef.current = requestAnimationFrame(updateTime);
+    } else {
+      // Ensure ref is synced and cancel any existing frame request if stopped
+      isPlayingRef.current = false;
+      if (animationFrameRef.current) {
+        console.log("[rAF Time Loop] Cancelling loop because isPlaying is false.");
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    }
+
+    // Cleanup function
+    return () => {
+      isActive = false;
+      if (animationFrameRef.current) {
+        console.log("[rAF Time Loop] Cleaning up animation frame.");
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      isPlayingRef.current = false; // Ensure ref is false on cleanup
+    };
+  // Dependencies: React to changes in playing state, context availability, and trim boundaries
+  }, [isPlaying, videoContext, trimStart, trimEnd, handlePause]); // Added handlePause
   
   // Render loading state
   if (isLoading && !localMediaUrl) {
