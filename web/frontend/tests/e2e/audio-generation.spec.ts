@@ -5,7 +5,7 @@ import {
   SCENE_MEDIA_TIMEOUT,
   AUDIO_GENERATION_TIMEOUT,
   TEST_PROJECT_NAME,
-  TEST_REDDIT_PHOTO_URL,
+  // TEST_REDDIT_PHOTO_URL is defined locally below
   waitForButtonReady,
   elementWithTextExists,
   BLUE_NUMBER_SELECTOR,
@@ -19,6 +19,9 @@ import {
   verifyAudioGeneration
 } from './utils';
 import { selectors, waitForWithFallbacks } from './utils/selectors';
+
+// <<< NEW PHOTO URL PROVIDED BY USER >>>
+const TEST_REDDIT_PHOTO_URL = 'https://www.reddit.com/r/mildlyinteresting/comments/1jqmh3z/my_forearm_difference_professional_tennis_player/';
 
 /**
  * Tests for audio generation functionality
@@ -114,6 +117,11 @@ test.describe('Audio Generation', () => {
       expect(hasAudio).toBeTruthy();
       console.log('Audio generation verified');
       
+      // <<< PAUSE THE TEST HERE FOR MANUAL INSPECTION (PHOTO TEST) >>>
+      console.log('Pausing test execution. Check console logs for excessive messages.');
+      await page.pause();
+      // Click "Resume" in Playwright Inspector to continue.
+
       // Play the audio (no need to wait for long duration)
       await playSceneAudio(page, 0);
       console.log('Audio playback started');

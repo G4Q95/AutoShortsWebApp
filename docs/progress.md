@@ -939,39 +939,35 @@ This checkpoint marks a strategic pivot in our video editing implementation appr
 
 ## In Progress
 
-### Video Integration - Part 3
-- 🟡 Aspect ratio switching feature (40% complete)
-  - Project settings UI for ratio selection
-  - Support for multiple output formats (9:16, 16:9, 1:1, 4:5)
-  - Enhanced letterboxing/pillarboxing system
-  - Scene card adaptations for different ratios
-- 🟡 Zoom controls implementation (Planning phase)
-  - Zoom level management
-  - Pan controls for zoomed content
-  - Integration with aspect ratio system
-  - Gesture and keyboard controls
+### Frontend - Video Player Interaction Test
+- **Status:** Blocked (90% Investigation Complete)
+- **Issue:** Playwright tests fail to interact (hover/click) with the scene preview element (`[data-testid="scene-media"]`) when the media type is video, even when using `force: true`.
+- **Root Cause Analysis:** Console logs (both manual and from Playwright traces) show the `VideoContextScenePreviewPlayer` component undergoes constant, rapid re-rendering and state recalculations (aspect ratio, position, styling) when handling video. This component instability prevents Playwright from reliably performing actionability checks (visibility, stability) at the moment of interaction, causing timeouts.
+- **Evidence:**
+    - Manual hovering/playing video triggers flood of console logs from `VideoContextScenePreviewPlayer.tsx`.
+    - Photo-based tests do *not* show the same level of console log activity and pass interaction checks.
+    - Playwright Trace Viewer shows the target element failing actionability checks (appearing black or timing out during checks) despite the thumbnail being visible in the timeline view.
+- **Conclusion:** The problem lies within the frontend `VideoContextScenePreviewPlayer.tsx` component's handling of video, causing rendering instability that breaks Playwright interactions.
+- **Next Step:** Debug and refactor `VideoContextScenePreviewPlayer.tsx` (and potentially the related `VideoContext`) to stabilize video rendering and state management.
+
+### Backend - Cloudflare R2 Integration
+- **Status:** Needs Verification (70%)
+- **Issue:** Ensure reliable connectivity and file operations (upload, retrieve, delete) with Cloudflare R2 storage across different environments (local Docker, deployment).
+- **Tasks:**
+  - Verify CORS configuration for direct browser access (needed for audio playback).
+  - Implement robust error handling for R2 operations.
+  - Add integration tests for R2 functionality.
 
 ## Next Steps
 
-### Video Integration - Part 3 (Continued)
-1. Complete aspect ratio switching implementation
-   - Finish project settings UI
-   - Implement ratio selection persistence
-   - Add visual indicators and smooth transitions
-   - Complete testing across all views
+1.  **Refactor `VideoContextScenePreviewPlayer.tsx`:** Address the identified instability and frequent re-rendering issues when handling video media.
+2.  **Refactor `VideoContext`:** Break down the large context/script into smaller, more manageable pieces, informed by the `ScenePreviewPlayer` investigation.
+3.  **Fix R2 CORS:** Configure the R2 bucket to allow origins (localhost, production URL) for audio playback.
+4.  **Re-enable/Fix Video Interaction Test:** Once the component is stable, re-attempt the Playwright test (`video-player.spec.ts`) to verify play/pause interactions.
+5.  **Expand Test Coverage:** Add tests for trimming, volume control, etc.
 
-2. Implement zoom controls system
-   - Add zoom level state management
-   - Create zoom and pan controls UI
-   - Implement position persistence
-   - Add gesture and keyboard support
-   - Integrate with aspect ratio system
-
-3. Testing and optimization
-   - Comprehensive testing of all ratio combinations
-   - Performance optimization for zoom operations
-   - User experience refinements
-   - Documentation updates
+## Blockers
+- Frontend component instability prevents progress on video interaction tests.
 
 ## June 2024 Updates
 
