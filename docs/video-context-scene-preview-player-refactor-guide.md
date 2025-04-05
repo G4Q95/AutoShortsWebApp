@@ -36,12 +36,13 @@ We will refactor the component incrementally using the following methodology to 
 
 **Update (2025-04-05):** Before starting the planned hook extractions below, several critical interaction bugs related to video loading, playback state synchronization (`currentTime`, `isPlaying`), and trim handle behavior (playhead snapping) were identified and fixed directly within the component. This provides a more stable foundation for the subsequent refactoring steps.
 
-**First Step: Extract Aspect Ratio Logic**
+**Completed Step: Extract Aspect Ratio Logic (Done: 2025-04-06)**
 
 *   **Target:** Logic related to calculating and applying styles based on media aspect ratio, project aspect ratio, and letterboxing.
-*   **Action:** Create a new custom hook: `useMediaAspectRatio`.
-*   **Details:** This hook will encapsulate state variables (`aspectRatio`, `isVertical`, `isSquare`) and the logic for calculating the `mediaStyle` (CSSProperties object). It will take necessary props like `initialMediaAspectRatio`, `projectAspectRatio`, `showLetterboxing`, and potentially container dimensions.
-*   **Goal:** Simplify the main component by removing this state and calculation logic, replacing it with a call to the new hook.
+*   **Action:** Created a new custom hook: `useMediaAspectRatio` (`src/hooks/useMediaAspectRatio.ts`).
+*   **Details:** This hook encapsulates the logic for calculating the `mediaElementStyle` (CSSProperties object for the `img`/`video`/`canvas`) based on `initialMediaAspectRatio`, `projectAspectRatio`, `showLetterboxing`, `mediaType`, and `videoDimensions`. It also returns the `calculatedAspectRatio`.
+    *   *Note:* The component retains responsibility for the container styles (`getContainerStyle`, `getMediaContainerStyle`) to ensure proper framing.
+*   **Outcome:** Simplified the main component by removing the `getMediaStyle` function and associated calculation logic, replacing its usage with the hook's return value. Manual testing confirmed visual correctness.
 
 ## 4. Code Analysis & Understanding (Ongoing)
 
@@ -57,7 +58,10 @@ We will refactor the component incrementally using the following methodology to 
 
 *(Based on initial analysis, subject to change)*
 
-1.  **Refactor Trim Logic:** Extract trim state (`trimStart`, `trimEnd`, `trimActive`, etc.) and related handlers/effects into a `useTrimControls` hook.
+1.  **Refactor Trim Logic (Incremental Approach):** Extract trim state (`trimStart`, `trimEnd`, `activeHandle`, etc.) and related handlers/effects into a `useTrimControls` hook.
+    *   **Phase 1 (Next):** Create hook, move only state variables and return them with setters. Update component to use hook state. **Keep handlers/effects in component.** Test thoroughly.
+    *   **Phase 2 (If Phase 1 Stable):** Carefully move drag handlers (`handleTrimDragMove`, `handleTrimDragEnd`) into the hook. Test.
+    *   **Phase 3 (If Phase 2 Stable):** Move global listener effect into the hook. Test.
 2.  **Refactor Playback/Time Logic:** Consolidate state (`isPlaying`, `currentTime`, `duration`, `visualTime`) and the time update loop (`updateTimeLoop`) potentially into a `usePlaybackState` hook, coordinating with `VideoContext`.
 3.  **Address VideoContext Interaction:** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
 4.  **Optimize Rendering:** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.

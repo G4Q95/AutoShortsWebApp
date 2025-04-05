@@ -1158,4 +1158,16 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
 *   **(Minor) Browser Console Errors:** Some persistent errors (CORS, NaN, VideoContext init) noted during test runs - investigate later.
 *   **(Deferred) Test Cleanup Automation:** No automated cleanup after tests. Requires manual `r2_purger.py` execution.
 
-</rewritten_file> 
+### `VideoContextScenePreviewPlayer.tsx` Refactoring (Est. 80% Implemented)
+-   **Status:** In Progress (Aspect Ratio Logic Extracted)
+-   **Details:** Refactoring the large component to improve stability and maintainability by extracting logic into custom hooks and utilities, following `docs/video-context-scene-preview-player-refactor-guide.md`.
+-   **Completed Sub-Tasks:**
+    -   Add detailed logging throughout the component.
+    -   Fix critical bugs related to video loading, playback sync, and trim handle snapping.
+    -   Extract aspect ratio calculation logic into `useMediaAspectRatio` hook. (Done 2025-04-06)
+-   **Next Steps:**
+    -   Begin incremental extraction of Trim Logic into `useTrimControls` hook (Starting with state migration).
+    -   Extract Playback/Time logic into `usePlaybackState` hook.
+    -   Address VideoContext interaction complexities.
+    -   Apply general optimizations (memoization).
+    -   Investigate canvas/fallback logic issues. 
