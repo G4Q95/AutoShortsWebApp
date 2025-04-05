@@ -356,16 +356,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // VideoContext initialization
   useEffect(() => {
-    // --- ADD LOGGING TO CHECK IF EFFECT RUNS --- 
-    console.log(`[VideoCtx Init Effect] Running for ${sceneId}. localMediaUrl: ${localMediaUrl ? 'Exists' : 'NULL/Undefined'}, mediaType: ${mediaType}`);
-    
+    console.log(`[Diag STEP 1] VideoContext Init Effect START for ${sceneId}. localMediaUrl: ${localMediaUrl ? 'Exists' : 'NULL/Undefined'}, mediaType: ${mediaType}`);
+
     const canvas = canvasRef.current;
-    // Add check for localMediaUrl here as well
     if (!canvas || !containerRef.current || !localMediaUrl || !isVideoType(mediaType)) {
-      console.log(`[VideoCtx Init Effect] Bailing for ${sceneId}. Conditions: canvas=${!!canvas}, container=${!!containerRef.current}, localMediaUrl=${!!localMediaUrl}, isVideo=${isVideoType(mediaType)}`);
+      console.log(`[Diag STEP 2 Bail] Bailing Init Effect for ${sceneId}. Conditions: canvas=${!!canvas}, container=${!!containerRef.current}, localMediaUrl=${!!localMediaUrl}, isVideo=${isVideoType(mediaType)}`);
       return; // Bail out if refs not ready, no local URL, or not a video
     }
-    // --- END ADDED LOGGING ---
 
     let setupComplete = false;
     let cleanupFunc: (() => void) | null = null;
@@ -376,6 +373,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     let canvasWidth: number, canvasHeight: number;
 
     const initVideoContext = async () => {
+      console.log(`[Diag STEP 3] Running initVideoContext async function for ${sceneId}`);
       try {
         // Clean up existing context if any
         if (videoContext) {

@@ -9,7 +9,8 @@ import { Maximize, Minimize } from 'lucide-react';
 
 // Import both player implementations
 import ScenePreviewPlayer from '@/components/preview/ScenePreviewPlayer';
-import VideoContextScenePreviewPlayer from '@/components/preview/VideoContextScenePreviewPlayer';
+// import VideoContextScenePreviewPlayer from '@/components/preview/VideoContextScenePreviewPlayer';
+import { VideoContextScenePreviewPlayer } from '@/components/preview/VideoContextScenePreviewPlayer';
 
 interface SceneMediaPlayerProps {
   /**
