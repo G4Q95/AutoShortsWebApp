@@ -34,7 +34,7 @@ We will refactor the component incrementally using the following methodology to 
 4.  **Organize Extracted Code:** Create a clear directory structure (e.g., `src/hooks/`, `src/utils/video/`) for the extracted modules.
 5.  **Frequent Manual Testing:** Due to the current inability to rely on automated tests for this component (especially video interactions), **manual testing after each significant refactoring step is crucial** to ensure functionality remains intact.
 
-**Update (YYYY-MM-DD):** Before starting the planned hook extractions below, several critical interaction bugs related to video loading, playback state synchronization (`currentTime`, `isPlaying`), and trim handle behavior (playhead snapping) were identified and fixed directly within the component. This provides a more stable foundation for the subsequent refactoring steps.
+**Update (2025-04-05):** Before starting the planned hook extractions below, several critical interaction bugs related to video loading, playback state synchronization (`currentTime`, `isPlaying`), and trim handle behavior (playhead snapping) were identified and fixed directly within the component. This provides a more stable foundation for the subsequent refactoring steps.
 
 **First Step: Extract Aspect Ratio Logic**
 
