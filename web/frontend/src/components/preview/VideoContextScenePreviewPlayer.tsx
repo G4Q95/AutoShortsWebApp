@@ -248,23 +248,23 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add state for temporary aspect ratio indicator display
   const [showTemporaryIndicator, setShowTemporaryIndicator] = useState<boolean>(true);
 
-  // *** ADD call to useTrimControls hook ***
+  // *** Use the simplified useTrimControls hook ***
   const {
-    trimStart,       // Use from hook
-    setTrimStart,    // Use from hook
-    trimEnd,         // Use from hook
-    setTrimEnd,      // Use from hook
-    activeHandle,    // Use from hook
-    setActiveHandle, // Use from hook
-    trimManuallySet, // Use from hook
-    setTrimManuallySet, // Use from hook
-    userTrimEndRef,  // Use from hook
-    timeBeforeDrag,    // Use from hook
-    setTimeBeforeDrag  // Use from hook
+    trimStart,       // Get from hook
+    setTrimStart,    // Get from hook
+    trimEnd,         // Get from hook
+    setTrimEnd,      // Get from hook
+    activeHandle,    // Get from hook
+    setActiveHandle, // Get from hook
+    trimManuallySet, // Get from hook
+    setTrimManuallySet, // Get from hook
+    userTrimEndRef,  // Get from hook
+    timeBeforeDrag,    // Get from hook
+    setTimeBeforeDrag  // Get from hook
   } = useTrimControls({
-    initialTrimStart: trim.start, // Pass initial value from props
-    initialTrimEnd: trim.end,     // Pass initial value from props
-    initialDuration: duration     // Pass current duration state
+    initialTrimStart: trim.start,
+    initialTrimEnd: trim.end,
+    initialDuration: duration
   });
   
   // Call the new hook
@@ -760,7 +760,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (audioRef.current) {
       audioRef.current.currentTime = clampedTime;
     }
-  }, [isPlaying, videoContext, currentTime, trimStart, trimEnd, setCurrentTime, audioRef]);
+  }, [isPlaying, videoContext, currentTime, trimStart, trimEnd, setCurrentTime, audioRef]); // Ensure trimStart/trimEnd from hook are dependencies
   
   // Function to convert range input value to timeline position
   const timelineValueToPosition = (value: number): number => {
@@ -893,7 +893,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return style;
   }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
   
-  // --- ADDED BACK from commit 04c71be --- 
+  // --- Handler definitions remain in the component for Phase 1 ---
   // Memoized function to handle mouse movement during trim bracket drag
   const handleTrimDragMove = useCallback((event: MouseEvent) => {
     event.preventDefault();
@@ -909,18 +909,18 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     let visualUpdateTime = newTime;
 
     if (activeHandle === 'start') {
-      const newStart = Math.max(0, Math.min(newTime, trimEnd - 0.1)); // Use trimEnd from hook
-      setTrimStart(newStart); // Use setTrimStart from hook
-      if (onTrimChange) onTrimChange(newStart, trimEnd); // Use trimEnd from hook
+      const newStart = Math.max(0, Math.min(newTime, trimEnd - 0.1));
+      setTrimStart(newStart);
+      if (onTrimChange) onTrimChange(newStart, trimEnd);
       visualUpdateTime = newStart;
       if (videoContext) {
         videoContext.currentTime = visualUpdateTime;
       }
-    } else { // activeHandle === 'end'
-      const newEnd = Math.min(duration, Math.max(newTime, trimStart + 0.1)); // Use trimStart from hook
-      setTrimEnd(newEnd); // Use setTrimEnd from hook
-      userTrimEndRef.current = newEnd; // Use userTrimEndRef from hook
-      if (onTrimChange) onTrimChange(trimStart, newEnd); // Use trimStart from hook
+    } else {
+      const newEnd = Math.min(duration, Math.max(newTime, trimStart + 0.1));
+      setTrimEnd(newEnd);
+      userTrimEndRef.current = newEnd;
+      if (onTrimChange) onTrimChange(trimStart, newEnd);
       visualUpdateTime = newEnd;
       if (videoContext) {
         videoContext.currentTime = visualUpdateTime; 
@@ -932,8 +932,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         audioRef.current.currentTime = visualUpdateTime;
     }
 
-    setTrimManuallySet(true); // Use setTrimManuallySet from hook
-  }, [activeHandle, containerRef, duration, trimEnd, trimStart, onTrimChange, videoContext, setTrimStart, setTrimEnd, setVisualTime, setTrimManuallySet, audioRef, isPlaying]); // Ensure all dependencies (incl. hook setters) are present
+    setTrimManuallySet(true);
+  }, [activeHandle, containerRef, duration, trimEnd, trimStart, onTrimChange, videoContext, setTrimStart, setTrimEnd, setVisualTime, setTrimManuallySet, audioRef, isPlaying]);
 
   // Memoized function to handle mouse up/leave during trim bracket drag
   const handleTrimDragEnd = useCallback(() => {
@@ -942,18 +942,18 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     console.log(`[TrimDrag] Drag ended for handle: ${activeHandle}`);
     const wasHandleActive = activeHandle;
-    setActiveHandle(null); // Use setActiveHandle from hook
+    setActiveHandle(null);
     document.body.style.cursor = 'default';
 
-    const finalTrimEnd = userTrimEndRef.current ?? trimEnd; // Use userTrimEndRef and trimEnd from hook
-    const currentValidTrimStart = trimStart; // Use trimStart from hook
+    const finalTrimEnd = userTrimEndRef.current ?? trimEnd;
+    const currentValidTrimStart = trimStart;
     const currentPlayheadTime = videoContext ? videoContext.currentTime : currentTime;
     console.log(`[TrimDragEnd DEBUG] Values Before Snap Check:`, { /* ... */ });
     
     if (wasHandleActive === 'end') {
         console.warn(`[TrimDragEnd] Right handle released. Forcing pause, setting state, setting reset flag, and snapping playhead to start (${currentValidTrimStart}).`);
         handlePause(); 
-        setIsPlayingWithLog(false); // Use setIsPlayingWithLog
+        setIsPlayingWithLog(false);
         forceResetOnPlayRef.current = true;
         
         if (videoContext) {
@@ -966,12 +966,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       forceResetOnPlayRef.current = false;
     }
     
-    setTimeBeforeDrag(0); // Use setTimeBeforeDrag from hook, reset to 0
+    setTimeBeforeDrag(0);
     
-  }, [activeHandle, setActiveHandle, videoContext, currentTime, trimStart, trimEnd, userTrimEndRef, timeBeforeDrag, setCurrentTime, setVisualTime, setTimeBeforeDrag, handlePause, setIsPlayingWithLog]); // Check dependencies
-  // --- END ADDED BACK --- 
+  }, [activeHandle, setActiveHandle, videoContext, currentTime, trimStart, trimEnd, userTrimEndRef, timeBeforeDrag, setCurrentTime, setVisualTime, setTimeBeforeDrag, handlePause, setIsPlayingWithLog]);
 
-  // --- ADDED BACK EFFECT for listeners from commit 04c71be --- 
+  // Effect for listeners REMAINS in the component for Phase 1
   useEffect(() => {
     // Only attach listeners if a handle is active (use activeHandle from hook)
     if (!activeHandle) return;
@@ -1000,7 +999,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
     // Depend on the memoized handlers and activeHandle from hook
   }, [activeHandle, handleTrimDragMove, handleTrimDragEnd]);
-  // --- END ADDED BACK EFFECT --- 
 
   // Add useEffect for temporary aspect ratio display on mount
   useEffect(() => {

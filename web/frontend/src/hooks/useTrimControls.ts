@@ -1,90 +1,52 @@
-import { useState, useRef, useEffect, Dispatch, SetStateAction, MutableRefObject } from 'react';
+import { useState, useRef, useCallback } from 'react';
+import type { RefObject } from 'react';
 
+// --- Define Props --- 
+// Remove dependencies needed only by handlers/effects for now
 interface UseTrimControlsProps {
   initialTrimStart: number;
   initialTrimEnd: number;
-  initialDuration: number; // Needed to initialize trimEnd correctly
+  initialDuration: number;
 }
 
+// --- Define Return Type ---
+// Return state values AND their setters
 interface UseTrimControlsReturn {
   trimStart: number;
-  setTrimStart: Dispatch<SetStateAction<number>>;
+  setTrimStart: React.Dispatch<React.SetStateAction<number>>;
   trimEnd: number;
-  setTrimEnd: Dispatch<SetStateAction<number>>;
+  setTrimEnd: React.Dispatch<React.SetStateAction<number>>;
   activeHandle: 'start' | 'end' | null;
-  setActiveHandle: Dispatch<SetStateAction<'start' | 'end' | null>>;
+  setActiveHandle: React.Dispatch<React.SetStateAction<'start' | 'end' | null>>;
   trimManuallySet: boolean;
-  setTrimManuallySet: Dispatch<SetStateAction<boolean>>;
-  userTrimEndRef: MutableRefObject<number | null>;
+  setTrimManuallySet: React.Dispatch<React.SetStateAction<boolean>>;
+  userTrimEndRef: RefObject<number | null>; // Keep ref accessible if needed
   timeBeforeDrag: number;
-  setTimeBeforeDrag: Dispatch<SetStateAction<number>>;
+  setTimeBeforeDrag: React.Dispatch<React.SetStateAction<number>>;
 }
 
-/**
- * Custom hook to manage the state associated with video trimming controls.
- * This initial version only extracts the state variables and setters.
- * Handlers and effects remain in the component for now.
- *
- * @param initialTrimStart - The initial start trim time from props.
- * @param initialTrimEnd - The initial end trim time from props.
- * @param initialDuration - The initial media duration.
- * @returns An object containing trim-related state and setters.
- */
-export const useTrimControls = ({
+// --- Hook Implementation ---
+export function useTrimControls({
   initialTrimStart,
   initialTrimEnd,
-  initialDuration, // Use initialDuration passed from component state
-}: UseTrimControlsProps): UseTrimControlsReturn => {
-  // State for trim values
+  initialDuration // Keep initialDuration for setting initial trimEnd if needed
+}: UseTrimControlsProps): UseTrimControlsReturn {
+  // --- State Definitions --- 
+  // Move state definitions here
   const [trimStart, setTrimStart] = useState<number>(initialTrimStart);
-  // Ensure trimEnd is initialized correctly, defaulting to duration if 0 or undefined
-  const [trimEnd, setTrimEnd] = useState<number>(initialTrimEnd || initialDuration);
-  
-  // State for tracking which handle is being dragged
+  const [trimEnd, setTrimEnd] = useState<number>(initialTrimEnd > 0 ? initialTrimEnd : initialDuration); // Use initialDuration if initialTrimEnd is invalid
   const [activeHandle, setActiveHandle] = useState<'start' | 'end' | null>(null);
-  
-  // State to track if trim was manually set (might be removable later)
   const [trimManuallySet, setTrimManuallySet] = useState<boolean>(false);
-  
-  // Ref to store the user-intended end trim value during dragging
-  const userTrimEndRef = useRef<number | null>(null);
-  
-  // State to store the time before starting a drag operation
   const [timeBeforeDrag, setTimeBeforeDrag] = useState<number>(0);
-  
-  // Effect to update trimEnd if initialDuration changes AFTER initial mount
-  // and trimEnd hasn't been set yet (was 0).
-  // This might be needed if duration loads async.
-  useEffect(() => {
-      if (initialDuration > 0 && trimEnd === 0) {
-          setTrimEnd(initialDuration);
-      }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialDuration]); // Only run when initialDuration becomes available
+  const userTrimEndRef = useRef<number | null>(initialTrimEnd > 0 ? initialTrimEnd : initialDuration); // Initialize ref too
 
-  // Effect to synchronize state if initial props change
-  // This ensures the hook reflects external updates to the trim prop.
-  useEffect(() => {
-    console.log(`[useTrimControls Effect] Props changed: start=${initialTrimStart}, end=${initialTrimEnd}, duration=${initialDuration}`);
-    setTrimStart(initialTrimStart);
-    // Only update trimEnd from props if it's valid and user hasn't manually set it yet
-    if (initialTrimEnd > 0 && !trimManuallySet) {
-      console.log(`[useTrimControls Effect] Setting trimEnd from prop: ${initialTrimEnd}`);
-      setTrimEnd(initialTrimEnd);
-      // Update ref only if prop end is valid
-      userTrimEndRef.current = initialTrimEnd; 
-    } else if (initialDuration > 0 && !trimManuallySet && userTrimEndRef.current === null) {
-      // If initialTrimEnd is 0/invalid, and duration becomes available, and user hasn't touched it, set end to duration
-      console.log(`[useTrimControls Effect] Setting trimEnd to duration: ${initialDuration}`);
-      setTrimEnd(initialDuration);
-      userTrimEndRef.current = initialDuration;
-    } else {
-       console.log(`[useTrimControls Effect] Not updating trimEnd. Current value: ${trimEnd}, initialTrimEnd: ${initialTrimEnd}, initialDuration: ${initialDuration}, trimManuallySet: ${trimManuallySet}, userTrimEndRef: ${userTrimEndRef.current}`);
-    }
-  }, [initialTrimStart, initialTrimEnd, initialDuration]); // Rerun if initial values change
+  // --- Handlers & Effects (REMOVED FOR PHASE 1) ---
+  // const handleTrimDragMove = useCallback(...); // REMOVED
+  // const handleTrimDragEnd = useCallback(...); // REMOVED
+  // useEffect(() => { ... listener effect ... }, [...]); // REMOVED
 
-  console.log(`[useTrimControls Render] Values: start=${trimStart}, end=${trimEnd}, active=${activeHandle}, manuallySet=${trimManuallySet}, userEndRef=${userTrimEndRef.current}`);
-
+  // --- Return Values ---
+  // Return state values AND their setters
   return {
     trimStart,
     setTrimStart,
@@ -98,4 +60,4 @@ export const useTrimControls = ({
     timeBeforeDrag,
     setTimeBeforeDrag,
   };
-}; 
+} 
