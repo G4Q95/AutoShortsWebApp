@@ -256,7 +256,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Call the new hook
   const {
-    mediaStyle,
+    mediaElementStyle,
     calculatedAspectRatio,
   } = useMediaAspectRatio({
     initialMediaAspectRatio,
@@ -933,74 +933,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return style;
   }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
   
-  // Get media element style with letterboxing/pillarboxing
-  const getMediaStyle = useCallback(() => {
-    // Calculate aspect ratios
-    const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
-    const projectRatio = projWidth / projHeight;
-    const mediaRatio = calculatedAspectRatio || projectRatio;
-
-    type MediaStyle = {
-      objectFit: 'contain' | 'cover';
-      maxWidth: string;
-      maxHeight: string;
-      width?: string;
-      height?: string;
-    };
-
-    let style: MediaStyle = {
-      objectFit: 'contain',
-      maxWidth: '100%',
-      maxHeight: '100%'
-    };
-
-    if (showLetterboxing) {
-      // CONSISTENT CALCULATION:
-      // Calculate width/height percentage based on aspect ratio comparison
-      // This is the key to consistent appearance between views
-      
-      if (mediaRatio > projectRatio) {
-        // Media is wider than project - it will have letterboxing (black bars top/bottom)
-        // Keep width at 100% and calculate height to maintain aspect ratio
-        style = {
-          ...style,
-          width: '100%',
-          height: 'auto',
-          maxHeight: '100%'
-        };
-        console.log(`[AspectRatio-Styling] Scene ${sceneId}: Using LETTERBOXING for wide media`);
-      } else if (mediaRatio < projectRatio) {
-        // Media is taller than project - it will have pillarboxing (black bars sides)
-        // Keep height at 100% and calculate width to maintain aspect ratio
-        style = {
-          ...style,
-          width: 'auto',
-          height: '100%',
-          maxWidth: '100%'
-        };
-        console.log(`[AspectRatio-Styling] Scene ${sceneId}: Using PILLARBOXING for tall media`);
-      } else {
-        // Perfect match - no letterboxing or pillarboxing needed
-        style = {
-          ...style,
-          width: '100%',
-          height: '100%'
-        };
-        console.log(`[AspectRatio-Styling] Scene ${sceneId}: PERFECT MATCH, no boxing needed`);
-      }
-    } else {
-      // No letterboxing - stretch to fill
-      style = {
-        ...style,
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover'
-      };
-    }
-
-    return style;
-  }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, sceneId]);
-  
   // --- Internal Helper Functions for Trim Drag --- 
 
   // Memoized function to handle mouse movement during trim bracket drag
@@ -1472,7 +1404,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         <div 
           className="relative bg-black flex items-center justify-center"
           style={{
-            ...getMediaStyle(),
+            ...mediaElementStyle,
             position: 'relative', 
             zIndex: 5 // Ensure media container has proper z-index
           }}
@@ -1489,7 +1421,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               ref={videoRef}
               className="w-auto h-auto"
               style={{
-                ...getMediaStyle(),
+                ...mediaElementStyle,
                 pointerEvents: 'none' // Ensure all videos have pointer-events: none
               }}
               playsInline
@@ -1507,10 +1439,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               alt="Scene content"
               className="w-auto h-auto max-w-full max-h-full"
               style={{
-                ...getMediaStyle(),
+                ...mediaElementStyle,
                 objectFit: 'contain',
                 zIndex: 10,
-                maxHeight: isCompactView ? '190px' : '100%',
+                maxHeight: isCompactView ? '190px' : mediaElementStyle.maxHeight,
                 pointerEvents: 'none' // Ensure all clicks pass through
               }}
               data-testid="fallback-image"
@@ -1544,7 +1476,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             ref={canvasRef}
             className="w-auto h-auto"
             style={{
-              ...getMediaStyle(),
+              ...mediaElementStyle,
               display: (isImageType(mediaType)) ? 'none' : 
                       (showFirstFrame && mediaType === 'video') ? 'none' : 'block',
               zIndex: 10, // Match the img z-index
