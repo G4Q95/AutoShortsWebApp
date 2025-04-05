@@ -16,8 +16,8 @@ interface UseTrimControlsReturn {
   trimManuallySet: boolean;
   setTrimManuallySet: Dispatch<SetStateAction<boolean>>;
   userTrimEndRef: MutableRefObject<number | null>;
-  timeBeforeDrag: number | null;
-  setTimeBeforeDrag: Dispatch<SetStateAction<number | null>>;
+  timeBeforeDrag: number;
+  setTimeBeforeDrag: Dispatch<SetStateAction<number>>;
 }
 
 /**
@@ -50,7 +50,7 @@ export const useTrimControls = ({
   const userTrimEndRef = useRef<number | null>(null);
   
   // State to store the time before starting a drag operation
-  const [timeBeforeDrag, setTimeBeforeDrag] = useState<number | null>(null);
+  const [timeBeforeDrag, setTimeBeforeDrag] = useState<number>(0);
   
   // Effect to update trimEnd if initialDuration changes AFTER initial mount
   // and trimEnd hasn't been set yet (was 0).
@@ -65,13 +65,25 @@ export const useTrimControls = ({
   // Effect to synchronize state if initial props change
   // This ensures the hook reflects external updates to the trim prop.
   useEffect(() => {
-      setTrimStart(initialTrimStart);
-      // Only update trimEnd from prop if it's not the default (0) or if duration is available
-      if (initialTrimEnd !== 0 || initialDuration > 0) {
-          setTrimEnd(initialTrimEnd || initialDuration);
-      }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTrimStart, initialTrimEnd, initialDuration]); // Rerun if props change
+    console.log(`[useTrimControls Effect] Props changed: start=${initialTrimStart}, end=${initialTrimEnd}, duration=${initialDuration}`);
+    setTrimStart(initialTrimStart);
+    // Only update trimEnd from props if it's valid and user hasn't manually set it yet
+    if (initialTrimEnd > 0 && !trimManuallySet) {
+      console.log(`[useTrimControls Effect] Setting trimEnd from prop: ${initialTrimEnd}`);
+      setTrimEnd(initialTrimEnd);
+      // Update ref only if prop end is valid
+      userTrimEndRef.current = initialTrimEnd; 
+    } else if (initialDuration > 0 && !trimManuallySet && userTrimEndRef.current === null) {
+      // If initialTrimEnd is 0/invalid, and duration becomes available, and user hasn't touched it, set end to duration
+      console.log(`[useTrimControls Effect] Setting trimEnd to duration: ${initialDuration}`);
+      setTrimEnd(initialDuration);
+      userTrimEndRef.current = initialDuration;
+    } else {
+       console.log(`[useTrimControls Effect] Not updating trimEnd. Current value: ${trimEnd}, initialTrimEnd: ${initialTrimEnd}, initialDuration: ${initialDuration}, trimManuallySet: ${trimManuallySet}, userTrimEndRef: ${userTrimEndRef.current}`);
+    }
+  }, [initialTrimStart, initialTrimEnd, initialDuration]); // Rerun if initial values change
+
+  console.log(`[useTrimControls Render] Values: start=${trimStart}, end=${trimEnd}, active=${activeHandle}, manuallySet=${trimManuallySet}, userEndRef=${userTrimEndRef.current}`);
 
   return {
     trimStart,
