@@ -9,28 +9,13 @@
  * Now with adaptive scene-based aspect ratio support.
  */
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PlayIcon, PauseIcon, LockIcon, UnlockIcon, ScissorsIcon, CheckIcon, Maximize2 as FullscreenIcon, Minimize2 as ExitFullscreenIcon } from 'lucide-react';
 import { VideoContextProvider } from '@/contexts/VideoContextProvider';
 import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
-import EditHistoryManager, { ActionType } from '@/utils/video/editHistoryManager';
 import { CSSProperties } from 'react';
 import { useMediaAspectRatio } from '@/hooks/useMediaAspectRatio';
-import { useProject } from '@/contexts/ProjectContext';
-// import { useVideoContextPlayer } from '@/contexts/VideoContextPlayerContext'; // Commented out
-// import { formatTime } from '@/lib/utils'; // Removed - defined below
-// import { isVideoType, isImageType } from '@/lib/media-utils'; // Removed - defined below
-import { default as VideoContext } from 'videocontext';
 import { useTrimControls } from '@/hooks/useTrimControls';
-
-// Add global tracking counters to help debug the issue
-const DEBUG_COUNTERS = {
-  totalImageAttempts: 0,
-  videoContextSuccess: 0,
-  videoContextFailure: 0,
-  fallbackSuccess: 0,
-  fallbackFailure: 0
-};
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -180,20 +165,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   projectAspectRatio = '9:16',
   showLetterboxing = true,
 }) => {
-  // Immediately log media information for debugging
-  console.log(`[CRITICAL-DEBUG] Component mounted for scene ${sceneId}:`, {
-    mediaType,
-    mediaUrl: mediaUrl.substring(0, 50) + '...',
-    isImageMedia: mediaType === 'image' || mediaType === 'gallery',
-    thumbnailUrl: thumbnailUrl ? (thumbnailUrl.substring(0, 50) + '...') : 'none',
-    initialMediaAspectRatio
-  });
-
   // State for player
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isDraggingScrubber, setIsDraggingScrubber] = useState<boolean>(false);
-  const forceResetOnPlayRef = useRef<boolean>(false);
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const [controlsLocked, setControlsLocked] = useState<boolean>(false);
   const [trimActive, setTrimActive] = useState<boolean>(false);
@@ -204,15 +179,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const forceResetOnPlayRef = useRef<boolean>(false);
+  const isPlayingRef = useRef<boolean>(false);
+  const animationFrameRef = useRef<number | null>(null);
+  const imageTimerRef = useRef<number | null>(null);
   
   // VideoContext state
   const [videoContext, setVideoContext] = useState<any>(null);
   const [duration, setDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isReady, setIsReady] = useState<boolean>(false);
-  
-  // State for video dimensions (to pass to the hook)
-  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null);
   
   // Add state for local media
   const [localMediaUrl, setLocalMediaUrl] = useState<string | null>(null);
@@ -225,10 +201,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Get singletons for media and edit history management
   const mediaManager = useRef(MediaDownloadManager.getInstance());
-  const historyManager = useRef(EditHistoryManager.getInstance());
-
-  // Add ref for animation frame
-  const animationFrameRef = useRef<number | undefined>(undefined);
 
   // Add state to track visual playback position separate from actual time
   const [visualTime, setVisualTime] = useState<number>(0);
@@ -241,9 +213,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // State for aspect ratio display toggle
   const [showAspectRatio, setShowAspectRatio] = useState<boolean>(false);
-
-  // Add a ref to track playing state
-  const isPlayingRef = useRef<boolean>(false);
 
   // Add state for temporary aspect ratio indicator display
   const [showTemporaryIndicator, setShowTemporaryIndicator] = useState<boolean>(true);
@@ -276,7 +245,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     projectAspectRatio,
     showLetterboxing,
     mediaType,
-    videoDimensions,
+    videoContext,
   });
 
   // Add useEffect for temporary aspect ratio display on mount
@@ -322,23 +291,17 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         { onProgress: (progress: number) => setDownloadProgress(progress) } // Simplified progress handler
       );
       
-      // --- ADD LOGGING BEFORE SETTING STATE ---
-      console.log(`[GetLocalMedia] Download successful for ${sceneId}. Object URL obtained: ${objectUrl ? 'Exists' : 'NULL/Undefined'}`);
       if (objectUrl) {
-         console.log(`[GetLocalMedia] Attempting to set local media URL for ${sceneId}`);
-         setLocalMediaUrl(objectUrl);
+        setLocalMediaUrl(objectUrl);
       } else {
-         console.warn(`[GetLocalMedia] Download reported success but objectUrl is invalid for ${sceneId}`);
-         setLocalMediaUrl(null); // Ensure fallback if URL is invalid
+        setLocalMediaUrl(null); // Ensure fallback if URL is invalid
       }
-      // --- END ADDED LOGGING ---
 
     } catch (error) {
       console.error(`[GetLocalMedia] Error downloading media for scene ${sceneId}:`, error);
       setLocalMediaUrl(null); // Fallback to direct URL if download fails
     } finally {
        // Ensure isLoading is always set to false eventually
-       console.log(`[GetLocalMedia] Setting isLoading to false in finally block for ${sceneId}`);
        setIsLoading(false);
     }
   }, [mediaUrl, sceneId, projectId, mediaType]); // Keep dependencies simple
@@ -358,10 +321,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // *** ADD CHECK: Only run this effect for VIDEO types ***
     if (audioRef.current && !isImageType(mediaType)) { 
       if (isPlaying) {
-        console.log(`[AudioDiag][Effect VIDEO] Calling audio.play() due to isPlaying=true`);
         audioRef.current.play().catch(err => console.error("[AudioDiag] Effect Play Error:", err));
       } else {
-        console.log(`[AudioDiag][Effect VIDEO] Calling audio.pause() due to isPlaying=false`);
         audioRef.current.pause();
       }
     }
@@ -369,28 +330,20 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // VideoContext initialization
   useEffect(() => {
-    console.log(`[Diag STEP 1] VideoContext Init Effect START for ${sceneId}. localMediaUrl: ${localMediaUrl ? 'Exists' : 'NULL/Undefined'}, mediaType: ${mediaType}`);
-
     const canvas = canvasRef.current;
     if (!canvas || !containerRef.current || !localMediaUrl || !isVideoType(mediaType)) {
-      console.log(`[Diag STEP 2 Bail] Bailing Init Effect for ${sceneId}. Conditions: canvas=${!!canvas}, container=${!!containerRef.current}, localMediaUrl=${!!localMediaUrl}, isVideo=${isVideoType(mediaType)}`);
       return; // Bail out if refs not ready, no local URL, or not a video
     }
 
-    let setupComplete = false;
-    let cleanupFunc: (() => void) | null = null;
     let isMounted = true; // Track mount status
-    console.log(`[INIT-DEBUG] Starting initialization for scene ${sceneId}, mediaType=${mediaType}`);
 
     const baseSize = 1920;
     let canvasWidth: number, canvasHeight: number;
 
     const initVideoContext = async () => {
-      console.log(`[Diag STEP 3] Running initVideoContext async function for ${sceneId}`);
       try {
         // Clean up existing context if any
         if (videoContext) {
-          console.log(`[INIT-DEBUG] Cleaning up existing context for ${sceneId}`);
           try {
             videoContext.reset();
             if (typeof videoContext.dispose === 'function') {
@@ -403,7 +356,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         }
         
         // Dynamically import VideoContext
-        console.log(`[INIT-DEBUG] Importing VideoContext module`);
         const VideoContextModule = await import('videocontext');
         const VideoContext = VideoContextModule.default || VideoContextModule;
         
@@ -419,11 +371,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         // Set canvas internal resolution
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
-        console.log(`[INIT-DEBUG] Canvas internal dimensions set to ${canvas.width}x${canvas.height} based on initial ratio ${initialRatioForCanvas.toFixed(4)}`);
 
         const ctx = new VideoContext(canvas);
         if (!ctx) throw new Error('Failed to create VideoContext instance');
-        console.log(`[INIT-DEBUG] VideoContext created successfully`);
         setVideoContext(ctx);
 
         let source: any;
@@ -431,33 +381,28 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           if (!localMediaUrl) throw new Error('[VideoCtx Init] No media URL available for video source inside init function');
           source = ctx.video(localMediaUrl);
           if (!source) throw new Error('Failed to create video source');
-          console.log(`[INIT-DEBUG] Video source created successfully`);
 
           source.connect(ctx.destination);
           source.start(0);
           source.stop(300); // 5 minute max duration
-          console.log(`[INIT-DEBUG] Source connected and configured`);
 
           source.registerCallback('loaded', () => {
             if (!isMounted) return;
-            console.log(`[INIT-DEBUG] Video loaded callback fired for ${sceneId}`);
             // Ensure isLoading is set false here too
             setIsLoading(false);
             setIsReady(true);
-            setupComplete = true;
 
             if (source.element) {
               const videoElement = source.element as HTMLVideoElement;
               const videoDuration = videoElement.duration;
-              const videoWidth = videoElement.videoWidth;
-              const videoHeight = videoElement.videoHeight;
-              console.log(`[INIT-DEBUG] Video metadata: Duration=${videoDuration}, Dimensions=${videoWidth}x${videoHeight}`);
               setDuration(videoDuration);
 
-              // Set video dimensions state
-              if (videoWidth > 0 && videoHeight > 0) {
-                setVideoDimensions({ width: videoWidth, height: videoHeight });
-              }
+              // Keep setVideoDimensions commented out
+              // const videoWidth = videoElement.videoWidth;
+              // const videoHeight = videoElement.videoHeight;
+              // if (videoWidth > 0 && videoHeight > 0) {
+              //   setVideoDimensions({ width: videoWidth, height: videoHeight });
+              // }
 
               if (trimEnd <= 0 || trimEnd === 10) {
                 setTrimEnd(videoDuration);
@@ -469,29 +414,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           });
           
           source.registerCallback('error', (err: any) => {
-             console.error(`[INIT-DEBUG] VideoContext source node error for ${sceneId}:`, err);
-             if (!isMounted) return;
-             setIsLoading(false); // Also set loading false on source error
-             setIsReady(false);
+            if (!isMounted) return;
+            setIsLoading(false); // Also set loading false on source error
+            setIsReady(false);
           });
-          
-          // Register time update callback from VideoContext if available
-          let timeUpdateRegistered = false;
-          if (typeof ctx.registerTimeUpdateCallback === 'function') {
-            ctx.registerTimeUpdateCallback((time: number) => {
-              // Directly update state from the library's callback
-              setCurrentTime(time);
-            });
-            timeUpdateRegistered = true;
-            console.log('[VideoCtx Init] Registered time update via registerTimeUpdateCallback');
-          } else if (typeof ctx.registerCallback === 'function') {
-            ctx.registerCallback('timeupdate', () => {
-              // Directly update state from the library's callback
-              setCurrentTime(ctx.currentTime);
-            });
-            timeUpdateRegistered = true;
-            console.log('[VideoCtx Init] Registered time update via registerCallback("timeupdate")');
-          }
         }
         
         return {
@@ -499,13 +425,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           source
         };
       } catch (error) {
-        // --- ADD MORE EXPLICIT ERROR LOGGING ---
-        console.error(`[VideoCtx Init] EXCEPTION during initialization for ${sceneId}:`, error);
-        if (error instanceof Error) {
-            console.error(`[VideoCtx Init] Error Message: ${error.message}`);
-            console.error(`[VideoCtx Init] Error Stack: ${error.stack}`);
-        }
-        // --- END ADDED LOGGING ---
         if (isMounted) {
             setIsLoading(false);
             setIsReady(false);
@@ -520,16 +439,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setupPromise.then(result => {
       if (!isMounted) return;
       if (result && result.context) {
-        console.log(`[VideoCtx Init] Setup promise resolved successfully for ${sceneId}`);
-        // setVideoContext(result.context); // Already set inside initVideoContext
-        // setIsReady(true); // Already set inside initVideoContext loaded callback
       } else {
-        console.warn(`[VideoCtx Init] Setup promise resolved but no context/result for ${sceneId}`);
         setIsReady(false); // Ensure ready is false if setup failed
       }
     }).catch(error => {
       if (!isMounted) return;
-      console.error(`[VideoCtx Init] Setup promise REJECTED for ${sceneId}:`, error);
       setIsReady(false);
       setIsLoading(false); // Ensure loading is false on promise rejection
     });
@@ -537,24 +451,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Cleanup function
     return () => {
       isMounted = false; // Mark as unmounted
-      console.log(`[VideoCtx Init Cleanup] Running cleanup for scene ${sceneId}`);
-      // ... (rest of cleanup)
     };
-  // Updated dependencies: Include sceneId for logging clarity, maybe initialMediaAspectRatio if needed for canvas sizing?
-  }, [localMediaUrl, mediaType, sceneId, initialMediaAspectRatio]); 
+  }, [localMediaUrl, mediaType, sceneId, initialMediaAspectRatio, setVideoContext, setDuration, setTrimEnd, userTrimEndRef, setCurrentTime]); // REMOVED videoContext from dependencies
   
   // Update the setIsPlayingWithLog function to update both state and ref
   const setIsPlayingWithLog = useCallback((value: boolean) => {
-    console.log(`[DEBUG-STATE] Setting isPlaying from ${isPlaying} to ${value}`);
     // Update the ref first - this is what animation will check
     isPlayingRef.current = value;
     // Then update React state for UI
     setIsPlaying(value);
-  }, [setIsPlaying]);
+  }, [isPlaying, setIsPlaying]);
   
   // Handle play/pause with trim boundaries
   const handlePlay = useCallback(() => {
-    console.log(`[PLAY-DEBUG] Play requested for media type: ${mediaType}`);
     
     // --- Check force reset flag --- 
     if (forceResetOnPlayRef.current) {
@@ -565,7 +474,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         setCurrentTime(trimStart); // Update React state too
         forceResetOnPlayRef.current = false; // Reset the flag
     }
-    // --- END Check force reset flag --- 
     
     // For images without VideoContext, update state and start animation
     if (isImageType(mediaType)) {
@@ -583,13 +491,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
     
     // For videos with VideoContext
-    console.log(`[PLAY-DEBUG] Video play - checking VideoContext availability. Current state:`, {
-      videoContextExists: !!videoContext,
-      isReady,
-      hasCanvas: !!canvasRef.current,
-      currentTime
-    });
-    
     if (!videoContext) {
       console.error(`[PLAY-DEBUG] Cannot play - videoContext is null`);
       return;
@@ -604,13 +505,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (canvasRef.current) {
       canvasRef.current.style.display = 'block';
       canvasRef.current.style.zIndex = '10';
-      console.log(`[PLAY-DEBUG] Made canvas visible`);
     }
     
     // Hide first frame video when playing
     if (videoRef.current) {
       videoRef.current.style.display = 'none';
-      console.log(`[PLAY-DEBUG] Hid first frame video element`);
     }
     
     // When playing video, switch from first frame to canvas
@@ -636,9 +535,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         return;
       }
       
-      console.log(`[PLAY-DEBUG] Calling videoContext.play()`);
       videoContext.play();
-      console.log(`[PLAY-DEBUG] VideoContext play() called successfully`);
       
       // Set state AFTER play called
       setIsPlayingWithLog(true);
@@ -651,32 +548,20 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     } catch (error) {
       console.error(`[PLAY-DEBUG] Error calling play():`, error);
     }
-  }, [isPlaying, videoContext, isReady, currentTime, trimStart, trimEnd, setIsPlayingWithLog, audioRef, audioUrl, videoRef, setShowFirstFrame, setCurrentTime]); // Added setCurrentTime
+  }, [isPlaying, videoContext, isReady, currentTime, trimStart, trimEnd, setIsPlayingWithLog, audioRef, audioUrl, videoRef, setShowFirstFrame, setCurrentTime]);
   
   const handlePause = useCallback(() => {
     // For images without VideoContext, just update the state
     if (isImageType(mediaType)) {
-      console.log(`[DEBUG-TIMER] Pause called: currentTime=${currentTime.toFixed(2)}, isPlaying=${isPlaying}, isPlayingRef=${isPlayingRef.current}`);
-      
-      // Set state
       setIsPlayingWithLog(false);
       
       // Pause audio if available
       if (audioRef.current) {
-        console.log(`[AudioDiag][handlePause IMAGE] Calling pause()`);
         audioRef.current.pause();
-      }
-      
-      // Clear the timer
-      if (imageTimerRef.current !== null) {
-        console.log(`[DEBUG-TIMER] Clearing interval timer`);
-        window.clearInterval(imageTimerRef.current);
-        imageTimerRef.current = null;
       }
       
       // Reset the force reset flag on pause
       if (forceResetOnPlayRef.current) {
-        console.log("[PAUSE-DEBUG] Resetting forceResetOnPlayRef flag.");
         forceResetOnPlayRef.current = false;
       }
       
@@ -701,9 +586,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     try {
       if (typeof currentVideoContext.pause === 'function') {
-        console.log(`[VideoContext PAUSE] Calling videoContext.pause()`);
         currentVideoContext.pause();
-        console.log(`[VideoContext PAUSE] Pause called successfully`);
       } else {
         console.error(`[VideoContext PAUSE] videoContext.pause is not a function`);
       }
@@ -715,16 +598,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Cancel animation frame on pause
     if (animationFrameRef.current) {
-      console.log(`[VideoContext PAUSE] Cancelling animation frame`);
       cancelAnimationFrame(animationFrameRef.current);
     }
     
     // Pause the audio too
     if (audioRef.current) {
-      console.log(`[AudioDiag][handlePause VIDEO] Calling pause()`);
       audioRef.current.pause();
     }
-  }, [isPlaying, videoContext, setIsPlayingWithLog, audioRef, trimStart, trimEnd, trimManuallySet]);
+  }, [isPlaying, videoContext, setIsPlayingWithLog, audioRef, trimStart, trimEnd, trimManuallySet, mediaType, currentTime, imageTimerRef]);
   
   // Handle seeked time update
   const handleTimeUpdate = useCallback((newTime: number) => {
@@ -740,7 +621,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       
       // Reset the force reset flag on manual scrub
       if (forceResetOnPlayRef.current) {
-        console.log("[SCRUB-DEBUG] Resetting forceResetOnPlayRef flag.");
         forceResetOnPlayRef.current = false;
       }
       
@@ -752,7 +632,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Keep time within trim boundaries
     const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd);
-    console.log(`[VideoContext] Scrubbing time update: requested=${newTime}, clamped=${clampedTime}, limits=[${trimStart}, ${trimEnd}], duration=${duration}`);
     videoContext.currentTime = clampedTime;
     setCurrentTime(clampedTime);
     
@@ -760,7 +639,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (audioRef.current) {
       audioRef.current.currentTime = clampedTime;
     }
-  }, [isPlaying, videoContext, currentTime, trimStart, trimEnd, setCurrentTime, audioRef]); // Ensure trimStart/trimEnd from hook are dependencies
+  }, [isPlaying, videoContext, currentTime, trimStart, trimEnd, setCurrentTime, audioRef, mediaType]);
   
   // Function to convert range input value to timeline position
   const timelineValueToPosition = (value: number): number => {
@@ -769,7 +648,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       return currentTime;
     }
     const position = (value / 100) * duration;
-    console.log(`[VideoContext] Timeline value ${value}% -> position ${position}s (duration: ${duration}s)`);
     return position;
   };
   
@@ -780,7 +658,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       return (currentTime / duration) * 100;
     }
     const value = (position / duration) * 100;
-    console.log(`[VideoContext] Position ${position}s -> timeline value ${value}% (duration: ${duration}s)`);
     return value;
   };
   
@@ -788,54 +665,22 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const getEffectiveTrimEnd = () => {
     // If we have a user-set value, use it
     if (userTrimEndRef.current !== null) {
-      console.log(`[VideoContext] Using userTrimEndRef value: ${userTrimEndRef.current}`);
       return userTrimEndRef.current;
     }
     
     // If trimEnd from state is valid (not zero), use it
     if (trimEnd > 0) {
-      console.log(`[VideoContext] Using trimEnd state value: ${trimEnd}`);
       return trimEnd;
     }
     
     // If duration is known, use that
     if (duration > 0) {
-      console.log(`[VideoContext] Using duration value: ${duration}`);
       return duration;
     }
     
     // Fallback to a reasonable default (10 seconds)
-    console.log(`[VideoContext] Using default 10 seconds value`);
     return 10;
   };
-  
-  // Get container style with letterboxing/pillarboxing
-  const getContainerStyle = useCallback(() => {
-    console.log(`[VideoContextScenePreviewPlayer] Calculating container style for scene ${sceneId}:`, {
-      receivedProjectAspectRatio: projectAspectRatio,
-      isCompactView
-    });
-    const [width, height] = projectAspectRatio.split(':').map(Number);
-    const containerStyle: CSSProperties = {
-      backgroundColor: '#000',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      position: 'relative',
-      width: '100%',
-      height: isCompactView ? '190px' : 'auto',
-      zIndex: 1,
-    };
-    containerStyle.aspectRatio = projectAspectRatio.replace(':', '/');
-    console.log(`[VideoContextScenePreviewPlayer] Final container style for scene ${sceneId}:`, {
-      projectAspectRatio,
-      containerStyle,
-      isCompactView,
-      effectiveAspectRatio: containerStyle.aspectRatio
-    });
-    return containerStyle;
-  }, [projectAspectRatio, isCompactView, sceneId]);
   
   // Get media container style - this will create letterboxing/pillarboxing effect
   const getMediaContainerStyle = useCallback(() => {
@@ -893,7 +738,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return style;
   }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
   
-  // --- Handler definitions remain in the component for Phase 1 ---
   // Memoized function to handle mouse movement during trim bracket drag
   const handleTrimDragMove = useCallback((event: MouseEvent) => {
     event.preventDefault();
@@ -945,10 +789,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setActiveHandle(null);
     document.body.style.cursor = 'default';
 
-    const finalTrimEnd = userTrimEndRef.current ?? trimEnd;
     const currentValidTrimStart = trimStart;
-    const currentPlayheadTime = videoContext ? videoContext.currentTime : currentTime;
-    console.log(`[TrimDragEnd DEBUG] Values Before Snap Check:`, { /* ... */ });
     
     if (wasHandleActive === 'end') {
         console.warn(`[TrimDragEnd] Right handle released. Forcing pause, setting state, setting reset flag, and snapping playhead to start (${currentValidTrimStart}).`);
@@ -968,7 +809,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     setTimeBeforeDrag(0);
     
-  }, [activeHandle, setActiveHandle, videoContext, currentTime, trimStart, trimEnd, userTrimEndRef, timeBeforeDrag, setCurrentTime, setVisualTime, setTimeBeforeDrag, handlePause, setIsPlayingWithLog]);
+  }, [activeHandle, setActiveHandle, videoContext, currentTime, trimStart, trimEnd, userTrimEndRef, timeBeforeDrag, setCurrentTime, setVisualTime, setTimeBeforeDrag, handlePause, setIsPlayingWithLog, forceResetOnPlayRef]);
 
   // Effect for listeners REMAINS in the component for Phase 1
   useEffect(() => {
@@ -998,7 +839,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       }
     };
     // Depend on the memoized handlers and activeHandle from hook
-  }, [activeHandle, handleTrimDragMove, handleTrimDragEnd]);
+  }, [activeHandle, handleTrimDragMove, handleTrimDragEnd, containerRef]);
 
   // Add useEffect for temporary aspect ratio display on mount
   useEffect(() => {
@@ -1026,9 +867,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return () => clearTimeout(timer);
   }, [projectAspectRatio]); // Re-run when projectAspectRatio changes
 
-  // Add a timer ref alongside other refs
-  const imageTimerRef = useRef<number | null>(null);
-  
   // Add state for fullscreen mode
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   
@@ -1062,7 +900,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Effect to manage canvas visibility based on play state
   useEffect(() => {
     if (!canvasRef.current) {
-      console.log(`[DIAG-CANVAS] Canvas not available, cannot update visibility`);
       return;
     }
 
@@ -1085,13 +922,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // For videos, make the canvas visible when playing
     if (isPlaying && !isImageType(mediaType)) {
-      console.log('[DIAG-CANVAS] Making canvas visible for video playback');
       canvasRef.current.style.display = 'block';
       canvasRef.current.style.zIndex = '10';
       
       // Hide the first frame when canvas is playing
       if (videoRef.current) {
-        console.log('[DIAG-CANVAS] Hiding first frame video element');
         videoRef.current.style.display = 'none';
       }
       
@@ -1109,12 +944,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       }, 10);
     } else {
       // When not playing video, hide the canvas and show the first frame
-      console.log('[DIAG-CANVAS] Setting canvas display for non-playing state');
       canvasRef.current.style.display = isImageType(mediaType) ? 'none' : 'block';
       
       // Show the first frame when video is not playing
       if (videoRef.current && !isPlaying && mediaType === 'video') {
-        console.log('[DIAG-CANVAS] Making first frame video visible');
         videoRef.current.style.display = 'block';
       }
     }
@@ -1141,9 +974,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       if (time >= actualTrimEnd) {
           console.warn(`[rAF Time Loop] Reached end boundary (${time} >= ${actualTrimEnd}), pausing.`);
           handlePause(); // Call pause handler
-          // We might want to seek back to trimStart here if handlePause doesn't do it reliably
-          // videoContext.currentTime = trimStart;
-          // setCurrentTime(trimStart);
           return; // Stop the loop for this frame after pausing
       } else if (time < trimStart) {
           // If somehow time gets before trimStart, force it back
@@ -1162,13 +992,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Start the loop only if playing
     if (isPlaying) {
       isPlayingRef.current = true; // Ensure ref is synced
-      console.log("[rAF Time Loop] Starting loop because isPlaying is true.");
       animationFrameRef.current = requestAnimationFrame(updateTime);
     } else {
       // Ensure ref is synced and cancel any existing frame request if stopped
       isPlayingRef.current = false;
       if (animationFrameRef.current) {
-        console.log("[rAF Time Loop] Cancelling loop because isPlaying is false.");
         cancelAnimationFrame(animationFrameRef.current);
       }
     }
@@ -1177,13 +1005,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return () => {
       isActive = false;
       if (animationFrameRef.current) {
-        console.log("[rAF Time Loop] Cleaning up animation frame.");
         cancelAnimationFrame(animationFrameRef.current);
       }
       isPlayingRef.current = false; // Ensure ref is false on cleanup
     };
-  // Dependencies: React to changes in playing state, context availability, and trim boundaries
-  }, [isPlaying, videoContext, trimStart, trimEnd, handlePause]); // Added handlePause
+  }, [isPlaying, videoContext, trimStart, trimEnd, handlePause, userTrimEndRef, setCurrentTime, animationFrameRef, isPlayingRef]);
   
   // Add formatTime function back inside the component scope
   const formatTime = (seconds: number, showTenths: boolean = false): string => {
@@ -1257,7 +1083,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         
         if (!isButton) {
           isPlaying ? handlePause() : handlePlay();
-          console.log(`[VideoContext] Container clicked: isPlaying=${isPlaying} -> ${!isPlaying}`);
         }
       }}
     >
@@ -1359,6 +1184,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           {/* First frame video element (visible when not playing) */}
           {mediaType === 'video' && showFirstFrame && (
             <video
+              src={localMediaUrl || undefined}
               ref={videoRef}
               className="w-auto h-auto"
               style={{
@@ -1493,7 +1319,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               if (!trimActive) {
                 const inputValue = parseFloat(e.target.value);
                 const newTime = timelineValueToPosition(inputValue);
-                console.log(`[VideoContext] Scrubber input: value=${inputValue}%, time=${newTime}s, duration=${duration}s`);
                 
                 // Check if trying to go beyond 10s limit
                 if (newTime > 10) {
@@ -1519,12 +1344,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               e.stopPropagation();
               if (!trimActive) {
                 setIsDraggingScrubber(true);
-                console.log('[VideoContext] Timeline scrubber: mouse down');
               }
             }}
             onMouseUp={() => {
               setIsDraggingScrubber(false);
-              console.log('[VideoContext] Timeline scrubber: mouse up');
             }}
             onMouseLeave={() => setIsDraggingScrubber(false)}
           />
@@ -1574,7 +1397,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                       onMouseDown={(e) => {
                         e.stopPropagation();
                         setActiveHandle('start');
-                        console.log('[VideoContext] Trim start handle activated');
                         // --- Store time before drag --- 
                         setTimeBeforeDrag(videoContext ? videoContext.currentTime : currentTime);
                         // --- END Store time --- 
@@ -1663,7 +1485,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                       onMouseDown={(e) => {
                         e.stopPropagation();
                         setActiveHandle('end');
-                        console.log('[VideoContext] Trim end handle activated');
                         // --- Store time before drag --- 
                         setTimeBeforeDrag(videoContext ? videoContext.currentTime : currentTime);
                         // --- END Store time --- 
@@ -1724,7 +1545,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               onClick={(e) => {
                 e.stopPropagation();
                 setControlsLocked(!controlsLocked);
-                console.log(`[VideoContext] Lock button clicked: controlsLocked=${controlsLocked} -> ${!controlsLocked}`);
               }}
               className="text-white hover:opacity-100 focus:outline-none"
               data-testid="toggle-lock-button"
@@ -1756,7 +1576,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               onClick={(e) => {
                 e.stopPropagation();
                 setShowAspectRatio(!showAspectRatio);
-                console.log(`[VideoContext] Aspect ratio toggle: ${showAspectRatio} -> ${!showAspectRatio}`);
               }}
               className={`text-white hover:opacity-100 focus:outline-none ${showAspectRatio ? 'opacity-100' : 'opacity-60'}`}
               data-testid="toggle-aspect-ratio"
@@ -1771,7 +1590,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               onClick={(e) => {
                 e.stopPropagation();
                 setTrimActive(!trimActive);
-                console.log(`[VideoContext] Trim button clicked: trimActive=${trimActive} -> ${!trimActive}`);
               }}
               className="text-white hover:opacity-100 focus:outline-none"
               data-testid="toggle-trim-button"

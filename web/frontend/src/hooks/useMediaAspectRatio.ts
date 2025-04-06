@@ -4,11 +4,10 @@ import { CSSProperties } from 'react';
 // Define the hook's props interface
 interface UseMediaAspectRatioProps {
   initialMediaAspectRatio?: number;
-  projectAspectRatio: '9:16' | '16:9' | '1:1' | '4:5';
-  showLetterboxing: boolean;
-  mediaType: 'image' | 'video' | 'gallery';
-  // Pass dimensions when video metadata is loaded
-  videoDimensions?: { width: number; height: number } | null;
+  projectAspectRatio?: '9:16' | '16:9' | '1:1' | '4:5';
+  showLetterboxing?: boolean;
+  mediaType?: 'image' | 'video' | 'gallery';
+  videoContext?: any;
 }
 
 // Define the hook's return type
@@ -31,27 +30,30 @@ export const useMediaAspectRatio = ({
   projectAspectRatio,
   showLetterboxing,
   mediaType,
-  videoDimensions,
+  videoContext,
 }: UseMediaAspectRatioProps): UseMediaAspectRatioReturn => {
 
   const calculatedAspectRatio = useMemo(() => {
-    if (mediaType === 'video' && videoDimensions?.width && videoDimensions?.height) {
-      return videoDimensions.width / videoDimensions.height;
+    // Priority: 1. Dimensions from videoContext if available
+    if (videoContext?.sourceNode?.element && videoContext.sourceNode.element.videoWidth > 0) {
+      const videoElement = videoContext.sourceNode.element as HTMLVideoElement;
+      return videoElement.videoWidth / videoElement.videoHeight;
     }
+    // Priority: 2. Initial aspect ratio from props
     if (initialMediaAspectRatio && initialMediaAspectRatio > 0) {
       return initialMediaAspectRatio;
     }
     // Fallback logic might need refinement, but let's use project for images for now
     if (mediaType !== 'video') {
-        const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
+        const [projWidth, projHeight] = projectAspectRatio?.split(':').map(Number) || [9, 16];
         return projWidth / projHeight;
     }
     return DEFAULT_ASPECT_RATIO;
-  }, [initialMediaAspectRatio, mediaType, videoDimensions, projectAspectRatio]);
+  }, [initialMediaAspectRatio, mediaType, projectAspectRatio, videoContext]);
 
   // Calculate the style FOR THE MEDIA ELEMENT, replicating original getMediaStyle logic
   const mediaElementStyle = useMemo(() => {
-    const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
+    const [projWidth, projHeight] = projectAspectRatio?.split(':').map(Number) || [9, 16];
     const projectRatio = projWidth / projHeight;
     const mediaRatio = calculatedAspectRatio;
 
