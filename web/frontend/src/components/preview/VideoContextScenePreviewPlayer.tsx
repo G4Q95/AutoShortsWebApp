@@ -18,6 +18,7 @@ import { CSSProperties } from 'react';
 import { useMediaAspectRatio } from '@/hooks/useMediaAspectRatio';
 import { useTrimControls } from '@/hooks/useTrimControls';
 import PlayPauseButton from './PlayPauseButton';
+import { LockButton } from './LockButton';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -171,7 +172,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isDraggingScrubber, setIsDraggingScrubber] = useState<boolean>(false);
   const [isHovering, setIsHovering] = useState<boolean>(false);
-  const [controlsLocked, setControlsLocked] = useState<boolean>(false);
   const [trimActive, setTrimActive] = useState<boolean>(false);
   const [originalPlaybackTime, setOriginalPlaybackTime] = useState<number>(0);
   
@@ -213,6 +213,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
   // Add state for temporary aspect ratio indicator display
   const [showTemporaryIndicator, setShowTemporaryIndicator] = useState<boolean>(true);
+
+  // Add state for position locking
+  const [isPositionLocked, setIsPositionLocked] = useState<boolean>(false);
 
   // --- Playback State ---
   // Comment out original useState calls:
@@ -989,6 +992,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   }, [isPlaying, handlePlay, handlePause]);
   
+  // Add handler for toggling lock
+  const handleLockToggle = useCallback(() => {
+    setIsPositionLocked(prev => !prev);
+  }, []);
+  
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
@@ -1244,10 +1252,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         )}
       </button>
       
-      {/* Controls container positioned as an overlay at the bottom */}
-      <div 
-        className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || controlsLocked ? 'opacity-100' : 'opacity-0'}`}
-        style={{ 
+      {/* Controls Overlay */}
+      <div
+        className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || isPositionLocked ? 'opacity-100' : 'opacity-0'}`}
+        style={{
           backgroundColor: 'rgba(0, 0, 0, 0.6)',
           zIndex: 50, // Higher than media
           pointerEvents: 'auto',
@@ -1497,22 +1505,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           {/* Left button section */}
           <div className="flex-shrink-0 w-14 flex justify-start">
             {/* Lock button (left side) */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setControlsLocked(!controlsLocked);
-              }}
-              className="text-white hover:opacity-100 focus:outline-none"
-              data-testid="toggle-lock-button"
-              onMouseDown={(e) => e.stopPropagation()}
-              style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
-            >
-              {controlsLocked ? (
-                <LockIcon className="w-3 h-3" />
-              ) : (
-                <UnlockIcon className="w-3 h-3" />
-              )}
-            </button>
+            <LockButton isLocked={isPositionLocked} onToggle={handleLockToggle} />
           </div>
 
           {/* Time display (center) */}
