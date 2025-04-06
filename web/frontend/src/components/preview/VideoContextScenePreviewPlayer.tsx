@@ -17,6 +17,7 @@ import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
 import { CSSProperties } from 'react';
 import { useMediaAspectRatio } from '@/hooks/useMediaAspectRatio';
 import { useTrimControls } from '@/hooks/useTrimControls';
+import PlayPauseButton from './PlayPauseButton';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -977,6 +978,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
   };
+  
+  // --- Callbacks & Handlers ---
+  // Ensure these exist from previous steps
+  const handlePlayPauseToggle = useCallback(() => {
+    if (isPlaying) {
+      handlePause();
+    } else {
+      handlePlay();
+    }
+  }, [isPlaying, handlePlay, handlePause]);
   
   // Render loading state
   if (isLoading && !localMediaUrl) {
