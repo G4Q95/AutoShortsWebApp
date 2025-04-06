@@ -56,12 +56,12 @@ We will refactor the component incrementally using the following methodology to 
 
 ## 5. Subsequent Steps (Potential Order)
 
-*(Based on initial analysis, subject to change)*
+- **Cleanup (DONE):** Addressed ESLint warnings (unused variables, console logs, hook dependencies) in the main component. Reverted problematic attempt to use `<Image>` component, keeping standard `<img>` for now.
+- **Stability Fixes (DONE):** Resolved critical infinite re-render loops, video loading failures, image default duration issues, and image playback timer bugs. Correct visual aspect ratio handling restored.
 
-*   **Cleanup (Next):** Address ESLint warnings (unused variables, console logs) in the main component to improve readability before further refactoring.
 1.  **Refactor Trim Logic (Incremental Approach):** Extract trim state (`trimStart`, `trimEnd`, `activeHandle`, etc.) and related handlers/effects into a `useTrimControls` hook.
-    *   **Phase 1 (TODO):** Create hook, move only state variables and return them with setters. Update component to use hook state. **Keep handlers/effects in component.** Test thoroughly.
-    *   **Phase 2 (Future):** Carefully move drag handlers (`handleTrimDragMove`, `handleTrimDragEnd`) into the hook. Test.
+    *   **Phase 1 (DONE):** Hook created, state variables and setters moved into hook. Component updated to use hook state. Handlers/effects remain in component. Stability confirmed.
+    *   **Phase 2 (NEXT):** Carefully move drag handlers (`handleTrimDragMove`, `handleTrimDragEnd`) into the hook. Test.
     *   **Phase 3 (Future):** Move global listener effect into the hook. Test.
 2.  **Refactor Playback/Time Logic:** Consolidate state (`isPlaying`, `currentTime`, `duration`, `visualTime`) and the time update loop (`updateTimeLoop`) potentially into a `usePlaybackState` hook, coordinating with `VideoContext`.
 3.  **Address VideoContext Interaction:** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
