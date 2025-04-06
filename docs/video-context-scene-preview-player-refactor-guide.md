@@ -62,9 +62,9 @@ We will refactor the component incrementally using the following methodology to 
 1.  **Refactor Trim Logic (Incremental Approach):** Extract trim state (`trimStart`, `trimEnd`, `activeHandle`, etc.) and related handlers/effects into a `useTrimControls` hook.
     *   **Phase 1 (DONE):** Hook created, state variables and setters moved into hook. Component updated to use hook state. Handlers/effects remain in component. Stability confirmed.
     *   **Phase 2 (DONE):** Drag handlers (`handleTrimDragMove`, `handleTrimDragEnd`) moved into the hook. Component updated to pass dependencies and use handlers from hook. Tested okay.
-    *   **Phase 3 (NEXT):** Move global listener effect into the hook. Test.
-2.  **Refactor Playback/Time Logic:** Consolidate state (`isPlaying`, `currentTime`, `duration`, `visualTime`) and the time update loop (`updateTimeLoop`) potentially into a `usePlaybackState` hook, coordinating with `VideoContext`.
-3.  **Address VideoContext Interaction:** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
+    *   **Phase 3 (DONE):** Global listener effect moved into the hook. Tested okay.
+2.  **Refactor Playback/Time Logic (NEXT):** Consolidate state (`isPlaying`, `currentTime`, `duration`, `visualTime`) and the time update loop (`updateTimeLoop`) potentially into a `usePlaybackState` hook, coordinating with `VideoContext`.
+3.  **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
 4.  **Optimize Rendering:** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
 5.  **Investigate Canvas/Fallback Logic:** Understand the conditions leading to the canvas errors and the image fallback mechanism.
 
