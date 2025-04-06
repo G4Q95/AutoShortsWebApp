@@ -859,6 +859,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       const actualTrimEndCheck = userTrimEndRef.current ?? trimEnd; // Read from trim hook
       if (newTime >= actualTrimEndCheck) {
           // console.warn(`[rAF Time Loop] Reached end boundary (${newTime} >= ${actualTrimEndCheck}), pausing.`);
+          forceResetOnPlayRef.current = true; // *** ADDED: Set the reset flag ***
           handlePause(); 
           setCurrentTime(actualTrimEndCheck); // Use setter from hook
           setVisualTime(actualTrimEndCheck); // Use setter from hook
