@@ -72,6 +72,12 @@ We will refactor the component incrementally using the following methodology to 
     *   **Rationale:** This hyper-incremental approach isolates changes to minimize risk and make debugging easier.
 3.  **Extract Player Controls Component (Next Focus):** Create a dedicated `PlayerControls.tsx` component to handle the rendering of UI elements like the play/pause button, scrubber bar, time display, fullscreen button, etc. The main component will pass necessary state and callbacks as props. 
     *   **Goal:** Improve JSX readability, create a dedicated location for UI controls, and facilitate adding future controls (speed, resolution).
+    *   **Incremental UI Component Extraction (In Progress):**
+        *   **Step 1 (DONE):** Extracted `PlayPauseButton.tsx` - A simple button to toggle play/pause state.
+        *   **Step 2 (DONE):** Extracted `LockButton.tsx` - A button to toggle position locking for the controls overlay.
+        *   **Step 3 (DONE):** Extracted `TrimToggleButton.tsx` - A button to toggle trim mode (scissors/check icon).
+        *   **Step 4 (NEXT):** Extract `InfoButton.tsx` - A button to toggle aspect ratio information display.
+        *   **Future Steps:** Continue extracting remaining UI elements (fullscreen button, time display, timeline scrubber) incrementally before assembling them into a complete `PlayerControls` component.
 4.  **Diagnose Playback Log Spam (Following):** Use React DevTools profiler and targeted logging to understand the root cause of excessive console logs during video playback before attempting further major refactoring of the rAF loop or VideoContext logic.
 5.  **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
 6.  **Optimize Rendering (Future):** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.

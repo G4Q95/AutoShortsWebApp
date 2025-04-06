@@ -19,6 +19,7 @@ import { useMediaAspectRatio } from '@/hooks/useMediaAspectRatio';
 import { useTrimControls } from '@/hooks/useTrimControls';
 import PlayPauseButton from './PlayPauseButton';
 import { LockButton } from './LockButton';
+import { TrimToggleButton } from './TrimToggleButton';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -1535,22 +1536,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             </button>
             
             {/* Scissor/Save button (right side) */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setTrimActive(!trimActive);
-              }}
-              className="text-white hover:opacity-100 focus:outline-none"
-              data-testid="toggle-trim-button"
-              onMouseDown={(e) => e.stopPropagation()}
-              style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
-            >
-              {trimActive ? (
-                <CheckIcon className="w-3 h-3" />
-              ) : (
-                <ScissorsIcon className="w-3 h-3" />
-              )}
-            </button>
+            <TrimToggleButton 
+              isActive={trimActive}
+              onToggle={() => setTrimActive(!trimActive)}
+            />
           </div>
         </div>
       </div>
