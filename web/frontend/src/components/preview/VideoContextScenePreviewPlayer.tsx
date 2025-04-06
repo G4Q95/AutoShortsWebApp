@@ -217,6 +217,52 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add state for temporary aspect ratio indicator display
   const [showTemporaryIndicator, setShowTemporaryIndicator] = useState<boolean>(true);
 
+  // Define callbacks needed by the hook BEFORE calling the hook
+  const setIsPlayingWithLog = useCallback((value: boolean) => {
+    isPlayingRef.current = value;
+    setIsPlaying(value);
+  }, [isPlaying, setIsPlaying]);
+
+  const handlePause = useCallback(() => {
+    if (isImageType(mediaType)) {
+      setIsPlayingWithLog(false);
+      if (imageTimerRef.current) {
+        clearInterval(imageTimerRef.current);
+        imageTimerRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      if (forceResetOnPlayRef.current) {
+        forceResetOnPlayRef.current = false;
+      }
+      return;
+    }
+    const currentVideoContext = videoContext;
+    if (!currentVideoContext) {
+      return;
+    }
+    try {
+      if (typeof currentVideoContext.pause === 'function') {
+        currentVideoContext.pause();
+      } else {
+        console.error(`[VideoContext PAUSE] videoContext.pause is not a function`);
+      }
+    } catch (err) {
+      console.error(`[VideoContext PAUSE] Error calling pause:`, err);
+    }
+    setIsPlayingWithLog(false);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+  }, [
+    mediaType, videoContext, setIsPlayingWithLog, audioRef, imageTimerRef, 
+    forceResetOnPlayRef, animationFrameRef
+  ]);
+  
   // *** Use the simplified useTrimControls hook ***
   const {
     trimStart,       // Get from hook
@@ -229,11 +275,24 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setTrimManuallySet, // Get from hook
     userTrimEndRef,  // Get from hook
     timeBeforeDrag,    // Get from hook
-    setTimeBeforeDrag  // Get from hook
+    setTimeBeforeDrag,  // Get from hook
+    // Get handlers from hook:
+    handleTrimDragMove,
+    handleTrimDragEnd
   } = useTrimControls({
     initialTrimStart: trim.start,
     initialTrimEnd: trim.end,
-    initialDuration: duration
+    initialDuration: duration,
+    containerRef,
+    duration,
+    videoContext,
+    audioRef,
+    isPlaying,
+    onTrimChange,
+    setVisualTime,
+    setCurrentTime,
+    setIsPlaying,
+    forceResetOnPlayRef
   });
   
   // Call the new hook
@@ -454,14 +513,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
   }, [localMediaUrl, mediaType, sceneId, initialMediaAspectRatio, setVideoContext, setDuration, setTrimEnd, userTrimEndRef, setCurrentTime]); // REMOVED videoContext from dependencies
   
-  // Update the setIsPlayingWithLog function to update both state and ref
-  const setIsPlayingWithLog = useCallback((value: boolean) => {
-    // Update the ref first - this is what animation will check
-    isPlayingRef.current = value;
-    // Then update React state for UI
-    setIsPlaying(value);
-  }, [isPlaying, setIsPlaying]);
-  
   // Handle play/pause with trim boundaries
   const handlePlay = useCallback(() => {
     
@@ -570,69 +621,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       console.error(`[PLAY-DEBUG] Error calling play():`, error);
     }
   }, [isPlaying, videoContext, isReady, currentTime, trimStart, trimEnd, setIsPlayingWithLog, audioRef, audioUrl, videoRef, setShowFirstFrame, setCurrentTime]);
-  
-  const handlePause = useCallback(() => {
-    // For images without VideoContext, just update the state
-    if (isImageType(mediaType)) {
-      setIsPlayingWithLog(false);
-      
-      // Clear the image timer
-      if (imageTimerRef.current) {
-        clearInterval(imageTimerRef.current);
-        imageTimerRef.current = null;
-      }
-      
-      // Pause audio if available
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      
-      // Reset the force reset flag on pause
-      if (forceResetOnPlayRef.current) {
-        forceResetOnPlayRef.current = false;
-      }
-      
-      return;
-    }
-    
-    // For videos with VideoContext - capture current state to avoid race conditions
-    const currentVideoContext = videoContext;
-    
-    if (!currentVideoContext) {
-      console.log(`[VideoContext PAUSE] Cannot pause - videoContext is not available`);
-      return;
-    }
-
-    console.log("[VideoContext PAUSE] Pausing playback", {
-      currentTime: currentVideoContext.currentTime,
-      trimStart,
-      trimEnd,
-      "trim.end": trim.end,
-      "trimManuallySet": trimManuallySet
-    });
-    
-    try {
-      if (typeof currentVideoContext.pause === 'function') {
-        currentVideoContext.pause();
-      } else {
-        console.error(`[VideoContext PAUSE] videoContext.pause is not a function`);
-      }
-    } catch (err) {
-      console.error(`[VideoContext PAUSE] Error calling pause:`, err);
-    }
-    
-    setIsPlayingWithLog(false);
-    
-    // Cancel animation frame on pause
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    
-    // Pause the audio too
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-  }, [isPlaying, videoContext, setIsPlayingWithLog, audioRef, trimStart, trimEnd, trimManuallySet, mediaType, currentTime, imageTimerRef]);
   
   // Handle seeked time update
   const handleTimeUpdate = useCallback((newTime: number) => {
@@ -772,109 +760,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return style;
   }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
   
-  // Memoized function to handle mouse movement during trim bracket drag
-  const handleTrimDragMove = useCallback((event: MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    // Use activeHandle from useTrimControls hook
-    if (!activeHandle || !containerRef.current || duration <= 0) return;
-
-    const rect = containerRef.current.getBoundingClientRect();
-    const relativeX = event.clientX - rect.left;
-    const percentPosition = Math.max(0, Math.min(100, (relativeX / rect.width) * 100));
-    const newTime = (percentPosition / 100) * duration;
-    let visualUpdateTime = newTime;
-
-    if (activeHandle === 'start') {
-      const newStart = Math.max(0, Math.min(newTime, trimEnd - 0.1));
-      setTrimStart(newStart);
-      if (onTrimChange) onTrimChange(newStart, trimEnd);
-      visualUpdateTime = newStart;
-      if (videoContext) {
-        videoContext.currentTime = visualUpdateTime;
-      }
-    } else {
-      const newEnd = Math.min(duration, Math.max(newTime, trimStart + 0.1));
-      setTrimEnd(newEnd);
-      userTrimEndRef.current = newEnd;
-      if (onTrimChange) onTrimChange(trimStart, newEnd);
-      visualUpdateTime = newEnd;
-      if (videoContext) {
-        videoContext.currentTime = visualUpdateTime; 
-      }
-    }
-
-    setVisualTime(visualUpdateTime);
-    if (audioRef.current && isPlaying) {
-        audioRef.current.currentTime = visualUpdateTime;
-    }
-
-    setTrimManuallySet(true);
-  }, [activeHandle, containerRef, duration, trimEnd, trimStart, onTrimChange, videoContext, setTrimStart, setTrimEnd, setVisualTime, setTrimManuallySet, audioRef, isPlaying]);
-
-  // Memoized function to handle mouse up/leave during trim bracket drag
-  const handleTrimDragEnd = useCallback(() => {
-    // Use activeHandle from hook
-    if (!activeHandle) return;
-    
-    console.log(`[TrimDrag] Drag ended for handle: ${activeHandle}`);
-    const wasHandleActive = activeHandle;
-    setActiveHandle(null);
-    document.body.style.cursor = 'default';
-
-    const currentValidTrimStart = trimStart;
-    
-    if (wasHandleActive === 'end') {
-        console.warn(`[TrimDragEnd] Right handle released. Forcing pause, setting state, setting reset flag, and snapping playhead to start (${currentValidTrimStart}).`);
-        handlePause(); 
-        setIsPlayingWithLog(false);
-        forceResetOnPlayRef.current = true;
-        
-        if (videoContext) {
-            videoContext.currentTime = currentValidTrimStart;
-        }
-        setCurrentTime(currentValidTrimStart); 
-        setVisualTime(currentValidTrimStart); 
-    } else {
-      console.log(`[TrimDragEnd] Left handle released. No snap needed.`);
-      forceResetOnPlayRef.current = false;
-    }
-    
-    setTimeBeforeDrag(0);
-    
-  }, [activeHandle, setActiveHandle, videoContext, currentTime, trimStart, trimEnd, userTrimEndRef, timeBeforeDrag, setCurrentTime, setVisualTime, setTimeBeforeDrag, handlePause, setIsPlayingWithLog, forceResetOnPlayRef]);
-
-  // Effect for listeners REMAINS in the component for Phase 1
-  useEffect(() => {
-    // Only attach listeners if a handle is active (use activeHandle from hook)
-    if (!activeHandle) return;
-
-    console.log(`[TrimDrag] Attaching listeners for active handle: ${activeHandle}`);
-    const ownerDocument = containerRef.current?.ownerDocument || document;
-
-    // Use the memoized callbacks defined above
-    const moveHandler = (e: MouseEvent) => handleTrimDragMove(e);
-    const endHandler = () => handleTrimDragEnd();
-
-    ownerDocument.body.style.cursor = 'ew-resize';
-    ownerDocument.addEventListener('mousemove', moveHandler);
-    ownerDocument.addEventListener('mouseup', endHandler);
-    ownerDocument.addEventListener('mouseleave', endHandler);
-
-    return () => {
-      console.log(`[TrimDrag] Cleaning up listeners for handle: ${activeHandle}`);
-      ownerDocument.removeEventListener('mousemove', moveHandler);
-      ownerDocument.removeEventListener('mouseup', endHandler);
-      ownerDocument.removeEventListener('mouseleave', endHandler);
-      // Use activeHandle from hook in check
-      if (!activeHandle) { 
-         ownerDocument.body.style.cursor = 'default';
-      }
-    };
-    // Depend on the memoized handlers and activeHandle from hook
-  }, [activeHandle, handleTrimDragMove, handleTrimDragEnd, containerRef]);
-
   // Add useEffect for temporary aspect ratio display on mount
   useEffect(() => {
     // Show indicator when component mounts (new scene)
@@ -1067,6 +952,39 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
   };
+  
+  // Effect for listeners REMAINS in the component for Phase 1
+  useEffect(() => {
+    // Only attach listeners if a handle is active (use activeHandle from hook)
+    console.log(`[Listener Effect] Running. Active handle: ${activeHandle}`); // Log effect run
+    if (!activeHandle) return;
+
+    console.log(`[TrimDrag] Attaching listeners for active handle: ${activeHandle}`);
+    const ownerDocument = containerRef.current?.ownerDocument || document;
+
+    // Use the memoized callbacks defined above
+    const moveHandler = (e: MouseEvent) => handleTrimDragMove(e);
+    const endHandler = () => handleTrimDragEnd();
+
+    ownerDocument.body.style.cursor = 'ew-resize';
+    ownerDocument.addEventListener('mousemove', moveHandler);
+    ownerDocument.addEventListener('mouseup', endHandler);
+    ownerDocument.addEventListener('mouseleave', endHandler);
+
+    return () => {
+      console.log(`[TrimDrag] Cleaning up listeners for handle: ${activeHandle}`);
+      ownerDocument.removeEventListener('mousemove', moveHandler);
+      ownerDocument.removeEventListener('mouseup', endHandler);
+      ownerDocument.removeEventListener('mouseleave', endHandler);
+      // Use activeHandle from hook in check
+      // NOTE: This check might be flawed if activeHandle changes before cleanup runs
+      // A safer approach might be to always reset cursor if this specific effect instance is cleaning up.
+      if (!activeHandle) { 
+         ownerDocument.body.style.cursor = 'default';
+      }
+    };
+    // Ensure dependencies point to the handlers destructured from useTrimControls
+  }, [activeHandle, handleTrimDragMove, handleTrimDragEnd, containerRef]); 
   
   // Render loading state
   if (isLoading && !localMediaUrl) {
@@ -1429,6 +1347,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
+                        console.log("[Trim Bracket] Left Handle MouseDown");
                         setActiveHandle('start');
                         // --- Store time before drag --- 
                         setTimeBeforeDrag(videoContext ? videoContext.currentTime : currentTime);
@@ -1517,6 +1436,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
+                        console.log("[Trim Bracket] Right Handle MouseDown");
                         setActiveHandle('end');
                         // --- Store time before drag --- 
                         setTimeBeforeDrag(videoContext ? videoContext.currentTime : currentTime);
