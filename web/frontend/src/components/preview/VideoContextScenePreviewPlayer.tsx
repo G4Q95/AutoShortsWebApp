@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { PlayIcon, PauseIcon, LockIcon, UnlockIcon, ScissorsIcon, CheckIcon, Maximize2 as FullscreenIcon, Minimize2 as ExitFullscreenIcon } from 'lucide-react';
+import { PlayIcon, PauseIcon, ScissorsIcon, CheckIcon } from 'lucide-react';
 import { usePlaybackState } from '@/hooks/usePlaybackState';
 import { VideoContextProvider, useVideoContext } from '@/contexts/VideoContextProvider';
 import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
@@ -21,6 +21,7 @@ import PlayPauseButton from './PlayPauseButton';
 import { LockButton } from './LockButton';
 import { TrimToggleButton } from './TrimToggleButton';
 import { InfoButton } from './InfoButton';
+import { FullscreenButton } from './FullscreenButton';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -1219,21 +1220,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       </div>
       
       {/* Fullscreen toggle button - positioned below the expand/collapse button */}
-      <button
-        onClick={handleFullscreenToggle}
-        className="absolute top-9 right-2 bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
-        style={{
-          zIndex: 100, // Use a very high z-index to ensure it's above all other elements
-          pointerEvents: 'auto' // Explicitly ensure it captures pointer events
-        }}
-        data-testid="fullscreen-toggle"
-      >
-        {isFullscreen ? (
-          <ExitFullscreenIcon className="h-4 w-4" />
-        ) : (
-          <FullscreenIcon className="h-4 w-4" />
-        )}
-      </button>
+      <FullscreenButton 
+        isFullscreen={isFullscreen}
+        onToggle={handleFullscreenToggle}
+      />
       
       {/* Controls Overlay */}
       <div
