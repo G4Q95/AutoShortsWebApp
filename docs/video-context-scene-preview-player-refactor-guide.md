@@ -1,6 +1,6 @@
 # Refactoring Guide: VideoContextScenePreviewPlayer Component
 
-**Last Updated:** 2025-04-04
+**Last Updated:** 2025-04-06
 
 ## 1. Problem Statement
 
@@ -60,16 +60,24 @@ We will refactor the component incrementally using the following methodology to 
 - **Stability Fixes (DONE):** Resolved critical infinite re-render loops, video loading failures, image default duration issues, and image playback timer bugs. Correct visual aspect ratio handling restored.
 
 1.  **Refactor Trim Logic (Incremental Approach):** Extract trim state (`trimStart`, `trimEnd`, `activeHandle`, etc.) and related handlers/effects into a `useTrimControls` hook.
-    *   **Phase 1 (DONE):** Hook created, state variables and setters moved into hook. Component updated to use hook state. Handlers/effects remain in component. Stability confirmed.
+    *   **Phase 1 (DONE):** Hook created, state variables and setters moved into hook. Component updated to use hook state. Stability confirmed.
     *   **Phase 2 (DONE):** Drag handlers (`handleTrimDragMove`, `handleTrimDragEnd`) moved into the hook. Component updated to pass dependencies and use handlers from hook. Tested okay.
     *   **Phase 3 (DONE):** Global listener effect moved into the hook. Tested okay.
-2.  **Refactor Playback/Time Logic (NEXT):** Consolidate state (`isPlaying`, `currentTime`, `duration`, `visualTime`) and the time update loop (`updateTimeLoop`) potentially into a `usePlaybackState` hook, coordinating with `VideoContext`.
+2.  **Refactor Playback/Time Logic (Stage 4 - Revised Plan):** Separate playback-related *state* into a `usePlaybackState` hook, leaving core logic in the main component.
+    *   **(Previous Attempt Reverted):** An initial attempt to move both state *and* the rAF time loop logic into the hook caused media loading failures due to dependency complexities.
+    *   **New Plan (Simpler & Safer):**
+        *   Create `usePlaybackState` hook (`src/hooks/usePlaybackState.ts`).
+        *   Move only the `useState` calls for `isPlaying`, `currentTime`, and `visualTime` into this hook.
+        *   The hook will simply manage and return these state values and their setters.
+        *   The main `VideoContextScenePreviewPlayer` component will retain the `rAF Time Loop` logic (`useEffect` using `requestAnimationFrame`), the boundary-checking `useEffect`, associated refs (`isPlayingRef`, `animationFrameRef`), and all playback-related handlers (`handlePlay`, `handlePause`, `handleTimeUpdate`).
+        *   Update the main component to call `usePlaybackState` and use the returned state/setters, adjusting dependencies of handlers/effects as needed.
+    *   **Rationale:** This achieves state separation without disturbing the complex timing and boundary logic, minimizing risk.
 3.  **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
-4.  **Optimize Rendering:** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
-5.  **Investigate Canvas/Fallback Logic:** Understand the conditions leading to the canvas errors and the image fallback mechanism.
+4.  **Optimize Rendering (Future):** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
+5.  **Investigate Canvas/Fallback Logic (Future):** Understand the conditions leading to the canvas errors and the image fallback mechanism.
 
 ## 6. Open Questions / Areas to Investigate
 
 *   What specifically causes the `[FATAL ERROR] Canvas or container ref not available...` error seen intermittently?
 *   Can the aspect ratio and positioning calculations be performed less frequently or only when relevant properties change?
-*   How tightly coupled is this component to the main `VideoContext`? Can dependencies be reduced? 
+*   How tightly coupled is this component to the main `VideoContext`? Can dependencies be reduced?
