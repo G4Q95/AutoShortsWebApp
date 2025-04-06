@@ -70,9 +70,12 @@ We will refactor the component incrementally using the following methodology to 
         *   **Step 4.2 (DONE):** Update the dependencies of `useCallback` hooks (like `handlePause`, `handlePlay`, `setIsPlayingWithLog`) and `useEffect` hooks (like the rAF loop, boundary checks) to correctly use the state variables and setters obtained from `usePlaybackState`. Ensured logic uses the new state source.
         *   **Step 4.3 (DONE):** Thoroughly tested playback, pause, scrubbing, and boundary interactions after Step 4.2. Resolved bugs related to reset logic, video/image consistency, and paused frame display.
     *   **Rationale:** This hyper-incremental approach isolates changes to minimize risk and make debugging easier.
-3.  **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
-4.  **Optimize Rendering (Future):** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
-5.  **Investigate Canvas/Fallback Logic (Future):** Understand the conditions leading to the canvas errors and the image fallback mechanism.
+3.  **Extract Player Controls Component (Next Focus):** Create a dedicated `PlayerControls.tsx` component to handle the rendering of UI elements like the play/pause button, scrubber bar, time display, fullscreen button, etc. The main component will pass necessary state and callbacks as props. 
+    *   **Goal:** Improve JSX readability, create a dedicated location for UI controls, and facilitate adding future controls (speed, resolution).
+4.  **Diagnose Playback Log Spam (Following):** Use React DevTools profiler and targeted logging to understand the root cause of excessive console logs during video playback before attempting further major refactoring of the rAF loop or VideoContext logic.
+5.  **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
+6.  **Optimize Rendering (Future):** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
+7.  **Investigate Canvas/Fallback Logic (Future):** Understand the conditions leading to the canvas errors and the image fallback mechanism.
 
 ## 6. Open Questions / Areas to Investigate
 
