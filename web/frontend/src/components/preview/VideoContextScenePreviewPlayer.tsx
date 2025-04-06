@@ -1294,7 +1294,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   <div 
                     className="absolute"
                     style={{ 
-                      left: `2px`, // Align visual center (6px offset) with padding start (8px)
+                      left: '2px',
                       top: '0px',
                       height: '20px', 
                       width: '12px',
@@ -1360,9 +1360,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
                   <div 
                     className="absolute"
                     style={{ 
-                      // --- FIX: Nudge left slightly --- 
-                      left: `calc(100% - 16px)`, // Was 14px
-                      // --- End Fix ---
+                      left: 'calc(100% - 16px)',
                       top: '0px',
                       height: '20px',
                       width: '12px',
