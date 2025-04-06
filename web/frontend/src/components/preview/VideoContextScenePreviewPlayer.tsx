@@ -799,28 +799,30 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     if (!canvas) return; // Canvas must exist
 
+    // --- Reverted Logic --- 
     if (isPlaying && isVideoType(mediaType)) {
       // Playing Video: Show canvas, hide video element
       canvas.style.display = 'block';
       canvas.style.zIndex = '10'; // Ensure canvas is on top
       if (video) video.style.display = 'none';
     } else if (!isPlaying && isVideoType(mediaType)) {
-      // Paused Video: Hide canvas, show video element (for first frame/paused state)
-      canvas.style.display = 'none'; 
+      // Paused Video: Show the canvas (which VideoContext keeps updated), hide video element
+      canvas.style.display = 'block'; 
+      canvas.style.zIndex = '10'; // Keep canvas on top
       if (video) {
-         video.style.display = 'block';
-         video.style.zIndex = '5'; // Ensure video is below controls but visible
+         video.style.display = 'none'; // Keep fallback video hidden
       }
     } else if (isImageType(mediaType)) {
       // Image: Always hide canvas, image element is handled separately
       canvas.style.display = 'none';
       if (video) video.style.display = 'none'; // Also hide video element if it exists
     }
+    // --- End Reverted Logic ---
     
     // Note: The <img> element's visibility is implicitly handled by its presence/absence
     // and the conditions in the JSX render.
 
-  }, [isPlaying, mediaType, videoRef, canvasRef]); // Dependencies: playing state, media type, and refs
+  }, [isPlaying, mediaType, videoRef, canvasRef]); // Dependencies: Restore isPlaying, keep media type and refs
   
   // --- TIME UPDATE LOOP (Focus of Step 4.2) --- 
   useEffect(() => {
