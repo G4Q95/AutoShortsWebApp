@@ -1,29 +1,23 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import type { RefObject } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
-// --- Define Props --- 
-// Remove dependencies needed only by handlers/effects for now
-// Add dependencies needed for the handlers we are moving in
+// Define the structure for the hook's props
 interface UseTrimControlsProps {
-  initialTrimStart: number;
-  initialTrimEnd: number;
-  initialDuration: number;
-  // Dependencies for handlers:
-  containerRef: RefObject<HTMLDivElement | null>;
-  duration: number; // Need current duration
-  videoContext: any; // Need VideoContext for seeking
-  audioRef?: RefObject<HTMLAudioElement | null>; // Allow null
-  isPlaying?: boolean; // Optional playing state
-  onTrimChange?: (start: number, end: number) => void; // Callback prop
-  setVisualTime: React.Dispatch<React.SetStateAction<number>>; // State setters from parent
-  setCurrentTime: React.Dispatch<React.SetStateAction<number>>;
-  setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
-  forceResetOnPlayRef: RefObject<boolean>; // Ref from parent
+  initialTrimStart?: number;
+  initialTrimEnd?: number;
+  initialDuration?: number;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  duration: number;
+  videoContext: any; // Type for VideoContext instance
+  audioRef: React.RefObject<HTMLAudioElement | null>;
+  isPlaying: boolean;
+  onTrimChange?: (start: number, end: number) => void;
+  setVisualTime: (time: number) => void; // Setter for visual representation
+  setCurrentTime: (time: number) => void; // Setter for actual playback time
+  setIsPlaying: (playing: boolean) => void; // Setter for play state
+  forceResetOnPlayRef: React.MutableRefObject<boolean>;
 }
 
-// --- Define Return Type ---
-// Return state values AND their setters
-// Also return the handlers
+// Define the structure for the hook's return value
 interface UseTrimControlsReturn {
   trimStart: number;
   setTrimStart: React.Dispatch<React.SetStateAction<number>>;
@@ -33,20 +27,23 @@ interface UseTrimControlsReturn {
   setActiveHandle: React.Dispatch<React.SetStateAction<'start' | 'end' | null>>;
   trimManuallySet: boolean;
   setTrimManuallySet: React.Dispatch<React.SetStateAction<boolean>>;
-  userTrimEndRef: RefObject<number | null>; // Keep ref accessible if needed
+  userTrimEndRef: React.MutableRefObject<number | null>;
   timeBeforeDrag: number;
   setTimeBeforeDrag: React.Dispatch<React.SetStateAction<number>>;
-  // Moved handlers:
   handleTrimDragMove: (event: MouseEvent) => void;
   handleTrimDragEnd: () => void;
 }
 
-// --- Hook Implementation ---
+/**
+ * useTrimControls - Custom Hook for Managing Trim Handles and State
+ *
+ * Encapsulates the state and logic for trimming video/audio content,
+ * including drag handlers and effect for global mouse listeners.
+ */
 export function useTrimControls({
-  initialTrimStart,
-  initialTrimEnd,
-  initialDuration,
-  // Destructure new props
+  initialTrimStart = 0,
+  initialTrimEnd = 0,
+  initialDuration = 0,
   containerRef,
   duration,
   videoContext,
@@ -56,115 +53,146 @@ export function useTrimControls({
   setVisualTime,
   setCurrentTime,
   setIsPlaying,
-  forceResetOnPlayRef
+  forceResetOnPlayRef,
 }: UseTrimControlsProps): UseTrimControlsReturn {
-  // --- State Definitions --- 
-  // Move state definitions here
+  // --- State Management ---
   const [trimStart, setTrimStart] = useState<number>(initialTrimStart);
-  const [trimEnd, setTrimEnd] = useState<number>(initialTrimEnd > 0 ? initialTrimEnd : initialDuration); // Use initialDuration if initialTrimEnd is invalid
+  const [trimEnd, setTrimEnd] = useState<number>(initialTrimEnd);
   const [activeHandle, setActiveHandle] = useState<'start' | 'end' | null>(null);
   const [trimManuallySet, setTrimManuallySet] = useState<boolean>(false);
+  const userTrimEndRef = useRef<number | null>(null);
   const [timeBeforeDrag, setTimeBeforeDrag] = useState<number>(0);
-  const userTrimEndRef = useRef<number | null>(initialTrimEnd > 0 ? initialTrimEnd : initialDuration); // Initialize ref too
 
-  // --- Handlers & Effects (REMOVED FOR PHASE 1) ---
-  // --- Handlers (MOVED IN FOR PHASE 2) ---
+  // --- Effects ---
+  // Update state if initial props change (e.g., loading new scene data)
+  useEffect(() => {
+    setTrimStart(initialTrimStart);
+  }, [initialTrimStart]);
+
+  useEffect(() => {
+    if (initialTrimEnd > 0) {
+      setTrimEnd(initialTrimEnd);
+      // Initialize userTrimEndRef only if the initial value is valid
+      if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
+        userTrimEndRef.current = initialTrimEnd;
+      }
+    } else if (initialDuration > 0) {
+      // Fallback to duration if initialTrimEnd is not set
+      setTrimEnd(initialDuration);
+      if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
+        userTrimEndRef.current = initialDuration;
+      }
+    }
+    // This effect should run when either initialTrimEnd or initialDuration changes,
+    // but only update if the incoming values are valid.
+  }, [initialTrimEnd, initialDuration]);
+
+  // Update state based on calculated duration
+  useEffect(() => {
+    // Only update trimEnd based on duration if it hasn't been manually set
+    // or if the initial prop didn't provide a valid value.
+    if (duration > 0 && (trimEnd === 0 || trimEnd === 10) && !trimManuallySet) {
+      setTrimEnd(duration);
+      if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
+        userTrimEndRef.current = duration;
+      }
+    }
+  }, [duration, trimManuallySet, trimEnd]); // Depend on duration and trimManuallySet
+
+  // --- Event Handlers ---
   const handleTrimDragMove = useCallback((event: MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    // Use activeHandle from hook state
     if (!activeHandle || !containerRef.current || duration <= 0) return;
-
+    
     const rect = containerRef.current.getBoundingClientRect();
-    const relativeX = event.clientX - rect.left;
-    const percentPosition = Math.max(0, Math.min(100, (relativeX / rect.width) * 100));
-    const newTime = (percentPosition / 100) * duration;
-    let visualUpdateTime = newTime;
+    const x = event.clientX - rect.left;
+    let newTime = (x / rect.width) * duration;
+    newTime = Math.max(0, Math.min(newTime, duration)); // Clamp within 0 to duration
+
+    let newStart = trimStart;
+    let newEnd = trimEnd;
 
     if (activeHandle === 'start') {
-      const newStart = Math.max(0, Math.min(newTime, trimEnd - 0.1));
-      setTrimStart(newStart); // Use hook setter
-      if (onTrimChange) onTrimChange(newStart, trimEnd); // Use prop callback
-      visualUpdateTime = newStart;
-      // Seek video only if context available
-      if (videoContext) videoContext.currentTime = visualUpdateTime;
-      // NOTE: Removed audioRef seeking during drag for performance/simplicity
+      newStart = Math.min(newTime, trimEnd - 0.1); // Ensure start doesn't pass end
+      newStart = Math.max(0, newStart); // Ensure start doesn't go below 0
+      setTrimStart(newStart);
+      setVisualTime(newStart); // Update visual time to match handle
+      if (videoContext) videoContext.currentTime = newStart;
+      if (audioRef.current) audioRef.current.currentTime = newStart;
+      // console.log(`[TrimDrag][Start] Moved to: ${newStart.toFixed(3)}s`);
     } else { // activeHandle === 'end'
-      const newEnd = Math.min(duration, Math.max(newTime, trimStart + 0.1));
-      setTrimEnd(newEnd); // Use hook setter
-      userTrimEndRef.current = newEnd; // Update ref directly here
-      if (onTrimChange) onTrimChange(trimStart, newEnd); // Use prop callback
-      visualUpdateTime = newEnd;
-      // Seek video only if context available
-      if (videoContext) videoContext.currentTime = visualUpdateTime; 
-      // NOTE: Removed audioRef seeking during drag for performance/simplicity
+      newEnd = Math.max(newTime, trimStart + 0.1); // Ensure end doesn't pass start
+      newEnd = Math.min(duration, newEnd); // Ensure end doesn't exceed duration
+      setTrimEnd(newEnd);
+      userTrimEndRef.current = newEnd; // Update ref when manually dragging end handle
+      setVisualTime(newEnd); // Update visual time to match handle
+      if (videoContext) videoContext.currentTime = newEnd;
+      if (audioRef.current) audioRef.current.currentTime = newEnd;
+      // console.log(`[TrimDrag][End] Moved to: ${newEnd.toFixed(3)}s`);
+    }
+    
+    // Pause playback while dragging
+    if (isPlaying) {
+      setIsPlaying(false);
     }
 
-    setVisualTime(visualUpdateTime); // Use setter from props
-    setTrimManuallySet(true); // Use setter from hook state
-
-  }, [
-    activeHandle, containerRef, duration, trimEnd, trimStart, // State from hook
-    onTrimChange, videoContext, // Props
-    setTrimStart, setTrimEnd, userTrimEndRef, setTrimManuallySet, // Setters/refs from hook
-    setVisualTime // Setter from props
-  ]);
+  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoContext, audioRef, isPlaying, setIsPlaying, setVisualTime]);
 
   const handleTrimDragEnd = useCallback(() => {
-    // Use activeHandle from hook state
     if (!activeHandle) return;
+    // console.log(`[TrimDrag][${activeHandle}] Drag End. Final Start: ${trimStart.toFixed(3)}, End: ${trimEnd.toFixed(3)}`);
+    setActiveHandle(null);
+    setTrimManuallySet(true); // Mark trim as manually set after dragging
+    onTrimChange?.(trimStart, trimEnd);
     
-    const wasHandleActive = activeHandle;
-    setActiveHandle(null); // Use setter from hook state
-    document.body.style.cursor = 'default';
-
-    const currentValidTrimStart = trimStart; // Use state from hook
-    
-    if (wasHandleActive === 'end') {
-        // Use callbacks/refs/setters from props
-        console.warn(`[TrimDragEnd Hook] Right handle released. Forcing pause...`);
-        setIsPlaying(false); 
-        forceResetOnPlayRef.current = true; 
-        
-        // Seek video if available
-        if (videoContext) videoContext.currentTime = currentValidTrimStart;
-        setCurrentTime(currentValidTrimStart); 
-        setVisualTime(currentValidTrimStart); 
-    } else {
-      // Use ref from props
-      forceResetOnPlayRef.current = false; 
+    // --- Restore playback time AFTER drag --- 
+    const restoreTime = activeHandle === 'start' ? trimStart : trimEnd;
+    setCurrentTime(restoreTime);
+    if (videoContext) {
+      videoContext.currentTime = restoreTime;
     }
-    
-    setTimeBeforeDrag(0); // Use setter from hook state
-    
-  }, [
-    activeHandle, trimStart, // State from hook
-    setActiveHandle, setTimeBeforeDrag, // Setters from hook
-    videoContext, setIsPlaying, forceResetOnPlayRef, setCurrentTime, setVisualTime // Updated Props
-  ]);
+    if (audioRef.current) {
+      audioRef.current.currentTime = restoreTime;
+    }
+    // --- END Restore playback time --- 
 
-  // --- Listener Effect (MOVED IN FOR PHASE 3) ---
+    // Set the flag to force reset playback position on the next play command
+    forceResetOnPlayRef.current = true; 
+
+    // Reset cursor style
+    if (containerRef.current?.ownerDocument) {
+      containerRef.current.ownerDocument.body.style.cursor = 'default';
+    }
+  }, [activeHandle, trimStart, trimEnd, onTrimChange, setCurrentTime, videoContext, audioRef, containerRef, forceResetOnPlayRef]);
+
+  // --- Global Listener Effect ---
+  // Effect to add/remove global mouse listeners for dragging trim handles
   useEffect(() => {
-    // Only attach listeners if a handle is active
-    if (!activeHandle) return;
+    if (!activeHandle || !containerRef.current) return;
 
-    const ownerDocument = containerRef.current?.ownerDocument || document;
+    const ownerDocument = containerRef.current.ownerDocument;
+    if (!ownerDocument) return;
 
-    // Use the handlers defined within this hook
-    const moveHandler = (e: MouseEvent) => handleTrimDragMove(e);
-    const endHandler = () => handleTrimDragEnd();
-
+    // Change cursor while dragging
     ownerDocument.body.style.cursor = 'ew-resize';
+
+    const moveHandler = (event: MouseEvent) => {
+      // console.log("[TrimDrag][Global Move] Event Triggered");
+      handleTrimDragMove(event);
+    };
+    const endHandler = () => {
+      // console.log("[TrimDrag][Global Up/Leave] Event Triggered");
+      handleTrimDragEnd();
+    };
+
     ownerDocument.addEventListener('mousemove', moveHandler);
     ownerDocument.addEventListener('mouseup', endHandler);
-    ownerDocument.addEventListener('mouseleave', endHandler);
+    // Add mouseleave on the documentElement as a safety catch-all
+    ownerDocument.documentElement.addEventListener('mouseleave', endHandler);
 
     return () => {
-      // Cleanup listeners
       ownerDocument.removeEventListener('mousemove', moveHandler);
       ownerDocument.removeEventListener('mouseup', endHandler);
-      ownerDocument.removeEventListener('mouseleave', endHandler);
+      ownerDocument.documentElement.removeEventListener('mouseleave', endHandler);
       // Always reset cursor on cleanup for safety
       ownerDocument.body.style.cursor = 'default';
     };
