@@ -20,6 +20,7 @@ import { useTrimControls } from '@/hooks/useTrimControls';
 import PlayPauseButton from './PlayPauseButton';
 import { LockButton } from './LockButton';
 import { TrimToggleButton } from './TrimToggleButton';
+import { InfoButton } from './InfoButton';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -105,25 +106,6 @@ const smallRangeThumbStyles = `
     outline: none !important;
   }
 `;
-
-// Add Info icon for aspect ratio display toggle
-const InfoIcon = () => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="12" 
-    height="12" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="10"></circle>
-    <line x1="12" y1="16" x2="12" y2="12"></line>
-    <line x1="12" y1="8" x2="12.01" y2="8"></line>
-  </svg>
-);
 
 interface VideoContextScenePreviewPlayerProps {
   projectId: string;
@@ -1522,18 +1504,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           {/* Right buttons section */}
           <div className="flex-shrink-0 w-14 flex justify-end">
             {/* Aspect ratio info button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowAspectRatio(!showAspectRatio);
-              }}
-              className={`text-white hover:opacity-100 focus:outline-none ${showAspectRatio ? 'opacity-100' : 'opacity-60'}`}
-              data-testid="toggle-aspect-ratio"
-              onMouseDown={(e) => e.stopPropagation()}
-              style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto', marginRight: '4px' }}
-            >
-              <InfoIcon />
-            </button>
+            <InfoButton 
+              isActive={showAspectRatio}
+              onToggle={() => setShowAspectRatio(!showAspectRatio)}
+            />
             
             {/* Scissor/Save button (right side) */}
             <TrimToggleButton 
