@@ -145,13 +145,16 @@ export function useTrimControls({
     onTrimChange?.(trimStart, trimEnd);
     
     // --- Restore playback time AFTER drag --- 
-    const restoreTime = activeHandle === 'start' ? trimStart : trimEnd;
+    const restoreTime = trimStart;
     setCurrentTime(restoreTime);
+    setVisualTime(restoreTime);
     if (videoContext) {
-      videoContext.currentTime = restoreTime;
+      try { videoContext.currentTime = restoreTime; } 
+      catch(e) { console.warn("[TrimEnd] Error setting video context time:", e); }
     }
     if (audioRef.current) {
-      audioRef.current.currentTime = restoreTime;
+      try { audioRef.current.currentTime = restoreTime; } 
+      catch(e) { console.warn("[TrimEnd] Error setting audio time:", e); }
     }
     // --- END Restore playback time --- 
 
@@ -162,7 +165,11 @@ export function useTrimControls({
     if (containerRef.current?.ownerDocument) {
       containerRef.current.ownerDocument.body.style.cursor = 'default';
     }
-  }, [activeHandle, trimStart, trimEnd, onTrimChange, setCurrentTime, videoContext, audioRef, containerRef, forceResetOnPlayRef]);
+  }, [
+      activeHandle, trimStart, trimEnd, onTrimChange, 
+      setCurrentTime, setVisualTime,
+      videoContext, audioRef, containerRef, forceResetOnPlayRef
+  ]);
 
   // --- Global Listener Effect ---
   // Effect to add/remove global mouse listeners for dragging trim handles
