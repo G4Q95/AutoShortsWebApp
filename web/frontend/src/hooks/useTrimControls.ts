@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { RefObject } from 'react';
 
 // --- Define Props --- 
@@ -144,7 +144,34 @@ export function useTrimControls({
     videoContext, setIsPlaying, forceResetOnPlayRef, setCurrentTime, setVisualTime // Updated Props
   ]);
 
-  // useEffect(() => { ... listener effect ... }, [...]); // REMOVED FOR PHASE 1, will move in Phase 3
+  // --- Listener Effect (MOVED IN FOR PHASE 3) ---
+  useEffect(() => {
+    // Only attach listeners if a handle is active
+    if (!activeHandle) return;
+
+    const ownerDocument = containerRef.current?.ownerDocument || document;
+
+    // Use the handlers defined within this hook
+    const moveHandler = (e: MouseEvent) => handleTrimDragMove(e);
+    const endHandler = () => handleTrimDragEnd();
+
+    ownerDocument.body.style.cursor = 'ew-resize';
+    ownerDocument.addEventListener('mousemove', moveHandler);
+    ownerDocument.addEventListener('mouseup', endHandler);
+    ownerDocument.addEventListener('mouseleave', endHandler);
+
+    return () => {
+      // Cleanup listeners
+      ownerDocument.removeEventListener('mousemove', moveHandler);
+      ownerDocument.removeEventListener('mouseup', endHandler);
+      ownerDocument.removeEventListener('mouseleave', endHandler);
+      // Always reset cursor on cleanup for safety
+      ownerDocument.body.style.cursor = 'default';
+    };
+    // Dependencies: The handlers defined in this hook and the state/props they depend on.
+    // activeHandle is state internal to this hook.
+    // containerRef is a prop.
+  }, [activeHandle, handleTrimDragMove, handleTrimDragEnd, containerRef]);
 
   // --- Return Values ---
   // Return state values AND their setters

@@ -953,39 +953,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   };
   
-  // Effect for listeners REMAINS in the component for Phase 1
-  useEffect(() => {
-    // Only attach listeners if a handle is active (use activeHandle from hook)
-    console.log(`[Listener Effect] Running. Active handle: ${activeHandle}`); // Log effect run
-    if (!activeHandle) return;
-
-    console.log(`[TrimDrag] Attaching listeners for active handle: ${activeHandle}`);
-    const ownerDocument = containerRef.current?.ownerDocument || document;
-
-    // Use the memoized callbacks defined above
-    const moveHandler = (e: MouseEvent) => handleTrimDragMove(e);
-    const endHandler = () => handleTrimDragEnd();
-
-    ownerDocument.body.style.cursor = 'ew-resize';
-    ownerDocument.addEventListener('mousemove', moveHandler);
-    ownerDocument.addEventListener('mouseup', endHandler);
-    ownerDocument.addEventListener('mouseleave', endHandler);
-
-    return () => {
-      console.log(`[TrimDrag] Cleaning up listeners for handle: ${activeHandle}`);
-      ownerDocument.removeEventListener('mousemove', moveHandler);
-      ownerDocument.removeEventListener('mouseup', endHandler);
-      ownerDocument.removeEventListener('mouseleave', endHandler);
-      // Use activeHandle from hook in check
-      // NOTE: This check might be flawed if activeHandle changes before cleanup runs
-      // A safer approach might be to always reset cursor if this specific effect instance is cleaning up.
-      if (!activeHandle) { 
-         ownerDocument.body.style.cursor = 'default';
-      }
-    };
-    // Ensure dependencies point to the handlers destructured from useTrimControls
-  }, [activeHandle, handleTrimDragMove, handleTrimDragEnd, containerRef]); 
-  
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
