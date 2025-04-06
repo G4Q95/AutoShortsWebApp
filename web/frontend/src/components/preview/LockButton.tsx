@@ -12,12 +12,15 @@ interface LockButtonProps {
 export function LockButton({ isLocked, onToggle }: LockButtonProps) {
   return (
     <button
-      onClick={onToggle}
-      className="text-gray-400 hover:text-white transition-colors p-1 rounded"
-      aria-label={isLocked ? "Unlock scene position" : "Lock scene position"}
-      title={isLocked ? "Unlock scene position (allow drag)" : "Lock scene position (prevent drag)"}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className="text-white hover:opacity-100 focus:outline-none"
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
     >
-      {isLocked ? <LockClosedIcon className="h-4 w-4" /> : <LockOpenIcon className="h-4 w-4" />}
+      {isLocked ? <LockClosedIcon className="w-3 h-3" /> : <LockOpenIcon className="w-3 h-3" />}
     </button>
   );
 } 
