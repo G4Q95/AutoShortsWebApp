@@ -12,11 +12,17 @@ interface UsePlaybackStateReturn {
   setVisualTime: React.Dispatch<React.SetStateAction<number>>;
 }
 
+/**
+ * usePlaybackState - Custom Hook for Managing Playback State Variables
+ *
+ * Encapsulates the useState calls for isPlaying, currentTime, and visualTime.
+ * This hook intentionally *does not* contain complex logic like the rAF loop,
+ * boundary checks, or event handlers, which remain in the consuming component.
+ */
 export function usePlaybackState({}: UsePlaybackStateProps = {}): UsePlaybackStateReturn {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
-  // Initialize visualTime based on initial currentTime
-  const [visualTime, setVisualTime] = useState<number>(currentTime);
+  const [visualTime, setVisualTime] = useState<number>(0);
 
   // Effect to sync visualTime will remain in parent for now,
   // Or could be added here if needed later, depending on currentTime dependency.

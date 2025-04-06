@@ -12,7 +12,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PlayIcon, PauseIcon, LockIcon, UnlockIcon, ScissorsIcon, CheckIcon, Maximize2 as FullscreenIcon, Minimize2 as ExitFullscreenIcon } from 'lucide-react';
 import { usePlaybackState } from '@/hooks/usePlaybackState';
-import { VideoContextProvider } from '@/contexts/VideoContextProvider';
+import { VideoContextProvider, useVideoContext } from '@/contexts/VideoContextProvider';
 import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
 import { CSSProperties } from 'react';
 import { useMediaAspectRatio } from '@/hooks/useMediaAspectRatio';
@@ -213,7 +213,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add state for temporary aspect ratio indicator display
   const [showTemporaryIndicator, setShowTemporaryIndicator] = useState<boolean>(true);
 
-  // --- Get Playback State from Simple Hook FIRST --- 
+  // --- Playback State ---
+  // Comment out original useState calls:
+  // const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  // const [currentTime, setCurrentTime] = useState<number>(0);
+  // const [visualTime, setVisualTime] = useState<number>(0);
+
+  // Call the new hook instead:
   const {
     isPlaying,
     setIsPlaying,
@@ -221,16 +227,56 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setCurrentTime,
     visualTime,
     setVisualTime,
-  } = usePlaybackState(); // Call the simple hook BEFORE callbacks that use its setters
+  } = usePlaybackState(); 
 
-  // --- Define Callbacks AFTER Hooks --- 
+  // --- Other Hooks --- 
+  const {
+    trimStart,
+    setTrimStart,
+    trimEnd,
+    setTrimEnd,
+    activeHandle,
+    setActiveHandle,
+    trimManuallySet,
+    setTrimManuallySet,
+    userTrimEndRef,
+    timeBeforeDrag,
+    setTimeBeforeDrag,
+    handleTrimDragMove,
+    handleTrimDragEnd
+  } = useTrimControls({
+    initialTrimStart: trim.start,
+    initialTrimEnd: trim.end,
+    initialDuration: duration,
+    containerRef,
+    duration,
+    videoContext,
+    audioRef,
+    isPlaying,
+    onTrimChange,
+    setVisualTime,
+    setCurrentTime,
+    setIsPlaying, // Pass direct setter here
+    forceResetOnPlayRef
+  });
+  
+  const {
+    mediaElementStyle,
+    calculatedAspectRatio,
+  } = useMediaAspectRatio({
+    initialMediaAspectRatio,
+    projectAspectRatio,
+    showLetterboxing,
+    mediaType,
+    videoContext,
+  });
+
+  // --- CALLBACKS & HANDLERS (Keep existing dependencies for now) --- 
   const setIsPlayingWithLog = useCallback((value: boolean) => {
-    // Updates both state (from hook) and ref (for rAF loop)
     isPlayingRef.current = value;
-    setIsPlaying(value); // setIsPlaying now comes from usePlaybackState
-  }, [setIsPlaying]); // Dependency is the stable setter from usePlaybackState
+    setIsPlaying(value); // This now uses the setter from the hook
+  }, [setIsPlaying]); // DEPENDENCY WILL BE UPDATED IN NEXT STEP
 
-  // Define callbacks needed BEFORE calling hooks that depend on them
   const handlePause = useCallback(() => {
     if (isImageType(mediaType)) {
       setIsPlayingWithLog(false); // Use wrapper
@@ -273,75 +319,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     forceResetOnPlayRef, animationFrameRef // Add animationFrameRef back
   ]);
   
-  // *** Use the simplified useTrimControls hook ***
-  const {
-    trimStart,
-    setTrimStart,
-    trimEnd,
-    setTrimEnd,
-    activeHandle,
-    setActiveHandle,
-    trimManuallySet,
-    setTrimManuallySet,
-    userTrimEndRef,
-    timeBeforeDrag,
-    setTimeBeforeDrag,
-    handleTrimDragMove,
-    handleTrimDragEnd
-  } = useTrimControls({
-    initialTrimStart: trim.start,
-    initialTrimEnd: trim.end,
-    initialDuration: duration,
-    containerRef,
-    duration,
-    videoContext,
-    audioRef,
-    isPlaying,
-    onTrimChange,
-    setVisualTime,
-    setCurrentTime,
-    setIsPlaying, // Pass direct setter here
-    forceResetOnPlayRef
-  });
-  
-  // Call the new hook
-  const {
-    mediaElementStyle,
-    calculatedAspectRatio,
-  } = useMediaAspectRatio({
-    initialMediaAspectRatio,
-    projectAspectRatio,
-    showLetterboxing,
-    mediaType,
-    videoContext,
-  });
-
-  // Add useEffect for temporary aspect ratio display on mount
-  useEffect(() => {
-    // Show indicator when component mounts (new scene)
-    setShowTemporaryIndicator(true);
-    
-    // Hide after 2 seconds
-    const timer = setTimeout(() => {
-      setShowTemporaryIndicator(false);
-    }, 2000);
-    
-    return () => clearTimeout(timer);
-  }, [sceneId]); // Re-run when sceneId changes (new scene)
-  
-  // Add useEffect for aspect ratio changes
-  useEffect(() => {
-    // Show indicator when aspect ratio changes
-    setShowTemporaryIndicator(true);
-    
-    // Hide after 2 seconds
-    const timer = setTimeout(() => {
-      setShowTemporaryIndicator(false);
-    }, 2000);
-    
-    return () => clearTimeout(timer);
-  }, [projectAspectRatio]); // Re-run when projectAspectRatio changes
-
   // Function to get local media URL
   const getLocalMedia = useCallback(async () => {
     if (!mediaUrl) return;
@@ -1160,7 +1137,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             type="range"
             min="0"
             max="100"
-            value={positionToTimelineValue(currentTime)}
+            value={positionToTimelineValue(visualTime)}
             onChange={(e) => {
               // Only allow timeline scrubbing when not in trim mode
               if (!trimActive) {
@@ -1177,7 +1154,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             }}
             className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${trimActive ? 'pointer-events-none' : ''}`}
             style={{ 
-              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(currentTime)}%, #4b5563 ${positionToTimelineValue(currentTime)}%, #4b5563 100%)`,
+              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(visualTime)}%, #4b5563 ${positionToTimelineValue(visualTime)}%, #4b5563 100%)`,
               height: '4px',
               opacity: trimActive ? 0.4 : 1, // Make the scrubber translucent when in trim mode
               WebkitAppearance: 'none',
