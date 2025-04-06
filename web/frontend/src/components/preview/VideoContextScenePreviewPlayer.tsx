@@ -587,39 +587,65 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   }, [videoContext, isReady, currentTime, trimStart, trimEnd, audioUrl, videoRef, setShowFirstFrame, setCurrentTime, setIsPlayingWithLog, handlePause, forceResetOnPlayRef, mediaType, audioRef, imageTimerRef]); // Use wrapper
   
-  // Handle seeked time update
+  // Define handleTimeUpdate with updated dependencies
   const handleTimeUpdate = useCallback((newTime: number) => {
+    // This handler is mainly for direct scrubbing/setting time, not continuous playback updates
     if (isImageType(mediaType)) {
-      const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd);
+      const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd); // Read trim state
       setCurrentTime(clampedTime); // Use setter from hook
+      setVisualTime(clampedTime); // *** ADDED: Update visual time immediately ***
       
       if (imageTimerRef.current) {
         clearInterval(imageTimerRef.current);
         imageTimerRef.current = null;
       }
       setIsPlayingWithLog(false); // Use wrapper
-      
-      if (audioRef.current) {
-        audioRef.current.currentTime = clampedTime;
-      }
-      
-      if (forceResetOnPlayRef.current) {
-        forceResetOnPlayRef.current = false;
-      }
-      
+      if (audioRef.current) audioRef.current.currentTime = clampedTime;
+      if (forceResetOnPlayRef.current) forceResetOnPlayRef.current = false;
       return;
     }
     
     if (!videoContext) return;
+    const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd); // Read trim state
     
-    const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd);
-    videoContext.currentTime = clampedTime;
-    setCurrentTime(clampedTime); // Use setter from hook
-     
-    if (audioRef.current) {
-      audioRef.current.currentTime = clampedTime;
+    // Update video context (attempt)
+    try {
+       videoContext.currentTime = clampedTime;
+    } catch (e) {
+        console.warn("[handleTimeUpdate] Error setting videoContext time:", e);
     }
-  }, [videoContext, trimStart, trimEnd, setCurrentTime, setIsPlayingWithLog, audioRef, mediaType, imageTimerRef, forceResetOnPlayRef]); // Use wrapper
+    
+    // Update React state
+    setCurrentTime(clampedTime); // Use setter from hook
+    setVisualTime(clampedTime); // *** ADDED: Update visual time immediately ***
+    
+    // Update separate audio element if present
+    if (audioRef.current) {
+       try {
+         audioRef.current.currentTime = clampedTime;
+       } catch (e) {
+         console.warn("[handleTimeUpdate] Error setting audio time:", e);
+       }
+    }
+  }, [
+    videoContext, trimStart, trimEnd, // Read state from trim hook
+    setCurrentTime, setVisualTime, // *** ADDED setVisualTime to dependencies ***
+    setIsPlayingWithLog, // Other callbacks
+    audioRef, mediaType, imageTimerRef, forceResetOnPlayRef
+  ]);
+  
+  // Scrubber handlers
+  const handleScrubberMouseDown = useCallback(() => {
+    // ... (existing logic)
+  }, [currentTime, isPlaying, handlePause, setIsDraggingScrubber, setOriginalPlaybackTime]);
+
+  const handleScrubberMouseUp = useCallback(() => {
+     // ... (existing logic)
+  }, [
+    isDraggingScrubber, visualTime, // Read state from hook
+    setCurrentTime, // Setter from playback hook
+    videoContext, audioRef, forceResetOnPlayRef, setIsDraggingScrubber
+  ]);
   
   // Function to convert range input value to timeline position
   const timelineValueToPosition = (value: number): number => {
@@ -793,48 +819,104 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   }, [isPlaying, mediaType]);
   
-  // --- TIME UPDATE LOOP (Restored in main component) --- 
+  // --- TIME UPDATE LOOP (Focus of Step 4.2) --- 
   useEffect(() => {
     let isActive = true; 
     const updateTime = () => {
-      if (!isActive || !videoContext || !isPlayingRef.current) return;
-      const time = videoContext.currentTime;
-      setCurrentTime(time); // Use setter from hook
-      const actualTrimEnd = userTrimEndRef.current !== null ? userTrimEndRef.current : trimEnd;
-      if (time >= actualTrimEnd) {
-          console.warn(`[rAF Time Loop] Reached end boundary (${time} >= ${actualTrimEnd}), pausing.`);
-          forceResetOnPlayRef.current = true;
-          handlePause(); // Call main component's handlePause
-          return; 
-      } else if (time < trimStart) {
-          console.warn(`[rAF Time Loop] Time (${time}) is before trimStart (${trimStart}), seeking forward.`);
-          videoContext.currentTime = trimStart;
-          setCurrentTime(trimStart); 
+      if (!isActive || !isPlayingRef.current || !isReady) { // Check isReady state too
+        // Stop the loop if not playing or not ready
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+        return;
       }
+      
+      let newTime = 0;
+      if (isImageType(mediaType)) {
+        // Image logic - increments time manually
+        const effectiveEnd = userTrimEndRef.current ?? trimEnd; // Read from trim hook
+        newTime = Math.min(currentTime + 1 / 60, effectiveEnd); // Read currentTime from playback hook
+        // ... (audio sync logic for images, if any) ...
+        if (audioRef.current && audioRef.current.currentTime >= effectiveEnd) {
+            handlePause(); 
+            setCurrentTime(effectiveEnd); // Use setter from hook
+            setVisualTime(effectiveEnd); // Use setter from hook
+            return; 
+        }
+      } else if (videoContext) {
+        // Video logic - reads time from VideoContext
+        newTime = videoContext.currentTime;
+        // ... (audio sync logic for video, if any) ...
+      }
+      
+      // --- Key Change for Step 4.2 --- 
+      // Update both currentTime and visualTime using setters from usePlaybackState
+      setCurrentTime(newTime); 
+      if (!isDraggingScrubber) { // Only update visual time if not dragging scrubber
+         setVisualTime(newTime); 
+      }
+      // --- End Key Change --- 
+
+      const actualTrimEndCheck = userTrimEndRef.current ?? trimEnd; // Read from trim hook
+      if (newTime >= actualTrimEndCheck) {
+          // console.warn(`[rAF Time Loop] Reached end boundary (${newTime} >= ${actualTrimEndCheck}), pausing.`);
+          handlePause(); 
+          setCurrentTime(actualTrimEndCheck); // Use setter from hook
+          setVisualTime(actualTrimEndCheck); // Use setter from hook
+          // Stop the loop by returning here
+          return; 
+      } else if (newTime < trimStart) {
+          // console.warn(`[rAF Time Loop] Time (${newTime}) is before trimStart (${trimStart}), seeking forward.`);
+          if (videoContext) videoContext.currentTime = trimStart; // Read from trim hook
+          setCurrentTime(trimStart); // Use setter from hook
+          setVisualTime(trimStart); // Use setter from hook
+      }
+      
+      // Continue the loop only if still active and playing
       if (isActive && isPlayingRef.current) {
          animationFrameRef.current = requestAnimationFrame(updateTime);
       }
     };
 
-    if (isPlaying) {
-      isPlayingRef.current = true; 
+    // Start the loop if playing and ready
+    if (isPlaying && isReady) { // Read isPlaying state from hook
+      isPlayingRef.current = true; // Sync ref
+      // Cancel any previous frame before starting a new one
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = requestAnimationFrame(updateTime);
     } else {
-      isPlayingRef.current = false;
+      // Ensure loop stops if not playing or not ready
+      isPlayingRef.current = false; // Sync ref
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null; // Clear ref on cancel
+        animationFrameRef.current = null; 
       }
     }
 
+    // Cleanup function
     return () => {
       isActive = false;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      isPlayingRef.current = false; 
+      // isPlayingRef.current will be set by play/pause handlers
     };
-  }, [isPlaying, videoContext, trimStart, trimEnd, handlePause, userTrimEndRef, setCurrentTime, isPlayingRef, animationFrameRef]); // Correct dependencies
+  }, [
+      // Dependencies for the rAF loop:
+      isPlaying, isReady, // Read state from playback hook & local state
+      videoContext, // Context object
+      trimStart, trimEnd, // Read state from trim hook
+      userTrimEndRef, // Ref from trim hook
+      currentTime, // Read state from playback hook (for image increment)
+      isDraggingScrubber, // Local state
+      mediaType, // Prop
+      audioRef, // Ref
+      // Setters from usePlaybackState:
+      setCurrentTime, 
+      setVisualTime, 
+      // Other Callbacks used inside:
+      handlePause 
+      // isPlayingRef and animationFrameRef are refs, not needed in deps
+  ]); 
   
   // Effect to clear image timer on unmount
   useEffect(() => {
