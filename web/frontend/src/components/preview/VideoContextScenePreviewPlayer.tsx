@@ -186,7 +186,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // VideoContext state
   const [videoContext, setVideoContext] = useState<any>(null);
-  const [duration, setDuration] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(() => isImageType(mediaType) ? 30 : 0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isReady, setIsReady] = useState<boolean>(false);
   
@@ -478,6 +478,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // For images without VideoContext, update state and start animation
     if (isImageType(mediaType)) {
       // Handle image playback 
+      // Clear any existing timer
+      if (imageTimerRef.current) {
+        clearInterval(imageTimerRef.current);
+        imageTimerRef.current = null;
+      }
+
       setIsPlayingWithLog(true);
       
       // Play the audio if available
@@ -486,7 +492,22 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         audioRef.current.play().catch(err => console.error("[PLAY-DEBUG] Error playing audio for image:", err));
       }
       
-      // Rest of image play logic remains the same
+      // Start the timer to update currentTime
+      const intervalDuration = 100; // Update every 100ms
+      imageTimerRef.current = setInterval(() => {
+        setCurrentTime(prevTime => {
+          const newTime = prevTime + (intervalDuration / 1000);
+          if (newTime >= trimEnd) {
+            // Reached the end, pause and clear timer
+            console.log(`[Image Timer] Reached end (${newTime} >= ${trimEnd}), pausing.`);
+            handlePause(); // This will also clear the interval via handlePause's logic
+            return trimEnd; // Set time exactly to trimEnd
+          } else {
+            return newTime;
+          }
+        });
+      }, intervalDuration) as unknown as number; // Cast needed for Node Timeout type vs number
+
       return;
     }
     
@@ -555,6 +576,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (isImageType(mediaType)) {
       setIsPlayingWithLog(false);
       
+      // Clear the image timer
+      if (imageTimerRef.current) {
+        clearInterval(imageTimerRef.current);
+        imageTimerRef.current = null;
+      }
+      
       // Pause audio if available
       if (audioRef.current) {
         audioRef.current.pause();
@@ -609,10 +636,17 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Handle seeked time update
   const handleTimeUpdate = useCallback((newTime: number) => {
-    // For images, update state directly and sync audio if available
+    // For images, clear timer, update state directly and sync audio if available
     if (isImageType(mediaType)) {
       const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd);
       setCurrentTime(clampedTime);
+      
+      // Clear the timer if user scrubs manually
+      if (imageTimerRef.current) {
+        clearInterval(imageTimerRef.current);
+        imageTimerRef.current = null;
+      }
+      setIsPlayingWithLog(false); // Ensure playing state is false after manual scrub
       
       // Update audio position too
       if (audioRef.current) {
@@ -1011,6 +1045,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
   }, [isPlaying, videoContext, trimStart, trimEnd, handlePause, userTrimEndRef, setCurrentTime, animationFrameRef, isPlayingRef]);
   
+  // Effect to clear image timer on unmount
+  useEffect(() => {
+    // Return cleanup function
+    return () => {
+      if (imageTimerRef.current) {
+        clearInterval(imageTimerRef.current);
+      }
+    };
+  }, []); // Empty dependency array ensures this runs only on mount and unmount
+  
   // Add formatTime function back inside the component scope
   const formatTime = (seconds: number, showTenths: boolean = false): string => {
     const mins = Math.floor(seconds / 60);
@@ -1156,12 +1200,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             style={{ display: 'none' }}
             data-testid="audio-element"
             onLoadedMetadata={() => {
-              // Update duration for images when audio loads
-              if (mediaType === 'image' && audioRef.current) {
-                console.log(`[VideoContext] Audio loaded for image, duration: ${audioRef.current.duration}`);
-                setDuration(audioRef.current.duration);
-                setTrimEnd(audioRef.current.duration);
-              }
+              // NO-OP for duration setting for images here - handled by img onLoad
             }}
           />
         )}
@@ -1215,17 +1254,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
               data-testid="fallback-image"
               onLoad={() => {
                 const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
-                console.log(`[DEBUG-FALLBACK][${instanceId}] Image loaded successfully`);
+                console.log(`[Image onLoad][${instanceId}] Fired for scene ${sceneId}. Media Type: ${mediaType}`);
                 
-                // For images with audio, use audio duration
-                if (audioRef.current && audioRef.current.duration) {
-                  setDuration(audioRef.current.duration);
-                  setTrimEnd(audioRef.current.duration);
-                } else {
-                  // Default duration for images without audio
-                  setDuration(30);
-                  setTrimEnd(30);
-                }
+                // ALWAYS set default 30s duration for images
+                console.log(`[Image onLoad][${instanceId}] Setting default duration (30s).`);
+                setTrimEnd(30);
                 
                 setIsLoading(false);
                 setIsReady(true);
