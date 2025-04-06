@@ -65,13 +65,11 @@ We will refactor the component incrementally using the following methodology to 
     *   **Phase 3 (DONE):** Global listener effect moved into the hook. Tested okay.
 2.  **Refactor Playback/Time Logic (Stage 4 - Revised Plan):** Separate playback-related *state* into a `usePlaybackState` hook, leaving core logic in the main component.
     *   **(Previous Attempt Reverted):** An initial attempt to move both state *and* the rAF time loop logic into the hook caused media loading failures due to dependency complexities.
-    *   **New Plan (Simpler & Safer):**
-        *   Create `usePlaybackState` hook (`src/hooks/usePlaybackState.ts`).
-        *   Move only the `useState` calls for `isPlaying`, `currentTime`, and `visualTime` into this hook.
-        *   The hook will simply manage and return these state values and their setters.
-        *   The main `VideoContextScenePreviewPlayer` component will retain the `rAF Time Loop` logic (`useEffect` using `requestAnimationFrame`), the boundary-checking `useEffect`, associated refs (`isPlayingRef`, `animationFrameRef`), and all playback-related handlers (`handlePlay`, `handlePause`, `handleTimeUpdate`).
-        *   Update the main component to call `usePlaybackState` and use the returned state/setters, adjusting dependencies of handlers/effects as needed.
-    *   **Rationale:** This achieves state separation without disturbing the complex timing and boundary logic, minimizing risk.
+    *   **Revised Plan (Simpler & Safer - Further Broken Down):** 
+        *   **Step 4.1 (Current Focus):** Create the basic `usePlaybackState` hook (`src/hooks/usePlaybackState.ts`) containing only the `useState` calls for `isPlaying`, `currentTime`, and `visualTime`. In `VideoContextScenePreviewPlayer.tsx`, import the hook, comment out the original `useState` lines for these variables, and call the hook, destructuring its results. **Make NO other changes yet.** Goal: Verify hook creation and basic integration don't break the build.
+        *   **Step 4.2 (Next):** Update the dependencies of `useCallback` hooks (like `handlePause`, `handlePlay`, `setIsPlayingWithLog`) and `useEffect` hooks (like the rAF loop, boundary checks) to correctly use the state variables and setters obtained from `usePlaybackState`. Goal: Ensure logic uses the new state source.
+        *   **Step 4.3 (Following):** Thoroughly test playback, pause, scrubbing, and boundary interactions after Step 4.2.
+    *   **Rationale:** This hyper-incremental approach isolates changes to minimize risk and make debugging easier.
 3.  **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
 4.  **Optimize Rendering (Future):** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
 5.  **Investigate Canvas/Fallback Logic (Future):** Understand the conditions leading to the canvas errors and the image fallback mechanism.
