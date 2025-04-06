@@ -589,7 +589,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Reset time if needed
     if (currentTime < trimStart || currentTime >= trimEnd) {
-      console.log(`[PLAY-DEBUG] Current time ${currentTime} is outside trim bounds [${trimStart}, ${trimEnd}], resetting to ${trimStart}`);
+      console.log(`[handlePlay Boundary Check] Time (${currentTime}) outside/at bounds [${trimStart}, ${trimEnd}]. Resetting to ${trimStart}`);
       
       try {
         videoContext.currentTime = trimStart;
@@ -892,6 +892,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       const actualTrimEnd = userTrimEndRef.current !== null ? userTrimEndRef.current : trimEnd;
       if (time >= actualTrimEnd) {
           console.warn(`[rAF Time Loop] Reached end boundary (${time} >= ${actualTrimEnd}), pausing.`);
+          forceResetOnPlayRef.current = true; // Set flag to reset on next play
           handlePause(); // Call pause handler
           return; // Stop the loop for this frame after pausing
       } else if (time < trimStart) {
