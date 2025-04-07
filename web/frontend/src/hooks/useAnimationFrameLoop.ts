@@ -14,7 +14,7 @@ interface UseAnimationFrameLoopProps {
   trimEnd: number;
   
   // Update callbacks
-  onUpdate: (newTime: number) => void; 
+  onUpdate: (newTime: number, isDraggingScrubber: boolean) => void; 
   onPause: () => void;
   
   // Media type flag
@@ -30,6 +30,7 @@ interface UseAnimationFrameLoopProps {
   isDraggingScrubber?: boolean;
   userTrimEndRef?: React.MutableRefObject<number | null>;
   justResetRef: React.MutableRefObject<boolean>;
+  isResumingRef: React.MutableRefObject<boolean>;
 }
 
 /**
@@ -89,6 +90,7 @@ export function useAnimationFrameLoop({
   isDraggingScrubber = false,
   userTrimEndRef,
   justResetRef,
+  isResumingRef,
 }: UseAnimationFrameLoopProps): UseAnimationFrameLoopReturn {
   // Internal ref to track active state across renders
   const isActiveRef = useRef(true);
@@ -114,6 +116,11 @@ export function useAnimationFrameLoop({
     
     // Define the update function for the animation frame
     const updateTime = () => {
+      const isFirstResumeFrame = isResumingRef.current;
+      if (isFirstResumeFrame) {
+        isResumingRef.current = false; // Consume the flag
+      }
+      
       // Add diagnostic logging
       if (videoContext && typeof videoContext.currentTime !== 'undefined') {
         // Only log every 2 seconds for readability
@@ -133,7 +140,7 @@ export function useAnimationFrameLoop({
         console.log(`[rAF] Force reset flag is TRUE. Resetting time to trimStart: ${startTime.toFixed(3)}`);
         
         // Call onUpdate to reset the component's time state
-        onUpdate(startTime);
+        onUpdate(startTime, isDraggingScrubber);
         
         // Consume the flag
         forceResetOnPlayRef.current = false;
@@ -163,12 +170,12 @@ export function useAnimationFrameLoop({
       // Calculate new time value
       // If videoContext time is changing, use it; otherwise manually increment
       let newTime;
-      if (videoContext && 
-          typeof videoContext.currentTime !== 'undefined' && 
-          Math.abs(videoContext.currentTime - lastVideoContextTimeRef.current) > 0.01) {
-        // VideoContext time is changing, use it
-        newTime = videoContext.currentTime;
-        lastVideoContextTimeRef.current = videoContext.currentTime;
+      const vcTime = videoContext ? videoContext.currentTime : undefined;
+      const vcTimeChanged = videoContext && typeof vcTime !== 'undefined' && Math.abs(vcTime - lastVideoContextTimeRef.current) > 0.01;
+
+      if (vcTimeChanged) {
+        newTime = vcTime;
+        lastVideoContextTimeRef.current = vcTime;
       } else {
         // VideoContext time isn't changing, manually increment
         newTime = currentTime + deltaTime;
@@ -194,13 +201,28 @@ export function useAnimationFrameLoop({
         }
       }
       
+      // *** DETAILED LOGGING ON FIRST RESUME FRAME ***
+      if (isFirstResumeFrame) {
+        console.log('[rAF RESUME LOG] ----- First Frame After Resume -----');
+        console.log(`[rAF RESUME LOG] performance.now(): ${now.toFixed(0)}`);
+        console.log(`[rAF RESUME LOG] lastFrameTimeRef: ${lastFrameTime.toFixed(0)}`);
+        console.log(`[rAF RESUME LOG] Calculated deltaTime: ${deltaTime.toFixed(3)}s`);
+        console.log(`[rAF RESUME LOG] currentTime (from state): ${currentTime.toFixed(3)}`);
+        console.log(`[rAF RESUME LOG] videoContext.currentTime: ${(vcTime !== undefined ? vcTime.toFixed(3) : 'N/A')}`);
+        console.log(`[rAF RESUME LOG] vcTimeChanged: ${vcTimeChanged}`);
+        console.log(`[rAF RESUME LOG] Calculated newTime: ${newTime.toFixed(3)}`);
+        console.log('[rAF RESUME LOG] ------------------------------------');
+      }
+      
       // Check justResetRef before processing boundary
       if (justResetRef.current) {
         console.log(`[rAF] Ignoring first update after reset (currentTime: ${newTime.toFixed(3)}). Resetting justResetRef.`);
         justResetRef.current = false; // Consume the flag
+        // Still update state even when ignoring boundaries after reset
+        onUpdate(newTime, isDraggingScrubber); // Pass dragging state
       } else {
         // ** CALL onUpdate for CONTINUOUS TIME UPDATES **
-        onUpdate(newTime); // Update time on each frame
+        onUpdate(newTime, isDraggingScrubber); // Pass dragging state
         
         // Handle end of media boundary
         const actualTrimEndCheck = userTrimEndRef?.current ?? trimEnd;
@@ -213,7 +235,7 @@ export function useAnimationFrameLoop({
           onPause();
           
           // Update time to the end position
-          onUpdate(actualTrimEndCheck); // << KEEP: Force time to boundary
+          onUpdate(actualTrimEndCheck, isDraggingScrubber); // << KEEP: Force time to boundary
           
           return; // Stop the loop
         } else if (newTime < trimStart) {
@@ -228,7 +250,7 @@ export function useAnimationFrameLoop({
           }
           
           // Update time to the start position
-          onUpdate(trimStart); // << KEEP: Force time to boundary
+          onUpdate(trimStart, isDraggingScrubber); // << KEEP: Force time to boundary
         }
       }
       
@@ -242,6 +264,9 @@ export function useAnimationFrameLoop({
     if (isPlaying && isReady) {
       // Start the loop
       isPlayingRef.current = true;
+      
+      // *** FIX: Reset last frame time on start/resume ***
+      lastFrameTimeRef.current = performance.now(); // Reset timer for delta calculation
       
       // Cancel any previous frame before starting a new one
       if (animationFrameRef.current) {
@@ -284,7 +309,8 @@ export function useAnimationFrameLoop({
     forceResetOnPlayRef,
     animationFrameRef,
     userTrimEndRef,
-    justResetRef
+    justResetRef,
+    isResumingRef
   ]);
   
   // Return empty object for now

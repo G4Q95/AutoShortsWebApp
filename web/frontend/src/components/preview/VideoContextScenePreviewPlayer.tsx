@@ -217,6 +217,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
   // *** ADDED: Ref to track if playback was just reset ***
   const justResetRef = useRef<boolean>(false);
+  const isResumingRef = useRef<boolean>(false);
 
   // --- Playback State ---
   const {
@@ -268,14 +269,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   }, [trimManuallySet]);
   
   const {
-    mediaElementStyle,
     calculatedAspectRatio,
+    mediaElementStyle,
   } = useMediaAspectRatio({
     initialMediaAspectRatio,
     projectAspectRatio,
     showLetterboxing,
     mediaType,
-    videoContext,
   });
 
   // Initialize the bridge hook *before* callbacks that use it
@@ -332,7 +332,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
     
     // --- Video Logic --- 
+    console.log(`[handlePause LOG] Pausing at currentTime (state): ${currentTime.toFixed(3)}`);
+    if (bridge.videoContext) {
+      console.log(`[handlePause LOG] videoContext.currentTime BEFORE pause(): ${(bridge.videoContext.currentTime !== undefined ? bridge.videoContext.currentTime.toFixed(3) : 'N/A')}`);
+    }
     bridge.pause(); // *** USE BRIDGE PAUSE ***
+    if (bridge.videoContext) {
+      // Log may be slightly delayed, but gives an idea
+      queueMicrotask(() => {
+         if(bridge.videoContext) { // Add null check inside microtask
+           console.log(`[handlePause LOG] videoContext.currentTime AFTER pause() (queued): ${(bridge.videoContext.currentTime !== undefined ? bridge.videoContext.currentTime.toFixed(3) : 'N/A')}`);
+         }
+      });
+    }
     setIsPlayingWithLog(false); // Use wrapper
     
     // Cancel the main animation frame loop when pausing video
@@ -372,15 +384,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     const wasReset = forceResetOnPlayRef.current;
     const startTime = wasReset ? trimStart : currentTime; // Use current time unless we need to reset
-    
-    // Log status for debugging
-    console.log(`[DEBUG][handlePlay] Force reset flag is ${wasReset ? 'TRUE' : 'FALSE'}. Target startTime: ${startTime.toFixed(3)}`); // LOG
+    console.log(`[handlePlay LOG] Resuming/Starting at startTime: ${startTime.toFixed(3)} (currentTime state: ${currentTime.toFixed(3)})`);
     
     // Update React state (visuals) immediately at the start
     if (wasReset) {
       console.log(`[DEBUG][handlePlay] Applying reset state: setCurrentTime/setVisualTime to ${startTime.toFixed(3)}`); // LOG
       setCurrentTime(startTime);
       setVisualTime(startTime);
+    }
+    
+    if (!wasReset && bridge.videoContext) {
+      const vcTimeBeforeSeek = bridge.videoContext.currentTime;
+      console.log(`[handlePlay LOG] vcTime BEFORE seek(): ${(vcTimeBeforeSeek !== undefined ? vcTimeBeforeSeek.toFixed(3) : 'N/A')}`);
+      bridge.seek(startTime);
+      const vcTimeAfterSeek = bridge.videoContext.currentTime;
+       // Seek might be async, log current value and maybe queue one
+      console.log(`[handlePlay LOG] vcTime IMMEDIATELY AFTER seek(): ${(vcTimeAfterSeek !== undefined ? vcTimeAfterSeek.toFixed(3) : 'N/A')}`);
+      queueMicrotask(() => {
+         if (bridge.videoContext) {
+           console.log(`[handlePlay LOG] vcTime AFTER seek() (queued): ${(bridge.videoContext.currentTime !== undefined ? bridge.videoContext.currentTime.toFixed(3) : 'N/A')}`);
+         }
+      });
     }
     
     // If we're at the end, or need to reset, set time explicitly
@@ -418,17 +442,24 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       setShowFirstFrame(false);
     }
     
+    setIsPlayingWithLog(true);
+    isResumingRef.current = true; // Set the flag for the animation loop
+
     // Handle video playback
     if (isVideoType(mediaType)) {
       if (bridge.videoContext && bridge.isReady) {
         console.log("[handlePlay] Bridge is ready and media is video - calling bridge.play()");
         
-        // Check context state - handle both string and numeric state formats
-        const contextState = bridge.videoContext.state;
-        console.log(`[handlePlay] Current bridge state is: ${contextState} (${typeof contextState})`);
-        
-        // Try to play regardless of state - the bridge.play() will handle the errors
+        const vcTimeBeforePlay = bridge.videoContext.currentTime;
+        console.log(`[handlePlay LOG] vcTime BEFORE play(): ${(vcTimeBeforePlay !== undefined ? vcTimeBeforePlay.toFixed(3) : 'N/A')}`);
         bridge.play();
+        const vcTimeAfterPlay = bridge.videoContext.currentTime;
+        console.log(`[handlePlay LOG] vcTime IMMEDIATELY AFTER play(): ${(vcTimeAfterPlay !== undefined ? vcTimeAfterPlay.toFixed(3) : 'N/A')}`);
+        queueMicrotask(() => {
+          if (bridge.videoContext) {
+            console.log(`[handlePlay LOG] vcTime AFTER play() (queued): ${(bridge.videoContext.currentTime !== undefined ? bridge.videoContext.currentTime.toFixed(3) : 'N/A')}`);
+          }
+        });
         console.log("[handlePlay] Bridge play called successfully");
       } else {
         console.warn(`[handlePlay] Bridge not ready, attempting direct video element fallback`);
@@ -559,11 +590,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     currentTime,
     trimStart,
     trimEnd,
-    onUpdate: (newTime) => {
-      // Update both currentTime and visualTime 
+    onUpdate: (newTime, isDraggingScrubber) => {
+      // Update the actual playback time state
       setCurrentTime(newTime);
       
-      // Only update visual time if not dragging scrubber
+      // Only update the visual time if the user is NOT dragging the scrubber
       if (!isDraggingScrubber) {
         setVisualTime(newTime);
       }
@@ -575,10 +606,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Additional needed properties
     videoContext,
     audioRef,
-    isDraggingScrubber,
+    isDraggingScrubber, // Pass the dragging state
     userTrimEndRef,
     // *** ADDED: Pass the new ref ***
     justResetRef,
+    isResumingRef, // Pass the ref here
   });
   
   // Function to get local media URL
@@ -825,162 +857,84 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // --- Scrubber Handlers (for Native Input) ---
   const handleScrubberDragStart = useCallback(() => {
-    // Still needed to pause playback and set dragging state
-    if (isPlaying) handlePause();
     setIsDraggingScrubber(true);
-  }, [isPlaying, handlePause, setIsDraggingScrubber]);
-  
+    // Optionally pause playback when dragging starts
+    if (isPlaying) {
+      handlePause();
+    }
+  }, [isPlaying, handlePause]); // Depend on isPlaying and handlePause
+
   // Called by TimelineControl's onInput for the main scrubber
   const handleScrubberInput = useCallback((newTime: number) => {
-    // Clamp time (safety check)
-    const clampedTime = Math.max(0, Math.min(newTime, duration));
-    
-    // Update visual time immediately
-    setVisualTime(clampedTime);
-    
-    // Seek media for live preview
-    if (videoRef.current) {
-      try { videoRef.current.currentTime = clampedTime; } catch (e) {}
-    }
-    if (bridge.videoContext) {
-      try { bridge.videoContext.currentTime = clampedTime; } catch (e) {}
-    }
-    if (audioRef.current) {
-      try { audioRef.current.currentTime = clampedTime; } catch (e) {}
-    }
-  }, [duration, setVisualTime, videoRef, bridge, audioRef]); // Dependencies
+    // During drag, only update the visual representation
+    setVisualTime(newTime);
+  }, [setVisualTime]); // Only depends on setVisualTime
 
   const handleScrubberDragEnd = useCallback(() => {
-    if (!isDraggingScrubber) return; // Only act if we were dragging
-    
-    // Final time is already set in visualTime by handleScrubberInput
-    const finalTime = visualTime; 
-    
-    // Update the actual playback time state
-    setCurrentTime(finalTime); 
-    
-    // Clean up dragging state
-    setIsDraggingScrubber(false);
+    if (isDraggingScrubber) {
+      console.log(`[ScrubberDragEnd] Drag finished. Final visualTime: ${visualTime.toFixed(3)}`);
+      // Now perform the actual seek operation with the final visual time
+      bridge.seek(visualTime);
+      
+      // Sync the actual playback time state
+      setCurrentTime(visualTime);
+      
+      // Update dragging state
+      setIsDraggingScrubber(false);
+    }
   }, [
-    isDraggingScrubber, visualTime, // Keep visualTime
-    setCurrentTime, 
-    setIsDraggingScrubber 
-    // Removed bridge, duration - not needed here anymore
+    isDraggingScrubber, 
+    visualTime, 
+    bridge, 
+    setCurrentTime
   ]);
   
   // --- Trim Handlers (for Native Input) ---
   
   // Called on MouseDown on the hidden trim range inputs in TimelineControl
   const handleTrimHandleMouseDown = useCallback((handle: 'start' | 'end') => {
+    setActiveHandle(handle);
+    // Optionally pause playback when dragging starts
     if (isPlaying) {
-      handlePause(); // Pause if playing
+      handlePause();
     }
-    setActiveHandle(handle); // Set active handle via hook
-  }, [isPlaying, handlePause, setActiveHandle]); // Use setActiveHandle from useTrimControls
-
+  }, [isPlaying, handlePause, setActiveHandle]); // Restored setActiveHandle dependency
+  
+  const handleTrimHandleMouseUp = useCallback(() => {
+    if (activeHandle) {
+      // Update the main context trim state when drag finishes
+      onTrimChange?.(trimStart, trimEnd);
+      setActiveHandle(null); // Clear active handle
+      setTrimManuallySet(true); // Mark trim as manually set
+    }
+  }, [activeHandle, trimStart, trimEnd, onTrimChange, setActiveHandle, setTrimManuallySet]);
+  
   // Called by TimelineControl's onInput for the left bracket
   const handleTrimStartInput = useCallback((newStartTime: number) => {
-    if (activeHandle !== 'start') return; // Only update if this handle is active
-    
-    // Clamp against duration and end handle
-    const clampedStartTime = Math.max(0, Math.min(newStartTime, trimEnd - 0.1));
-    
-    setTrimStart(clampedStartTime); // Update state via hook
-    setVisualTime(clampedStartTime); // Update visual time to match
-    setCurrentTime(clampedStartTime); // Also update actual time immediately
-    
-    // Seek media for live preview
-    if (videoRef.current) {
-      try { videoRef.current.currentTime = clampedStartTime; } catch (e) {}
-    }
-    if (bridge.videoContext) {
-      try { bridge.videoContext.currentTime = clampedStartTime; } catch (e) {}
-    }
-     if (audioRef.current) {
-      try { audioRef.current.currentTime = clampedStartTime; } catch (e) {}
-    }
-    
-  }, [activeHandle, trimEnd, setTrimStart, setVisualTime, setCurrentTime, videoRef, bridge, audioRef]); // Dependencies
+    // TODO: Implement clamping/validation if needed
+    // For now, just update the state directly
+    setTrimStart(newStartTime);
+    // ALSO update visual time if the playhead should follow the handle
+    setVisualTime(newStartTime);
+  }, [setTrimStart, setVisualTime]);
 
   // Called by TimelineControl's onInput for the right bracket
   const handleTrimEndInput = useCallback((newEndTime: number) => {
-    if (activeHandle !== 'end') return; // Only update if this handle is active
-    
-    // Clamp against duration and start handle
-    const clampedEndTime = Math.min(duration, Math.max(newEndTime, trimStart + 0.1));
-    
-    setTrimEnd(clampedEndTime); // Update state via hook
-    userTrimEndRef.current = clampedEndTime; // Update manual ref
-    setVisualTime(clampedEndTime); // Update visual time to match
-    setCurrentTime(clampedEndTime); // Also update actual time immediately
-
-    // Seek media for live preview
-    if (videoRef.current) {
-      try { videoRef.current.currentTime = clampedEndTime; } catch (e) {}
-    }
-    if (bridge.videoContext) {
-      try { bridge.videoContext.currentTime = clampedEndTime; } catch (e) {}
-    }
-     if (audioRef.current) {
-      try { audioRef.current.currentTime = clampedEndTime; } catch (e) {}
-    }
-
-  }, [activeHandle, duration, trimStart, setTrimEnd, userTrimEndRef, setVisualTime, setCurrentTime, videoRef, bridge, audioRef]); // Dependencies
-
+    // TODO: Implement clamping/validation if needed
+    // For now, just update the state directly
+    setTrimEnd(newEndTime);
+    // ALSO update visual time if the playhead should follow the handle
+    setVisualTime(newEndTime);
+  }, [setTrimEnd, setVisualTime]);
+  
   // Called on MouseUp on the hidden trim range inputs in TimelineControl
-  const handleTrimHandleMouseUp = useCallback(() => {
-     if (!activeHandle) return;
-     
-     const finalTrimStart = trimStart; // Get final values from state
-     const finalTrimEnd = trimEnd;
-     
-     // Finalize state after native drag
-     setActiveHandle(null); // Clear active handle via hook
-     setTrimManuallySet(true); // Mark trim as manually set via hook
-     onTrimChange?.(finalTrimStart, finalTrimEnd); // Notify parent of final values
-     
-     // Restore playback time to trimStart after drag
-     const restoreTime = finalTrimStart;
-     setCurrentTime(restoreTime);
-     setVisualTime(restoreTime);
-     
-     // Set the flag to force reset playback position on the next play command
-     forceResetOnPlayRef.current = true; 
-
-  }, [
-      activeHandle, trimStart, trimEnd, onTrimChange, 
-      setCurrentTime, setVisualTime, 
-      setActiveHandle, setTrimManuallySet, // Use setters from useTrimControls
-      forceResetOnPlayRef
-  ]);
-
-  // == MEDIA EVENT HANDLERS ==
-  // Ensure these exist from previous steps
-  const handlePlayPauseToggle = useCallback(() => {
-    if (isPlaying) {
-      handlePause();
-    } else {
-      handlePlay();
-    }
-  }, [isPlaying, handlePlay, handlePause]);
-  
-  // Add handler for toggling lock
-  const handleLockToggle = useCallback(() => {
-    setIsPositionLocked(prev => !prev);
-  }, []);
-  
-  // Define missing handlers
-  const handleInfoToggle = useCallback(() => {
-      setShowAspectRatio(prev => !prev);
-  }, [setShowAspectRatio]);
-
-  const handleTrimToggle = useCallback(() => {
-      setTrimActive(prev => !prev);
-  }, [setTrimActive]);
-
-  // Add another important log - right before render, to show the current isMediumView value that will be used for conditional rendering
-  console.log(`[VCSPP PreRender] PlayerControls conditional check: isMediumView=${isMediumView}`);
-
+  // Renamed to avoid conflict with handleTrimDragEnd from hook
+  const handleAnyTrimMouseUp = useCallback(() => {
+     handleTrimHandleMouseUp(); // Call the state management logic
+   }, [handleTrimHandleMouseUp]);
+   
+  // --- End Trim Handlers ---
+   
   // == STATE FOR UI ELEMENTS (Ensure no duplicates) ==
   const [controlsLocked, setControlsLocked] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -1101,6 +1055,75 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return style;
   }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView]);
   
+  // == DEFINE UI CONTROL HANDLERS ==
+  const handlePlayPauseToggle = useCallback(() => {
+    if (isPlaying) {
+      handlePause();
+    } else {
+      handlePlay();
+    }
+  }, [isPlaying, handlePlay, handlePause]);
+  
+  const handleLockToggle = useCallback(() => {
+    setIsPositionLocked(prev => !prev);
+  }, [setIsPositionLocked]); // Added dependency
+
+  const handleInfoToggle = useCallback(() => {
+    setShowAspectRatio(prev => !prev);
+  }, [setShowAspectRatio]); // Added dependency
+
+  const handleTrimToggle = useCallback(() => {
+    setTrimActive(prev => !prev);
+    // When activating trim, store current time and pause
+    if (!trimActive) { // Check if turning ON
+      if (isPlaying) {
+        setOriginalPlaybackTime(currentTime);
+        handlePause();
+      }
+    } else {
+       // When turning OFF trim, restore time if it was stored
+       if (originalPlaybackTime > 0) {
+         handleTimeUpdate(originalPlaybackTime); // Restore time
+         setOriginalPlaybackTime(0); // Clear stored time
+       }
+    }
+  }, [trimActive, isPlaying, currentTime, handlePause, handleTimeUpdate, setTrimActive, setOriginalPlaybackTime]); // Added dependencies
+
+  // == RENDER LOGIC ==
+  console.log(`[VCSPP PreRender] PlayerControls conditional check: isMediumView=${isMediumView}`);
+
+  // -- Memoized Callbacks for PlayerControls -- 
+  // Ensures PlayerControls only re-renders when necessary
+  const playerControlsCallbacks = useMemo(() => ({
+    onPlayPauseToggle: handlePlayPauseToggle,
+    onLockToggle: handleLockToggle,
+    onTrimToggle: handleTrimToggle,
+    onInfoToggle: handleInfoToggle,
+    onFullscreenToggle: () => { console.warn("Fullscreen toggle not yet implemented in PlayerControls callbacks."); }, // Placeholder
+    // Scrubber handlers
+    onScrubberInput: handleScrubberInput,
+    onScrubberDragStart: handleScrubberDragStart,
+    onScrubberDragEnd: handleScrubberDragEnd,
+    // Trim handlers
+    onTrimStartInput: handleTrimStartInput,
+    onTrimEndInput: handleTrimEndInput,
+    onTrimHandleMouseDown: handleTrimHandleMouseDown,
+    onTrimHandleMouseUp: handleAnyTrimMouseUp, // Use the renamed handler
+  }), [
+    handlePlayPauseToggle,
+    handleLockToggle,
+    handleTrimToggle,
+    handleInfoToggle,
+    // Add other handlers as dependencies
+    handleScrubberInput,
+    handleScrubberDragStart,
+    handleScrubberDragEnd,
+    handleTrimStartInput,
+    handleTrimEndInput,
+    handleTrimHandleMouseDown,
+    handleAnyTrimMouseUp,
+  ]);
+
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
@@ -1219,7 +1242,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           onScrubberDragStart={handleScrubberDragStart}
           onScrubberDragEnd={handleScrubberDragEnd}
           onTrimHandleMouseDown={handleTrimHandleMouseDown}
-          onTrimHandleMouseUp={handleTrimHandleMouseUp}
+          onTrimHandleMouseUp={handleAnyTrimMouseUp}
           
           // Other handlers (Restored missing ones)
           onPlayPauseToggle={handlePlayPauseToggle}
