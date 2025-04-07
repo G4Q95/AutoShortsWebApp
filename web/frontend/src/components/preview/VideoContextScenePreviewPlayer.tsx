@@ -486,12 +486,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd); // Read trim state
     
-    // Update video context (attempt)
-    try {
-       currentVideoContext.currentTime = clampedTime;
-    } catch (e) {
-        console.warn("[handleTimeUpdate] Error setting videoContext time:", e);
-    }
+    // *** FIX: Call bridge.seek instead of setting context directly ***
+    // try {
+    //    currentVideoContext.currentTime = clampedTime;
+    // } catch (e) {
+    //     console.warn("[handleTimeUpdate] Error setting videoContext time:", e);
+    // }
+    bridge.seek(clampedTime);
     
     // Update React state
     setCurrentTime(clampedTime); // Use setter from hook
@@ -510,7 +511,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     trimStart, trimEnd, // Read state from trim hook
     setCurrentTime, setVisualTime, // *** ADDED setVisualTime to dependencies ***
     setIsPlayingWithLog, // Other callbacks
-    audioRef, mediaType, imageTimerRef, forceResetOnPlayRef
+    audioRef, mediaType, imageTimerRef, forceResetOnPlayRef,
+    bridge // *** ADDED bridge dependency ***
   ]);
   
   // SAFE ADDITION: Add the animation frame hook with required callbacks (just testing)

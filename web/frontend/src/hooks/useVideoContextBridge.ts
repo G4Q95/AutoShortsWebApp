@@ -95,14 +95,27 @@ export function useVideoContextBridge({
   }, [videoContextInstance, onError]);
 
   const seek = useCallback((time: number) => {
-    console.log(`[useVideoContextBridge] seek to ${time} called (no-op)`);
-    // Placeholder: Add seek logic
-  }, []);
+    if (videoContextInstance && typeof videoContextInstance.currentTime !== 'undefined') {
+      try {
+        const contextDuration = videoContextInstance.duration || duration;
+        const clampedTime = Math.max(0, Math.min(time, contextDuration > 0 ? contextDuration : Infinity));
+        
+        console.log(`[useVideoContextBridge] Attempting to seek to ${time.toFixed(3)} (clamped: ${clampedTime.toFixed(3)})`);
+        videoContextInstance.currentTime = clampedTime;
+      } catch (error) {
+        console.error("[useVideoContextBridge] Error during seek:", error);
+        onError?.(error instanceof Error ? error : new Error('Seek error'));
+      }
+    } else {
+      console.warn(`[useVideoContextBridge] Seek called but videoContextInstance is null or currentTime is not available. Time: ${time}`);
+    }
+  }, [videoContextInstance, duration, onError]);
 
   // STEP 4: Add method for creating the video source node
   const createVideoSourceNode = useCallback((ctx: VideoContextInstance) => {
     if (mediaType === 'video' && localMediaUrl && ctx) {
       console.log(`[useVideoContextBridge] Creating video source node for: ${localMediaUrl}`);
+      // Placeholder: Add source creation logic
       try {
         const source = ctx.video(localMediaUrl);
         if (!source) throw new Error('Failed to create video source node in bridge');
@@ -148,7 +161,6 @@ export function useVideoContextBridge({
     }
   }, [localMediaUrl, mediaType, onReady, onError, onDurationChange]); // Dependencies for source creation logic
 
-  // --- Return Value ---
   return {
     videoContext: videoContextInstance,
     isReady,
@@ -156,7 +168,6 @@ export function useVideoContextBridge({
     play,
     pause,
     seek,
-    // Expose the new method (though it might only be used internally during init later)
-    createVideoSourceNode 
+    createVideoSourceNode,
   };
-} 
+}
