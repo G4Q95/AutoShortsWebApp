@@ -122,6 +122,7 @@ export function useTrimControls({
     } else { // activeHandle === 'end'
       newEnd = Math.max(newTime, trimStart + 0.1); // Ensure end doesn't pass start
       newEnd = Math.min(duration, newEnd); // Ensure end doesn't exceed duration
+      console.log(`[TrimDrag][End] Calculated newEnd: ${newEnd.toFixed(3)} (Current trimEnd: ${trimEnd.toFixed(3)}, userTrimEndRef: ${userTrimEndRef.current?.toFixed(3)})`);
       setTrimEnd(newEnd);
       userTrimEndRef.current = newEnd; // Update ref when manually dragging end handle
       setVisualTime(newEnd); // Update visual time to match handle
@@ -139,9 +140,11 @@ export function useTrimControls({
 
   const handleTrimDragEnd = useCallback(() => {
     if (!activeHandle) return;
+    console.log(`[TrimDragEnd START] Active: ${activeHandle}, Current Start: ${trimStart.toFixed(3)}, End: ${trimEnd.toFixed(3)}, Ref: ${userTrimEndRef.current?.toFixed(3)})`);
     // console.log(`[TrimDrag][${activeHandle}] Drag End. Final Start: ${trimStart.toFixed(3)}, End: ${trimEnd.toFixed(3)}`);
     setActiveHandle(null);
     setTrimManuallySet(true); // Mark trim as manually set after dragging
+    console.log(`[useTrimControls] Setting trimManuallySet to TRUE in handleTrimDragEnd`);
     onTrimChange?.(trimStart, trimEnd);
     
     // --- Restore playback time AFTER drag --- 

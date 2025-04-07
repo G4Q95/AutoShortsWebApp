@@ -215,6 +215,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add state for position locking
   const [isPositionLocked, setIsPositionLocked] = useState<boolean>(false);
 
+  // *** ADDED: Ref to track if playback was just reset ***
+  const justResetRef = useRef<boolean>(false);
+
   // --- Playback State ---
   const {
     isPlaying,
@@ -256,6 +259,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     forceResetOnPlayRef
   });
   
+  // *** ADDED: Ref to track trimManuallySet state ***
+  const trimManuallySetRef = useRef(trimManuallySet);
+  useEffect(() => {
+    trimManuallySetRef.current = trimManuallySet;
+    console.log(`[VCSPP] trimManuallySetRef updated to: ${trimManuallySetRef.current}`);
+  }, [trimManuallySet]);
+  
   const {
     mediaElementStyle,
     calculatedAspectRatio,
@@ -274,7 +284,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     localMediaUrl,
     mediaType,
     initialMediaAspectRatio,
-    // *** CONNECT CALLBACKS TO ACTUAL STATE SETTERS ***
+    // Pass placeholder callbacks for now
     onReady: useCallback(() => {
       console.log("[VideoContextScenePreviewPlayer] Bridge reported ready.");
       setIsReady(true);
@@ -290,16 +300,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       // Prevent duration being set to 0 or NaN
       if (newDuration && isFinite(newDuration) && newDuration > 0) {
         setDuration(newDuration);
-        // Also update trimEnd if it hasn't been manually set or is invalid
-        if (!trimManuallySet && (trimEnd <= 0 || !isFinite(trimEnd))) {
-          console.log(`[DurationChange] Updating trimEnd to new duration: ${newDuration}`);
+        // *** FIX: Use ref to check the LATEST manual set status ***
+        if (!trimManuallySetRef.current) {
+          console.log(`[DurationChange] Updating trimEnd to new duration (manual set ref is false): ${newDuration}`);
           setTrimEnd(newDuration); 
           userTrimEndRef.current = newDuration; // Update ref as well
+        } else {
+          console.log(`[DurationChange] Ignoring duration update as trim was manually set (ref is true).`);
         }
       } else {
         console.warn(`[DurationChange] Received invalid duration: ${newDuration}. Ignoring.`);
       }
-    }, [setDuration, setTrimEnd, userTrimEndRef, trimManuallySet, trimEnd]), // Added trimEnd and trimManuallySet
+      // No longer need trimEnd in dependency array
+    }, [setDuration, setTrimEnd, userTrimEndRef]), // REMOVED trimManuallySet, now reading from ref
   });
 
   // --- CALLBACKS & HANDLERS --- 
@@ -337,61 +350,42 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   ]);
 
   const handlePlay = useCallback(() => {
-    if (forceResetOnPlayRef.current) {
+    if (forceResetOnPlayRef.current) { // Check the flag
       const startTime = trimStart; // Use trimStart from useTrimControls hook
+      console.log(`[handlePlay] Force reset flag is TRUE. Resetting time to trimStart: ${startTime.toFixed(3)}`); // ADDED LOG
+      
+      // Update React state (visuals)
       setCurrentTime(startTime); // Update React state too (from usePlaybackState)
       setVisualTime(startTime); // Also update visual time (from usePlaybackState)
-      // If there's audio, reset it too
-      if (audioRef.current) {
-          try { audioRef.current.currentTime = startTime; } 
-          catch (e) { console.warn("[handlePlay Reset] Error setting audio time:", e); }
-      }
-      // If there's VideoContext (for video), reset it too
-      if (bridge.videoContext) { // *** USE BRIDGE CONTEXT ***
-         try { bridge.videoContext.currentTime = startTime; } 
+      
+      // *** FIX: Explicitly set underlying media time *before* playing ***
+      if (bridge.videoContext) { // Video
+         try { 
+           console.log(`[handlePlay] Setting bridge context currentTime to ${startTime.toFixed(3)}`);
+           bridge.videoContext.currentTime = startTime; 
+         } 
          catch (e) { console.warn("[handlePlay Reset] Error setting video context time:", e); }
       }
-      // Reset the flag after handling
-      forceResetOnPlayRef.current = false; 
-    }
-    
-    // --- Playback Logic --- 
-    if (isImageType(mediaType)) {
-      // Image logic
-      setIsPlayingWithLog(true); // Use wrapper (starts rAF loop implicitly)
-      if (audioRef.current && audioUrl) {
-        try {
-            audioRef.current.currentTime = currentTime; 
-            audioRef.current.play().catch(err => console.error("[handlePlay Image] Error playing audio:", err));
-        } catch (e) {
-            console.warn("[handlePlay Image] Error setting audio time:", e);
-        }
+      if (audioRef.current) { // Audio
+          try { 
+            console.log(`[handlePlay] Setting audioRef currentTime to ${startTime.toFixed(3)}`);
+            audioRef.current.currentTime = startTime; 
+          } 
+          catch (e) { console.warn("[handlePlay Reset] Error setting audio time:", e); }
       }
-      return; // Done for images
-    }
-    
-    // --- Video Logic --- 
-    if (!bridge.videoContext) { // *** USE BRIDGE CONTEXT ***
-      console.error(`[handlePlay Video] Cannot play - videoContext is null`);
-      return;
-    }
-    if (!isReady) {
-      console.error(`[handlePlay Video] Cannot play - videoContext not ready yet`);
-      return;
-    }
-    
-    // Sync video context time if needed (using currentTime from state)
-    if (Math.abs(bridge.videoContext.currentTime - currentTime) > 0.1) { // *** USE BRIDGE CONTEXT ***
-        try { bridge.videoContext.currentTime = currentTime; } 
-        catch (e) { console.warn("[handlePlay Video] Error syncing video context time:", e); }
-    }
-    
-    // Play video context using the bridge
-    bridge.play(); // *** USE BRIDGE PLAY ***
-    setIsPlayingWithLog(true); // Use wrapper (starts rAF loop)
       
-    // Play separate audio if present, syncing to video context
-    if (audioRef.current && audioUrl) {
+      // Reset the flag *after* setting time
+      forceResetOnPlayRef.current = false; 
+      
+      // *** ADDED: Set the justResetRef flag ***
+      justResetRef.current = true;
+      console.log(`[handlePlay] Set justResetRef to true.`);
+      
+      // *** Play immediately after setting time and flags ***
+      bridge.play(); 
+      setIsPlayingWithLog(true); 
+      // Play separate audio if present
+      if (audioRef.current && audioUrl) {
         try {
           // Ensure bridge.videoContext is not null before accessing currentTime
           if (bridge.videoContext) {
@@ -401,6 +395,61 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         } catch (e) {
           console.warn("[handlePlay Video] Error setting/playing audio time:", e);
         }
+      }
+      
+    } else {
+      console.log(`[handlePlay] Force reset flag is FALSE. Playing from current time: ${currentTime.toFixed(3)}`); // ADDED LOG
+      
+      // *** ADDED: Ensure justResetRef is false if playing normally ***
+      justResetRef.current = false;
+      
+      // --- Playback Logic (No reset needed) --- 
+      if (isImageType(mediaType)) {
+        // Image logic
+        setIsPlayingWithLog(true); // Use wrapper (starts rAF loop implicitly)
+        if (audioRef.current && audioUrl) {
+          try {
+              audioRef.current.currentTime = currentTime; 
+              audioRef.current.play().catch(err => console.error("[handlePlay Image] Error playing audio:", err));
+          } catch (e) {
+              console.warn("[handlePlay Image] Error setting audio time:", e);
+          }
+        }
+        return; // Done for images
+      }
+      
+      // --- Video Logic --- 
+      if (!bridge.videoContext) { // *** USE BRIDGE CONTEXT ***
+        console.error(`[handlePlay Video] Cannot play - videoContext is null`);
+        return;
+      }
+      if (!isReady) {
+        console.error(`[handlePlay Video] Cannot play - videoContext not ready yet`);
+        return;
+      }
+      
+      // Sync video context time if needed (using currentTime from state)
+      if (Math.abs(bridge.videoContext.currentTime - currentTime) > 0.1) { // *** USE BRIDGE CONTEXT ***
+          try { bridge.videoContext.currentTime = currentTime; } 
+          catch (e) { console.warn("[handlePlay Video] Error syncing video context time:", e); }
+      }
+      
+      // Play video context using the bridge
+      bridge.play(); // *** USE BRIDGE PLAY ***
+      setIsPlayingWithLog(true); // Use wrapper (starts rAF loop)
+        
+      // Play separate audio if present, syncing to video context
+      if (audioRef.current && audioUrl) {
+          try {
+            // Ensure bridge.videoContext is not null before accessing currentTime
+            if (bridge.videoContext) {
+              audioRef.current.currentTime = bridge.videoContext.currentTime; // *** USE BRIDGE CONTEXT ***
+              audioRef.current.play().catch(err => console.error(`[handlePlay Video] Error playing audio:`, err));
+            }
+          } catch (e) {
+            console.warn("[handlePlay Video] Error setting/playing audio time:", e);
+          }
+      }
     }
 
   }, [
@@ -410,7 +459,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       audioUrl, audioRef, // Props and Refs
       setCurrentTime, setVisualTime, // Setters from playback hook
       setIsPlayingWithLog, // Callback wrapper
-      forceResetOnPlayRef, mediaType // Ref and Prop
+      forceResetOnPlayRef, mediaType, // Ref and Prop
+      justResetRef, // Pass the new ref
   ]);
   
   const handleTimeUpdate = useCallback((newTime: number) => {
@@ -489,6 +539,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     audioRef,
     isDraggingScrubber,
     userTrimEndRef,
+    // *** ADDED: Pass the new ref ***
+    justResetRef,
   });
 
   // Function to get local media URL

@@ -29,6 +29,7 @@ interface UseAnimationFrameLoopProps {
   audioRef?: React.RefObject<HTMLAudioElement | null>;
   isDraggingScrubber?: boolean;
   userTrimEndRef?: React.MutableRefObject<number | null>;
+  justResetRef: React.MutableRefObject<boolean>;
 }
 
 /**
@@ -86,7 +87,8 @@ export function useAnimationFrameLoop({
   videoContext,
   audioRef,
   isDraggingScrubber = false,
-  userTrimEndRef
+  userTrimEndRef,
+  justResetRef,
 }: UseAnimationFrameLoopProps): UseAnimationFrameLoopReturn {
   // Internal ref to track active state across renders
   const isActiveRef = useRef(true);
@@ -111,26 +113,10 @@ export function useAnimationFrameLoop({
       // Handle reset flag if set
       if (forceResetOnPlayRef.current) {
         const startTime = trimStart;
+        console.log(`[rAF] Force reset flag is TRUE. Resetting time to trimStart: ${startTime.toFixed(3)}`);
         
         // Call onUpdate to reset the component's time state
         onUpdate(startTime);
-        
-        // Reset media elements if available
-        if (videoContext) {
-          try { 
-            videoContext.currentTime = startTime; 
-          } catch(e) { 
-            console.warn("[rAF Reset] Error setting video context time:", e); 
-          }
-        }
-        
-        if (audioRef?.current) {
-          try { 
-            audioRef.current.currentTime = startTime; 
-          } catch(e) { 
-            console.warn("[rAF Reset] Error setting audio time:", e); 
-          }
-        }
         
         // Consume the flag
         forceResetOnPlayRef.current = false;
@@ -163,35 +149,42 @@ export function useAnimationFrameLoop({
         newTime = videoContext.currentTime;
       }
       
-      // Call onUpdate with the new time
-      // The callback should update state in the parent component
-      onUpdate(newTime);
-      
-      // Handle end of media boundary
-      const actualTrimEndCheck = userTrimEndRef?.current ?? trimEnd;
-      if (newTime >= actualTrimEndCheck) {
-        // Set the reset flag for next play command
-        forceResetOnPlayRef.current = true;
+      // Check justResetRef before processing boundary
+      if (justResetRef.current) {
+        console.log(`[rAF] Ignoring first update after reset (currentTime: ${newTime.toFixed(3)}). Resetting justResetRef.`);
+        justResetRef.current = false; // Consume the flag
+      } else {
+        // Call onUpdate with the new time
+        // The callback should update state in the parent component
+        onUpdate(newTime);
         
-        // Call onPause to stop playback
-        onPause();
-        
-        // Update time to the end position
-        onUpdate(actualTrimEndCheck);
-        
-        return; // Stop the loop
-      } else if (newTime < trimStart) {
-        // Handle case where time somehow got behind trimStart
-        if (videoContext) {
-          try { 
-            videoContext.currentTime = trimStart; 
-          } catch(e) { 
-            console.warn("[rAF SeekForward] Error setting video context time:", e); 
+        // Handle end of media boundary
+        const actualTrimEndCheck = userTrimEndRef?.current ?? trimEnd;
+        if (newTime >= actualTrimEndCheck) {
+          // Set the reset flag for next play command
+          forceResetOnPlayRef.current = true;
+          console.log(`[rAF] Playback reached trimEnd (${actualTrimEndCheck.toFixed(3)}). Setting forceReset flag.`);
+          
+          // Call onPause to stop playback
+          onPause();
+          
+          // Update time to the end position
+          onUpdate(actualTrimEndCheck);
+          
+          return; // Stop the loop
+        } else if (newTime < trimStart) {
+          // Handle case where time somehow got behind trimStart
+          if (videoContext) {
+            try { 
+              videoContext.currentTime = trimStart; 
+            } catch(e) { 
+              console.warn("[rAF SeekForward] Error setting video context time:", e); 
+            }
           }
+          
+          // Update time to the start position
+          onUpdate(trimStart);
         }
-        
-        // Update time to the start position
-        onUpdate(trimStart);
       }
       
       // Continue the loop if still active and playing
@@ -245,7 +238,8 @@ export function useAnimationFrameLoop({
     audioRef,
     forceResetOnPlayRef,
     animationFrameRef,
-    userTrimEndRef
+    userTrimEndRef,
+    justResetRef
   ]);
   
   // Return empty object for now
