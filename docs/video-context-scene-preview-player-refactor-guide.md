@@ -126,3 +126,123 @@ We will refactor the component incrementally using the following methodology to 
    - Run and verify Playwright tests to ensure improvements to stability
    - Add automated tests for the new extracted components and hooks
    - Perform thorough manual testing across different media types and interactions
+
+## 8. Part 2: Component Decomposition Plan (2023-07-05)
+
+After successfully extracting the UI controls and state management hooks, the `VideoContextScenePreviewPlayer.tsx` file still remains quite large (~1300 lines). This section outlines a plan to further decompose the component into smaller, more focused pieces.
+
+### Identified Extraction Opportunities
+
+The following components/hooks have been identified as candidates for extraction, ranked in order of recommended implementation priority:
+
+#### 1. Media Type Rendering Components (HIGH PRIORITY)
+- **Description**: Create specialized components for each media type (video, image, canvas).
+- **Target File**: `src/components/preview/media/VideoElement.tsx`, `ImageElement.tsx`, `CanvasElement.tsx`
+- **Benefits**: Simplifies conditional rendering logic, improves readability, allows for type-specific optimizations.
+- **Implementation Plan**:
+  1. Create individual components for each media type
+  2. Extract the rendering logic specific to each type
+  3. Pass all necessary props and refs
+  4. Replace conditional rendering in the main component with these specialized components
+- **Testing Focus**: Media loading, playback controls for each media type, error states handling.
+
+#### 2. Animation Frame Loop Hook (HIGH PRIORITY)
+- **Description**: Extract the request animation frame (rAF) loop used for tracking media playback time.
+- **Target File**: `src/hooks/useAnimationFrameLoop.ts`
+- **Benefits**: Separates timing logic from component rendering, makes playback tracking more testable.
+- **Implementation Plan**:
+  1. Create a new hook that accepts dependencies like `isPlaying`, media references, etc.
+  2. Move the existing rAF effect into this hook
+  3. Return the necessary state and update functions
+  4. Replace the effect in the main component with this hook
+- **Testing Focus**: Accurate time tracking, performance under continuous playback, cleanup on unmount.
+
+#### 3. Media Container Component (MEDIUM PRIORITY)
+- **Description**: Extract the container and positioning logic for media elements.
+- **Target File**: `src/components/preview/MediaContainer.tsx`
+- **Benefits**: Centralizes styling and layout concerns, simplifies the main component.
+- **Implementation Plan**:
+  1. Create a container component that handles styling and positioning
+  2. Extract relevant style calculation functions
+  3. Accept children elements (the media elements from #1)
+  4. Replace container divs in the main component
+- **Testing Focus**: Proper sizing and positioning, aspect ratio handling, responsiveness.
+
+#### 4. Error Handling Component (MEDIUM PRIORITY)
+- **Description**: Create a dedicated error boundary component for media loading and playback errors.
+- **Target File**: `src/components/preview/MediaErrorBoundary.tsx`
+- **Benefits**: Centralizes error handling, improves user experience during failures.
+- **Implementation Plan**:
+  1. Create an error boundary component
+  2. Extract error detection and handling logic
+  3. Implement fallback UI for different error scenarios
+  4. Wrap media elements in this boundary
+- **Testing Focus**: Error state recovery, fallback UI appearance, error logging.
+
+#### 5. Media Event Handlers Hook (MEDIUM PRIORITY)
+- **Description**: Consolidate event handlers for media elements.
+- **Target File**: `src/hooks/useMediaEventHandlers.ts`
+- **Benefits**: Reduces handler duplication, improves handler consistency across media types.
+- **Implementation Plan**:
+  1. Create a hook that accepts media references and state setters
+  2. Extract common event handlers (onLoad, onError, onTimeUpdate, etc.)
+  3. Return object with handler functions
+  4. Replace inline handlers in the media components
+- **Testing Focus**: Event firing and handling, state updates after events.
+
+#### 6. Debug Information Component (LOW PRIORITY)
+- **Description**: Extract debug visualization and logging functionality.
+- **Target File**: `src/components/preview/DebugOverlay.tsx`
+- **Benefits**: Cleans up the main component, makes debug features easier to toggle.
+- **Implementation Plan**:
+  1. Create a component that displays various debug information
+  2. Extract debug rendering logic and console logs
+  3. Add env-based conditional rendering
+  4. Replace debug elements in the main component
+- **Testing Focus**: Visibility toggling, information accuracy, performance impact.
+
+#### 7. VideoContext Bridge (LOW PRIORITY)
+- **Description**: Create an abstraction layer between the component and VideoContext.
+- **Target File**: `src/hooks/useVideoContextBridge.ts`
+- **Benefits**: Reduces direct dependencies on VideoContext, improves testability.
+- **Implementation Plan**:
+  1. Create a hook that encapsulates VideoContext interactions
+  2. Extract VideoContext access and manipulation code
+  3. Provide a simpler interface for the component
+  4. Replace direct VideoContext calls in the component
+- **Testing Focus**: Proper VideoContext synchronization, playback control, error handling.
+
+#### 8. Component Structure Refactoring (FINAL STAGE)
+- **Description**: Refactor the main component structure after all extractions.
+- **Target File**: Restructuring `VideoContextScenePreviewPlayer.tsx`
+- **Benefits**: Final cleanup, ensures proper composition of all extracted pieces.
+- **Implementation Plan**:
+  1. Assess remaining code after all extractions
+  2. Consider splitting outer/inner components into separate files
+  3. Ensure proper prop passing and documentation
+  4. Remove any redundant or dead code
+- **Testing Focus**: Full functional test suite, verification of all features.
+
+### Implementation Strategy
+
+To successfully implement these extractions, we will follow these guidelines:
+
+1. **One Extraction at a Time**: Complete and thoroughly test each extraction before moving to the next.
+2. **Incremental Changes**: Make small, focused changes that can be easily tested and verified.
+3. **Maintain Test Coverage**: Ensure each extraction maintains or improves test coverage.
+4. **Manual Testing Checkpoints**: Perform comprehensive manual testing after each significant extraction.
+5. **Documentation**: Update documentation as each component/hook is extracted.
+6. **Performance Monitoring**: Monitor performance metrics to ensure refactoring doesn't negatively impact performance.
+
+The estimated timeline for completing all extractions is 3-4 weeks, allocating 2-3 days per extraction with adequate testing time between changes.
+
+### Success Criteria
+
+The refactoring will be considered successful when:
+
+1. The main component file is reduced to less than 300 lines of code
+2. All extracted components/hooks have clear, single responsibilities
+3. The component passes all existing tests
+4. Playwright tests show improved stability for video interactions
+5. The component demonstrates reduced console log spam during normal operation
+6. Manual testing confirms all functionality works as expected across different media types
