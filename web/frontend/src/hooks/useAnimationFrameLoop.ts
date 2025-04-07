@@ -167,40 +167,17 @@ export function useAnimationFrameLoop({
       const deltaTime = (now - lastFrameTime) / 1000; // convert to seconds
       lastFrameTimeRef.current = now;
       
-      // Calculate new time value
-      let newTime = currentTime; // Default to previous time if context hasn't updated
+      // Calculate new time value: Prioritize reading VideoContext, fallback to manual increment.
+      let newTime = currentTime; // Start with previous state time
       const vcTime = videoContext ? videoContext.currentTime : undefined;
-      const vcTimeSignificantlyChanged = videoContext && 
-                                     typeof vcTime !== 'undefined' && 
-                                     Math.abs(vcTime - lastVideoContextTimeRef.current) > 0.005; // Use a smaller threshold?
 
-      if (vcTimeSignificantlyChanged) {
-        // VideoContext time is changing, use its value
-        newTime = vcTime as number;
-        lastVideoContextTimeRef.current = vcTime as number;
-        // Log only when we actually *use* the context time
-        // if (Math.floor(newTime * 10) % 50 === 0) { // Log every ~5 seconds
-        //   console.log(`[rAF] Using changed videoContext.currentTime=${newTime.toFixed(3)}`);
-        // }
+      if (typeof vcTime === 'number' && Math.abs(vcTime - lastVideoContextTimeRef.current) > 0.001) {
+          // Use the updated time from VideoContext
+          newTime = vcTime;
+          lastVideoContextTimeRef.current = vcTime; // Update the last read time
       } else {
-        // VideoContext time hasn't changed significantly. 
-        // DO NOTHING to newTime. Keep it as the previous currentTime.
-        // We are *not* manually incrementing with deltaTime anymore.
-        // We are *not* forcing videoContext.currentTime or videoContext.update().
-        // We simply wait for the next frame where vcTimeSignificantlyChanged might be true.
-      }
-      
-      // *** DETAILED LOGGING ON FIRST RESUME FRAME (Keep for now) ***
-      if (isFirstResumeFrame) {
-        console.log('[rAF RESUME LOG] ----- First Frame After Resume -----');
-        console.log(`[rAF RESUME LOG] performance.now(): ${now.toFixed(0)}`);
-        console.log(`[rAF RESUME LOG] lastFrameTimeRef: ${lastFrameTime.toFixed(0)}`);
-        console.log(`[rAF RESUME LOG] Calculated deltaTime: ${deltaTime.toFixed(3)}s`);
-        console.log(`[rAF RESUME LOG] currentTime (from state): ${currentTime.toFixed(3)}`);
-        console.log(`[rAF RESUME LOG] videoContext.currentTime: ${(vcTime !== undefined ? vcTime.toFixed(3) : 'N/A')}`);
-        console.log(`[rAF RESUME LOG] vcTimeChanged: ${vcTimeSignificantlyChanged}`);
-        console.log(`[rAF RESUME LOG] Calculated newTime: ${newTime.toFixed(3)}`);
-        console.log('[rAF RESUME LOG] ------------------------------------');
+          // VideoContext time hasn't changed OR not available, use manual increment for UI smoothness
+          newTime = currentTime + deltaTime;
       }
       
       // Check justResetRef before processing boundary

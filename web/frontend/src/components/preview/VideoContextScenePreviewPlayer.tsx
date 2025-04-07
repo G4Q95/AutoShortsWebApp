@@ -332,19 +332,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
     
     // --- Video Logic --- 
-    console.log(`[handlePause LOG] Pausing at currentTime (state): ${currentTime.toFixed(3)}`);
-    if (bridge.videoContext) {
-      console.log(`[handlePause LOG] videoContext.currentTime BEFORE pause(): ${(bridge.videoContext.currentTime !== undefined ? bridge.videoContext.currentTime.toFixed(3) : 'N/A')}`);
-    }
     bridge.pause(); // *** USE BRIDGE PAUSE ***
-    if (bridge.videoContext) {
-      // Log may be slightly delayed, but gives an idea
-      queueMicrotask(() => {
-         if(bridge.videoContext) { // Add null check inside microtask
-           console.log(`[handlePause LOG] videoContext.currentTime AFTER pause() (queued): ${(bridge.videoContext.currentTime !== undefined ? bridge.videoContext.currentTime.toFixed(3) : 'N/A')}`);
-         }
-      });
-    }
     setIsPlayingWithLog(false); // Use wrapper
     
     // Cancel the main animation frame loop when pausing video
@@ -356,26 +344,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       audioRef.current.pause();
     }
     
-    // *** IMPORTANT: Switch back to showing first frame when paused ***
-    if (!showFirstFrame) {
-      console.log("[handlePause] Showing first frame video, hiding canvas");
-      // If we have a videoRef, update its currentTime to match the current position
-      if (videoRef.current) {
-        try {
-          videoRef.current.currentTime = currentTime;
-        } catch (e) {
-          console.warn("[handlePause] Error setting first frame time:", e);
-        }
-      }
-      setShowFirstFrame(true);
-    }
   }, [
     // Dependencies:
     mediaType, bridge, audioRef, // Use bridge instead of videoContext
     setIsPlayingWithLog, // Callback wrapper
     animationFrameRef, // Ref for cancelling animation loop
-    showFirstFrame, // Add dependency on showFirstFrame state
-    videoRef,       // Add dependency on videoRef for updating first frame
     currentTime     // Add dependency on currentTime for updating first frame
   ]);
 
@@ -384,7 +357,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     const wasReset = forceResetOnPlayRef.current;
     const startTime = wasReset ? trimStart : currentTime; // Use current time unless we need to reset
-    console.log(`[handlePlay LOG] Resuming/Starting at startTime: ${startTime.toFixed(3)} (currentTime state: ${currentTime.toFixed(3)})`);
     
     // Update React state (visuals) immediately at the start
     if (wasReset) {
@@ -394,17 +366,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
     
     if (!wasReset && bridge.videoContext) {
-      const vcTimeBeforeSeek = bridge.videoContext.currentTime;
-      console.log(`[handlePlay LOG] vcTime BEFORE seek(): ${(vcTimeBeforeSeek !== undefined ? vcTimeBeforeSeek.toFixed(3) : 'N/A')}`);
       bridge.seek(startTime);
-      const vcTimeAfterSeek = bridge.videoContext.currentTime;
-       // Seek might be async, log current value and maybe queue one
-      console.log(`[handlePlay LOG] vcTime IMMEDIATELY AFTER seek(): ${(vcTimeAfterSeek !== undefined ? vcTimeAfterSeek.toFixed(3) : 'N/A')}`);
-      queueMicrotask(() => {
-         if (bridge.videoContext) {
-           console.log(`[handlePlay LOG] vcTime AFTER seek() (queued): ${(bridge.videoContext.currentTime !== undefined ? bridge.videoContext.currentTime.toFixed(3) : 'N/A')}`);
-         }
-      });
     }
     
     // If we're at the end, or need to reset, set time explicitly
@@ -413,27 +375,22 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       // Set time in all media elements
       if (bridge.videoContext) { // Video
          try { 
-           console.log(`[DEBUG][handlePlay] Setting bridge context currentTime to ${startTime.toFixed(3)}`); // LOG
            bridge.videoContext.currentTime = startTime; 
          } 
          catch (e) { console.warn("[handlePlay Reset] Error setting video context time:", e); }
       }
       if (audioRef.current) { // Audio
           try { 
-            console.log(`[DEBUG][handlePlay] Setting audioRef currentTime to ${startTime.toFixed(3)}`); // LOG
             audioRef.current.currentTime = startTime; 
           } 
           catch (e) { console.warn("[handlePlay Reset] Error setting audio time:", e); }
       }
       
       // Reset the flag *after* setting time
-      console.log('[DEBUG][handlePlay] Clearing forceResetOnPlayRef flag.'); // LOG
       forceResetOnPlayRef.current = false;
-      console.log('[DEBUG][handlePlay] Flag is now:', forceResetOnPlayRef.current); // LOG
       
       // Set the justResetRef flag to prevent first time update
       justResetRef.current = true;
-      console.log(`[DEBUG][handlePlay] Set justResetRef to true.`);
     }
     
     // *** IMPORTANT: Switch to showing canvas (not first frame) when playing ***
@@ -448,36 +405,18 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Handle video playback
     if (isVideoType(mediaType)) {
       if (bridge.videoContext && bridge.isReady) {
-        console.log("[handlePlay] Bridge is ready and media is video - calling bridge.play()");
-        
-        const vcTimeBeforePlay = bridge.videoContext.currentTime;
-        console.log(`[handlePlay LOG] vcTime BEFORE play(): ${(vcTimeBeforePlay !== undefined ? vcTimeBeforePlay.toFixed(3) : 'N/A')}`);
+        console.log("[handlePlay] Bridge is ready - calling bridge.play()");
         bridge.play();
-        const vcTimeAfterPlay = bridge.videoContext.currentTime;
-        console.log(`[handlePlay LOG] vcTime IMMEDIATELY AFTER play(): ${(vcTimeAfterPlay !== undefined ? vcTimeAfterPlay.toFixed(3) : 'N/A')}`);
-        queueMicrotask(() => {
-          if (bridge.videoContext) {
-            console.log(`[handlePlay LOG] vcTime AFTER play() (queued): ${(bridge.videoContext.currentTime !== undefined ? bridge.videoContext.currentTime.toFixed(3) : 'N/A')}`);
-          }
-        });
-        console.log("[handlePlay] Bridge play called successfully");
       } else {
-        console.warn(`[handlePlay] Bridge not ready, attempting direct video element fallback`);
+        console.warn(`[handlePlay] Bridge not ready or not video, attempting direct video element fallback`);
         // FALLBACK: Try playing the video element directly if bridge isn't ready
         const video = videoRef.current;
         if (video && localMediaUrl) {
           try {
-            // If we were reset, or we're using the start time, seek explicitly
             if (wasReset || Math.abs(video.currentTime - startTime) > 0.5) {
               video.currentTime = startTime;
             }
-            
-            // Set playing state FIRST so the animation frame loop kicks in
-            setIsPlayingWithLog(true);
-            
-            // Then start playback
             video.play().catch(err => console.error("[handlePlay Video] Fallback video play error:", err));
-            console.log("[handlePlay] Started fallback video directly");
           } catch (e) {
             console.error("[handlePlay Video] Error playing fallback video:", e);
           }
@@ -498,13 +437,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       }
     }
     
-    // Set playback state and sync audio
-    setIsPlayingWithLog(true);
-    
     // Play separate audio if present
     if (audioRef.current && audioUrl) {
       try {
-        // Ensure we have a time source
         if (bridge.videoContext) {
           audioRef.current.currentTime = bridge.videoContext.currentTime;
         } else {
@@ -516,18 +451,18 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       }
     }
   }, [
-      // Dependencies:
-      bridge, 
-      currentTime, trimStart,
-      audioUrl, audioRef,
-      setCurrentTime, setVisualTime,
-      setIsPlayingWithLog,
-      forceResetOnPlayRef, mediaType,
-      justResetRef,
-      isVideoType, isImageType,
-      videoRef,
-      localMediaUrl,
-      showFirstFrame
+    // Dependencies:
+    bridge, 
+    currentTime, trimStart,
+    audioUrl, audioRef,
+    setCurrentTime, setVisualTime,
+    setIsPlayingWithLog,
+    forceResetOnPlayRef, mediaType,
+    justResetRef,
+    isVideoType, isImageType,
+    videoRef,
+    localMediaUrl,
+    showFirstFrame
   ]);
   
   const handleTimeUpdate = useCallback((newTime: number) => {
