@@ -1252,106 +1252,38 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         onToggle={handleFullscreenToggle}
       />
       
-      {/* Controls Overlay */}
-      <div
-        className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || isPositionLocked ? 'opacity-100' : 'opacity-0'}`}
-        style={{
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          zIndex: 50, 
-          pointerEvents: 'auto',
-          paddingTop: '0px',
-          paddingRight: '8px',
-          paddingBottom: '1px',
-          paddingLeft: '8px',
-          width: '100%',
-        }}
-        data-drag-handle-exclude="true"
-      >
-        {/* Restore the TimelineControl wrapper and component */}
-        <div style={{ position: 'relative', top: '5px' }}> 
-          <TimelineControl
-            visualTime={visualTime}
-            duration={duration}
-            trimStart={trimStart}
-            effectiveTrimEnd={getEffectiveTrimEnd()}
-            activeHandle={activeHandle}
-            trimActive={trimActive}
-            isDraggingScrubber={isDraggingScrubber}
-            onTimeUpdate={handleTimeUpdate}
-            onScrubberDragStart={handleScrubberDragStart}
-            onScrubberDragEnd={handleScrubberDragEnd}
-            setActiveHandle={setActiveHandle}
-            setTimeBeforeDrag={setTimeBeforeDrag}
-            setOriginalPlaybackTime={setOriginalPlaybackTime}
-            videoContext={videoContext}
-            getEffectiveTrimEnd={getEffectiveTrimEnd}
-          />
-        </div>
-        
-        {/* Restore the control buttons row */}
-        <div className="flex justify-between items-center px-1 mt-1" 
-             data-drag-handle-exclude="true" 
-             style={{ position: 'relative', zIndex: 55, pointerEvents: 'auto' }}>
-          
-          <div className="flex-shrink-0 w-14 flex justify-start items-center">
-            <LockButton isLocked={isPositionLocked} onToggle={handleLockToggle} />
-          </div>
-
-          <TimeDisplay 
-            currentTime={currentTime}
-            duration={duration}
-            trimStart={trimStart}
-            effectiveTrimEnd={getEffectiveTrimEnd()}
-            activeHandle={activeHandle}
-          />
-
-          <div className="flex-shrink-0 w-14 flex justify-end items-center">
-            <InfoButton 
-              isActive={showAspectRatio}
-              onToggle={handleInfoToggle}
-            />
-            <TrimToggleButton 
-              isActive={trimActive}
-              onToggle={handleTrimToggle}
-            />
-          </div>
-        </div>
-        
-        {/* --- Render PlayerControls --- */}
-        {isMediumView && (
-          <PlayerControls
-              // Visibility
-              isHovering={isHovering}
-              isPositionLocked={isPositionLocked}
-              isMediumView={isMediumView ?? false}
-              // Lock Button
-              onLockToggle={handleLockToggle}
-              // Timeline
-              visualTime={visualTime}
-              duration={duration}
-              trimStart={trimStart}
-              effectiveTrimEnd={getEffectiveTrimEnd()}
-              activeHandle={activeHandle}
-              trimActive={trimActive}
-              isDraggingScrubber={isDraggingScrubber}
-              onTimeUpdate={handleTimeUpdate}
-              onScrubberDragStart={handleScrubberDragStart}
-              onScrubberDragEnd={handleScrubberDragEnd}
-              setActiveHandle={setActiveHandle}
-              setTimeBeforeDrag={setTimeBeforeDrag}
-              setOriginalPlaybackTime={setOriginalPlaybackTime}
-              videoContext={videoContext}
-              getEffectiveTrimEnd={getEffectiveTrimEnd}
-              // Time Display
-              currentTime={currentTime}
-              // Info Button
-              showAspectRatio={showAspectRatio}
-              onInfoToggle={handleInfoToggle}
-              // Trim Toggle Button
-              onTrimToggle={handleTrimToggle}
-          />
-        )}
-      </div>
+      {/* Render PlayerControls regardless of view mode - show on hover */}
+      <PlayerControls
+          // Visibility
+          isHovering={isHovering}
+          isPositionLocked={isPositionLocked}
+          isMediumView={isMediumView ?? false}
+          // Lock Button
+          onLockToggle={handleLockToggle}
+          // Timeline
+          visualTime={visualTime}
+          duration={duration}
+          trimStart={trimStart}
+          effectiveTrimEnd={getEffectiveTrimEnd()}
+          activeHandle={activeHandle}
+          trimActive={trimActive}
+          isDraggingScrubber={isDraggingScrubber}
+          onTimeUpdate={handleTimeUpdate}
+          onScrubberDragStart={handleScrubberDragStart}
+          onScrubberDragEnd={handleScrubberDragEnd}
+          setActiveHandle={setActiveHandle}
+          setTimeBeforeDrag={setTimeBeforeDrag}
+          setOriginalPlaybackTime={setOriginalPlaybackTime}
+          videoContext={videoContext}
+          getEffectiveTrimEnd={getEffectiveTrimEnd}
+          // Time Display
+          currentTime={currentTime}
+          // Info Button
+          showAspectRatio={showAspectRatio}
+          onInfoToggle={handleInfoToggle}
+          // Trim Toggle Button
+          onTrimToggle={handleTrimToggle}
+      />
     </div>
   );
 };

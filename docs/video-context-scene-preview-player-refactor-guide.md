@@ -1,6 +1,6 @@
 # Refactoring Guide: VideoContextScenePreviewPlayer Component
 
-**Last Updated:** 2025-04-07
+**Last Updated:** 2023-07-05
 
 ## 1. Problem Statement
 
@@ -70,9 +70,9 @@ We will refactor the component incrementally using the following methodology to 
         *   **Step 4.2 (DONE):** Update the dependencies of `useCallback` hooks (like `handlePause`, `handlePlay`, `setIsPlayingWithLog`) and `useEffect` hooks (like the rAF loop, boundary checks) to correctly use the state variables and setters obtained from `usePlaybackState`. Ensured logic uses the new state source.
         *   **Step 4.3 (DONE):** Thoroughly tested playback, pause, scrubbing, and boundary interactions after Step 4.2. Resolved bugs related to reset logic, video/image consistency, and paused frame display.
     *   **Rationale:** This hyper-incremental approach isolates changes to minimize risk and make debugging easier.
-3.  **Extract Player Controls Component (Next Focus):** Create a dedicated `PlayerControls.tsx` component to handle the rendering of UI elements like the play/pause button, scrubber bar, time display, fullscreen button, etc. The main component will pass necessary state and callbacks as props. 
+3.  **Extract Player Controls Component (COMPLETED):** Created a dedicated `PlayerControls.tsx` component to handle the rendering of UI elements like the play/pause button, scrubber bar, time display, fullscreen button, etc. The main component passes necessary state and callbacks as props. 
     *   **Goal:** Improve JSX readability, create a dedicated location for UI controls, and facilitate adding future controls (speed, resolution).
-    *   **Incremental UI Component Extraction (In Progress):**
+    *   **Incremental UI Component Extraction:**
         *   **Step 1 (DONE):** Extracted `PlayPauseButton.tsx` - A simple button to toggle play/pause state.
         *   **Step 2 (DONE):** Extracted `LockButton.tsx` - A button to toggle position locking for the controls overlay.
         *   **Step 3 (DONE):** Extracted `TrimToggleButton.tsx` - A button to toggle trim mode (scissors/check icon).
@@ -80,7 +80,9 @@ We will refactor the component incrementally using the following methodology to 
         *   **Step 5 (DONE):** Extracted `FullscreenButton.tsx` - A button to toggle fullscreen mode.
         *   **Step 6 (DONE):** Extracted `MediumViewButton.tsx` - A button to toggle between compact and expanded view modes (used by SceneMediaPlayer.tsx which renders above VideoContextScenePreviewPlayer).
         *   **Step 7 (DONE):** Extracted `TimelineControl.tsx` - A component combining the timeline scrubber, time display, AND trim brackets elements. Initially planned as two separate components, but combined to ensure proper alignment and positioning between these tightly coupled UI elements.
-        *   **Step 8 (DONE):** Create a `PlayerControls` container component (`PlayerControls.tsx`) that combines all control elements (`PlayPauseButton`, `LockButton`, `TimelineControl`, `InfoButton`, `TrimToggleButton`, etc.) into a unified interface. `VideoContextScenePreviewPlayer` now renders this single component, passing down props.
+        *   **Step 8 (DONE):** Created a `PlayerControls` container component (`PlayerControls.tsx`) that combines all control elements (`PlayPauseButton`, `LockButton`, `TimelineControl`, `InfoButton`, `TrimToggleButton`, etc.) into a unified interface. `VideoContextScenePreviewPlayer` now renders this single component, passing down props.
+        *   **Step 9 (DONE):** Successfully integrated the `PlayerControls` component into `VideoContextScenePreviewPlayer.tsx` and removed the old control code. Added conditional rendering based on hover state rather than just medium view. Manually tested to confirm all controls are visible and functioning correctly.
+
 4.  **Diagnose Playback Log Spam (NEXT FOCUS):** Use React DevTools profiler and targeted logging to understand the root cause of excessive console logs observed during video playback before attempting further major refactoring of the rAF loop or VideoContext logic.
 5.  **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
 6.  **Optimize Rendering (Future):** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
@@ -91,3 +93,36 @@ We will refactor the component incrementally using the following methodology to 
 *   What specifically causes the `[FATAL ERROR] Canvas or container ref not available...` error seen intermittently?
 *   Can the aspect ratio and positioning calculations be performed less frequently or only when relevant properties change?
 *   How tightly coupled is this component to the main `VideoContext`? Can dependencies be reduced?
+
+## 7. Current Progress Summary (2023-07-05)
+
+### What Has Been Accomplished:
+
+1. **Completed Extraction of UI Components:**
+   - Successfully extracted all control-related UI elements into separate components
+   - Created a unified `PlayerControls` component that encapsulates all media control UI elements
+   - Integrated the new component into `VideoContextScenePreviewPlayer.tsx`
+   - Removed redundant control code from the main component
+   - Fixed conditional rendering logic to ensure controls appear correctly on hover
+
+2. **State Management Improvements:**
+   - Extracted playback state into a dedicated hook (`usePlaybackState`)
+   - Extracted trim controls logic into a dedicated hook (`useTrimControls`)
+   - Extracted aspect ratio calculations into a dedicated hook (`useMediaAspectRatio`)
+
+### What Still Needs To Be Done:
+
+1. **Code Cleanup:**
+   - Remove unused code and debug console logs
+   - Review and update comments to reflect the new architecture
+   - Consider further refactoring of the main component to reduce complexity
+
+2. **Performance Optimization:**
+   - Diagnose and address excessive console logs during video playback
+   - Optimize render performance with strategic use of memoization
+   - Analyze and reduce unnecessary re-renders
+
+3. **Testing:**
+   - Run and verify Playwright tests to ensure improvements to stability
+   - Add automated tests for the new extracted components and hooks
+   - Perform thorough manual testing across different media types and interactions

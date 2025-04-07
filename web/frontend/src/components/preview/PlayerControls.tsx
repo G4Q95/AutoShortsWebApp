@@ -77,20 +77,22 @@ export function PlayerControls({
   // Trim Toggle Button props
   onTrimToggle,
 }: PlayerControlsProps) {
-  // Controls Overlay
+  // Controls Overlay - updated to always show on hover regardless of view mode
   return (
     <div
-      className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || isPositionLocked ? 'opacity-100' : 'opacity-0'}`}
+      className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${
+        isHovering || isPositionLocked ? 'opacity-100' : 'opacity-0'
+      }`}
       style={{
         backgroundColor: 'rgba(0, 0, 0, 0.6)',
         zIndex: 50, 
-        pointerEvents: 'auto',
+        pointerEvents: isHovering || isPositionLocked ? 'auto' : 'none', // Enable pointer events only when visible
         paddingTop: '0px',
         paddingRight: '8px',
         paddingBottom: '1px',
         paddingLeft: '8px',
         width: '100%',
-        borderRadius: '8px',
+        borderRadius: '4px',
       }}
       data-drag-handle-exclude="true"
     >
