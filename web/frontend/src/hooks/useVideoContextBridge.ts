@@ -70,7 +70,7 @@ export function useVideoContextBridge({
 
   // --- Methods (Placeholders) ---
   const play = useCallback(() => {
-    if (videoContextInstance) {
+    if (videoContextInstance && typeof videoContextInstance.play === 'function') {
       try {
         console.log("[useVideoContextBridge] Calling videoContextInstance.play()");
         videoContextInstance.play();
@@ -80,12 +80,12 @@ export function useVideoContextBridge({
         onError?.(error instanceof Error ? error : new Error('Playback error'));
       }
     } else {
-      console.warn("[useVideoContextBridge] Play called but videoContextInstance is null");
+      console.warn("[useVideoContextBridge] Play called but videoContextInstance is null or invalid");
     }
   }, [videoContextInstance, onError]);
 
   const pause = useCallback(() => {
-    if (videoContextInstance) {
+    if (videoContextInstance && typeof videoContextInstance.pause === 'function') {
       try {
         console.log("[useVideoContextBridge] Calling videoContextInstance.pause()");
         videoContextInstance.pause();
@@ -95,7 +95,7 @@ export function useVideoContextBridge({
         onError?.(error instanceof Error ? error : new Error('Pause error'));
       }
     } else {
-      console.warn("[useVideoContextBridge] Pause called but videoContextInstance is null");
+      console.warn("[useVideoContextBridge] Pause called but videoContextInstance is null or invalid");
     }
   }, [videoContextInstance, onError]);
 
