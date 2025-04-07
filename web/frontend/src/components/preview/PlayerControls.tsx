@@ -23,19 +23,10 @@ interface PlayerControlsProps {
   effectiveTrimEnd: number; // Note: Needs to be calculated/passed
   activeHandle: 'start' | 'end' | null;
   trimActive: boolean;
-  isDraggingScrubber: boolean;
-  onTimeUpdate: (time: number) => void;
-  onScrubberDragStart: () => void;
-  onScrubberDragEnd: () => void;
-  setActiveHandle: (handle: 'start' | 'end' | null) => void;
-  setTimeBeforeDrag: (time: number) => void;
-  setOriginalPlaybackTime?: (time: number) => void; // Optional?
-  videoContext?: any; // Optional?
   getEffectiveTrimEnd: () => number; // Function to get the value
 
   // Time Display
   currentTime: number;
-  // Uses duration, trimStart, effectiveTrimEnd, activeHandle from above
 
   // Info Button
   showAspectRatio: boolean;
@@ -44,6 +35,29 @@ interface PlayerControlsProps {
   // Trim Toggle Button
   // Uses trimActive from above
   onTrimToggle: () => void;
+
+  // New props
+  isPlaying: boolean;
+  isReady: boolean;
+
+  // Native Input Callbacks
+  onScrubberInput: (newTime: number) => void;
+  onTrimStartInput: (newStartTime: number) => void;
+  onTrimEndInput: (newEndTime: number) => void;
+  onScrubberDragStart: () => void;
+  onScrubberDragEnd: () => void;
+  onTrimHandleMouseDown: (handle: 'start' | 'end') => void;
+  onTrimHandleMouseUp: () => void;
+  
+  // Other handlers
+  onPlayPauseToggle: () => void;
+
+  // UI State
+  isLocked: boolean;
+  showLetterboxInfo: boolean;
+  isCompactView: boolean;
+  onLockButtonToggle: () => void;
+  onFullscreenToggle: () => void;
 }
 
 export function PlayerControls({
@@ -60,14 +74,6 @@ export function PlayerControls({
   effectiveTrimEnd,
   activeHandle,
   trimActive,
-  isDraggingScrubber,
-  onTimeUpdate,
-  onScrubberDragStart,
-  onScrubberDragEnd,
-  setActiveHandle,
-  setTimeBeforeDrag,
-  setOriginalPlaybackTime,
-  videoContext,
   getEffectiveTrimEnd,
   // Time Display props
   currentTime,
@@ -76,6 +82,25 @@ export function PlayerControls({
   onInfoToggle,
   // Trim Toggle Button props
   onTrimToggle,
+  // New props
+  isPlaying,
+  isReady,
+  // Native Input Callbacks
+  onScrubberInput,
+  onTrimStartInput,
+  onTrimEndInput,
+  onScrubberDragStart,
+  onScrubberDragEnd,
+  onTrimHandleMouseDown,
+  onTrimHandleMouseUp,
+  // Other handlers
+  onPlayPauseToggle,
+  // UI State
+  isLocked,
+  showLetterboxInfo,
+  isCompactView,
+  onLockButtonToggle,
+  onFullscreenToggle,
 }: PlayerControlsProps) {
   // Controls Overlay - updated to always show on hover regardless of view mode
   return (
@@ -106,15 +131,15 @@ export function PlayerControls({
           effectiveTrimEnd={effectiveTrimEnd}
           activeHandle={activeHandle}
           trimActive={trimActive}
-          isDraggingScrubber={isDraggingScrubber}
-          onTimeUpdate={onTimeUpdate}
+          onScrubberInput={onScrubberInput}
+          onTrimStartInput={onTrimStartInput}
+          onTrimEndInput={onTrimEndInput}
           onScrubberDragStart={onScrubberDragStart}
           onScrubberDragEnd={onScrubberDragEnd}
-          setActiveHandle={setActiveHandle}
-          setTimeBeforeDrag={setTimeBeforeDrag}
-          setOriginalPlaybackTime={setOriginalPlaybackTime}
-          videoContext={videoContext}
+          onTrimHandleMouseDown={onTrimHandleMouseDown}
+          onTrimHandleMouseUp={onTrimHandleMouseUp}
           getEffectiveTrimEnd={getEffectiveTrimEnd}
+          className="flex-grow mx-2"
         />
       </div>
 

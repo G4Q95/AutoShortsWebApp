@@ -1,318 +1,251 @@
-import React, { useRef } from 'react';
+import React, { useRef, ChangeEvent, MouseEvent } from 'react';
 
-// Props for the TimelineControl component
+// Define the structure for the hook's props
 interface TimelineControlProps {
-  /**
-   * Visual time shown on the timeline (may differ during dragging)
-   */
   visualTime: number;
-  
-  /**
-   * Total media duration in seconds
-   */
   duration: number;
-  
-  /**
-   * Start time for trimming (in seconds)
-   */
   trimStart: number;
-  
-  /**
-   * User reference to manually set trim end point
-   */
   effectiveTrimEnd: number;
-  
-  /**
-   * Whether user is currently dragging the scrubber
-   */
-  isDraggingScrubber: boolean;
-  
-  /**
-   * Whether trim mode is active
-   */
+  activeHandle: 'start' | 'end' | null;
   trimActive: boolean;
   
-  /**
-   * Currently active trim handle ('start', 'end', or null)
-   */
-  activeHandle: 'start' | 'end' | null;
+  // Callbacks for native input events (REQUIRED)
+  onScrubberInput: (newTime: number) => void;
+  onTrimStartInput: (newStartTime: number) => void;
+  onTrimEndInput: (newEndTime: number) => void;
   
-  /**
-   * Callback when the time is updated (e.g., by scrubbing)
-   */
-  onTimeUpdate: (newTime: number) => void;
-  
-  /**
-   * Callback when user starts dragging the scrubber
-   */
-  onScrubberDragStart: () => void;
-  
-  /**
-   * Callback when user stops dragging the scrubber
-   */
+  // State management callbacks (REQUIRED)
+  onScrubberDragStart: () => void; 
   onScrubberDragEnd: () => void;
+  onTrimHandleMouseDown: (handle: 'start' | 'end') => void;
+  onTrimHandleMouseUp: () => void;
 
-  /**
-   * Callback to set active trim handle (start/end)
-   */
-  setActiveHandle: (handle: 'start' | 'end' | null) => void;
-
-  /**
-   * Callback to set time before drag operation
-   */
-  setTimeBeforeDrag: (time: number) => void;
-
-  /**
-   * Callback to set original playback time
-   */
-  setOriginalPlaybackTime?: (time: number) => void;
-
-  /**
-   * VideoContext instance
-   */
-  videoContext?: any;
-
-  /**
-   * Function to get effective trim end value
-   */
-  getEffectiveTrimEnd: () => number;
-
-  className?: string; // Add optional className prop
+  // Utility functions/data passed down (if still needed)
+  getEffectiveTrimEnd: () => number; 
+  
+  // Optional styling
+  className?: string; 
+  
+  // Obsolete props - REMOVED
+  // onTimeUpdate?: (newTime: number) => void; 
+  // setActiveHandle?: (handle: 'start' | 'end' | null) => void; 
+  // setTimeBeforeDrag?: (time: number) => void;
+  // isDraggingScrubber?: boolean; // State managed via handlers now
 }
 
 /**
- * TimelineControl - Component handling timeline scrubber and trim brackets
- * 
- * This component handles the display and interaction with the video timeline,
- * including the progress bar and trim brackets. Time display is handled separately.
+ * TimelineControl - Uses native HTML input ranges for precise dragging.
  */
 export function TimelineControl({
+  // Destructure ONLY the props defined above
   visualTime,
   duration,
   trimStart,
   effectiveTrimEnd,
   activeHandle,
   trimActive,
-  isDraggingScrubber,
-  onTimeUpdate,
+  onScrubberInput,
+  onTrimStartInput,
+  onTrimEndInput,
   onScrubberDragStart,
   onScrubberDragEnd,
-  setActiveHandle,
-  setTimeBeforeDrag,
-  setOriginalPlaybackTime,
-  videoContext,
+  onTrimHandleMouseDown,
+  onTrimHandleMouseUp,
   getEffectiveTrimEnd,
   className
 }: TimelineControlProps) {
-  const timelineRef = useRef<HTMLInputElement>(null);
-  
-  const timelineValueToPosition = (value: number): number => {
-    // Note: Need currentTime prop back if we keep this activeHandle logic
-    // For now, assume currentTime is 0 if activeHandle is set during conversion
-    const currentT = activeHandle ? 0 : visualTime; 
-    if (activeHandle) {
-      return currentT; // Return 0 or a default time if handle is active?
-    }
-    const position = (value / 100) * duration;
-    return position;
+  const timelineContainerRef = useRef<HTMLDivElement>(null);
+
+  // Convert time position (0 to duration) to percentage (0 to 100)
+  const positionToPercent = (position: number): number => {
+    return duration > 0 ? (position / duration) * 100 : 0;
   };
   
-  const positionToTimelineValue = (position: number): number => {
-    // Need currentTime prop back if we keep this activeHandle logic
-    const currentT = activeHandle ? 0 : position; 
-    if (activeHandle) {
-      return (currentT / duration) * 100; // Use 0 or a default time?
-    }
-    const value = (position / duration) * 100;
-    return value;
+  // Convert percentage (0 to 100) from input value to time position (0 to duration)
+  const percentValueToPosition = (percentValue: string | number): number => {
+     const percent = typeof percentValue === 'string' ? parseFloat(percentValue) : percentValue;
+     return (percent / 100) * duration;
+  };
+
+  // --- Native Input Event Handlers ---
+  const handleMainScrubberInput = (event: ChangeEvent<HTMLInputElement>) => {
+    const newTime = percentValueToPosition(event.target.value);
+    onScrubberInput(newTime); // Pass calculated time to parent
   };
   
-  console.log(`[TimelineControl] Rendering with trimActive=${trimActive}, trimStart=${trimStart}, trimEnd=${effectiveTrimEnd}, duration=${duration}`);
+  const handleTrimStartRangeInput = (event: ChangeEvent<HTMLInputElement>) => {
+    const newStartTime = percentValueToPosition(event.target.value);
+    // Add clamping relative to end handle if needed, or let parent handle it
+    onTrimStartInput(newStartTime); 
+  };
+
+  const handleTrimEndRangeInput = (event: ChangeEvent<HTMLInputElement>) => {
+    const newEndTime = percentValueToPosition(event.target.value);
+    // Add clamping relative to start handle if needed, or let parent handle it
+    onTrimEndInput(newEndTime);
+  };
   
+  // Mouse down/up handlers just manage state via props now
+  const handleMainScrubberMouseDown = (event: MouseEvent<HTMLInputElement>) => {
+     event.stopPropagation(); // Prevent interfering with other potential listeners
+     if (!activeHandle) {
+       onScrubberDragStart();
+     }
+  };
+  
+  const handleMainScrubberMouseUp = () => {
+    if (!activeHandle) { // Check if activeHandle needed here or just isDraggingScrubber
+       onScrubberDragEnd();
+    }
+  };
+  
+   const handleTrimStartMouseDown = (event: MouseEvent<HTMLInputElement>) => {
+     event.stopPropagation();
+     onTrimHandleMouseDown('start');
+   };
+   
+   const handleTrimEndMouseDown = (event: MouseEvent<HTMLInputElement>) => {
+     event.stopPropagation();
+     onTrimHandleMouseDown('end');
+   };
+   
+   // Unified mouse up for trim handles
+   const handleAnyTrimMouseUp = () => {
+     onTrimHandleMouseUp();
+   };
+  // --- End Native Input Handlers ---
+
+  const mainScrubberPercent = positionToPercent(visualTime);
+  const trimStartPercent = positionToPercent(trimStart);
+  const trimEndPercent = positionToPercent(effectiveTrimEnd);
+
   return (
-    <div className={`relative ${className || ''}`}> {/* Removed mb-1 */} 
-      {/* Main timeline scrubber container */}
-      <div className="flex items-center px-1 relative" 
-          data-drag-handle-exclude="true"
-          style={{ zIndex: 51, pointerEvents: 'auto', height: '16px' /* Ensure container has height */ }}>
-        {/* Timeline scrubber input */}
-        <input
-          ref={timelineRef}
-          type="range"
-          min="0"
-          max="100"
-          value={positionToTimelineValue(visualTime)}
-          className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${activeHandle ? 'pointer-events-none' : ''}`}
-          style={{ 
-            background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(visualTime)}%, #4b5563 ${positionToTimelineValue(visualTime)}%, #4b5563 100%)`,
-            height: '4px',
-            opacity: activeHandle ? 0.4 : 1, 
-            WebkitAppearance: 'none',
-            appearance: 'none',
-            zIndex: 52,
-            pointerEvents: activeHandle ? 'none' : 'auto'
-          }}
-          data-testid="timeline-scrubber"
-          data-drag-handle-exclude="true"
-          onMouseDown={(e) => {
-            console.log("[TimelineControl DEBUG] Scrubber onMouseDown triggered.");
-            e.stopPropagation();
-            if (!activeHandle) {
-              console.log("[TimelineControl DEBUG] Calling onScrubberDragStart().");
-              onScrubberDragStart();
-            }
-          }}
-          onMouseUp={() => {
-            if (!activeHandle) onScrubberDragEnd();
-          }}
-          onMouseLeave={() => {
-            if (!activeHandle) onScrubberDragEnd();
-          }} 
-        />
-      </div>
+    <div 
+       className={`relative h-4 ${className || ''}`}
+       ref={timelineContainerRef}
+     > 
+      {/* 1. Background Track (Visual Only) */}
+      <div 
+        className="absolute top-1/2 -translate-y-1/2 w-full h-1 rounded-lg bg-gray-700"
+        style={{ pointerEvents: 'none', zIndex: 50 }} 
+      />
       
-      {/* Trim brackets (position relative to the container above) */}
+      {/* 2. Progress Fill (Visual Only) */}
+      <div 
+        className="absolute top-1/2 -translate-y-1/2 left-0 h-1 rounded-lg bg-blue-500"
+        style={{ 
+            width: `${mainScrubberPercent}%`, 
+            pointerEvents: 'none', 
+            zIndex: 51 
+        }}
+      />
+      
+      {/* 3. Main Scrubber (Visible Input Range) */}
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="any"
+        value={mainScrubberPercent}
+        className={`absolute top-0 left-0 w-full h-full appearance-none bg-transparent small-thumb ${activeHandle ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
+        style={{ 
+            zIndex: 55,
+            pointerEvents: activeHandle ? 'none' : 'auto',
+            margin: 0,
+            padding: 0
+        }}
+        data-testid="timeline-scrubber"
+        onInput={handleMainScrubberInput}
+        onMouseDown={handleMainScrubberMouseDown}
+        onMouseUp={handleMainScrubberMouseUp}
+      />
+      
+      {/* 4. Trim Controls (Only if trimActive) */}
       {trimActive && duration > 0 ? (
         <>
-          {/* Left trim bracket */}
+          {/* Left Bracket Visual Handle */}
           <div 
-            className="absolute"
+            className="absolute top-0 h-full w-3"
             style={{ 
-              left: `calc(${(trimStart / duration) * 100}% - 6px)`,
-              top: '0px', // Position relative to the scrubber container
-              height: '16px', // Match container height
-              width: '12px',
-              zIndex: 53,
-              pointerEvents: 'auto',
-              opacity: 1,
-              transition: 'opacity 0.2s ease'
+              left: `${trimStartPercent}%`,
+              transform: 'translateX(-50%)',
+              zIndex: 60,
+              pointerEvents: 'none',
             }}
-            data-drag-handle-exclude="true"
-            data-testid="trim-start-bracket"
+            data-testid="trim-start-visual"
           >
-            {/* Range input */}
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="0.01"
-              value={(trimStart / duration) * 100}
-              className="trim-bracket-range"
-              style={{
-                width: '16px',
-                height: '16px', // Match container height
-                position: 'absolute',
-                top: '0px',
-                left: '-2px',
-                WebkitAppearance: 'none',
-                appearance: 'none',
-                zIndex: 90,
-                opacity: 0,
-                pointerEvents: 'auto',
-                cursor: 'ew-resize'
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                console.log("[Trim Bracket] Left Handle MouseDown");
-                setActiveHandle('start');
-                // Need currentTime passed in if we want to set this properly
-                setTimeBeforeDrag(visualTime); // Use visualTime as fallback?
-                if (videoContext && setOriginalPlaybackTime) {
-                  // Need currentTime passed in
-                  setOriginalPlaybackTime(visualTime); // Use visualTime as fallback?
-                }
-              }}
-              onChange={(e) => {
-                e.stopPropagation();
-              }}
-              data-testid="trim-start-range"
-              data-drag-handle-exclude="true"
-            />
-            {/* Visual bracket overlay */}
-            <div 
-              className="absolute w-0.5 bg-blue-500"
-              style={{ 
-                left: '6px',
-                top: '1px', // Adjust visual indicator slightly
-                height: '14px',
-                pointerEvents: 'none',
-                boxShadow: 'none',
-              }}
-            />
+            <div className="w-0.5 h-full bg-blue-500 mx-auto" />
           </div>
-              
-          {/* Right trim bracket */}
+          
+          {/* Left Bracket Hidden Input Range */}
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="any"
+            value={trimStartPercent}
+            className="absolute top-0 h-full appearance-none bg-transparent w-4"
+            style={{
+              left: `${trimStartPercent}%`,
+              transform: 'translateX(-50%)',
+              zIndex: 61,
+              opacity: 0,
+              pointerEvents: 'auto',
+              cursor: 'ew-resize'
+            }}
+            onInput={handleTrimStartRangeInput}
+            onMouseDown={handleTrimStartMouseDown}
+            onMouseUp={handleAnyTrimMouseUp}
+            data-testid="trim-start-input"
+          />
+
+          {/* Right Bracket Visual Handle */}
           <div 
-            className="absolute"
+            className="absolute top-0 h-full w-3" 
             style={{ 
-              left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 6px)`,
-              top: '0px', // Position relative to the scrubber container
-              height: '16px', // Match container height
-              width: '12px',
-              zIndex: 53,
-              pointerEvents: 'auto',
-              opacity: 1,
-              transition: 'opacity 0.2s ease'
+              left: `${trimEndPercent}%`,
+              transform: 'translateX(-50%)', 
+              zIndex: 60, 
+              pointerEvents: 'none',
             }}
-            data-drag-handle-exclude="true"
-            data-testid="trim-end-bracket"
+            data-testid="trim-end-visual"
           >
-            {/* Range input */}
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="0.01"
-              value={(getEffectiveTrimEnd() / duration) * 100}
-              className="trim-bracket-range"
-              style={{
-                width: '16px',
-                height: '16px', // Match container height
-                position: 'absolute',
-                top: '0px',
-                left: '-2px',
-                WebkitAppearance: 'none',
-                appearance: 'none',
-                zIndex: 90,
-                opacity: 0,
-                pointerEvents: 'auto',
-                cursor: 'ew-resize'
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                console.log("[Trim Bracket] Right Handle MouseDown");
-                setActiveHandle('end');
-                // Need currentTime passed in if we want to set this properly
-                setTimeBeforeDrag(visualTime); // Use visualTime as fallback?
-                if (videoContext && setOriginalPlaybackTime) {
-                  // Need currentTime passed in
-                  setOriginalPlaybackTime(visualTime); // Use visualTime as fallback?
-                }
-              }}
-              onChange={(e) => {
-                e.stopPropagation();
-              }}
-              data-testid="trim-end-range"
-              data-drag-handle-exclude="true"
-            />
-            {/* Visual bracket overlay */}
-            <div 
-              className="absolute w-0.5 bg-blue-500"
-              style={{ 
-                left: '6px',
-                top: '1px', // Adjust visual indicator slightly
-                height: '14px', 
-                pointerEvents: 'none',
-                boxShadow: 'none',
-              }}
-            />
+             <div className="w-0.5 h-full bg-blue-500 mx-auto" />
           </div>
+          
+          {/* Right Bracket Hidden Input Range */}
+           <input
+            type="range"
+            min="0"
+            max="100"
+            step="any"
+            value={trimEndPercent}
+            className="absolute top-0 h-full appearance-none bg-transparent w-4"
+            style={{
+              left: `${trimEndPercent}%`,
+              transform: 'translateX(-50%)', 
+              zIndex: 61, 
+              opacity: 0, 
+              pointerEvents: 'auto', 
+              cursor: 'ew-resize'
+            }}
+            onInput={handleTrimEndRangeInput}
+            onMouseDown={handleTrimEndMouseDown}
+            onMouseUp={handleAnyTrimMouseUp}
+            data-testid="trim-end-input"
+          />
+          
+          {/* Gray overlay for trimmed areas */}
+          <div 
+             className="absolute top-1/2 -translate-y-1/2 left-0 h-1 bg-black bg-opacity-50 rounded-l-lg"
+             style={{ width: `${trimStartPercent}%`, zIndex: 52, pointerEvents: 'none' }}
+           />
+           <div 
+             className="absolute top-1/2 -translate-y-1/2 right-0 h-1 bg-black bg-opacity-50 rounded-r-lg"
+             style={{ width: `${100 - trimEndPercent}%`, zIndex: 52, pointerEvents: 'none' }}
+           />
         </>
-      ) : (
-        <div style={{display: 'none'}} data-testid="trim-controls-hidden">
-          Trim controls hidden - trimActive: {String(trimActive)}, duration: {duration.toFixed(2)}
-        </div>
-      )}
+      ) : null}
     </div>
   );
 } 

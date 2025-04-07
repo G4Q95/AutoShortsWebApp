@@ -798,393 +798,140 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Remove bridge from dependency array to prevent infinite loops  
   }, [canvasRef, localMediaUrl, mediaType]); // REMOVED bridge dependency
   
-  // --- Scrubber Drag Handlers (TimelineControl) --- 
-  const handleScrubberDragMove = useCallback((newTime: number) => {
-    if (!isDraggingScrubber) return; // Should already be true, but double-check
-    
-    // Clamp time within valid range (considering trim)
+  // == INTERACTION HANDLERS ==
+  
+  // --- Scrubber Handlers (for Native Input) ---
+  const handleScrubberDragStart = useCallback(() => {
+    // Still needed to pause playback and set dragging state
+    if (isPlaying) handlePause();
+    setIsDraggingScrubber(true);
+  }, [isPlaying, handlePause, setIsDraggingScrubber]);
+  
+  // Called by TimelineControl's onInput for the main scrubber
+  const handleScrubberInput = useCallback((newTime: number) => {
+    // Clamp time (safety check)
     const clampedTime = Math.max(0, Math.min(newTime, duration));
     
     // Update visual time immediately
     setVisualTime(clampedTime);
     
-    // *** ADDED: Update actual video time for live scrubbing ***
+    // Seek media for live preview
     if (videoRef.current) {
-      try {
-        videoRef.current.currentTime = clampedTime;
-      } catch (e) {
-        console.warn("[ScrubberDrag] Error setting video element time:", e);
-      }
+      try { videoRef.current.currentTime = clampedTime; } catch (e) {}
     }
-    if (videoContext) { // Also update context if available
-      try {
-        videoContext.currentTime = clampedTime;
-      } catch (e) {
-        console.warn("[ScrubberDrag] Error setting video context time:", e);
-      }
+    if (bridge.videoContext) {
+      try { bridge.videoContext.currentTime = clampedTime; } catch (e) {}
     }
-    
-  }, [isDraggingScrubber, duration, videoRef, videoContext, setVisualTime]); // Dependencies
-
-  const handleScrubberDragStart = useCallback(() => {
-    setIsDraggingScrubber(true);
-    if (isPlaying) {
-      handlePause(); // Pause playback when scrubbing starts
+    if (audioRef.current) {
+      try { audioRef.current.currentTime = clampedTime; } catch (e) {}
     }
-    if (!isDraggingScrubber) {
-      setOriginalPlaybackTime(visualTime); // Store time before drag
-    }
-  }, [isPlaying, isDraggingScrubber, visualTime, handlePause, setIsDraggingScrubber, setOriginalPlaybackTime]);
+  }, [duration, setVisualTime, videoRef, bridge, audioRef]); // Dependencies
 
   const handleScrubberDragEnd = useCallback(() => {
     if (!isDraggingScrubber) return; // Only act if we were dragging
     
-    let finalTime = visualTime; 
-
-    // Clamp the final time just in case
-    finalTime = Math.max(0, Math.min(finalTime, duration));
+    // Final time is already set in visualTime by handleScrubberInput
+    const finalTime = visualTime; 
     
+    // Update the actual playback time state
     setCurrentTime(finalTime); 
     
     // Clean up dragging state
     setIsDraggingScrubber(false);
   }, [
-    isDraggingScrubber, visualTime, duration, videoRef, // Add duration and videoRef
-    setCurrentTime, setVisualTime, // Playback hook state setters
-    bridge, // Use bridge object itself
-    forceResetOnPlayRef, setIsDraggingScrubber // Other refs/setters
+    isDraggingScrubber, visualTime, // Keep visualTime
+    setCurrentTime, 
+    setIsDraggingScrubber 
+    // Removed bridge, duration - not needed here anymore
   ]);
   
-  // *** ADDED: useEffect for global scrubber drag listeners ***
-  useEffect(() => {
-    if (!isDraggingScrubber) return;
-
-    const handleGlobalMouseMove = (event: MouseEvent) => {
-      // Calculate new time based on mouse position relative to the container
-      // This assumes containerRef refers to the element relative to which scrubbing occurs
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const width = rect.width;
-      // Calculate percentage and ensure it's within bounds [0, 1]
-      const percent = Math.max(0, Math.min(1, x / width));
-      const newTime = percent * duration;
-      
-      // Call the existing move handler
-      handleScrubberDragMove(newTime);
-    };
-
-    const handleGlobalMouseUp = () => {
-      handleScrubberDragEnd(); // Call the existing end handler
-    };
-
-    // Add listeners to the document
-    document.addEventListener('mousemove', handleGlobalMouseMove);
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-    // Optional: Add mouseleave on documentElement as a safety net
-    // document.documentElement.addEventListener('mouseleave', handleGlobalMouseUp);
-
-    // Cleanup function
-    return () => {
-      document.removeEventListener('mousemove', handleGlobalMouseMove);
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
-      // document.documentElement.removeEventListener('mouseleave', handleGlobalMouseUp);
-    };
-  }, [
-    isDraggingScrubber, 
-    duration, 
-    containerRef, // Need containerRef for position calculation
-    handleScrubberDragMove, // Callback dependency
-    handleScrubberDragEnd // Callback dependency
-  ]);
+  // --- Trim Handlers (for Native Input) ---
   
-  // Function to convert range input value to timeline position
-  const timelineValueToPosition = (value: number): number => {
-    // When trim handles are being dragged, maintain current position
-    if (activeHandle) {
-      return currentTime;
+  // Called on MouseDown on the hidden trim range inputs in TimelineControl
+  const handleTrimHandleMouseDown = useCallback((handle: 'start' | 'end') => {
+    if (isPlaying) {
+      handlePause(); // Pause if playing
     }
-    const position = (value / 100) * duration;
-    return position;
-  };
-  
-  // Function to convert timeline position to range input value
-  const positionToTimelineValue = (position: number): number => {
-    // When trim handles are being dragged, maintain current position
-    if (activeHandle) {
-      return (currentTime / duration) * 100;
-    }
-    const value = (position / duration) * 100;
-    return value;
-  };
-  
-  // Get the effective trim end for display purposes
-  const getEffectiveTrimEnd = () => {
-    // If we have a user-set value, use it
-    if (userTrimEndRef.current !== null) {
-      return userTrimEndRef.current;
-    }
+    setActiveHandle(handle); // Set active handle via hook
+  }, [isPlaying, handlePause, setActiveHandle]); // Use setActiveHandle from useTrimControls
+
+  // Called by TimelineControl's onInput for the left bracket
+  const handleTrimStartInput = useCallback((newStartTime: number) => {
+    if (activeHandle !== 'start') return; // Only update if this handle is active
     
-    // If trimEnd from state is valid (not zero), use it
-    if (trimEnd > 0) {
-      return trimEnd;
+    // Clamp against duration and end handle
+    const clampedStartTime = Math.max(0, Math.min(newStartTime, trimEnd - 0.1));
+    
+    setTrimStart(clampedStartTime); // Update state via hook
+    setVisualTime(clampedStartTime); // Update visual time to match
+    setCurrentTime(clampedStartTime); // Also update actual time immediately
+    
+    // Seek media for live preview
+    if (videoRef.current) {
+      try { videoRef.current.currentTime = clampedStartTime; } catch (e) {}
+    }
+    if (bridge.videoContext) {
+      try { bridge.videoContext.currentTime = clampedStartTime; } catch (e) {}
+    }
+     if (audioRef.current) {
+      try { audioRef.current.currentTime = clampedStartTime; } catch (e) {}
     }
     
-    // If duration is known, use that
-    if (duration > 0) {
-      return duration;
-    }
+  }, [activeHandle, trimEnd, setTrimStart, setVisualTime, setCurrentTime, videoRef, bridge, audioRef]); // Dependencies
+
+  // Called by TimelineControl's onInput for the right bracket
+  const handleTrimEndInput = useCallback((newEndTime: number) => {
+    if (activeHandle !== 'end') return; // Only update if this handle is active
     
-    // Fallback to a reasonable default (10 seconds)
-    return 10;
-  };
-  
-  // Get media container style - this will create letterboxing/pillarboxing effect
-  const getMediaContainerStyle = useCallback(() => {
-    // Base style without letterboxing/pillarboxing
-    if (!showLetterboxing) {
-      return {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '100%',
-        height: '100%',
-        overflow: 'hidden',
-      };
+    // Clamp against duration and start handle
+    const clampedEndTime = Math.min(duration, Math.max(newEndTime, trimStart + 0.1));
+    
+    setTrimEnd(clampedEndTime); // Update state via hook
+    userTrimEndRef.current = clampedEndTime; // Update manual ref
+    setVisualTime(clampedEndTime); // Update visual time to match
+    setCurrentTime(clampedEndTime); // Also update actual time immediately
+
+    // Seek media for live preview
+    if (videoRef.current) {
+      try { videoRef.current.currentTime = clampedEndTime; } catch (e) {}
     }
-
-    // Calculate aspect ratios
-    const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
-    const projectRatio = projWidth / projHeight;
-    const mediaRatio = calculatedAspectRatio || projectRatio;
-
-    console.log(`[AspectRatio-Debug] Scene: ${sceneId}, Project ratio: ${projectRatio.toFixed(4)}, Media ratio: ${mediaRatio.toFixed(4)}, CompactView: ${isCompactView}`);
-
-    // Base container style for both compact and full-screen views
-    const style: CSSProperties = {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      position: 'relative',
-      backgroundColor: '#000',
-      overflow: 'hidden',
-    };
-
-    // CONSISTENT CALCULATION FOR BOTH VIEWS:
-    // Use the same exact calculation approach for both compact and full screen
-    // This ensures media appears in the same proportions in both views
-
-    // First set container to match project aspect ratio
-    // (This sets the "canvas" into which media will be placed)
-    if (isCompactView) {
-      // Small view - fixed height but proper proportional width
-      style.height = '100%';
-      style.width = 'auto';
-      style.aspectRatio = projectAspectRatio.replace(':', '/');
-      style.margin = 'auto'; // Center in parent
-    } else {
-      // Full screen view - fill available space while maintaining aspect ratio
-      style.width = '100%';
-      style.height = 'auto';
-      style.aspectRatio = projectAspectRatio.replace(':', '/');
+    if (bridge.videoContext) {
+      try { bridge.videoContext.currentTime = clampedEndTime; } catch (e) {}
+    }
+     if (audioRef.current) {
+      try { audioRef.current.currentTime = clampedEndTime; } catch (e) {}
     }
 
-    // Calculate and log precise details about the scaling
-    console.log(`[AspectRatio-Scaling] Scene ${sceneId}: MediaRatio=${mediaRatio.toFixed(4)}, ProjectRatio=${projectRatio.toFixed(4)}`);
+  }, [activeHandle, duration, trimStart, setTrimEnd, userTrimEndRef, setVisualTime, setCurrentTime, videoRef, bridge, audioRef]); // Dependencies
 
-    return style;
-  }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
-  
-  // Add useEffect for temporary aspect ratio display on mount or scene change
-  useEffect(() => {
-    // Show indicator when component mounts (new scene)
-    setShowTemporaryAspectRatio(true);
-    
-    // Hide after 2 seconds
-    const timer = setTimeout(() => {
-      setShowTemporaryAspectRatio(false);
-    }, 2000);
-    
-    return () => clearTimeout(timer);
-  }, [sceneId]); // Re-run when sceneId changes (new scene)
-  
-  // Add useEffect for aspect ratio changes
-  useEffect(() => {
-    // Show indicator when aspect ratio changes
-    setShowTemporaryAspectRatio(true);
-    
-    // Hide after 2 seconds
-    const timer = setTimeout(() => {
-      setShowTemporaryAspectRatio(false);
-    }, 2000);
-    
-    return () => clearTimeout(timer);
-  }, [projectAspectRatio]); // Re-run when projectAspectRatio changes
-
-  // Add state for fullscreen mode
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  
-  // Add fullscreen toggle handler
-  const handleFullscreenToggle = useCallback(() => {
-    if (!containerRef.current) return;
-    
-    if (!document.fullscreenElement) {
-      // Enter fullscreen
-      containerRef.current.requestFullscreen().catch(err => {
-        console.error(`[VideoContext] Error attempting to enable fullscreen:`, err);
-      });
-    } else {
-      // Exit fullscreen
-      document.exitFullscreen();
-    }
-  }, [containerRef]);
-  
-  // Listen for fullscreen change events
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-  
-  // Canvas/Video visibility logic
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    
-    if (!canvas) {
-      console.log('[CANVAS DEBUG] Canvas ref is null in visibility effect');
-      return; // Canvas must exist
-    }
-    
-    // Define handlers (can be defined outside the if block)
-    const handleMetadataLoaded = () => {
-      if (!video) return;
-      console.log(`[CANVAS DEBUG] FALLBACK: Video metadata loaded, duration=${video.duration}`);
-      if (video.duration > 0) {
-        setDuration(video.duration);
-        setIsReady(true);
-        if (!trimManuallySet) {
-          setTrimEnd(video.duration);
-          if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
-            userTrimEndRef.current = video.duration;
-          }
-        }
-        setCurrentTime(0);
-        setVisualTime(0);
-      }
-    };
-    
-    const timeUpdateHandler = () => {
-      if (!video) return;
-      console.log("[DEBUG] timeupdate event fired!");
-      if (!isDraggingScrubber) {
-        console.log(`[VideoElement] Time update: ${video.currentTime.toFixed(2)}s / ${video.duration.toFixed(2)}s`);
-        setCurrentTime(video.currentTime);
-        setVisualTime(video.currentTime);
-      }
-    };
-    
-    const handleError = (e: Event) => {
-      console.error('[CANVAS DEBUG] Video element error:', e);
-    };
-
-    // --- IMPROVED DIRECT RENDERING APPROACH --- 
-    if (isVideoType(mediaType)) {
-      canvas.style.display = 'none';
-      
-      if (video && localMediaUrl) {
-        video.style.display = 'block';
-        video.style.zIndex = '10';
-        video.style.width = '100%';
-        video.style.height = '100%';
-        video.style.objectFit = 'contain';
-        video.style.backgroundColor = 'black';
-        
-        if (video.src !== localMediaUrl) {
-          video.src = localMediaUrl;
-          video.crossOrigin = 'anonymous';
-          video.muted = true;
-          video.playsInline = true;
-          video.controls = false;
-          console.log(`[CANVAS DEBUG] Set video.src to ${localMediaUrl}`);
-        }
-
-        // Add listeners if video element exists
-        console.log("[DEBUG] Adding event listeners (metadata, timeupdate, error)");
-        video.addEventListener('loadedmetadata', handleMetadataLoaded);
-        video.addEventListener('timeupdate', timeUpdateHandler);
-        video.addEventListener('error', handleError);
-        
-        // Update video element playback state
-        if (isPlaying && video.paused) {
-          console.log(`[CANVAS DEBUG] Starting direct video playback at time: ${currentTime}`);
-          
-          // Set current time before playing
-          try {
-            video.currentTime = currentTime; 
-          } catch (e) {
-            console.error('[CANVAS DEBUG] Error setting video time:', e);
-          }
-          
-          video.play().catch(e => console.error('[CANVAS DEBUG] Error playing fallback video:', e));
-        } else if (!isPlaying && !video.paused) {
-          console.log('[CANVAS DEBUG] Pausing direct video playback');
-          video.pause();
-        }
-      }
-    } else if (isImageType(mediaType)) {
-      canvas.style.display = 'none';
-      if (video) video.style.display = 'none';
-    }
-
-    // --- Return the cleanup function --- 
-    return () => {
-      const currentVideo = videoRef.current; // Use ref in cleanup
-      if (currentVideo) {
-        console.log("[DEBUG] Removing event listeners (metadata, timeupdate, error)");
-        currentVideo.removeEventListener('loadedmetadata', handleMetadataLoaded);
-        currentVideo.removeEventListener('timeupdate', timeUpdateHandler);
-        currentVideo.removeEventListener('error', handleError);
-      }
-    };
+  // Called on MouseUp on the hidden trim range inputs in TimelineControl
+  const handleTrimHandleMouseUp = useCallback(() => {
+     if (!activeHandle) return;
+     
+     const finalTrimStart = trimStart; // Get final values from state
+     const finalTrimEnd = trimEnd;
+     
+     // Finalize state after native drag
+     setActiveHandle(null); // Clear active handle via hook
+     setTrimManuallySet(true); // Mark trim as manually set via hook
+     onTrimChange?.(finalTrimStart, finalTrimEnd); // Notify parent of final values
+     
+     // Restore playback time to trimStart after drag
+     const restoreTime = finalTrimStart;
+     setCurrentTime(restoreTime);
+     setVisualTime(restoreTime);
+     
+     // Set the flag to force reset playback position on the next play command
+     forceResetOnPlayRef.current = true; 
 
   }, [
-    // Dependencies
-    isPlaying, mediaType, localMediaUrl, // Core state/props
-    videoRef, canvasRef, // Refs
-    isDraggingScrubber, // Interaction state
-    setDuration, setIsReady, setTrimEnd, userTrimEndRef, trimManuallySet, setCurrentTime, setVisualTime // Setters
+      activeHandle, trimStart, trimEnd, onTrimChange, 
+      setCurrentTime, setVisualTime, 
+      setActiveHandle, setTrimManuallySet, // Use setters from useTrimControls
+      forceResetOnPlayRef
   ]);
-  
-  // Effect to clear image timer on unmount
-  useEffect(() => {
-    // Return cleanup function
-    return () => {
-      if (imageTimerRef.current) {
-        clearInterval(imageTimerRef.current);
-      }
-    };
-  }, []); // Empty dependency array ensures this runs only on mount and unmount
-  
-  // Add formatTime function back inside the component scope
-  const formatTime = (seconds: number, showTenths: boolean = false): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    
-    if (showTenths) {
-      const tenths = Math.floor((seconds % 1) * 10);
-      return `${mins}:${secs.toString().padStart(2, '0')}.${tenths}`;
-    } else {
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-  };
-  
-  // --- Callbacks & Handlers ---
+
+  // == MEDIA EVENT HANDLERS ==
   // Ensure these exist from previous steps
   const handlePlayPauseToggle = useCallback(() => {
     if (isPlaying) {
@@ -1211,7 +958,38 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add another important log - right before render, to show the current isMediumView value that will be used for conditional rendering
   console.log(`[VCSPP PreRender] PlayerControls conditional check: isMediumView=${isMediumView}`);
 
-  // Initialize media event handlers
+  // == STATE FOR UI ELEMENTS (Ensure no duplicates) ==
+  const [controlsLocked, setControlsLocked] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // == EFFECTS FOR UI ==
+  
+  // Effect for temporary aspect ratio display
+  useEffect(() => {
+    setShowTemporaryAspectRatio(true);
+    const timer = setTimeout(() => setShowTemporaryAspectRatio(false), 2000);
+    return () => clearTimeout(timer);
+  }, [sceneId, projectAspectRatio]); // Show on scene change or aspect ratio change
+
+  // Fullscreen handling (Moved earlier)
+  const handleFullscreenToggle = useCallback(() => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error(`[VCSPP] Error entering fullscreen:`, err);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  }, [containerRef]);
+
+  useEffect(() => {
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  // Initialize media event handlers (Now handleFullscreenToggle is defined)
   const mediaEventHandlers = useMediaEventHandlers({
     sceneId,
     mediaType,
@@ -1236,6 +1014,69 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Create a reset key for the error boundary based on various factors
   // This ensures the error boundary resets when relevant props change
   const errorBoundaryResetKey = `${sceneId}-${mediaUrl}-${localMediaUrl}-${mediaType}-${Date.now()}`;
+
+  // == UTILITY FUNCTIONS ==
+  
+  // Function to convert time to percentage for display/input value
+  const positionToPercent = (position: number): number => {
+    return duration > 0 ? (position / duration) * 100 : 0;
+  };
+
+  // Function to convert percentage from input value to time
+  const percentValueToPosition = (percentValue: string | number): number => {
+    const percent = typeof percentValue === 'string' ? parseFloat(percentValue) : percentValue;
+    return (percent / 100) * duration;
+  };
+  
+  // Get the effective trim end for display purposes (RESTORED)
+  const getEffectiveTrimEnd = useCallback(() => {
+    if (userTrimEndRef.current !== null) {
+      return userTrimEndRef.current;
+    }
+    if (trimEnd > 0) {
+      return trimEnd;
+    }
+    if (duration > 0) {
+      return duration;
+    }
+    return 10; // Fallback
+  }, [trimEnd, duration, userTrimEndRef]);
+  
+  // Get media container style (RESTORED - assumes useMediaAspectRatio provides calculatedAspectRatio)
+  const getMediaContainerStyle = useCallback(() => {
+    if (!showLetterboxing) {
+      return {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+      };
+    }
+    const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
+    const projectRatio = projWidth / projHeight;
+    const mediaRatio = calculatedAspectRatio || projectRatio;
+    const style: CSSProperties = {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+      backgroundColor: '#000',
+      overflow: 'hidden',
+    };
+    if (isCompactView) {
+      style.height = '100%';
+      style.width = 'auto';
+      style.aspectRatio = projectAspectRatio.replace(':', '/');
+      style.margin = 'auto'; 
+    } else {
+      style.width = '100%';
+      style.height = 'auto';
+      style.aspectRatio = projectAspectRatio.replace(':', '/');
+    }
+    return style;
+  }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView]);
 
   // Render loading state
   if (isLoading && !localMediaUrl) {
@@ -1333,35 +1174,47 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       >
         {/* PlayerControls component is now passed as a child */}
         <PlayerControls
-          // Visibility
-          isHovering={isHovering}
-          isPositionLocked={isPositionLocked}
-          isMediumView={isMediumView ?? false}
-          // Lock Button
-          onLockToggle={handleLockToggle}
-          // Timeline
-          visualTime={visualTime}
+          // Playback state (RESTORED isPlaying)
+          isPlaying={isPlaying}
+          isReady={isReady}
+          // Time state
+          currentTime={currentTime} 
+          visualTime={visualTime} 
           duration={duration}
-          trimStart={trimStart}
-          effectiveTrimEnd={getEffectiveTrimEnd()}
-          activeHandle={activeHandle}
+          // Trim state & handlers
           trimActive={trimActive}
-          isDraggingScrubber={isDraggingScrubber}
-          onTimeUpdate={handleScrubberDragMove}
+          trimStart={trimStart}
+          effectiveTrimEnd={getEffectiveTrimEnd()} // Call function
+          activeHandle={activeHandle} 
+          
+          // Native Input Callbacks
+          onScrubberInput={handleScrubberInput}
+          onTrimStartInput={handleTrimStartInput}
+          onTrimEndInput={handleTrimEndInput}
+          
+          // Native State Management Callbacks
           onScrubberDragStart={handleScrubberDragStart}
           onScrubberDragEnd={handleScrubberDragEnd}
-          setActiveHandle={setActiveHandle}
-          setTimeBeforeDrag={setTimeBeforeDrag}
-          setOriginalPlaybackTime={setOriginalPlaybackTime}
-          videoContext={videoContext}
-          getEffectiveTrimEnd={getEffectiveTrimEnd}
-          // Time Display
-          currentTime={currentTime}
-          // Info Button
-          showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
-          onInfoToggle={handleInfoToggle}
-          // Trim Toggle Button
+          onTrimHandleMouseDown={handleTrimHandleMouseDown}
+          onTrimHandleMouseUp={handleTrimHandleMouseUp}
+          
+          // Other handlers (Restored missing ones)
+          onPlayPauseToggle={handlePlayPauseToggle}
+          onLockButtonToggle={handleLockToggle}
           onTrimToggle={handleTrimToggle}
+          onInfoToggle={handleInfoToggle}
+          onFullscreenToggle={handleFullscreenToggle} // Pass the restored handler
+          onLockToggle={handleLockToggle}
+          getEffectiveTrimEnd={getEffectiveTrimEnd} // Pass the restored function
+          
+          // State for UI (Restored missing ones)
+          isLocked={controlsLocked}
+          isPositionLocked={isPositionLocked}
+          showLetterboxInfo={showLetterboxing}
+          showAspectRatio={showAspectRatio}
+          isCompactView={isCompactView} 
+          isHovering={isHovering}
+          isMediumView={!!isMediumView} 
         />
       </MediaContainer>
     </MediaErrorBoundary>

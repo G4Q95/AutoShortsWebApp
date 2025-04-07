@@ -102,148 +102,33 @@ export function useTrimControls({
   }, [duration, trimManuallySet, trimEnd]); // Depend on duration and trimManuallySet
 
   // --- Event Handlers ---
+  // REMOVED handleTrimDragMove and the global listener useEffect
+  // Native inputs in TimelineControl now handle the drag updates via props
+
+  // This handler might still be needed if called by parent for some reason,
+  // but its logic based on MouseEvent is obsolete. Keep stubbed for now.
   const handleTrimDragMove = useCallback((event: MouseEvent) => {
-    if (!activeHandle || !containerRef.current || duration <= 0) return;
-    
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    let newTime = (x / rect.width) * duration;
-    newTime = Math.max(0, Math.min(newTime, duration)); // Clamp within 0 to duration
+    // This logic is now handled by native onInput events in TimelineControl
+    // console.warn("handleTrimDragMove called unexpectedly");
+  }, []);
 
-    let newStart = trimStart;
-    let newEnd = trimEnd;
-
-    if (activeHandle === 'start') {
-      // If dragging start handle
-      const newStart = Math.min(newTime, trimEnd - 0.1);
-      setTrimStart(newStart);
-      
-      // Update video currentTime to match the trim start
-      setCurrentTime(newStart);
-      setVisualTime(newStart);
-      
-      // Also update video element directly if available
-      if (videoRef.current) {
-        try {
-          videoRef.current.currentTime = newStart;
-        } catch (e) {
-          console.error('[DEBUG][TrimDrag Start] Error setting video time:', e);
-        }
-      }
-      
-      // Update the video context if available
-      if (videoContext) {
-        try {
-          videoContext.currentTime = newStart;
-        } catch (e) {
-          console.error('[DEBUG][TrimDrag Start] Error setting videoContext time:', e);
-        }
-      }
-      
-      if (onTrimChange) {
-        onTrimChange(newStart, trimEnd);
-      }
-    } else { // activeHandle === 'end'
-      newEnd = Math.max(newTime, trimStart + 0.1); // Ensure end doesn't pass start
-      newEnd = Math.min(duration, newEnd); // Ensure end doesn't exceed duration
-      setTrimEnd(newEnd);
-      userTrimEndRef.current = newEnd; // Update ref when manually dragging end handle
-      
-      // Update visual time AND actual video time
-      setVisualTime(newEnd); 
-      if (videoRef.current) {
-        try {
-          videoRef.current.currentTime = newEnd;
-        } catch (e) {
-          console.error('[DEBUG][TrimDrag End] Error setting video time:', e);
-        }
-      }
-      if (videoContext) {
-         try {
-           videoContext.currentTime = newEnd;
-         } catch (e) {
-           console.error('[DEBUG][TrimDrag End] Error setting videoContext time:', e);
-         }
-      }
-    }
-    
-    // Pause playback while dragging
-    if (isPlaying) {
-      setIsPlaying(false);
-    }
-
-  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, videoContext, audioRef, isPlaying, setIsPlaying, setVisualTime]);
-
+  // This handler might also be called by parent, keep stubbed.
+  // Logic is now handled by native onMouseUp events in TimelineControl
   const handleTrimDragEnd = useCallback(() => {
-    if (!activeHandle) return;
-    setActiveHandle(null);
-    setTrimManuallySet(true); // Mark trim as manually set after dragging
-    onTrimChange?.(trimStart, trimEnd);
-    
-    // --- Restore playback time AFTER drag --- 
-    const restoreTime = trimStart;
-    setCurrentTime(restoreTime);
-    setVisualTime(restoreTime);
-    if (videoContext) {
-      try { videoContext.currentTime = restoreTime; } 
-      catch(e) { console.warn("[TrimEnd] Error setting video context time:", e); }
-    }
-    if (audioRef.current) {
-      try { audioRef.current.currentTime = restoreTime; } 
-      catch(e) { console.warn("[TrimEnd] Error setting audio time:", e); }
-    }
-    // --- END Restore playback time --- 
-
-    // Set the flag to force reset playback position on the next play command
-    forceResetOnPlayRef.current = true; 
-
-    // Reset cursor style
-    if (containerRef.current?.ownerDocument) {
-      containerRef.current.ownerDocument.body.style.cursor = 'default';
-    }
-  }, [
-      activeHandle, trimStart, trimEnd, onTrimChange, 
-      setCurrentTime, setVisualTime,
-      videoContext, audioRef, containerRef, forceResetOnPlayRef
-  ]);
+    // This logic is now handled by native onMouseUp events in TimelineControl
+    // console.warn("handleTrimDragEnd called unexpectedly");
+     // If cleanup logic like resetting cursor is needed, it could go here
+     // or be handled by the onTrimHandleMouseUp in the parent component.
+     // Reset cursor style
+     // if (containerRef.current?.ownerDocument) {
+     //   containerRef.current.ownerDocument.body.style.cursor = 'default';
+     // }
+  }, []);
 
   // --- Global Listener Effect ---
-  // Effect to add/remove global mouse listeners for dragging trim handles
-  useEffect(() => {
-    if (!activeHandle || !containerRef.current) return;
-
-    const ownerDocument = containerRef.current.ownerDocument;
-    if (!ownerDocument) return;
-
-    // Change cursor while dragging
-    ownerDocument.body.style.cursor = 'ew-resize';
-
-    const moveHandler = (event: MouseEvent) => {
-      handleTrimDragMove(event);
-    };
-    const endHandler = () => {
-      handleTrimDragEnd();
-    };
-
-    ownerDocument.addEventListener('mousemove', moveHandler);
-    ownerDocument.addEventListener('mouseup', endHandler);
-    // Add mouseleave on the documentElement as a safety catch-all
-    ownerDocument.documentElement.addEventListener('mouseleave', endHandler);
-
-    return () => {
-      ownerDocument.removeEventListener('mousemove', moveHandler);
-      ownerDocument.removeEventListener('mouseup', endHandler);
-      ownerDocument.documentElement.removeEventListener('mouseleave', endHandler);
-      // Always reset cursor on cleanup for safety
-      ownerDocument.body.style.cursor = 'default';
-    };
-    // Dependencies: The handlers defined in this hook and the state/props they depend on.
-    // activeHandle is state internal to this hook.
-    // containerRef is a prop.
-  }, [activeHandle, handleTrimDragMove, handleTrimDragEnd, containerRef]);
+  // REMOVED - Native inputs handle drag
 
   // --- Return Values ---
-  // Return state values AND their setters
   return {
     trimStart,
     setTrimStart,
@@ -256,8 +141,8 @@ export function useTrimControls({
     userTrimEndRef,
     timeBeforeDrag,
     setTimeBeforeDrag,
-    // Return handlers
+    // Return STUBBED handlers - they shouldn't be called by TimelineControl anymore
     handleTrimDragMove,
-    handleTrimDragEnd,
+    handleTrimDragEnd, 
   };
 } 
