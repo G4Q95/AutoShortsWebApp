@@ -94,6 +94,10 @@ export function useAnimationFrameLoop({
   const isActiveRef = useRef(true);
   // Ref to track playing state for use in the rAF callback
   const isPlayingRef = useRef(isPlaying);
+  // Ref to track the last animation frame timestamp for calculating delta time
+  const lastFrameTimeRef = useRef<number>(0);
+  // Ref to track the last video context time to detect changes
+  const lastVideoContextTimeRef = useRef<number>(0);
   
   // Sync ref with prop
   useEffect(() => {
@@ -110,6 +114,19 @@ export function useAnimationFrameLoop({
     
     // Define the update function for the animation frame
     const updateTime = () => {
+      // Add diagnostic logging
+      if (videoContext && typeof videoContext.currentTime !== 'undefined') {
+        // Only log every 2 seconds for readability
+        if (Math.floor(currentTime) % 2 === 0 && Math.floor(currentTime * 10) % 10 === 0) {
+          console.log(`[rAF Diagnostic] videoContext.currentTime=${videoContext.currentTime.toFixed(3)}, currentTime=${currentTime.toFixed(3)}, isPlaying=${isPlayingRef.current}, isReady=${isReady}`);
+        }
+      } else {
+        // Only log every 2 seconds for readability
+        if (Math.floor(currentTime) % 2 === 0 && Math.floor(currentTime * 10) % 10 === 0) {
+          console.log(`[rAF Diagnostic] No videoContext time. currentTime=${currentTime.toFixed(3)}, isPlaying=${isPlayingRef.current}, isReady=${isReady}`);
+        }
+      }
+      
       // Handle reset flag if set
       if (forceResetOnPlayRef.current) {
         const startTime = trimStart;
@@ -137,18 +154,53 @@ export function useAnimationFrameLoop({
         return;
       }
       
-      // *** USE currentTime PROP for boundary checks ***
-      // The timeupdate listener is handling the actual state advancement.
-      // The loop only needs to check boundaries based on the current state.
-      const newTime = currentTime; 
+      // Get elapsed time since last frame
+      const now = performance.now();
+      const lastFrameTime = lastFrameTimeRef.current || now;
+      const deltaTime = (now - lastFrameTime) / 1000; // convert to seconds
+      lastFrameTimeRef.current = now;
+      
+      // Calculate new time value
+      // If videoContext time is changing, use it; otherwise manually increment
+      let newTime;
+      if (videoContext && 
+          typeof videoContext.currentTime !== 'undefined' && 
+          Math.abs(videoContext.currentTime - lastVideoContextTimeRef.current) > 0.01) {
+        // VideoContext time is changing, use it
+        newTime = videoContext.currentTime;
+        lastVideoContextTimeRef.current = videoContext.currentTime;
+      } else {
+        // VideoContext time isn't changing, manually increment
+        newTime = currentTime + deltaTime;
+        
+        // Force videoContext to update to the new time if it exists
+        if (videoContext && typeof videoContext.currentTime !== 'undefined') {
+          try {
+            // Sync videoContext's time with our calculated time
+            videoContext.currentTime = newTime;
+            
+            // Force VideoContext to render a frame at this time
+            if (typeof videoContext.update === 'function') {
+              videoContext.update(newTime);
+              
+              // Log only occasionally to avoid spam
+              if (Math.floor(newTime) % 10 === 0) {
+                console.log(`[rAF] Forced VideoContext update at time=${newTime.toFixed(3)}`);
+              }
+            }
+          } catch (e) {
+            console.warn("[rAF] Error updating VideoContext:", e);
+          }
+        }
+      }
       
       // Check justResetRef before processing boundary
       if (justResetRef.current) {
         console.log(`[rAF] Ignoring first update after reset (currentTime: ${newTime.toFixed(3)}). Resetting justResetRef.`);
         justResetRef.current = false; // Consume the flag
       } else {
-        // ** ONLY CALL onUpdate for BOUNDARY CHECKS, not every frame **
-        // onUpdate(newTime); // COMMENTED OUT main update call
+        // ** CALL onUpdate for CONTINUOUS TIME UPDATES **
+        onUpdate(newTime); // Update time on each frame
         
         // Handle end of media boundary
         const actualTrimEndCheck = userTrimEndRef?.current ?? trimEnd;
@@ -237,4 +289,4 @@ export function useAnimationFrameLoop({
   
   // Return empty object for now
   return {};
-} 
+}

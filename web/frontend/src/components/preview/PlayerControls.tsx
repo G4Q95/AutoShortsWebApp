@@ -166,11 +166,11 @@ export function PlayerControls({
         <div className="flex-shrink-0 w-14 flex justify-end items-center">
           <InfoButton
             isActive={showAspectRatio}
-            onToggle={onInfoToggle} // Use prop directly
+            onToggle={onInfoToggle}
           />
           <TrimToggleButton
             isActive={trimActive}
-            onToggle={onTrimToggle} // Use prop directly
+            onToggle={onTrimToggle}
           />
         </div>
       </div>

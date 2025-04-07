@@ -288,31 +288,45 @@ export function useVideoContextBridge({
     console.log("[Bridge Play] Attempting to play...");
     const targetCtx = internalCtx || videoContextInstance; // Prefer internal if available
     
+    // Log source node and destination details
+    if (activeSource) {
+      console.log("[Bridge Play] Source node details:", {
+        hasConnectMethod: typeof activeSource.connect === 'function',
+        hasStartMethod: typeof activeSource.start === 'function',
+        isSourceSequenced: activeSource._isSequenced || false, // might be undefined
+        sourceNode: activeSource.constructor?.name || typeof activeSource
+      });
+    } else {
+      console.log("[Bridge Play] No active source node available");
+    }
+    
     // Since we confirmed source.play doesn't exist (from logs), use context directly
     if (targetCtx && typeof targetCtx.play === 'function') {
       try { 
         console.log("[Bridge Play] Playing through context directly...");
         
-        // VideoContext API controls should go through the context itself
+        // Log detailed VideoContext state before play
         if (targetCtx.currentTime !== undefined && targetCtx.state !== undefined) {
-          console.log(`[Bridge Play] Context current state: time=${targetCtx.currentTime}, state=${targetCtx.state}`);
+          console.log(`[Bridge Play] Context before play: time=${targetCtx.currentTime.toFixed(3)}, state=${targetCtx.state}, type=${typeof targetCtx.state}, destination=${!!targetCtx.destination}`);
           
           // Make sure sources are allowed to start playing
           if (targetCtx.destination && typeof targetCtx.destination.gain !== 'undefined') {
             targetCtx.destination.gain.value = 1.0; // Ensure audio is on (if applicable)
           }
           
-          // CRITICAL: Ensure the source node is actually started
-          if (activeSource && typeof activeSource.start === 'function') {
+          // CRITICAL: Only try to start the source node if it's not already sequenced
+          if (activeSource && typeof activeSource.start === 'function' && !(activeSource._isSequenced)) {
             try {
-              // Re-start the source if it's stopped
-              console.log("[Bridge Play] Re-starting source node");
+              // Only start if not already sequenced
+              console.log("[Bridge Play] Starting source node (not previously sequenced)");
               activeSource.start(0);
               activeSource.connect(targetCtx.destination);
             } catch (e) {
-              // Ignore - it might already be started
-              console.log("[Bridge Play] Source already started:", e);
+              // Log error but continue with playback attempt
+              console.log("[Bridge Play] Error starting source:", e);
             }
+          } else if (activeSource) {
+            console.log("[Bridge Play] Source already sequenced, skipping start() call");
           }
           
           // Force a render frame before starting playback
@@ -328,6 +342,9 @@ export function useVideoContextBridge({
           // Now start playback
           targetCtx.play(); 
           console.log("[Bridge Play] Context play() called successfully");
+          
+          // Log state after play
+          console.log(`[Bridge Play] Context after play: time=${targetCtx.currentTime.toFixed(3)}, state=${targetCtx.state}, type=${typeof targetCtx.state}`);
           
           // Force another render immediately after starting playback
           if (typeof targetCtx.update === 'function') {

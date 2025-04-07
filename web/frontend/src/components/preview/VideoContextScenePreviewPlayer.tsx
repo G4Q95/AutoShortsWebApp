@@ -226,8 +226,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setCurrentTime,
     visualTime,
     setVisualTime,
-  } = usePlaybackState();
-  
+  } = usePlaybackState(); 
+
   // --- Other Hooks --- 
   const {
     trimStart,
@@ -343,11 +343,28 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (audioRef.current) {
       audioRef.current.pause();
     }
+    
+    // *** IMPORTANT: Switch back to showing first frame when paused ***
+    if (!showFirstFrame) {
+      console.log("[handlePause] Showing first frame video, hiding canvas");
+      // If we have a videoRef, update its currentTime to match the current position
+      if (videoRef.current) {
+        try {
+          videoRef.current.currentTime = currentTime;
+        } catch (e) {
+          console.warn("[handlePause] Error setting first frame time:", e);
+        }
+      }
+      setShowFirstFrame(true);
+    }
   }, [
     // Dependencies:
     mediaType, bridge, audioRef, // Use bridge instead of videoContext
     setIsPlayingWithLog, // Callback wrapper
-    animationFrameRef // Ref for cancelling animation loop
+    animationFrameRef, // Ref for cancelling animation loop
+    showFirstFrame, // Add dependency on showFirstFrame state
+    videoRef,       // Add dependency on videoRef for updating first frame
+    currentTime     // Add dependency on currentTime for updating first frame
   ]);
 
   const handlePlay = useCallback(() => {
@@ -395,19 +412,24 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       console.log(`[DEBUG][handlePlay] Set justResetRef to true.`);
     }
     
+    // *** IMPORTANT: Switch to showing canvas (not first frame) when playing ***
+    if (showFirstFrame) {
+      console.log("[handlePlay] Hiding first frame video and showing canvas");
+      setShowFirstFrame(false);
+    }
+    
     // Handle video playback
     if (isVideoType(mediaType)) {
       if (bridge.videoContext && bridge.isReady) {
         console.log("[handlePlay] Bridge is ready and media is video - calling bridge.play()");
         
-        // Double check if the context is in a playable state
-        if (bridge.videoContext.state === 'paused' || bridge.videoContext.state === 'suspended') {
-          bridge.play();
-          console.log("[handlePlay] Bridge play called successfully");
-        } else {
-          console.warn(`[handlePlay] VideoContext is in state: ${bridge.videoContext.state}, which may not respond to play()`);
-          bridge.play(); // Try anyway
-        }
+        // Check context state - handle both string and numeric state formats
+        const contextState = bridge.videoContext.state;
+        console.log(`[handlePlay] Current bridge state is: ${contextState} (${typeof contextState})`);
+        
+        // Try to play regardless of state - the bridge.play() will handle the errors
+        bridge.play();
+        console.log("[handlePlay] Bridge play called successfully");
       } else {
         console.warn(`[handlePlay] Bridge not ready, attempting direct video element fallback`);
         // FALLBACK: Try playing the video element directly if bridge isn't ready
@@ -473,7 +495,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       justResetRef,
       isVideoType, isImageType,
       videoRef,
-      localMediaUrl
+      localMediaUrl,
+      showFirstFrame
   ]);
   
   const handleTimeUpdate = useCallback((newTime: number) => {
@@ -557,7 +580,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // *** ADDED: Pass the new ref ***
     justResetRef,
   });
-
+  
   // Function to get local media URL
   const getLocalMedia = useCallback(async () => {
     if (!mediaUrl) return;
@@ -693,7 +716,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
              // Error handling is done within the bridge method, just log here if needed
              console.error("[VideoCtx Init] Bridge failed to create source node.");
              if (isMounted) {
-               setIsLoading(false);
+            setIsLoading(false);
                setIsReady(false);
              }
              // Potentially throw or return early if source creation is critical
@@ -781,8 +804,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           }
         } else {
           console.warn('[VideoCtx Test] Bridge failed to prepare context');
-        }
-      } catch (error) {
+      }
+    } catch (error) {
         if (!isMounted) return;
         console.error('[VideoCtx Test] Error testing bridge.prepareVideoContext():', error);
       }
@@ -982,13 +1005,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       document.exitFullscreen();
     }
   }, [containerRef]);
-
+  
   useEffect(() => {
     const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFsChange);
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
-
+  
   // Initialize media event handlers (Now handleFullscreenToggle is defined)
   const mediaEventHandlers = useMediaEventHandlers({
     sceneId,
@@ -1077,7 +1100,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
     return style;
   }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView]);
-
+  
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
@@ -1179,13 +1202,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           isReady={isReady}
           // Time state
           currentTime={currentTime} 
-          visualTime={visualTime} 
-          duration={duration}
+            visualTime={visualTime}
+            duration={duration}
           // Trim state & handlers
           trimActive={trimActive}
-          trimStart={trimStart}
+            trimStart={trimStart}
           effectiveTrimEnd={getEffectiveTrimEnd()} // Call function
-          activeHandle={activeHandle} 
+            activeHandle={activeHandle}
           
           // Native Input Callbacks
           onScrubberInput={handleScrubberInput}
