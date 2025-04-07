@@ -190,9 +190,9 @@ export function useAnimationFrameLoop({
         console.log(`[rAF] Ignoring first update after reset (currentTime: ${newTime.toFixed(3)}). Resetting justResetRef.`);
         justResetRef.current = false; // Consume the flag
       } else {
-        // Call onUpdate with the new time
-        // The callback should update state in the parent component
-        onUpdate(newTime);
+        // ** ONLY CALL onUpdate for BOUNDARY CHECKS, not every frame **
+        // The timeupdate listener should handle regular state updates.
+        // onUpdate(newTime); // COMMENTED OUT main update call
         
         // Handle end of media boundary
         const actualTrimEndCheck = userTrimEndRef?.current ?? trimEnd;
@@ -205,11 +205,12 @@ export function useAnimationFrameLoop({
           onPause();
           
           // Update time to the end position
-          onUpdate(actualTrimEndCheck);
+          onUpdate(actualTrimEndCheck); // << KEEP: Force time to boundary
           
           return; // Stop the loop
         } else if (newTime < trimStart) {
           // Handle case where time somehow got behind trimStart
+          console.warn(`[DEBUG][rAF Boundary] newTime (${newTime.toFixed(3)}) < trimStart (${trimStart.toFixed(3)}). Forcing to trimStart.`); // LOG
           if (videoContext) {
             try { 
               videoContext.currentTime = trimStart; 
@@ -219,7 +220,7 @@ export function useAnimationFrameLoop({
           }
           
           // Update time to the start position
-          onUpdate(trimStart);
+          onUpdate(trimStart); // << KEEP: Force time to boundary
         }
       }
       

@@ -112,13 +112,30 @@ export function useTrimControls({
     let newEnd = trimEnd;
 
     if (activeHandle === 'start') {
-      newStart = Math.min(newTime, trimEnd - 0.1); // Ensure start doesn't pass end
-      newStart = Math.max(0, newStart); // Ensure start doesn't go below 0
+      // If dragging start handle
+      const newStart = Math.min(newTime, trimEnd - 0.1);
+      console.log('[DEBUG][TrimDrag Start] Calculated newStart:', newStart.toFixed(3)); // LOG
       setTrimStart(newStart);
-      setVisualTime(newStart); // Update visual time to match handle
-      if (videoContext) videoContext.currentTime = newStart;
-      if (audioRef.current) audioRef.current.currentTime = newStart;
-      // console.log(`[TrimDrag][Start] Moved to: ${newStart.toFixed(3)}s`);
+      
+      // Update video currentTime to match the trim start
+      console.log('[DEBUG][TrimDrag Start] Setting state: setCurrentTime/setVisualTime to', newStart.toFixed(3)); // LOG
+      setCurrentTime(newStart);
+      setVisualTime(newStart);
+      
+      // Also update video element directly if available
+      if (videoContext) {
+        try {
+          console.log(`[DEBUG][TrimDrag Start] Attempting to set videoContext time to ${newStart.toFixed(3)}...`); // LOG
+          videoContext.currentTime = newStart;
+          // Reading context time immediately after setting might be unreliable, skip logging it here
+        } catch (e) {
+          console.error('[DEBUG][TrimDrag Start] Error setting videoContext time:', e);
+        }
+      }
+      
+      if (onTrimChange) {
+        onTrimChange(newStart, trimEnd);
+      }
     } else { // activeHandle === 'end'
       newEnd = Math.max(newTime, trimStart + 0.1); // Ensure end doesn't pass start
       newEnd = Math.min(duration, newEnd); // Ensure end doesn't exceed duration

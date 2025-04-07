@@ -350,42 +350,48 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   ]);
 
   const handlePlay = useCallback(() => {
+    console.log('[DEBUG][handlePlay] Entered function.'); // LOG
+    
     const wasReset = forceResetOnPlayRef.current;
     const startTime = wasReset ? trimStart : currentTime; // Use current time unless we need to reset
     
     // Log status for debugging
-    console.log(`[handlePlay] Force reset flag is ${wasReset ? 'TRUE' : 'FALSE'}. Playing from ${wasReset ? 'trimStart' : 'current'} time: ${startTime.toFixed(3)}`);
+    console.log(`[DEBUG][handlePlay] Force reset flag is ${wasReset ? 'TRUE' : 'FALSE'}. Target startTime: ${startTime.toFixed(3)}`); // LOG
     
     // Update React state (visuals) immediately at the start
     if (wasReset) {
+      console.log(`[DEBUG][handlePlay] Applying reset state: setCurrentTime/setVisualTime to ${startTime.toFixed(3)}`); // LOG
       setCurrentTime(startTime);
       setVisualTime(startTime);
     }
     
     // If we're at the end, or need to reset, set time explicitly
     if (wasReset) {
+      console.log('[DEBUG][handlePlay] Attempting to set media element times...'); // LOG
       // Set time in all media elements
       if (bridge.videoContext) { // Video
          try { 
-           console.log(`[handlePlay] Setting bridge context currentTime to ${startTime.toFixed(3)}`);
+           console.log(`[DEBUG][handlePlay] Setting bridge context currentTime to ${startTime.toFixed(3)}`); // LOG
            bridge.videoContext.currentTime = startTime; 
          } 
          catch (e) { console.warn("[handlePlay Reset] Error setting video context time:", e); }
       }
       if (audioRef.current) { // Audio
           try { 
-            console.log(`[handlePlay] Setting audioRef currentTime to ${startTime.toFixed(3)}`);
+            console.log(`[DEBUG][handlePlay] Setting audioRef currentTime to ${startTime.toFixed(3)}`); // LOG
             audioRef.current.currentTime = startTime; 
           } 
           catch (e) { console.warn("[handlePlay Reset] Error setting audio time:", e); }
       }
       
       // Reset the flag *after* setting time
+      console.log('[DEBUG][handlePlay] Clearing forceResetOnPlayRef flag.'); // LOG
       forceResetOnPlayRef.current = false;
+      console.log('[DEBUG][handlePlay] Flag is now:', forceResetOnPlayRef.current); // LOG
       
       // Set the justResetRef flag to prevent first time update
       justResetRef.current = true;
-      console.log(`[handlePlay] Set justResetRef to true.`);
+      console.log(`[DEBUG][handlePlay] Set justResetRef to true.`);
     }
     
     // Handle video playback
