@@ -352,117 +352,73 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     currentTime     // Add dependency on currentTime for updating first frame
   ]);
 
-  const handlePlay = useCallback(() => {
-    console.log('[DEBUG][handlePlay] Entered function.'); // LOG
-    
-    const wasReset = forceResetOnPlayRef.current;
-    const startTime = wasReset ? trimStart : currentTime; // Use current time unless we need to reset
-    
-    // Update React state (visuals) immediately at the start
-    if (wasReset) {
-      console.log(`[DEBUG][handlePlay] Applying reset state: setCurrentTime/setVisualTime to ${startTime.toFixed(3)}`); // LOG
-      setCurrentTime(startTime);
-      setVisualTime(startTime);
+  const handlePlay = useCallback(async () => {
+    console.log('[handlePlay] Attempting to play...');
+    if (!isReady) {
+      console.log('[handlePlay] Not ready, aborting play.');
+      return;
     }
-    
-    if (!wasReset && bridge.videoContext) {
-      bridge.seek(startTime);
-    }
-    
-    // If we're at the end, or need to reset, set time explicitly
-    if (wasReset) {
-      console.log('[DEBUG][handlePlay] Attempting to set media element times...'); // LOG
-      // Set time in all media elements
-      if (bridge.videoContext) { // Video
-         try { 
-           bridge.videoContext.currentTime = startTime; 
-         } 
-         catch (e) { console.warn("[handlePlay Reset] Error setting video context time:", e); }
-      }
-      if (audioRef.current) { // Audio
-          try { 
-            audioRef.current.currentTime = startTime; 
-          } 
-          catch (e) { console.warn("[handlePlay Reset] Error setting audio time:", e); }
-      }
-      
-      // Reset the flag *after* setting time
-      forceResetOnPlayRef.current = false;
-      
-      // Set the justResetRef flag to prevent first time update
-      justResetRef.current = true;
-    }
-    
-    // *** IMPORTANT: Switch to showing canvas (not first frame) when playing ***
-    if (showFirstFrame) {
-      console.log("[handlePlay] Hiding first frame video and showing canvas");
-      setShowFirstFrame(false);
-    }
-    
-    setIsPlayingWithLog(true);
-    isResumingRef.current = true; // Set the flag for the animation loop
 
-    // Handle video playback
-    if (isVideoType(mediaType)) {
-      if (bridge.videoContext && bridge.isReady) {
-        console.log("[handlePlay] Bridge is ready - calling bridge.play()");
-        bridge.play();
+    // Critical: Check if current time is outside trim range or needs reset
+    let needsReset = false;
+    if (currentTime < trimStart || currentTime >= trimEnd || forceResetOnPlayRef.current) {
+       console.log(`[handlePlay] Resetting time. Current: ${currentTime}, Start: ${trimStart}, End: ${trimEnd}, Force: ${forceResetOnPlayRef.current}`);
+       needsReset = true;
+    }
+
+    // Set isPlaying state *early* to indicate intent
+    setIsPlayingWithLog(true); // Use the logging wrapper
+
+    try {
+      // Perform seek *before* playing if needed
+      if (needsReset) {
+         // Set visual time immediately for responsiveness
+         setVisualTime(trimStart);
+         console.log(`[handlePlay] Seeking to trimStart: ${trimStart}`);
+         await bridge.seek(trimStart); // Use bridge for seeking
+         // Ensure currentTime reflects the seek *after* it completes
+         setCurrentTime(trimStart);
+         console.log(`[handlePlay] Seek completed, currentTime set to ${trimStart}`);
+         forceResetOnPlayRef.current = false; // Reset the force flag
+         justResetRef.current = true; // Indicate a reset happened
+         // Explicitly set resuming flag if we reset *and* were previously paused
+         if (!isPlayingRef.current) { // Check previous state via ref
+           isResumingRef.current = true;
+         }
       } else {
-        console.warn(`[handlePlay] Bridge not ready or not video, attempting direct video element fallback`);
-        // FALLBACK: Try playing the video element directly if bridge isn't ready
-        const video = videoRef.current;
-        if (video && localMediaUrl) {
-          try {
-            if (wasReset || Math.abs(video.currentTime - startTime) > 0.5) {
-              video.currentTime = startTime;
-            }
-            video.play().catch(err => console.error("[handlePlay Video] Fallback video play error:", err));
-          } catch (e) {
-            console.error("[handlePlay Video] Error playing fallback video:", e);
-          }
-        } else {
-          console.error(`[handlePlay] Cannot play - no video element or URL available`);
-        }
+          // If not resetting, ensure resuming flag is false
+          isResumingRef.current = false;
       }
-    } else if (isImageType(mediaType)) {
-      // Image logic
-      setIsPlayingWithLog(true);
-      if (audioRef.current && audioUrl) {
-        try {
-            audioRef.current.currentTime = startTime; 
-            audioRef.current.play().catch(err => console.error("[handlePlay Image] Error playing audio:", err));
-        } catch (e) {
-            console.warn("[handlePlay Image] Error setting audio time:", e);
-        }
+
+      // Actually start playback via the bridge *after* potential seek
+      console.log('[handlePlay] Calling bridge.play()');
+      await bridge.play();
+      console.log('[handlePlay] bridge.play() successful');
+
+      // Separate audio handling - *after* successful bridge play
+      if (audioRef.current) {
+        console.log('[handlePlay] Playing separate audio');
+        await audioRef.current.play().catch(err => console.error("[AudioDiag] handlePlay Play Error:", err));
       }
+
+    } catch (error) {
+       console.error('[handlePlay] Error during play sequence (seek or play):', error);
+       // Revert state if any part of the sequence fails
+       setIsPlayingWithLog(false);
+       // Consider pausing bridge/audio explicitly here too if needed
+       try { await bridge.pause(); } catch (e) {}
+       if (audioRef.current) audioRef.current.pause();
+       return; // Stop if seek or play fails
     }
-    
-    // Play separate audio if present
-    if (audioRef.current && audioUrl) {
-      try {
-        if (bridge.videoContext) {
-          audioRef.current.currentTime = bridge.videoContext.currentTime;
-        } else {
-          audioRef.current.currentTime = startTime;
-        }
-        audioRef.current.play().catch(err => console.error(`[handlePlay] Error playing audio:`, err));
-      } catch (e) {
-        console.warn("[handlePlay] Error setting/playing audio time:", e);
-      }
-    }
+
   }, [
-    // Dependencies:
-    bridge, 
-    currentTime, trimStart,
-    audioUrl, audioRef,
-    setCurrentTime, setVisualTime,
-    setIsPlayingWithLog,
-    forceResetOnPlayRef, mediaType,
-    justResetRef,
-    isVideoType, isImageType,
-    videoRef,
-    localMediaUrl,
-    showFirstFrame
+     isReady, currentTime, trimStart, trimEnd,
+     bridge, // Bridge dependency
+     setIsPlayingWithLog, // Logging wrapper
+     setCurrentTime, setVisualTime, // State setters
+     forceResetOnPlayRef, justResetRef, isResumingRef, // Refs
+     audioRef, // Audio ref
+     isPlayingRef // Ref for previous state check
   ]);
   
   const handleTimeUpdate = useCallback((newTime: number) => {
