@@ -30,6 +30,7 @@ import { MediaContainer } from './media/MediaContainer';
 import { useAnimationFrameLoop } from '@/hooks/useAnimationFrameLoop';
 import { useMediaEventHandlers } from '@/hooks/useMediaEventHandlers';
 import MediaErrorBoundary from './media/MediaErrorBoundary';
+import { useVideoContextBridge } from '@/hooks/useVideoContextBridge';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -649,17 +650,32 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     audioRef, mediaType, imageTimerRef, forceResetOnPlayRef
   ]);
   
-  // Scrubber handlers
-  const handleScrubberMouseDown = useCallback(() => {
-    // ... (existing logic)
-  }, [currentTime, isPlaying, handlePause, setIsDraggingScrubber, setOriginalPlaybackTime]);
+  // Initialize the (mostly empty) bridge hook
+  // We pass the existing state/refs for now. Logic remains in the main component.
+  const bridge = useVideoContextBridge({
+    videoContextInstance: videoContext,
+    canvasRef,
+    localMediaUrl,
+    mediaType,
+    initialMediaAspectRatio,
+    // Pass placeholder callbacks for now
+    onReady: () => {},
+    onError: () => {},
+    onDurationChange: () => {},
+  });
+  
+  // Scrubbing/Time update logic
+  const handleScrubberDragStart = useCallback(() => {
+    // ... existing logic ...
+  }, [isPlaying, isDraggingScrubber, visualTime, handlePause, setIsDraggingScrubber, setOriginalPlaybackTime]);
 
-  const handleScrubberMouseUp = useCallback(() => {
-     // ... (existing logic)
+  const handleScrubberDragEnd = useCallback(() => {
+    // ... existing logic ...
   }, [
-    isDraggingScrubber, visualTime, // Read state from hook
-    setCurrentTime, // Setter from playback hook
-    videoContext, audioRef, forceResetOnPlayRef, setIsDraggingScrubber
+    isDraggingScrubber, visualTime, 
+    setCurrentTime, // Playback hook state
+    bridge.videoContext, // *** USE CONTEXT FROM BRIDGE ***
+    audioRef, forceResetOnPlayRef, setIsDraggingScrubber 
   ]);
   
   // Function to convert range input value to timeline position
@@ -886,17 +902,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   }, []);
   
   // Define missing handlers
-  const handleScrubberDragStart = useCallback(() => {
-      setIsDraggingScrubber(true);
-      // Potentially store original playback time if needed
-      // setOriginalPlaybackTime(currentTime);
-  }, [setIsDraggingScrubber]);
-
-  const handleScrubberDragEnd = useCallback(() => {
-      setIsDraggingScrubber(false);
-      // Logic to potentially restore time or finalize scrub
-  }, [setIsDraggingScrubber]);
-
   const handleInfoToggle = useCallback(() => {
       setShowAspectRatio(prev => !prev);
   }, [setShowAspectRatio]);
