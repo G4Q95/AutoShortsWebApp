@@ -76,8 +76,11 @@ We will refactor the component incrementally using the following methodology to 
         *   **Step 1 (DONE):** Extracted `PlayPauseButton.tsx` - A simple button to toggle play/pause state.
         *   **Step 2 (DONE):** Extracted `LockButton.tsx` - A button to toggle position locking for the controls overlay.
         *   **Step 3 (DONE):** Extracted `TrimToggleButton.tsx` - A button to toggle trim mode (scissors/check icon).
-        *   **Step 4 (NEXT):** Extract `InfoButton.tsx` - A button to toggle aspect ratio information display.
-        *   **Future Steps:** Continue extracting remaining UI elements (fullscreen button, time display, timeline scrubber) incrementally before assembling them into a complete `PlayerControls` component.
+        *   **Step 4 (DONE):** Extracted `InfoButton.tsx` - A button to toggle aspect ratio information display.
+        *   **Step 5 (DONE):** Extracted `FullscreenButton.tsx` - A button to toggle fullscreen mode.
+        *   **Step 6 (DONE):** Extracted `MediumViewButton.tsx` - A button to toggle between compact and expanded view modes (used by SceneMediaPlayer.tsx which renders above VideoContextScenePreviewPlayer).
+        *   **Step 7 (NEXT):** Extract `TimeDisplay` - Shows the current playback time and duration.
+        *   **Future Steps:** Continue extracting remaining UI elements (timeline scrubber) incrementally before assembling them into a complete `PlayerControls` component.
 4.  **Diagnose Playback Log Spam (Following):** Use React DevTools profiler and targeted logging to understand the root cause of excessive console logs during video playback before attempting further major refactoring of the rAF loop or VideoContext logic.
 5.  **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
 6.  **Optimize Rendering (Future):** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
