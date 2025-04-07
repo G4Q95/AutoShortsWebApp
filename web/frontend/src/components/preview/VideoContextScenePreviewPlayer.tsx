@@ -871,10 +871,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setIsDraggingScrubber(false);
     console.log("[VCSPP DEBUG][ScrubberDragEnd] isDraggingScrubber set to FALSE."); // LOG
     
-    // Set the reset flag, as the user manually changed the time
-    console.log("[VCSPP DEBUG][ScrubberDragEnd] Setting forceResetOnPlayRef to true."); // LOG
-    forceResetOnPlayRef.current = true;
-    
   }, [
     isDraggingScrubber, visualTime, duration, videoRef, // Add duration and videoRef
     setCurrentTime, setVisualTime, // Playback hook state setters
