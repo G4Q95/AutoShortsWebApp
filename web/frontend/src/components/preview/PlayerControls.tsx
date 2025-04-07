@@ -130,10 +130,10 @@ export function PlayerControls({
 
         {/* Center section: Time Display */}
         <TimeDisplay
-          currentTime={currentTime}
+          visualTime={visualTime}
           duration={duration}
           trimStart={trimStart}
-          effectiveTrimEnd={effectiveTrimEnd} // Use prop directly
+          effectiveTrimEnd={effectiveTrimEnd}
           activeHandle={activeHandle}
         />
 

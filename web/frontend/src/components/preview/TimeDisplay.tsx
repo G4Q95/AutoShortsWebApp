@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface TimeDisplayProps {
-  currentTime: number;
+  visualTime: number;
   duration: number;
   trimStart: number;
   effectiveTrimEnd: number;
@@ -25,7 +25,7 @@ const formatTime = (seconds: number, showTenths: boolean = false): string => {
  * TimeDisplay - Renders the current playback time and total duration/trimmed duration.
  */
 export function TimeDisplay({ 
-  currentTime, 
+  visualTime,
   duration, 
   trimStart, 
   effectiveTrimEnd, 
@@ -37,7 +37,7 @@ export function TimeDisplay({
         ? `${formatTime(trimStart, true)} / ${formatTime(effectiveTrimEnd - trimStart)}`
         : activeHandle === 'end'
           ? `${formatTime(effectiveTrimEnd, true)} / ${formatTime(effectiveTrimEnd - trimStart)}`
-          : `${formatTime(Math.max(0, currentTime - trimStart))} / ${
+          : `${formatTime(Math.max(0, visualTime - trimStart))} / ${
               trimStart > 0 || effectiveTrimEnd < duration 
                 ? formatTime(effectiveTrimEnd - trimStart) 
                 : formatTime(duration)
