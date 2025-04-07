@@ -142,17 +142,6 @@ export function TimelineControl({
           min="0"
           max="100"
           value={positionToTimelineValue(visualTime)}
-          onChange={(e) => {
-            if (!activeHandle) { // Prevent scrubbing if a trim handle is active
-              const inputValue = parseFloat(e.target.value);
-              // Need timelineValueToPosition to work correctly without currentTime
-              const newTime = (inputValue / 100) * duration; 
-              if (newTime > 10) {
-                console.warn(`[VideoContext] Attempting to scrub beyond 10s: ${newTime}s`);
-              }
-              onTimeUpdate(newTime);
-            }
-          }}
           className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${activeHandle ? 'pointer-events-none' : ''}`}
           style={{ 
             background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(visualTime)}%, #4b5563 ${positionToTimelineValue(visualTime)}%, #4b5563 100%)`,
@@ -166,8 +155,10 @@ export function TimelineControl({
           data-testid="timeline-scrubber"
           data-drag-handle-exclude="true"
           onMouseDown={(e) => {
+            console.log("[TimelineControl DEBUG] Scrubber onMouseDown triggered.");
             e.stopPropagation();
             if (!activeHandle) {
+              console.log("[TimelineControl DEBUG] Calling onScrubberDragStart().");
               onScrubberDragStart();
             }
           }}

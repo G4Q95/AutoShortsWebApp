@@ -256,7 +256,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setVisualTime,
     setCurrentTime,
     setIsPlaying, // Pass direct setter here
-    forceResetOnPlayRef
+    forceResetOnPlayRef,
+    videoRef, // <<< ADD THIS LINE
   });
   
   // *** ADDED: Ref to track trimManuallySet state ***
@@ -797,18 +798,136 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Remove bridge from dependency array to prevent infinite loops  
   }, [canvasRef, localMediaUrl, mediaType]); // REMOVED bridge dependency
   
-  // Scrubbing/Time update logic
+  // --- Scrubber Drag Handlers (TimelineControl) --- 
+  const handleScrubberDragMove = useCallback((newTime: number) => {
+    if (!isDraggingScrubber) return; // Should already be true, but double-check
+    
+    // Clamp time within valid range (considering trim)
+    const clampedTime = Math.max(0, Math.min(newTime, duration));
+    
+    // Update visual time immediately
+    setVisualTime(clampedTime);
+    
+    // *** ADDED: Update actual video time for live scrubbing ***
+    if (videoRef.current) {
+      try {
+        videoRef.current.currentTime = clampedTime;
+      } catch (e) {
+        console.warn("[ScrubberDrag] Error setting video element time:", e);
+      }
+    }
+    if (videoContext) { // Also update context if available
+      try {
+        videoContext.currentTime = clampedTime;
+      } catch (e) {
+        console.warn("[ScrubberDrag] Error setting video context time:", e);
+      }
+    }
+    
+  }, [isDraggingScrubber, duration, videoRef, videoContext, setVisualTime]); // Dependencies
+
   const handleScrubberDragStart = useCallback(() => {
-    // ... existing logic ...
+    console.log("[VCSPP DEBUG] handleScrubberDragStart triggered."); // LOG
+    if (isPlaying) {
+      handlePause(); // Pause playback when scrubbing starts
+    }
+    if (!isDraggingScrubber) {
+      setOriginalPlaybackTime(visualTime); // Store time before drag
+    }
+    setIsDraggingScrubber(true);
+    console.log("[VCSPP DEBUG] isDraggingScrubber set to TRUE."); // LOG
   }, [isPlaying, isDraggingScrubber, visualTime, handlePause, setIsDraggingScrubber, setOriginalPlaybackTime]);
 
   const handleScrubberDragEnd = useCallback(() => {
-    // ... existing logic ...
+    if (!isDraggingScrubber) return; // Only act if we were dragging
+    
+    console.log("[VCSPP DEBUG][ScrubberDragEnd] Drag ended."); // LOG
+    
+    // Determine the final time - THIS IS THE KEY PART
+    // Read the actual video time after the drag is complete
+    let finalTime = visualTime; // Start with visual time as a fallback
+    if (videoRef.current) {
+      finalTime = videoRef.current.currentTime;
+      console.log(`[VCSPP DEBUG][ScrubberDragEnd] Using final videoRef time: ${finalTime.toFixed(3)}`); // LOG
+    } else if (bridge.videoContext) {
+      try {
+        finalTime = bridge.videoContext.currentTime;
+        console.log(`[VCSPP DEBUG][ScrubberDragEnd] Using final videoContext time: ${finalTime.toFixed(3)}`); // LOG
+      } catch (e) {
+        console.warn("[ScrubberDragEnd] Error getting videoContext time, using visualTime.");
+      }
+    }
+    
+    // Clamp the final time just in case
+    finalTime = Math.max(0, Math.min(finalTime, duration));
+    
+    // Update the actual playback time state
+    console.log(`[VCSPP DEBUG][ScrubberDragEnd] Setting currentTime state to: ${finalTime.toFixed(3)}`); // LOG
+    setCurrentTime(finalTime); 
+    // Visual time should already match if drag move worked, but set it just in case
+    setVisualTime(finalTime);
+    
+    // Clean up dragging state
+    setIsDraggingScrubber(false);
+    console.log("[VCSPP DEBUG][ScrubberDragEnd] isDraggingScrubber set to FALSE."); // LOG
+    
+    // Set the reset flag, as the user manually changed the time
+    console.log("[VCSPP DEBUG][ScrubberDragEnd] Setting forceResetOnPlayRef to true."); // LOG
+    forceResetOnPlayRef.current = true;
+    
   }, [
-    isDraggingScrubber, visualTime, 
-    setCurrentTime, // Playback hook state
-    bridge, // Use bridge object itself instead of bridge.videoContext
-    audioRef, forceResetOnPlayRef, setIsDraggingScrubber 
+    isDraggingScrubber, visualTime, duration, videoRef, // Add duration and videoRef
+    setCurrentTime, setVisualTime, // Playback hook state setters
+    bridge, // Use bridge object itself
+    forceResetOnPlayRef, setIsDraggingScrubber // Other refs/setters
+  ]);
+  
+  // *** ADDED: useEffect for global scrubber drag listeners ***
+  useEffect(() => {
+    // Only add listeners if dragging is active
+    if (!isDraggingScrubber) return;
+
+    console.log("[VCSPP DEBUG] Adding global mouse listeners for scrubber drag."); // LOG
+
+    const handleGlobalMouseMove = (event: MouseEvent) => {
+      // Calculate new time based on mouse position relative to the container
+      // This assumes containerRef refers to the element relative to which scrubbing occurs
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const width = rect.width;
+      // Calculate percentage and ensure it's within bounds [0, 1]
+      const percent = Math.max(0, Math.min(1, x / width));
+      const newTime = percent * duration;
+      
+      // Call the existing move handler
+      handleScrubberDragMove(newTime);
+    };
+
+    const handleGlobalMouseUp = () => {
+      console.log("[VCSPP DEBUG] Global mouse up detected, ending drag."); // LOG
+      handleScrubberDragEnd(); // Call the existing end handler
+    };
+
+    // Add listeners to the document
+    document.addEventListener('mousemove', handleGlobalMouseMove);
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    // Optional: Add mouseleave on documentElement as a safety net
+    // document.documentElement.addEventListener('mouseleave', handleGlobalMouseUp);
+
+    // Cleanup function
+    return () => {
+      console.log("[VCSPP DEBUG] Removing global mouse listeners for scrubber drag."); // LOG
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+      // document.documentElement.removeEventListener('mouseleave', handleGlobalMouseUp);
+    };
+  }, [
+    isDraggingScrubber, 
+    duration, 
+    containerRef, // Need containerRef for position calculation
+    handleScrubberDragMove, // Callback dependency
+    handleScrubberDragEnd // Callback dependency
   ]);
   
   // Function to convert range input value to timeline position
@@ -1260,7 +1379,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           activeHandle={activeHandle}
           trimActive={trimActive}
           isDraggingScrubber={isDraggingScrubber}
-          onTimeUpdate={handleTimeUpdate}
+          onTimeUpdate={handleScrubberDragMove}
           onScrubberDragStart={handleScrubberDragStart}
           onScrubberDragEnd={handleScrubberDragEnd}
           setActiveHandle={setActiveHandle}

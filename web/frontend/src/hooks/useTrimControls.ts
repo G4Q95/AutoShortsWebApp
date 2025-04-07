@@ -15,6 +15,7 @@ interface UseTrimControlsProps {
   setCurrentTime: (time: number) => void; // Setter for actual playback time
   setIsPlaying: (playing: boolean) => void; // Setter for play state
   forceResetOnPlayRef: React.MutableRefObject<boolean>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
 // Define the structure for the hook's return value
@@ -54,6 +55,7 @@ export function useTrimControls({
   setCurrentTime,
   setIsPlaying,
   forceResetOnPlayRef,
+  videoRef,
 }: UseTrimControlsProps): UseTrimControlsReturn {
   // --- State Management ---
   const [trimStart, setTrimStart] = useState<number>(initialTrimStart);
@@ -123,6 +125,17 @@ export function useTrimControls({
       setVisualTime(newStart);
       
       // Also update video element directly if available
+      if (videoRef.current) {
+        try {
+          console.log(`[DEBUG][TrimDrag Start] Attempting to set videoRef time to ${newStart.toFixed(3)}...`);
+          videoRef.current.currentTime = newStart;
+          console.log('[DEBUG][TrimDrag Start] videoRef time AFTER set:', videoRef.current.currentTime.toFixed(3));
+        } catch (e) {
+          console.error('[DEBUG][TrimDrag Start] Error setting video time:', e);
+        }
+      }
+      
+      // Update the video context if available
       if (videoContext) {
         try {
           console.log(`[DEBUG][TrimDrag Start] Attempting to set videoContext time to ${newStart.toFixed(3)}...`); // LOG
@@ -142,9 +155,26 @@ export function useTrimControls({
       console.log(`[TrimDrag][End] Calculated newEnd: ${newEnd.toFixed(3)} (Current trimEnd: ${trimEnd.toFixed(3)}, userTrimEndRef: ${userTrimEndRef.current?.toFixed(3)})`);
       setTrimEnd(newEnd);
       userTrimEndRef.current = newEnd; // Update ref when manually dragging end handle
-      setVisualTime(newEnd); // Update visual time to match handle
-      if (videoContext) videoContext.currentTime = newEnd;
-      if (audioRef.current) audioRef.current.currentTime = newEnd;
+      
+      // Update visual time AND actual video time
+      setVisualTime(newEnd); 
+      if (videoRef.current) {
+        try {
+          console.log(`[DEBUG][TrimDrag End] Attempting to set videoRef time to ${newEnd.toFixed(3)}...`);
+          videoRef.current.currentTime = newEnd;
+          console.log('[DEBUG][TrimDrag End] videoRef time AFTER set:', videoRef.current.currentTime.toFixed(3));
+        } catch (e) {
+          console.error('[DEBUG][TrimDrag End] Error setting video time:', e);
+        }
+      }
+      if (videoContext) {
+         try {
+           console.log(`[DEBUG][TrimDrag End] Attempting to set videoContext time to ${newEnd.toFixed(3)}...`);
+           videoContext.currentTime = newEnd;
+         } catch (e) {
+           console.error('[DEBUG][TrimDrag End] Error setting videoContext time:', e);
+         }
+      }
       // console.log(`[TrimDrag][End] Moved to: ${newEnd.toFixed(3)}s`);
     }
     
@@ -153,7 +183,7 @@ export function useTrimControls({
       setIsPlaying(false);
     }
 
-  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoContext, audioRef, isPlaying, setIsPlaying, setVisualTime]);
+  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, videoContext, audioRef, isPlaying, setIsPlaying, setVisualTime]);
 
   const handleTrimDragEnd = useCallback(() => {
     if (!activeHandle) return;
