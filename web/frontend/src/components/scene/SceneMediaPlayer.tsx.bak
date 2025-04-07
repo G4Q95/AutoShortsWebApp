@@ -248,4 +248,4 @@ function arePropsEqual(prevProps: SceneMediaPlayerProps, nextProps: SceneMediaPl
 /**
  * Memoized version of SceneMediaPlayer to prevent unnecessary re-renders
  */
-export const SceneMediaPlayer = SceneMediaPlayerComponent; 
+export const SceneMediaPlayer = React.memo(SceneMediaPlayerComponent, arePropsEqual); 

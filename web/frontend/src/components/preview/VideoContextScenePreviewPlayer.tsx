@@ -24,6 +24,9 @@ import { InfoButton } from './InfoButton';
 import { FullscreenButton } from './FullscreenButton';
 import { TimelineControl } from './TimelineControl';
 import { TimeDisplay } from './TimeDisplay';
+import { useVoiceContext } from '@/contexts/VoiceContext';
+import { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
+import { PlayerControls } from './PlayerControls';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -124,6 +127,7 @@ interface VideoContextScenePreviewPlayerProps {
   mediaAspectRatio?: number;           // Media's original aspect ratio (will be passed to hook as initialMediaAspectRatio)
   projectAspectRatio?: '9:16' | '16:9' | '1:1' | '4:5'; // Project-wide setting
   showLetterboxing?: boolean;          // Whether to show letterboxing/pillarboxing
+  isMediumView?: boolean;
 }
 
 // Add type guard functions back inside the component scope
@@ -153,7 +157,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   mediaAspectRatio: initialMediaAspectRatio,
   projectAspectRatio = '9:16',
   showLetterboxing = true,
+  isMediumView,
 }) => {
+  // Simple log for essential debugging
+  console.log(`[VCSPP] Render with isMediumView=${isMediumView}`);
+  
   // State for player
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isDraggingScrubber, setIsDraggingScrubber] = useState<boolean>(false);
@@ -204,12 +212,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [isPositionLocked, setIsPositionLocked] = useState<boolean>(false);
 
   // --- Playback State ---
-  // Comment out original useState calls:
-  // const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  // const [currentTime, setCurrentTime] = useState<number>(0);
-  // const [visualTime, setVisualTime] = useState<number>(0);
-
-  // Call the new hook instead:
   const {
     isPlaying,
     setIsPlaying,
@@ -217,8 +219,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setCurrentTime,
     visualTime,
     setVisualTime,
-  } = usePlaybackState(); 
-
+  } = usePlaybackState();
+  
   // --- Other Hooks --- 
   const {
     trimStart,
@@ -983,6 +985,29 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setIsPositionLocked(prev => !prev);
   }, []);
   
+  // Define missing handlers
+  const handleScrubberDragStart = useCallback(() => {
+      setIsDraggingScrubber(true);
+      // Potentially store original playback time if needed
+      // setOriginalPlaybackTime(currentTime);
+  }, [setIsDraggingScrubber]);
+
+  const handleScrubberDragEnd = useCallback(() => {
+      setIsDraggingScrubber(false);
+      // Logic to potentially restore time or finalize scrub
+  }, [setIsDraggingScrubber]);
+
+  const handleInfoToggle = useCallback(() => {
+      setShowAspectRatio(prev => !prev);
+  }, [setShowAspectRatio]);
+
+  const handleTrimToggle = useCallback(() => {
+      setTrimActive(prev => !prev);
+  }, [setTrimActive]);
+
+  // Add another important log - right before render, to show the current isMediumView value that will be used for conditional rendering
+  console.log(`[VCSPP PreRender] PlayerControls conditional check: isMediumView=${isMediumView}`);
+
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
@@ -1242,59 +1267,90 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         }}
         data-drag-handle-exclude="true"
       >
-        {/* Re-add Wrapper div for relative positioning */}
+        {/* Restore the TimelineControl wrapper and component */}
         <div style={{ position: 'relative', top: '5px' }}> 
-          {/* Timeline Control (Scrubber + Brackets) */}
           <TimelineControl
             visualTime={visualTime}
             duration={duration}
             trimStart={trimStart}
-            effectiveTrimEnd={getEffectiveTrimEnd()} // Pass function directly
+            effectiveTrimEnd={getEffectiveTrimEnd()}
             activeHandle={activeHandle}
-            trimActive={trimActive} // Pass trimActive
-            isDraggingScrubber={isDraggingScrubber} // Ensure this prop is passed
+            trimActive={trimActive}
+            isDraggingScrubber={isDraggingScrubber}
             onTimeUpdate={handleTimeUpdate}
-            onScrubberDragStart={() => setIsDraggingScrubber(true)}
-            onScrubberDragEnd={() => setIsDraggingScrubber(false)}
+            onScrubberDragStart={handleScrubberDragStart}
+            onScrubberDragEnd={handleScrubberDragEnd}
             setActiveHandle={setActiveHandle}
             setTimeBeforeDrag={setTimeBeforeDrag}
             setOriginalPlaybackTime={setOriginalPlaybackTime}
             videoContext={videoContext}
-            getEffectiveTrimEnd={getEffectiveTrimEnd} // Pass function directly
+            getEffectiveTrimEnd={getEffectiveTrimEnd}
           />
         </div>
         
-        {/* Control buttons row - Now includes Time Display */}
-        <div className="flex justify-between items-center px-1 mt-1" /* Keep margin-top for spacing */
+        {/* Restore the control buttons row */}
+        <div className="flex justify-between items-center px-1 mt-1" 
              data-drag-handle-exclude="true" 
              style={{ position: 'relative', zIndex: 55, pointerEvents: 'auto' }}>
           
-          {/* Left button section */}
           <div className="flex-shrink-0 w-14 flex justify-start items-center">
             <LockButton isLocked={isPositionLocked} onToggle={handleLockToggle} />
           </div>
 
-          {/* Center section: Time Display */}
           <TimeDisplay 
             currentTime={currentTime}
             duration={duration}
             trimStart={trimStart}
-            effectiveTrimEnd={getEffectiveTrimEnd()} // Pass function result
+            effectiveTrimEnd={getEffectiveTrimEnd()}
             activeHandle={activeHandle}
           />
 
-          {/* Right buttons section */}
           <div className="flex-shrink-0 w-14 flex justify-end items-center">
             <InfoButton 
               isActive={showAspectRatio}
-              onToggle={() => setShowAspectRatio(!showAspectRatio)}
+              onToggle={handleInfoToggle}
             />
             <TrimToggleButton 
               isActive={trimActive}
-              onToggle={() => setTrimActive(!trimActive)}
+              onToggle={handleTrimToggle}
             />
           </div>
         </div>
+        
+        {/* --- Render PlayerControls --- */}
+        {isMediumView && (
+          <PlayerControls
+              // Visibility
+              isHovering={isHovering}
+              isPositionLocked={isPositionLocked}
+              isMediumView={isMediumView ?? false}
+              // Lock Button
+              onLockToggle={handleLockToggle}
+              // Timeline
+              visualTime={visualTime}
+              duration={duration}
+              trimStart={trimStart}
+              effectiveTrimEnd={getEffectiveTrimEnd()}
+              activeHandle={activeHandle}
+              trimActive={trimActive}
+              isDraggingScrubber={isDraggingScrubber}
+              onTimeUpdate={handleTimeUpdate}
+              onScrubberDragStart={handleScrubberDragStart}
+              onScrubberDragEnd={handleScrubberDragEnd}
+              setActiveHandle={setActiveHandle}
+              setTimeBeforeDrag={setTimeBeforeDrag}
+              setOriginalPlaybackTime={setOriginalPlaybackTime}
+              videoContext={videoContext}
+              getEffectiveTrimEnd={getEffectiveTrimEnd}
+              // Time Display
+              currentTime={currentTime}
+              // Info Button
+              showAspectRatio={showAspectRatio}
+              onInfoToggle={handleInfoToggle}
+              // Trim Toggle Button
+              onTrimToggle={handleTrimToggle}
+          />
+        )}
       </div>
     </div>
   );
