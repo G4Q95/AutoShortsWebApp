@@ -137,53 +137,10 @@ export function useAnimationFrameLoop({
         return;
       }
       
-      // Calculate the new time based on media type
-      let newTime = 0;
-      
-      if (isImageType) {
-        // For images, increment time manually
-        const effectiveEnd = userTrimEndRef?.current ?? trimEnd;
-        newTime = Math.min(currentTime + 1 / 60, effectiveEnd);
-      } else if (videoContext) {
-        // For videos, read time from VideoContext
-        newTime = videoContext.currentTime;
-        // *** ADDED: Explicitly tell VideoContext to render this frame ***
-        try {
-          videoContext.update(newTime);
-        } catch (updateError) {
-          console.error("[rAF] Error calling videoContext.update():", updateError);
-          // Optionally stop loop or report error if update fails
-        }
-      }
-      
-      // *** ADDED: Directly get time from HTML video element as fallback ***
-      // If VideoContext isn't ready or doesn't have a valid time, get time from video element
-      if (!isImageType && (!isReady || !videoContext || newTime <= 0)) {
-        try {
-          // Try to find the video element
-          const videoElement = document.querySelector('video');
-          if (videoElement && videoElement.duration > 0 && !videoElement.paused) {
-            console.log(`[rAF] Using fallback video time: ${videoElement.currentTime.toFixed(3)}`);
-            newTime = videoElement.currentTime;
-          }
-        } catch (videoTimeError) {
-          // Silently ignore errors with the fallback time
-        }
-      }
-      
-      // *** ADDED: Directly sync HTML video element time if available (as a fallback) ***
-      if (!isImageType && audioRef?.current?.parentElement) {
-        try {
-          // Try to find the video element within the player container
-          const videoElement = audioRef.current.parentElement.querySelector('video');
-          if (videoElement && Math.abs(videoElement.currentTime - newTime) > 0.1) {
-            console.log(`[rAF] Syncing fallback video time from ${videoElement.currentTime.toFixed(3)} to ${newTime.toFixed(3)}`);
-            videoElement.currentTime = newTime;
-          }
-        } catch (videoSyncError) {
-          // Silently ignore errors with the fallback sync
-        }
-      }
+      // *** USE currentTime PROP for boundary checks ***
+      // The timeupdate listener is handling the actual state advancement.
+      // The loop only needs to check boundaries based on the current state.
+      const newTime = currentTime; 
       
       // Check justResetRef before processing boundary
       if (justResetRef.current) {
@@ -191,7 +148,6 @@ export function useAnimationFrameLoop({
         justResetRef.current = false; // Consume the flag
       } else {
         // ** ONLY CALL onUpdate for BOUNDARY CHECKS, not every frame **
-        // The timeupdate listener should handle regular state updates.
         // onUpdate(newTime); // COMMENTED OUT main update call
         
         // Handle end of media boundary
