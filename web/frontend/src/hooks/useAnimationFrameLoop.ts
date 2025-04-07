@@ -35,14 +35,42 @@ interface UseAnimationFrameLoopProps {
  * Return type for the useAnimationFrameLoop hook
  */
 interface UseAnimationFrameLoopReturn {
-  // For now, we're not returning anything, just managing side effects
+  // Currently nothing is returned as the hook manages side effects only
 }
 
 /**
  * useAnimationFrameLoop - Custom Hook for Managing Animation Frame Loop
  * 
- * This hook encapsulates the requestAnimationFrame loop logic for media playback,
- * handling both video and image playback timing, boundary checks, and time updates.
+ * This hook encapsulates the requestAnimationFrame loop logic used for tracking and updating
+ * media playback time. It handles both video and image media types, with appropriate timing logic
+ * for each. The hook also manages playback boundaries, time synchronization, and cleanup.
+ * 
+ * Key features:
+ * - Handles requestAnimationFrame setup and cleanup
+ * - Manages different time update strategies for video vs image content
+ * - Enforces trim boundaries (start/end times)
+ * - Handles time reset when forceResetOnPlayRef is true
+ * - Synchronizes media elements (videoContext, audio) with current time
+ * - Provides time updates through callback for parent component state management
+ * 
+ * @param props Configuration object for the animation frame loop
+ * @returns Empty object (the hook primarily manages side effects)
+ * 
+ * @example
+ * // Basic usage
+ * useAnimationFrameLoop({
+ *   isPlaying, 
+ *   isReady,
+ *   currentTime,
+ *   trimStart,
+ *   trimEnd,
+ *   onUpdate: (newTime) => setCurrentTime(newTime),
+ *   onPause: handlePause,
+ *   isImageType: mediaType === 'image',
+ *   animationFrameRef,
+ *   forceResetOnPlayRef,
+ *   videoContext
+ * });
  */
 export function useAnimationFrameLoop({
   isPlaying,
