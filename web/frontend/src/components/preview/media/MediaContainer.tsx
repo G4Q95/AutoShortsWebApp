@@ -222,10 +222,10 @@ export function MediaContainer({
       
       {/* Aspect ratio information overlay - styled to match the original */}
       {showAspectRatio && (
-        <div className="absolute top-0 left-0 right-0 z-20 flex justify-center text-xs">
+        <div className="absolute top-0 left-0 right-0 z-20 flex justify-center text-[10px]">
           <div className="inline-flex bg-black bg-opacity-90 px-1">
             <span className="text-red-400">{mediaRatio.toFixed(4)}</span>
-            <span className="text-gray-300 mx-2">[{closestRatio}]</span>
+            <span className="text-gray-300 mx-1">[{closestRatio}]</span>
             <span className="text-green-400">{projectAspectRatio}</span>
           </div>
         </div>
