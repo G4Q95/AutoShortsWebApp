@@ -350,15 +350,21 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   ]);
 
   const handlePlay = useCallback(() => {
-    if (forceResetOnPlayRef.current) { // Check the flag
-      const startTime = trimStart; // Use trimStart from useTrimControls hook
-      console.log(`[handlePlay] Force reset flag is TRUE. Resetting time to trimStart: ${startTime.toFixed(3)}`); // ADDED LOG
-      
-      // Update React state (visuals)
-      setCurrentTime(startTime); // Update React state too (from usePlaybackState)
-      setVisualTime(startTime); // Also update visual time (from usePlaybackState)
-      
-      // *** FIX: Explicitly set underlying media time *before* playing ***
+    const wasReset = forceResetOnPlayRef.current;
+    const startTime = wasReset ? trimStart : currentTime; // Use current time unless we need to reset
+    
+    // Log status for debugging
+    console.log(`[handlePlay] Force reset flag is ${wasReset ? 'TRUE' : 'FALSE'}. Playing from ${wasReset ? 'trimStart' : 'current'} time: ${startTime.toFixed(3)}`);
+    
+    // Update React state (visuals) immediately at the start
+    if (wasReset) {
+      setCurrentTime(startTime);
+      setVisualTime(startTime);
+    }
+    
+    // If we're at the end, or need to reset, set time explicitly
+    if (wasReset) {
+      // Set time in all media elements
       if (bridge.videoContext) { // Video
          try { 
            console.log(`[handlePlay] Setting bridge context currentTime to ${startTime.toFixed(3)}`);
@@ -375,114 +381,92 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       }
       
       // Reset the flag *after* setting time
-      forceResetOnPlayRef.current = false; 
+      forceResetOnPlayRef.current = false;
       
-      // *** ADDED: Set the justResetRef flag ***
+      // Set the justResetRef flag to prevent first time update
       justResetRef.current = true;
       console.log(`[handlePlay] Set justResetRef to true.`);
-      
-      // *** Update play logic - add more detailed checks ***
-      if (isVideoType(mediaType)) {
-        if (bridge.videoContext && bridge.isReady) {
-          console.log("[handlePlay] Bridge is ready and media is video - calling bridge.play()");
-          
-          // Double check if the context is in a playable state
-          if (bridge.videoContext.state === 'paused' || bridge.videoContext.state === 'suspended') {
-            bridge.play();
-            console.log("[handlePlay] Bridge play called successfully");
-          } else {
-            console.warn(`[handlePlay] VideoContext is in state: ${bridge.videoContext.state}, which may not respond to play()`);
-            bridge.play(); // Try anyway
+    }
+    
+    // Handle video playback
+    if (isVideoType(mediaType)) {
+      if (bridge.videoContext && bridge.isReady) {
+        console.log("[handlePlay] Bridge is ready and media is video - calling bridge.play()");
+        
+        // Double check if the context is in a playable state
+        if (bridge.videoContext.state === 'paused' || bridge.videoContext.state === 'suspended') {
+          bridge.play();
+          console.log("[handlePlay] Bridge play called successfully");
+        } else {
+          console.warn(`[handlePlay] VideoContext is in state: ${bridge.videoContext.state}, which may not respond to play()`);
+          bridge.play(); // Try anyway
+        }
+      } else {
+        console.warn(`[handlePlay] Bridge not ready, attempting direct video element fallback`);
+        // FALLBACK: Try playing the video element directly if bridge isn't ready
+        const video = videoRef.current;
+        if (video && localMediaUrl) {
+          try {
+            // If we were reset, or we're using the start time, seek explicitly
+            if (wasReset || Math.abs(video.currentTime - startTime) > 0.5) {
+              video.currentTime = startTime;
+            }
+            
+            // Set playing state FIRST so the animation frame loop kicks in
+            setIsPlayingWithLog(true);
+            
+            // Then start playback
+            video.play().catch(err => console.error("[handlePlay Video] Fallback video play error:", err));
+            console.log("[handlePlay] Started fallback video directly");
+          } catch (e) {
+            console.error("[handlePlay Video] Error playing fallback video:", e);
           }
         } else {
-          console.error(`[handlePlay] Cannot play - bridge issues: videoContext=${!!bridge.videoContext}, isReady=${bridge.isReady}`);
+          console.error(`[handlePlay] Cannot play - no video element or URL available`);
         }
       }
-      
-      setIsPlayingWithLog(true); 
-      // Play separate audio if present
+    } else if (isImageType(mediaType)) {
+      // Image logic
+      setIsPlayingWithLog(true);
       if (audioRef.current && audioUrl) {
         try {
-          // Ensure bridge.videoContext is not null before accessing currentTime
-          if (bridge.videoContext) {
-            audioRef.current.currentTime = bridge.videoContext.currentTime; // *** USE BRIDGE CONTEXT ***
-            audioRef.current.play().catch(err => console.error(`[handlePlay Video] Error playing audio:`, err));
-          }
+            audioRef.current.currentTime = startTime; 
+            audioRef.current.play().catch(err => console.error("[handlePlay Image] Error playing audio:", err));
         } catch (e) {
-          console.warn("[handlePlay Video] Error setting/playing audio time:", e);
+            console.warn("[handlePlay Image] Error setting audio time:", e);
         }
-      }
-      
-    } else {
-      console.log(`[handlePlay] Force reset flag is FALSE. Playing from current time: ${currentTime.toFixed(3)}`); // ADDED LOG
-      
-      justResetRef.current = false;
-      
-      if (isImageType(mediaType)) {
-        // Image logic
-        setIsPlayingWithLog(true); // Use wrapper (starts rAF loop implicitly)
-        if (audioRef.current && audioUrl) {
-          try {
-              audioRef.current.currentTime = currentTime; 
-              audioRef.current.play().catch(err => console.error("[handlePlay Image] Error playing audio:", err));
-          } catch (e) {
-              console.warn("[handlePlay Image] Error setting audio time:", e);
-          }
-        }
-        return; // Done for images
-      }
-      
-      // --- Video Logic --- 
-      const currentCtx = bridge.videoContext;
-      if (!currentCtx) { 
-        console.error(`[handlePlay Video] Cannot play - bridge.videoContext is null`);
-        return;
-      }
-      if (!bridge.isReady) { 
-        console.error(`[handlePlay Video] Cannot play - bridge is not ready yet`);
-        return;
-      }
-      
-      // Sync video context time if needed (using currentTime from state)
-      if (Math.abs(currentCtx.currentTime - currentTime) > 0.1) { 
-          try { 
-            console.log(`[handlePlay Video] Syncing context time from ${currentCtx.currentTime.toFixed(3)} to ${currentTime.toFixed(3)}`);
-            currentCtx.currentTime = currentTime; 
-          } 
-          catch (e) { console.warn("[handlePlay Video] Error syncing video context time:", e); }
-      }
-      
-      // Double check video context state before playing
-      console.log(`[handlePlay Video] VideoContext state before play: ${currentCtx.state}`);
-      
-      // Play video context using the bridge
-      console.log(`[handlePlay Video] Calling bridge.play() - isReady=${bridge.isReady}, currentTime=${currentTime.toFixed(3)}`);
-      bridge.play(); 
-      setIsPlayingWithLog(true); // Use wrapper (starts rAF loop)
-        
-      // Play separate audio if present, syncing to video context
-      if (audioRef.current && audioUrl) {
-          try {
-            if (currentCtx) {
-              audioRef.current.currentTime = currentCtx.currentTime; 
-              audioRef.current.play().catch(err => console.error(`[handlePlay Video] Error playing audio:`, err));
-            }
-          } catch (e) {
-            console.warn("[handlePlay Video] Error setting/playing audio time:", e);
-          }
       }
     }
-
+    
+    // Set playback state and sync audio
+    setIsPlayingWithLog(true);
+    
+    // Play separate audio if present
+    if (audioRef.current && audioUrl) {
+      try {
+        // Ensure we have a time source
+        if (bridge.videoContext) {
+          audioRef.current.currentTime = bridge.videoContext.currentTime;
+        } else {
+          audioRef.current.currentTime = startTime;
+        }
+        audioRef.current.play().catch(err => console.error(`[handlePlay] Error playing audio:`, err));
+      } catch (e) {
+        console.warn("[handlePlay] Error setting/playing audio time:", e);
+      }
+    }
   }, [
       // Dependencies:
-      bridge, // Use bridge instead of isReady directly
-      currentTime, trimStart, // Read state from playback/trim hooks
-      audioUrl, audioRef, // Props and Refs
-      setCurrentTime, setVisualTime, // Setters from playback hook
-      setIsPlayingWithLog, // Callback wrapper
-      forceResetOnPlayRef, mediaType, // Ref and Prop
-      justResetRef, // Pass the new ref
-      isVideoType // Added helper function
+      bridge, 
+      currentTime, trimStart,
+      audioUrl, audioRef,
+      setCurrentTime, setVisualTime,
+      setIsPlayingWithLog,
+      forceResetOnPlayRef, mediaType,
+      justResetRef,
+      isVideoType, isImageType,
+      videoRef,
+      localMediaUrl
   ]);
   
   const handleTimeUpdate = useCallback((newTime: number) => {
@@ -974,7 +958,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
   }, []);
   
-  // Effect to manage canvas visibility based on play state
+  // Canvas/Video visibility logic
   useEffect(() => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -992,20 +976,102 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       console.log(`[CANVAS DEBUG] Video element does not exist`);
     }
 
-    // --- Reverted Logic --- 
-    if (isPlaying && isVideoType(mediaType)) {
-      // Playing Video: Show canvas, hide video element
-      console.log('[CANVAS DEBUG] Setting canvas visible for playing video');
-      canvas.style.display = 'block';
-      canvas.style.zIndex = '10'; // Ensure canvas is on top
-      if (video) video.style.display = 'none';
-    } else if (!isPlaying && isVideoType(mediaType)) {
-      // Paused Video: Show the canvas (which VideoContext keeps updated), hide video element
-      console.log('[CANVAS DEBUG] Setting canvas visible for paused video');
-      canvas.style.display = 'block'; 
-      canvas.style.zIndex = '10'; // Keep canvas on top
-      if (video) {
-         video.style.display = 'none'; // Keep fallback video hidden
+    // --- IMPROVED DIRECT RENDERING APPROACH --- 
+    if (isVideoType(mediaType)) {
+      // For now, let's hide the canvas since it's not rendering properly
+      // and just use the direct video element
+      canvas.style.display = 'none';
+      
+      // For videos, show the actual video element as primary renderer
+      if (video && localMediaUrl) {
+        console.log('[CANVAS DEBUG] Setting up direct video element for playback');
+        video.style.display = 'block'; // Always show video element 
+        video.style.zIndex = '10'; // Place on top since canvas is hidden
+        
+        // FIX: Improved video element styling to ensure proper display
+        video.style.width = '100%';
+        video.style.height = '100%';
+        video.style.objectFit = 'contain'; // Change to 'contain' to prevent cropping
+        video.style.backgroundColor = 'black'; // Add background to fill empty space
+        
+        // Set video element properties directly
+        if (video.src !== localMediaUrl) {
+          video.src = localMediaUrl;
+          video.crossOrigin = 'anonymous';
+          video.muted = true; // Mute to avoid double audio
+          video.playsInline = true;
+          video.controls = false;
+          console.log(`[CANVAS DEBUG] Set video.src to ${localMediaUrl}`);
+          
+          // IMPROVED: Set up enhanced metadata detection
+          video.addEventListener('loadedmetadata', () => {
+            console.log(`[CANVAS DEBUG] FALLBACK: Video metadata loaded, duration=${video.duration}`);
+            
+            // Always update time values on metadata load
+            if (video.duration > 0) {
+              setDuration(video.duration);
+              setIsReady(true);
+              
+              // Always update trimEnd unless user manually set it
+              if (!trimManuallySet) {
+                setTrimEnd(video.duration);
+                if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
+                  userTrimEndRef.current = video.duration;
+                }
+              }
+              
+              // Force an immediate current time update
+              setCurrentTime(0);
+              setVisualTime(0);
+            }
+          });
+          
+          // Add additional check for duration
+          const checkDuration = () => {
+            if (video.duration > 0 && !isReady) {
+              console.log(`[CANVAS DEBUG] Duration check: ${video.duration}`);
+              setDuration(video.duration);
+              setIsReady(true);
+              
+              // Force current time update
+              setCurrentTime(video.currentTime || 0);
+              setVisualTime(video.currentTime || 0);
+              
+              // Update trim values
+              if (!trimManuallySet) {
+                setTrimEnd(video.duration);
+                if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
+                  userTrimEndRef.current = video.duration;
+                }
+              }
+            }
+          };
+          
+          // Check duration immediately and also after a delay
+          checkDuration();
+          setTimeout(checkDuration, 500);
+          
+          video.addEventListener('error', (e) => {
+            console.error('[CANVAS DEBUG] Video element error:', e);
+          });
+        }
+        
+        // Update video element playback state
+        if (isPlaying && video.paused) {
+          console.log(`[CANVAS DEBUG] Starting direct video playback at time: ${currentTime}`);
+          
+          // Set current time before playing
+          try {
+            video.currentTime = currentTime; 
+          } catch (e) {
+            console.error('[CANVAS DEBUG] Error setting video time:', e);
+          }
+          
+          video.play().catch(e => console.error('[CANVAS DEBUG] Error playing fallback video:', e));
+        } else if (!isPlaying && !video.paused) {
+          console.log('[CANVAS DEBUG] Pausing direct video playback');
+          video.pause();
+        }
       }
     } else if (isImageType(mediaType)) {
       // Image: Always hide canvas, image element is handled separately
@@ -1025,7 +1091,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     } catch (e) {
       console.log('[CANVAS DEBUG] Unable to check canvas content:', e);
     }
-  }, [isPlaying, mediaType, videoRef, canvasRef]);
+  }, [isPlaying, mediaType, videoRef, canvasRef, localMediaUrl, videoContext, currentTime, isReady, setDuration, setIsReady, setTrimEnd, userTrimEndRef, trimManuallySet, setCurrentTime, setVisualTime]);
   
   // Effect to clear image timer on unmount
   useEffect(() => {

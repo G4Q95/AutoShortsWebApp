@@ -127,6 +127,8 @@ export function TimelineControl({
     return value;
   };
   
+  console.log(`[TimelineControl] Rendering with trimActive=${trimActive}, trimStart=${trimStart}, trimEnd=${effectiveTrimEnd}, duration=${duration}`);
+  
   return (
     <div className={`relative ${className || ''}`}> {/* Removed mb-1 */} 
       {/* Main timeline scrubber container */}
@@ -179,7 +181,7 @@ export function TimelineControl({
       </div>
       
       {/* Trim brackets (position relative to the container above) */}
-      {duration > 0 && (
+      {trimActive && duration > 0 ? (
         <>
           {/* Left trim bracket */}
           <div 
@@ -190,83 +192,70 @@ export function TimelineControl({
               height: '16px', // Match container height
               width: '12px',
               zIndex: 53,
-              pointerEvents: trimActive ? 'auto' : 'none',
-              opacity: trimActive ? 1 : (trimStart <= 0.01 ? 0 : 0.6),
+              pointerEvents: 'auto',
+              opacity: 1,
               transition: 'opacity 0.2s ease'
             }}
             data-drag-handle-exclude="true"
             data-testid="trim-start-bracket"
           >
-            {trimActive && (
-              <>
-                {/* Range input */}
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={(trimStart / duration) * 100}
-                  className="trim-bracket-range"
-                  style={{
-                    width: '16px',
-                    height: '16px', // Match container height
-                    position: 'absolute',
-                    top: '0px',
-                    left: '-2px',
-                    WebkitAppearance: 'none',
-                    appearance: 'none',
-                    zIndex: 90,
-                    opacity: 0,
-                    pointerEvents: 'auto',
-                    cursor: 'ew-resize'
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    console.log("[Trim Bracket] Left Handle MouseDown");
-                    setActiveHandle('start');
-                    // Need currentTime passed in if we want to set this properly
-                    setTimeBeforeDrag(visualTime); // Use visualTime as fallback?
-                    if (videoContext && setOriginalPlaybackTime) {
-                      // Need currentTime passed in
-                      setOriginalPlaybackTime(visualTime); // Use visualTime as fallback?
-                    }
-                  }}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                  }}
-                  data-testid="trim-start-range"
-                  data-drag-handle-exclude="true"
-                />
-                {/* Visual bracket overlay */}
-                <div 
-                  className="absolute w-0.5 bg-blue-500"
-                  style={{ 
-                    left: '6px',
-                    top: '1px', // Adjust visual indicator slightly
-                    height: '14px',
-                    pointerEvents: 'none',
-                    boxShadow: 'none',
-                    borderRadius: '1px'
-                  }}
-                />
-              </>
-            )}
-            {/* Backup visual indicator */}
-            {!trimActive && (
-              <div 
-                className="absolute w-0.5 bg-blue-500"
-                style={{ 
-                  left: '6px',
-                  top: '1px',
-                  height: '14px',
-                  pointerEvents: 'none',
-                  borderRadius: '1px'
-                }}
-                data-testid="trim-start-bracket-visual"
-              />
-            )}
+            {/* Range input */}
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="0.01"
+              value={(trimStart / duration) * 100}
+              className="trim-bracket-range"
+              style={{
+                width: '16px',
+                height: '16px', // Match container height
+                position: 'absolute',
+                top: '0px',
+                left: '-2px',
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                zIndex: 90,
+                opacity: 0,
+                pointerEvents: 'auto',
+                cursor: 'ew-resize'
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                console.log("[Trim Bracket] Left Handle MouseDown");
+                setActiveHandle('start');
+                // Need currentTime passed in if we want to set this properly
+                setTimeBeforeDrag(visualTime); // Use visualTime as fallback?
+                if (videoContext && setOriginalPlaybackTime) {
+                  // Need currentTime passed in
+                  setOriginalPlaybackTime(visualTime); // Use visualTime as fallback?
+                }
+              }}
+              onChange={(e) => {
+                e.stopPropagation();
+              }}
+              data-testid="trim-start-range"
+              data-drag-handle-exclude="true"
+            />
+            {/* Visual bracket overlay */}
+            <div 
+              className="absolute w-0.5 bg-blue-500"
+              style={{ 
+                left: '6px',
+                top: '1px', // Adjust visual indicator slightly
+                height: '14px',
+                pointerEvents: 'none',
+                boxShadow: 'none',
+              }}
+            />
+            <div
+              className="absolute h-4 w-4 bg-blue-500 rounded-full -left-1 top-1"
+              style={{
+                pointerEvents: 'none'
+              }}
+            />
           </div>
-          
+              
           {/* Right trim bracket */}
           <div 
             className="absolute"
@@ -276,81 +265,74 @@ export function TimelineControl({
               height: '16px', // Match container height
               width: '12px',
               zIndex: 53,
-              pointerEvents: trimActive ? 'auto' : 'none',
-              opacity: trimActive ? 1 : (getEffectiveTrimEnd() >= duration - 0.01 ? 0 : 0.6),
+              pointerEvents: 'auto',
+              opacity: 1,
               transition: 'opacity 0.2s ease'
             }}
             data-drag-handle-exclude="true"
             data-testid="trim-end-bracket"
           >
-            {trimActive && (
-              <>
-                {/* Range input */}
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={(getEffectiveTrimEnd() / duration) * 100}
-                  className="trim-bracket-range"
-                  style={{
-                    width: '16px',
-                    height: '16px', // Match container height
-                    position: 'absolute',
-                    top: '0px',
-                    left: '-2px',
-                    WebkitAppearance: 'none',
-                    appearance: 'none',
-                    zIndex: 90,
-                    opacity: 0,
-                    pointerEvents: 'auto',
-                    cursor: 'ew-resize'
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    console.log("[Trim Bracket] Right Handle MouseDown");
-                    setActiveHandle('end');
-                    setTimeBeforeDrag(visualTime); // Use visualTime as fallback?
-                    if (videoContext && setOriginalPlaybackTime) {
-                      setOriginalPlaybackTime(visualTime); // Use visualTime as fallback?
-                    }
-                  }}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                  }}
-                  data-testid="trim-end-range"
-                  data-drag-handle-exclude="true"
-                />
-                {/* Visual bracket overlay */}
-                <div 
-                  className="absolute w-0.5 bg-blue-500"
-                  style={{ 
-                    left: '6px',
-                    top: '1px',
-                    height: '14px',
-                    pointerEvents: 'none',
-                    boxShadow: 'none',
-                    borderRadius: '1px'
-                  }}
-                />
-              </>
-            )}
-            {/* Backup visual indicator */}
-            {!trimActive && (
-              <div 
-                className="absolute w-0.5 bg-blue-500"
-                style={{ 
-                  left: '6px',
-                  top: '1px',
-                  height: '14px',
-                  pointerEvents: 'none',
-                  borderRadius: '1px'
-                }}
-                data-testid="trim-end-bracket-visual"
-              />
-            )}
+            {/* Range input */}
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="0.01"
+              value={(getEffectiveTrimEnd() / duration) * 100}
+              className="trim-bracket-range"
+              style={{
+                width: '16px',
+                height: '16px', // Match container height
+                position: 'absolute',
+                top: '0px',
+                left: '-2px',
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                zIndex: 90,
+                opacity: 0,
+                pointerEvents: 'auto',
+                cursor: 'ew-resize'
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                console.log("[Trim Bracket] Right Handle MouseDown");
+                setActiveHandle('end');
+                // Need currentTime passed in if we want to set this properly
+                setTimeBeforeDrag(visualTime); // Use visualTime as fallback?
+                if (videoContext && setOriginalPlaybackTime) {
+                  // Need currentTime passed in
+                  setOriginalPlaybackTime(visualTime); // Use visualTime as fallback?
+                }
+              }}
+              onChange={(e) => {
+                e.stopPropagation();
+              }}
+              data-testid="trim-end-range"
+              data-drag-handle-exclude="true"
+            />
+            {/* Visual bracket overlay */}
+            <div 
+              className="absolute w-0.5 bg-blue-500"
+              style={{ 
+                left: '6px',
+                top: '1px', // Adjust visual indicator slightly
+                height: '14px', 
+                pointerEvents: 'none',
+                boxShadow: 'none',
+              }}
+            />
+            <div
+              className="absolute h-4 w-4 bg-blue-500 rounded-full -left-1 top-1"
+              style={{
+                pointerEvents: 'none'
+              }}
+            />
           </div>
         </>
+      ) : (
+        <div style={{display: 'none'}} data-testid="trim-controls-hidden">
+          Trim controls hidden - trimActive: {String(trimActive)}, duration: {duration.toFixed(2)}
+        </div>
       )}
     </div>
   );

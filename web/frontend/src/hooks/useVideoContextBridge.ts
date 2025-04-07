@@ -302,8 +302,46 @@ export function useVideoContextBridge({
             targetCtx.destination.gain.value = 1.0; // Ensure audio is on (if applicable)
           }
           
+          // CRITICAL: Ensure the source node is actually started
+          if (activeSource && typeof activeSource.start === 'function') {
+            try {
+              // Re-start the source if it's stopped
+              console.log("[Bridge Play] Re-starting source node");
+              activeSource.start(0);
+              activeSource.connect(targetCtx.destination);
+            } catch (e) {
+              // Ignore - it might already be started
+              console.log("[Bridge Play] Source already started:", e);
+            }
+          }
+          
+          // Force a render frame before starting playback
+          if (typeof targetCtx.update === 'function') {
+            try {
+              console.log("[Bridge Play] Forcing initial render frame");
+              targetCtx.update(targetCtx.currentTime);
+            } catch (e) {
+              console.warn("[Bridge Play] Error during initial frame render:", e);
+            }
+          }
+          
+          // Now start playback
           targetCtx.play(); 
           console.log("[Bridge Play] Context play() called successfully");
+          
+          // Force another render immediately after starting playback
+          if (typeof targetCtx.update === 'function') {
+            try {
+              setTimeout(() => {
+                if (targetCtx) {
+                  console.log("[Bridge Play] Forcing first playback frame after 50ms");
+                  targetCtx.update(targetCtx.currentTime);
+                }
+              }, 50);
+            } catch (e) {
+              console.warn("[Bridge Play] Error during delayed frame render:", e);
+            }
+          }
         }
       } catch (e) { 
         console.error("Bridge Play Error:", e); 
@@ -313,7 +351,7 @@ export function useVideoContextBridge({
     } else { 
       console.warn("Bridge Play: No valid context available"); 
     }
-  }, [internalCtx, videoContextInstance, onError]);
+  }, [internalCtx, videoContextInstance, onError, activeSource]);
 
   const pause = useCallback(() => {
     console.log("[Bridge Pause] Attempting to pause...");
