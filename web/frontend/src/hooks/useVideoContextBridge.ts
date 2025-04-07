@@ -10,7 +10,7 @@ interface UseVideoContextBridgeProps {
   // Actual VideoContext instance passed from the parent
   videoContextInstance: VideoContextInstance | null;
   
-  // Placeholder: Define necessary props from the component
+  // Canvas reference for rendering
   canvasRef: RefObject<HTMLCanvasElement | null>;
   localMediaUrl?: string | null;
   mediaType: string;
@@ -24,21 +24,23 @@ interface UseVideoContextBridgeProps {
  * Return type for the useVideoContextBridge hook
  */
 interface UseVideoContextBridgeReturn {
-  // Placeholder: Define methods and state to be returned
+  // Video context instance and basic state
   videoContext: VideoContextInstance | null;
   isReady: boolean;
   duration: number;
+  
+  // Core playback methods
   play: () => void;
   pause: () => void;
   seek: (time: number) => void;
+  
+  // Source and initialization methods
   createVideoSourceNode: (ctx: VideoContextInstance) => any | null;
-  // Add other necessary return values as logic is moved
+  prepareVideoContext: (baseSize?: number) => Promise<VideoContextInstance | null>;
 }
 
 /**
  * useVideoContextBridge - Hook to abstract VideoContext interactions
- * 
- * (Structure updated for Step 4 - Source creation logic added)
  */
 export function useVideoContextBridge({
   videoContextInstance,
@@ -51,11 +53,11 @@ export function useVideoContextBridge({
   onDurationChange,
 }: UseVideoContextBridgeProps): UseVideoContextBridgeReturn {
   
-  // --- Internal State (Placeholders - Still managed by parent for now) ---
-  const [isReady, setIsReady] = useState<boolean>(false); // Hook might manage this later
-  const [duration, setDuration] = useState<number>(0);   // Hook might manage this later
+  // --- Internal State ---
+  const [isReady, setIsReady] = useState<boolean>(false);
+  const [duration, setDuration] = useState<number>(0);
 
-  // --- Effects (Placeholders) ---
+  // --- Effects ---
   useEffect(() => {
     console.log("[useVideoContextBridge] Hook mounted (no-op)");
     return () => {
@@ -64,6 +66,11 @@ export function useVideoContextBridge({
   }, []); 
 
   // --- Methods ---
+  // Helper function to check if media type is video
+  function isVideoType(type: string): boolean {
+    return type === 'video';
+  }
+
   const play = useCallback(() => {
     if (videoContextInstance && typeof videoContextInstance.play === 'function') {
       try {
@@ -71,7 +78,6 @@ export function useVideoContextBridge({
         videoContextInstance.play();
       } catch (error) {
         console.error("[useVideoContextBridge] Error calling play():", error);
-        // Optionally call onError prop
         onError?.(error instanceof Error ? error : new Error('Playback error'));
       }
     } else {
@@ -86,7 +92,6 @@ export function useVideoContextBridge({
         videoContextInstance.pause();
       } catch (error) {
         console.error("[useVideoContextBridge] Error calling pause():", error);
-        // Optionally call onError prop
         onError?.(error instanceof Error ? error : new Error('Pause error'));
       }
     } else {
@@ -111,11 +116,9 @@ export function useVideoContextBridge({
     }
   }, [videoContextInstance, duration, onError]);
 
-  // STEP 4: Add method for creating the video source node
   const createVideoSourceNode = useCallback((ctx: VideoContextInstance) => {
     if (mediaType === 'video' && localMediaUrl && ctx) {
       console.log(`[useVideoContextBridge] Creating video source node for: ${localMediaUrl}`);
-      // Placeholder: Add source creation logic
       try {
         const source = ctx.video(localMediaUrl);
         if (!source) throw new Error('Failed to create video source node in bridge');
@@ -159,7 +162,56 @@ export function useVideoContextBridge({
       console.warn("[useVideoContextBridge] createVideoSourceNode called but conditions not met (not video, no URL, or no context)");
       return null;
     }
-  }, [localMediaUrl, mediaType, onReady, onError, onDurationChange]); // Dependencies for source creation logic
+  }, [localMediaUrl, mediaType, onReady, onError, onDurationChange]);
+
+  /**
+   * Prepares a VideoContext instance on the canvas
+   * This method handles the canvas setup and dynamic import of VideoContext
+   * but doesn't handle the full initialization (source nodes, etc.)
+   */
+  const prepareVideoContext = useCallback(async (baseSize: number = 1920): Promise<VideoContextInstance | null> => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      console.warn('[useVideoContextBridge] Cannot prepare VideoContext - canvas ref is null');
+      return null;
+    }
+    
+    try {
+      // Dynamically import VideoContext
+      const VideoContextModule = await import('videocontext');
+      const VideoContext = VideoContextModule.default || VideoContextModule;
+      
+      // Calculate dimensions based on aspect ratio
+      let canvasWidth: number, canvasHeight: number;
+      
+      // Use initialMediaAspectRatio from props if available, otherwise use a default
+      const initialRatioForCanvas = initialMediaAspectRatio || (9 / 16);
+      if (initialRatioForCanvas >= 1) {
+        canvasWidth = baseSize;
+        canvasHeight = Math.round(baseSize / initialRatioForCanvas);
+      } else {
+        canvasHeight = baseSize;
+        canvasWidth = Math.round(baseSize * initialRatioForCanvas);
+      }
+      
+      // Set canvas internal resolution
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+
+      // Create the VideoContext instance
+      const ctx = new VideoContext(canvas);
+      if (!ctx) {
+        throw new Error('Failed to create VideoContext instance');
+      }
+      
+      console.log('[useVideoContextBridge] Successfully prepared VideoContext');
+      return ctx;
+    } catch (error) {
+      console.error('[useVideoContextBridge] Error preparing VideoContext:', error);
+      onError?.(error instanceof Error ? error : new Error('VideoContext preparation failed'));
+      return null;
+    }
+  }, [canvasRef, initialMediaAspectRatio, onError]);
 
   return {
     videoContext: videoContextInstance,
@@ -169,5 +221,6 @@ export function useVideoContextBridge({
     pause,
     seek,
     createVideoSourceNode,
+    prepareVideoContext,
   };
 }

@@ -699,6 +699,56 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
   }, [localMediaUrl, mediaType, sceneId, initialMediaAspectRatio, setVideoContext, setDuration, setTrimEnd, userTrimEndRef, setCurrentTime]); // REMOVED videoContext from dependencies
   
+  // After the existing VideoContext initialization hook, add a new test hook for the bridge's prepareVideoContext method
+  useEffect(() => {
+    // Only run this test if the component is mounted and we have the necessary dependencies
+    if (!canvasRef.current || !localMediaUrl || !isVideoType(mediaType)) {
+      return; // Skip if requirements aren't met
+    }
+    
+    let isMounted = true;
+    
+    // Test the bridge's prepareVideoContext method
+    const testBridgePrepare = async () => {
+      console.log('[VideoCtx Test] Testing bridge.prepareVideoContext()...');
+      
+      try {
+        // Call the bridge's method to prepare the context
+        const testContext = await bridge.prepareVideoContext();
+        
+        if (!isMounted) return; // Prevent state updates if unmounted
+        
+        // Log success or failure
+        if (testContext) {
+          console.log('[VideoCtx Test] Bridge successfully prepared context:', testContext);
+          
+          // Clean up the test context to avoid interference with the main context
+          try {
+            testContext.reset();
+            if (typeof testContext.dispose === 'function') {
+              testContext.dispose();
+            }
+          } catch (cleanupError) {
+            console.warn('[VideoCtx Test] Error cleaning up test context:', cleanupError);
+          }
+        } else {
+          console.warn('[VideoCtx Test] Bridge failed to prepare context');
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        console.error('[VideoCtx Test] Error testing bridge.prepareVideoContext():', error);
+      }
+    };
+    
+    // Run the test
+    testBridgePrepare();
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [bridge, canvasRef, localMediaUrl, mediaType]); // Dependencies for the test
+  
   // Scrubbing/Time update logic
   const handleScrubberDragStart = useCallback(() => {
     // ... existing logic ...
