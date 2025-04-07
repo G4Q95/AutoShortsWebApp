@@ -219,22 +219,29 @@ The following components/hooks have been identified as candidates for extraction
   4. Replace debug elements in the main component
 - **Testing Focus**: Visibility toggling, information accuracy, performance impact.
 
-#### 7. VideoContext Bridge (LOW PRIORITY)
+#### 7. VideoContext Bridge (IN PROGRESS - DEBUGGING)
 - **Description**: Create an abstraction layer between the component and VideoContext.
 - **Target File**: `src/hooks/useVideoContextBridge.ts`
 - **Benefits**: Reduces direct dependencies on VideoContext, improves testability.
-- **Implementation Plan (Revised Incremental Approach)**:
-  1.  **Step 1: Empty Hook with Types:** Create `useVideoContextBridge.ts` with interfaces/types only. Import in the main component without using it. Test for build errors.
-  2.  **Step 2: Simple Getter:** Add a function to the hook returning the existing `videoContext`. Update *one* reference in the main component. Test playback.
-  3.  **Step 3: Basic Play/Pause Wrappers:** Add simple `play()`/`pause()` methods to the hook that *directly call* the existing context methods. Update *one or two* calls in the main component. Test play/pause.
-  4.  **Step 4: Isolated Source Creation:** Add source creation logic to the hook, but keep it separate from initialization for now. Test build and basic playback.
-  5.  **Step 5: Basic Seeking Wrapper:** Add a simple `seek()` method to the hook. Update *one* seeking call in the main component. Test scrubbing.
-  6.  **Step 6: Gradual Initialization Migration:** Move *small, isolated parts* of the `VideoContext` initialization logic from the main component into the hook. Test thoroughly after each small move.
-  7.  **Step 7: Full Integration & Cleanup:** Only after all individual parts are tested and confirmed working, connect them within the hook and gradually remove the original code from the main component.
+- **Implementation Status Update (2023-07-05):**
+  - **Progress:** Steps 1-6 of the revised incremental approach below have been **completed**. This involved creating the `useVideoContextBridge` hook and migrating significant parts of the `VideoContext` initialization logic into it.
+  - **Current State:** This migration, while structurally advancing the refactoring, has introduced considerable complexity (~+400 lines added to `VideoContextScenePreviewPlayer.tsx`) and surfaced several state synchronization bugs. Playback and scrubbing interactions, especially with the new native HTML range input for the timeline, are currently unstable.
+  - **Immediate Focus:** Debugging and stabilizing the player controls, specifically the HTML timeline scrubber interaction and the trim bracket functionality. These must be resolved before proceeding.
+  - **Next Steps:** Once controls are stable:
+    1. Complete Step 7 (Full Integration & Cleanup) of the bridge implementation.
+    2. Proceed to Step 8 (Component Structure Refactoring) to simplify the main component.
+- **Implementation Plan (Revised Incremental Approach - Current Status Marked):**
+  1.  **Step 1: Empty Hook with Types:** (DONE)
+  2.  **Step 2: Simple Getter:** (DONE)
+  3.  **Step 3: Basic Play/Pause Wrappers:** (DONE)
+  4.  **Step 4: Isolated Source Creation:** (DONE)
+  5.  **Step 5: Basic Seeking Wrapper:** (DONE)
+  6.  **Step 6: Gradual Initialization Migration:** (DONE - Introduced instability)
+  7.  **Step 7: Full Integration & Cleanup:** (PENDING - Blocked by control debugging)
   8.  **Continuous Testing:** After *each* small step, manually test play/pause, seeking, timeline updates, visual rendering, and error handling.
-- **Testing Focus**: Ensuring core video playback functionality (play, pause, seek, time updates) remains intact after *each tiny incremental step*.
+- **Testing Focus**: Ensuring core video playback functionality (play, pause, seek, time updates) remains intact after *each tiny incremental step*. Stabilizing scrubber and trim controls is the immediate priority.
 
-#### 8. Component Structure Refactoring (FINAL STAGE)
+#### 8. Component Structure Refactoring (PENDING)
 - **Description**: Refactor the main component structure after all extractions.
 - **Target File**: Restructuring `VideoContextScenePreviewPlayer.tsx`
 - **Benefits**: Final cleanup, ensures proper composition of all extracted pieces.
