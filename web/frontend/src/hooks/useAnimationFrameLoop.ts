@@ -147,6 +147,13 @@ export function useAnimationFrameLoop({
       } else if (videoContext) {
         // For videos, read time from VideoContext
         newTime = videoContext.currentTime;
+        // *** ADDED: Explicitly tell VideoContext to render this frame ***
+        try {
+          videoContext.update(newTime);
+        } catch (updateError) {
+          console.error("[rAF] Error calling videoContext.update():", updateError);
+          // Optionally stop loop or report error if update fails
+        }
       }
       
       // Check justResetRef before processing boundary

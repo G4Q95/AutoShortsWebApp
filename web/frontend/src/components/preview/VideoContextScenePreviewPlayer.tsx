@@ -381,8 +381,24 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       justResetRef.current = true;
       console.log(`[handlePlay] Set justResetRef to true.`);
       
-      // *** Play immediately after setting time and flags ***
-      bridge.play(); 
+      // *** Update play logic - add more detailed checks ***
+      if (isVideoType(mediaType)) {
+        if (bridge.videoContext && bridge.isReady) {
+          console.log("[handlePlay] Bridge is ready and media is video - calling bridge.play()");
+          
+          // Double check if the context is in a playable state
+          if (bridge.videoContext.state === 'paused' || bridge.videoContext.state === 'suspended') {
+            bridge.play();
+            console.log("[handlePlay] Bridge play called successfully");
+          } else {
+            console.warn(`[handlePlay] VideoContext is in state: ${bridge.videoContext.state}, which may not respond to play()`);
+            bridge.play(); // Try anyway
+          }
+        } else {
+          console.error(`[handlePlay] Cannot play - bridge issues: videoContext=${!!bridge.videoContext}, isReady=${bridge.isReady}`);
+        }
+      }
+      
       setIsPlayingWithLog(true); 
       // Play separate audio if present
       if (audioRef.current && audioUrl) {
@@ -400,10 +416,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     } else {
       console.log(`[handlePlay] Force reset flag is FALSE. Playing from current time: ${currentTime.toFixed(3)}`); // ADDED LOG
       
-      // *** ADDED: Ensure justResetRef is false if playing normally ***
       justResetRef.current = false;
       
-      // --- Playback Logic (No reset needed) --- 
       if (isImageType(mediaType)) {
         // Image logic
         setIsPlayingWithLog(true); // Use wrapper (starts rAF loop implicitly)
@@ -419,31 +433,38 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       }
       
       // --- Video Logic --- 
-      if (!bridge.videoContext) { // *** USE BRIDGE CONTEXT ***
-        console.error(`[handlePlay Video] Cannot play - videoContext is null`);
+      const currentCtx = bridge.videoContext;
+      if (!currentCtx) { 
+        console.error(`[handlePlay Video] Cannot play - bridge.videoContext is null`);
         return;
       }
-      if (!isReady) {
-        console.error(`[handlePlay Video] Cannot play - videoContext not ready yet`);
+      if (!bridge.isReady) { 
+        console.error(`[handlePlay Video] Cannot play - bridge is not ready yet`);
         return;
       }
       
       // Sync video context time if needed (using currentTime from state)
-      if (Math.abs(bridge.videoContext.currentTime - currentTime) > 0.1) { // *** USE BRIDGE CONTEXT ***
-          try { bridge.videoContext.currentTime = currentTime; } 
+      if (Math.abs(currentCtx.currentTime - currentTime) > 0.1) { 
+          try { 
+            console.log(`[handlePlay Video] Syncing context time from ${currentCtx.currentTime.toFixed(3)} to ${currentTime.toFixed(3)}`);
+            currentCtx.currentTime = currentTime; 
+          } 
           catch (e) { console.warn("[handlePlay Video] Error syncing video context time:", e); }
       }
       
+      // Double check video context state before playing
+      console.log(`[handlePlay Video] VideoContext state before play: ${currentCtx.state}`);
+      
       // Play video context using the bridge
-      bridge.play(); // *** USE BRIDGE PLAY ***
+      console.log(`[handlePlay Video] Calling bridge.play() - isReady=${bridge.isReady}, currentTime=${currentTime.toFixed(3)}`);
+      bridge.play(); 
       setIsPlayingWithLog(true); // Use wrapper (starts rAF loop)
         
       // Play separate audio if present, syncing to video context
       if (audioRef.current && audioUrl) {
           try {
-            // Ensure bridge.videoContext is not null before accessing currentTime
-            if (bridge.videoContext) {
-              audioRef.current.currentTime = bridge.videoContext.currentTime; // *** USE BRIDGE CONTEXT ***
+            if (currentCtx) {
+              audioRef.current.currentTime = currentCtx.currentTime; 
               audioRef.current.play().catch(err => console.error(`[handlePlay Video] Error playing audio:`, err));
             }
           } catch (e) {
@@ -454,13 +475,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
   }, [
       // Dependencies:
-      bridge, isReady, // Use bridge instead of videoContext
+      bridge, // Use bridge instead of isReady directly
       currentTime, trimStart, // Read state from playback/trim hooks
       audioUrl, audioRef, // Props and Refs
       setCurrentTime, setVisualTime, // Setters from playback hook
       setIsPlayingWithLog, // Callback wrapper
       forceResetOnPlayRef, mediaType, // Ref and Prop
       justResetRef, // Pass the new ref
+      isVideoType // Added helper function
   ]);
   
   const handleTimeUpdate = useCallback((newTime: number) => {
@@ -601,32 +623,43 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // VideoContext initialization
   useEffect(() => {
+    console.log('[INIT DEBUG] VideoContext initialization effect running');
     const canvas = canvasRef.current;
     if (!canvas || !containerRef.current || !localMediaUrl || !isVideoType(mediaType)) {
+      console.log(`[INIT DEBUG] Early return conditions: canvas=${!!canvas}, container=${!!containerRef.current}, localMediaUrl=${!!localMediaUrl}, isVideo=${isVideoType(mediaType)}`);
       return; // Bail out if refs not ready, no local URL, or not a video
     }
 
+    console.log(`[INIT DEBUG] Continuing with VideoContext initialization for media: ${localMediaUrl}`);
     let isMounted = true; // Track mount status
 
     const baseSize = 1920;
     let canvasWidth: number, canvasHeight: number;
+    
+    // Store the current bridge reference to use in async code
+    const currentBridge = bridge;
+    // Store the current context to avoid dependency issues
+    const currentVideoContext = videoContext;
 
     const initVideoContext = async () => {
+      console.log('[INIT DEBUG] initVideoContext starting');
       try {
         // Clean up existing context if any
-        if (videoContext) {
+        if (currentVideoContext) {
+          console.log('[INIT DEBUG] Cleaning up existing VideoContext');
           try {
-            videoContext.reset();
-            if (typeof videoContext.dispose === 'function') {
-              videoContext.dispose();
+            currentVideoContext.reset();
+            if (typeof currentVideoContext.dispose === 'function') {
+              currentVideoContext.dispose();
             }
           } catch (cleanupError) {
             console.error(`[INIT-DEBUG] Error during context cleanup:`, cleanupError);
           }
-          setVideoContext(null);
+          if (isMounted) setVideoContext(null);
         }
         
         // Dynamically import VideoContext
+        console.log('[INIT DEBUG] Importing VideoContext module');
         const VideoContextModule = await import('videocontext');
         const VideoContext = VideoContextModule.default || VideoContextModule;
         
@@ -639,37 +672,52 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           canvasHeight = baseSize;
           canvasWidth = Math.round(baseSize * initialRatioForCanvas);
         }
+        
+        console.log(`[INIT DEBUG] Setting canvas dimensions: ${canvasWidth}x${canvasHeight}`);
         // Set canvas internal resolution
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
 
+        console.log('[INIT DEBUG] Creating new VideoContext instance');
         const ctx = new VideoContext(canvas);
         if (!ctx) throw new Error('Failed to create VideoContext instance');
+        console.log('[INIT DEBUG] VideoContext created successfully:', ctx);
+        if (!isMounted) {
+          // If unmounted during async work, clean up the context
+          try {
+            ctx.reset();
+            if (typeof ctx.dispose === 'function') ctx.dispose();
+          } catch (e) {}
+          return null;
+        }
         setVideoContext(ctx);
 
         let sourceNode: any = null; // Variable to hold the source node
         if (mediaType === 'video') {
           // *** CALL THE BRIDGE TO CREATE THE SOURCE NODE ***
-          sourceNode = bridge.createVideoSourceNode(ctx);
+          console.log('[INIT DEBUG] Calling bridge.createVideoSourceNode');
+          sourceNode = currentBridge.createVideoSourceNode(ctx);
+          console.log('[INIT DEBUG] Source node creation result:', !!sourceNode);
           if (!sourceNode) {
              // Error handling is done within the bridge method, just log here if needed
              console.error("[VideoCtx Init] Bridge failed to create source node.");
-             setIsLoading(false);
-             setIsReady(false);
+             if (isMounted) {
+               setIsLoading(false);
+               setIsReady(false);
+             }
              // Potentially throw or return early if source creation is critical
              return null; // Indicate failure
           }
-          // --- Original source handling logic REMOVED --- 
-          // No need for connect, start, stop, registerCallback here anymore,
-          // as that's handled inside bridge.createVideoSourceNode()
         }
         
         // Return the context and the source node (if created)
+        console.log('[INIT DEBUG] initVideoContext complete, returning results');
         return {
           context: ctx,
           source: sourceNode
         };
       } catch (error) {
+        console.error('[INIT DEBUG] Error in initVideoContext:', error);
         if (isMounted) {
             setIsLoading(false);
             setIsReady(false);
@@ -679,15 +727,20 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
     
     // Run initialization and handle results
+    console.log('[INIT DEBUG] Starting VideoContext setup promise');
     const setupPromise = initVideoContext();
     
     setupPromise.then(result => {
+      console.log('[INIT DEBUG] Setup promise resolved:', result ? 'successfully' : 'failed');
       if (!isMounted) return;
       if (result && result.context) {
+        console.log('[INIT DEBUG] Setup succeeded with context:', result.context);
       } else {
+        console.log('[INIT DEBUG] Setup did not produce a valid context');
         setIsReady(false); // Ensure ready is false if setup failed
       }
     }).catch(error => {
+      console.error('[INIT DEBUG] Setup promise rejected:', error);
       if (!isMounted) return;
       setIsReady(false);
       setIsLoading(false); // Ensure loading is false on promise rejection
@@ -695,9 +748,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Cleanup function
     return () => {
+      console.log('[INIT DEBUG] VideoContext initialization effect cleanup');
       isMounted = false; // Mark as unmounted
     };
-  }, [localMediaUrl, mediaType, sceneId, initialMediaAspectRatio, setVideoContext, setDuration, setTrimEnd, userTrimEndRef, setCurrentTime]); // REMOVED videoContext from dependencies
+  }, [localMediaUrl, mediaType, sceneId, initialMediaAspectRatio, setVideoContext, setDuration, setTrimEnd, userTrimEndRef, setCurrentTime]); // REMOVED videoContext dependency
   
   // After the existing VideoContext initialization hook, add a new test hook for the bridge's prepareVideoContext method
   useEffect(() => {
@@ -708,13 +762,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     let isMounted = true;
     
+    // Store the current bridge reference to use in async code
+    const currentBridge = bridge;
+    
     // Test the bridge's prepareVideoContext method
     const testBridgePrepare = async () => {
       console.log('[VideoCtx Test] Testing bridge.prepareVideoContext()...');
       
       try {
         // Call the bridge's method to prepare the context
-        const testContext = await bridge.prepareVideoContext();
+        const testContext = await currentBridge.prepareVideoContext();
         
         if (!isMounted) return; // Prevent state updates if unmounted
         
@@ -747,7 +804,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return () => {
       isMounted = false;
     };
-  }, [bridge, canvasRef, localMediaUrl, mediaType]); // Dependencies for the test
+  // Remove bridge from dependency array to prevent infinite loops  
+  }, [canvasRef, localMediaUrl, mediaType]); // REMOVED bridge dependency
   
   // Scrubbing/Time update logic
   const handleScrubberDragStart = useCallback(() => {
@@ -759,7 +817,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   }, [
     isDraggingScrubber, visualTime, 
     setCurrentTime, // Playback hook state
-    bridge.videoContext, // *** USE CONTEXT FROM BRIDGE ***
+    bridge, // Use bridge object itself instead of bridge.videoContext
     audioRef, forceResetOnPlayRef, setIsDraggingScrubber 
   ]);
   
@@ -921,16 +979,29 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     const canvas = canvasRef.current;
     const video = videoRef.current;
     
-    if (!canvas) return; // Canvas must exist
+    if (!canvas) {
+      console.log('[CANVAS DEBUG] Canvas ref is null in visibility effect');
+      return; // Canvas must exist
+    }
+
+    console.log(`[CANVAS DEBUG] Visibility effect: isPlaying=${isPlaying}, mediaType=${mediaType}`);
+    console.log(`[CANVAS DEBUG] Current display state: canvas=${canvas.style.display}, zIndex=${canvas.style.zIndex}`);
+    if (video) {
+      console.log(`[CANVAS DEBUG] Video element: display=${video.style.display}, exists=${!!video}`);
+    } else {
+      console.log(`[CANVAS DEBUG] Video element does not exist`);
+    }
 
     // --- Reverted Logic --- 
     if (isPlaying && isVideoType(mediaType)) {
       // Playing Video: Show canvas, hide video element
+      console.log('[CANVAS DEBUG] Setting canvas visible for playing video');
       canvas.style.display = 'block';
       canvas.style.zIndex = '10'; // Ensure canvas is on top
       if (video) video.style.display = 'none';
     } else if (!isPlaying && isVideoType(mediaType)) {
       // Paused Video: Show the canvas (which VideoContext keeps updated), hide video element
+      console.log('[CANVAS DEBUG] Setting canvas visible for paused video');
       canvas.style.display = 'block'; 
       canvas.style.zIndex = '10'; // Keep canvas on top
       if (video) {
@@ -938,15 +1009,23 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       }
     } else if (isImageType(mediaType)) {
       // Image: Always hide canvas, image element is handled separately
+      console.log('[CANVAS DEBUG] Hiding canvas for image content');
       canvas.style.display = 'none';
       if (video) video.style.display = 'none'; // Also hide video element if it exists
     }
-    // --- End Reverted Logic ---
     
-    // Note: The <img> element's visibility is implicitly handled by its presence/absence
-    // and the conditions in the JSX render.
-
-  }, [isPlaying, mediaType, videoRef, canvasRef]); // Dependencies: Restore isPlaying, keep media type and refs
+    // Additional debug to check if canvas has content
+    try {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const pixels = ctx.getImageData(0, 0, 1, 1);
+        const hasContent = pixels.data.some(val => val !== 0);
+        console.log(`[CANVAS DEBUG] Canvas has content: ${hasContent}`);
+      }
+    } catch (e) {
+      console.log('[CANVAS DEBUG] Unable to check canvas content:', e);
+    }
+  }, [isPlaying, mediaType, videoRef, canvasRef]);
   
   // Effect to clear image timer on unmount
   useEffect(() => {
