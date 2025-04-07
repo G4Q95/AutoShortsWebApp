@@ -1234,33 +1234,38 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           backgroundColor: 'rgba(0, 0, 0, 0.6)',
           zIndex: 50, 
           pointerEvents: 'auto',
-          padding: '4px 8px 4px 8px', // Keep adjusted padding
+          paddingTop: '0px',
+          paddingRight: '8px',
+          paddingBottom: '1px',
+          paddingLeft: '8px',
           width: '100%',
-          minHeight: '30px' // Keep adjusted minHeight
         }}
         data-drag-handle-exclude="true"
       >
-        {/* Timeline Control (Scrubber + Brackets) - Moved above buttons */}
-        <TimelineControl
-          visualTime={visualTime}
-          duration={duration}
-          trimStart={trimStart}
-          effectiveTrimEnd={getEffectiveTrimEnd()} // Pass function directly
-          activeHandle={activeHandle}
-          trimActive={trimActive} // Pass trimActive
-          isDraggingScrubber={isDraggingScrubber} // Ensure this prop is passed
-          onTimeUpdate={handleTimeUpdate}
-          onScrubberDragStart={() => setIsDraggingScrubber(true)}
-          onScrubberDragEnd={() => setIsDraggingScrubber(false)}
-          setActiveHandle={setActiveHandle}
-          setTimeBeforeDrag={setTimeBeforeDrag}
-          setOriginalPlaybackTime={setOriginalPlaybackTime}
-          videoContext={videoContext}
-          getEffectiveTrimEnd={getEffectiveTrimEnd} // Pass function directly
-        />
+        {/* Re-add Wrapper div for relative positioning */}
+        <div style={{ position: 'relative', top: '5px' }}> 
+          {/* Timeline Control (Scrubber + Brackets) */}
+          <TimelineControl
+            visualTime={visualTime}
+            duration={duration}
+            trimStart={trimStart}
+            effectiveTrimEnd={getEffectiveTrimEnd()} // Pass function directly
+            activeHandle={activeHandle}
+            trimActive={trimActive} // Pass trimActive
+            isDraggingScrubber={isDraggingScrubber} // Ensure this prop is passed
+            onTimeUpdate={handleTimeUpdate}
+            onScrubberDragStart={() => setIsDraggingScrubber(true)}
+            onScrubberDragEnd={() => setIsDraggingScrubber(false)}
+            setActiveHandle={setActiveHandle}
+            setTimeBeforeDrag={setTimeBeforeDrag}
+            setOriginalPlaybackTime={setOriginalPlaybackTime}
+            videoContext={videoContext}
+            getEffectiveTrimEnd={getEffectiveTrimEnd} // Pass function directly
+          />
+        </div>
         
         {/* Control buttons row - Now includes Time Display */}
-        <div className="flex justify-between items-center px-1 mt-1" /* Added margin-top */
+        <div className="flex justify-between items-center px-1 mt-1" /* Keep margin-top for spacing */
              data-drag-handle-exclude="true" 
              style={{ position: 'relative', zIndex: 55, pointerEvents: 'auto' }}>
           

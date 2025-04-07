@@ -76,6 +76,8 @@ interface TimelineControlProps {
    * Function to get effective trim end value
    */
   getEffectiveTrimEnd: () => number;
+
+  className?: string; // Add optional className prop
 }
 
 /**
@@ -99,7 +101,8 @@ export function TimelineControl({
   setTimeBeforeDrag,
   setOriginalPlaybackTime,
   videoContext,
-  getEffectiveTrimEnd
+  getEffectiveTrimEnd,
+  className
 }: TimelineControlProps) {
   const timelineRef = useRef<HTMLInputElement>(null);
   
@@ -125,7 +128,7 @@ export function TimelineControl({
   };
   
   return (
-    <div className="relative mb-1"> {/* Add margin-bottom */} 
+    <div className={`relative ${className || ''}`}> {/* Removed mb-1 */} 
       {/* Main timeline scrubber container */}
       <div className="flex items-center px-1 relative" 
           data-drag-handle-exclude="true"
