@@ -1,4 +1,4 @@
-import React, { CSSProperties } from 'react';
+import React, { CSSProperties, useEffect, useCallback } from 'react';
 import { PauseIcon, PlayIcon } from '@heroicons/react/24/solid';
 
 interface VideoElementProps {
@@ -18,6 +18,9 @@ interface VideoElementProps {
   
   // Styling
   mediaElementStyle: CSSProperties;
+  
+  // Event handlers
+  onVideoError?: (error: Error) => void;
   
   // Testing
   sceneId?: string;
@@ -39,8 +42,45 @@ export function VideoElement({
   videoRef,
   canvasRef,
   mediaElementStyle,
+  onVideoError,
   sceneId
 }: VideoElementProps) {
+  
+  // Handle video element errors
+  const handleVideoError = useCallback((e: Event) => {
+    const errorMessage = `Failed to load video: ${mediaUrl?.split('?')[0] || 'Unknown source'}`;
+    console.error(`[VideoElement] ${errorMessage}`, e);
+    
+    const error = new Error(errorMessage);
+    
+    // Call error callback if provided
+    if (onVideoError) {
+      onVideoError(error);
+    }
+    
+    // Throw error to be caught by boundary
+    throw error;
+  }, [mediaUrl, onVideoError]);
+  
+  // Set up video error event listener
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (videoElement) {
+      videoElement.addEventListener('error', handleVideoError);
+      
+      // Also throw error if the video has a source but isn't valid
+      if (videoElement.src && (videoElement.networkState === HTMLMediaElement.NETWORK_NO_SOURCE || 
+          videoElement.networkState === HTMLMediaElement.NETWORK_EMPTY)) {
+        setTimeout(() => {
+          handleVideoError(new Event('error'));
+        }, 3000); // Give a reasonable time for loading before deciding it failed
+      }
+      
+      return () => {
+        videoElement.removeEventListener('error', handleVideoError);
+      };
+    }
+  }, [videoRef, handleVideoError]);
   
   return (
     <>

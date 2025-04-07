@@ -29,6 +29,7 @@ import { PlayerControls } from './PlayerControls';
 import { MediaContainer } from './media/MediaContainer';
 import { useAnimationFrameLoop } from '@/hooks/useAnimationFrameLoop';
 import { useMediaEventHandlers } from '@/hooks/useMediaEventHandlers';
+import MediaErrorBoundary from './media/MediaErrorBoundary';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -922,6 +923,17 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     handleFullscreenToggle
   });
 
+  // Add handler for video errors
+  const handleVideoError = useCallback((error: Error) => {
+    console.error('[VideoContextScenePreviewPlayer] Video error:', error);
+    setIsLoading(false);
+    // The actual error UI will be handled by the MediaErrorBoundary
+  }, []);
+
+  // Create a reset key for the error boundary based on various factors
+  // This ensures the error boundary resets when relevant props change
+  const errorBoundaryResetKey = `${sceneId}-${mediaUrl}-${localMediaUrl}-${mediaType}-${Date.now()}`;
+
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
@@ -960,83 +972,96 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   // Use the MediaContainer component for rendering all media types
   return (
-    <MediaContainer 
-      // Media properties
-      mediaUrl={mediaUrl}
-      localMediaUrl={localMediaUrl}
+    <MediaErrorBoundary 
       mediaType={mediaType}
-      
-      // Container props
-      className={className}
+      mediaUrl={mediaUrl}
+      resetKey={errorBoundaryResetKey} // Better reset key
       isCompactView={isCompactView}
-      projectAspectRatio={projectAspectRatio}
-      containerRef={containerRef}
-      
-      // Media state
-      isLoading={isLoading}
-      isHovering={isHovering}
-      isPlaying={isPlaying}
-      showFirstFrame={showFirstFrame}
-      isFullscreen={isFullscreen}
-      imageLoadError={imageLoadError}
-      
-      // Refs
-      videoRef={videoRef}
-      canvasRef={canvasRef}
-      imgRef={imgRef}
-      
-      // Styling
-      mediaElementStyle={mediaElementStyle}
-      getMediaContainerStyle={getMediaContainerStyle}
-      
-      // Event handlers - use handlers from the hook
-      onMouseEnter={mediaEventHandlers.onMouseEnter}
-      onMouseLeave={mediaEventHandlers.onMouseLeave}
-      onFullscreenToggle={mediaEventHandlers.onFullscreenToggle}
-      onImageLoad={mediaEventHandlers.onImageLoad}
-      onImageError={mediaEventHandlers.onImageError}
-      onContainerClick={mediaEventHandlers.onContainerClick}
-      
-      // Extra props
-      sceneId={sceneId}
-      
-      // Aspect ratio info
-      showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
-      calculatedAspectRatio={calculatedAspectRatio}
+      debug={process.env.NODE_ENV === 'development'} // Only debug in development
+      onError={(error) => {
+        console.error(`[VideoContextScenePreviewPlayer] Media error caught by boundary:`, error);
+        setIsLoading(false); // Ensure loading state is reset on error
+      }}
     >
-      {/* PlayerControls component is now passed as a child */}
-      <PlayerControls
-        // Visibility
+      <MediaContainer 
+        // Media properties
+        mediaUrl={mediaUrl}
+        localMediaUrl={localMediaUrl}
+        mediaType={mediaType}
+        
+        // Container props
+        className={className}
+        isCompactView={isCompactView}
+        projectAspectRatio={projectAspectRatio}
+        containerRef={containerRef}
+        
+        // Media state
+        isLoading={isLoading}
         isHovering={isHovering}
-        isPositionLocked={isPositionLocked}
-        isMediumView={isMediumView ?? false}
-        // Lock Button
-        onLockToggle={handleLockToggle}
-        // Timeline
-        visualTime={visualTime}
-        duration={duration}
-        trimStart={trimStart}
-        effectiveTrimEnd={getEffectiveTrimEnd()}
-        activeHandle={activeHandle}
-        trimActive={trimActive}
-        isDraggingScrubber={isDraggingScrubber}
-        onTimeUpdate={handleTimeUpdate}
-        onScrubberDragStart={handleScrubberDragStart}
-        onScrubberDragEnd={handleScrubberDragEnd}
-        setActiveHandle={setActiveHandle}
-        setTimeBeforeDrag={setTimeBeforeDrag}
-        setOriginalPlaybackTime={setOriginalPlaybackTime}
-        videoContext={videoContext}
-        getEffectiveTrimEnd={getEffectiveTrimEnd}
-        // Time Display
-        currentTime={currentTime}
-        // Info Button
+        isPlaying={isPlaying}
+        showFirstFrame={showFirstFrame}
+        isFullscreen={isFullscreen}
+        imageLoadError={imageLoadError}
+        
+        // Refs
+        videoRef={videoRef}
+        canvasRef={canvasRef}
+        imgRef={imgRef}
+        
+        // Styling
+        mediaElementStyle={mediaElementStyle}
+        getMediaContainerStyle={getMediaContainerStyle}
+        
+        // Event handlers - use handlers from the hook
+        onMouseEnter={mediaEventHandlers.onMouseEnter}
+        onMouseLeave={mediaEventHandlers.onMouseLeave}
+        onFullscreenToggle={mediaEventHandlers.onFullscreenToggle}
+        onImageLoad={mediaEventHandlers.onImageLoad}
+        onImageError={mediaEventHandlers.onImageError}
+        onVideoError={handleVideoError}
+        onContainerClick={mediaEventHandlers.onContainerClick}
+        
+        // Extra props
+        sceneId={sceneId}
+        
+        // Aspect ratio info
         showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
-        onInfoToggle={handleInfoToggle}
-        // Trim Toggle Button
-        onTrimToggle={handleTrimToggle}
-      />
-    </MediaContainer>
+        calculatedAspectRatio={calculatedAspectRatio}
+      >
+        {/* PlayerControls component is now passed as a child */}
+        <PlayerControls
+          // Visibility
+          isHovering={isHovering}
+          isPositionLocked={isPositionLocked}
+          isMediumView={isMediumView ?? false}
+          // Lock Button
+          onLockToggle={handleLockToggle}
+          // Timeline
+          visualTime={visualTime}
+          duration={duration}
+          trimStart={trimStart}
+          effectiveTrimEnd={getEffectiveTrimEnd()}
+          activeHandle={activeHandle}
+          trimActive={trimActive}
+          isDraggingScrubber={isDraggingScrubber}
+          onTimeUpdate={handleTimeUpdate}
+          onScrubberDragStart={handleScrubberDragStart}
+          onScrubberDragEnd={handleScrubberDragEnd}
+          setActiveHandle={setActiveHandle}
+          setTimeBeforeDrag={setTimeBeforeDrag}
+          setOriginalPlaybackTime={setOriginalPlaybackTime}
+          videoContext={videoContext}
+          getEffectiveTrimEnd={getEffectiveTrimEnd}
+          // Time Display
+          currentTime={currentTime}
+          // Info Button
+          showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
+          onInfoToggle={handleInfoToggle}
+          // Trim Toggle Button
+          onTrimToggle={handleTrimToggle}
+        />
+      </MediaContainer>
+    </MediaErrorBoundary>
   );
 };
 

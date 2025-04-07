@@ -68,12 +68,13 @@ interface MediaContainerProps {
   getMediaContainerStyle: () => CSSProperties;
   
   // Event handlers
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
-  onFullscreenToggle: () => void;
-  onImageLoad: () => void;
-  onImageError: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
-  onContainerClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onMouseEnter?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onMouseLeave?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onFullscreenToggle?: (isFullscreen: boolean) => void;
+  onImageLoad?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
+  onImageError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
+  onVideoError?: (error: Error) => void;
+  onContainerClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   
   // Extra props
   sceneId?: string;
@@ -127,6 +128,7 @@ export function MediaContainer({
   onFullscreenToggle,
   onImageLoad,
   onImageError,
+  onVideoError,
   onContainerClick,
   
   // Extra props
@@ -170,6 +172,7 @@ export function MediaContainer({
           videoRef={videoRef}
           canvasRef={canvasRef}
           mediaElementStyle={mediaElementStyle}
+          onVideoError={onVideoError}
           sceneId={sceneId}
         />
       );
@@ -178,7 +181,7 @@ export function MediaContainer({
     mediaType, mediaUrl, localMediaUrl, isLoading, isPlaying, 
     isCompactView, showFirstFrame, imageLoadError, mediaElementStyle,
     videoRef, canvasRef, imgRef, sceneId,
-    onImageLoad, onImageError
+    onImageLoad, onImageError, onVideoError
   ]);
   
   // Calculate aspect ratio values for information display

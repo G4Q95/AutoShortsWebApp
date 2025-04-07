@@ -43,6 +43,18 @@ export function ImageElement({
   sceneId
 }: ImageElementProps) {
   
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.error(`[ImageElement] Failed to load image: ${mediaUrl || 'No URL'}`);
+    
+    // Invoke error callback if provided
+    if (onImageError) {
+      onImageError(e);
+    }
+    
+    // Throw an error to be caught by the MediaErrorBoundary
+    throw new Error(`Failed to load image: ${mediaUrl?.split('?')[0] || 'Unknown source'}`);
+  };
+
   return (
     <>
       {/* Loading spinner */}
@@ -67,7 +79,7 @@ export function ImageElement({
         }}
         data-testid="fallback-image"
         onLoad={onImageLoad}
-        onError={onImageError}
+        onError={handleImageError}
       />
       
       {/* Error display if image loading fails */}
