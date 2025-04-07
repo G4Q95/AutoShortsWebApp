@@ -288,6 +288,18 @@ export function useVideoContextBridge({
     console.log("[Bridge Play] Attempting to play...");
     const targetCtx = internalCtx || videoContextInstance; // Prefer internal if available
     
+    // Make sure canvas element is visible 
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const currentDisplay = window.getComputedStyle(canvas).display;
+      console.log(`[Bridge Play] Canvas display style: ${currentDisplay}`);
+      if (currentDisplay === 'none') {
+        console.warn('[Bridge Play] Canvas is hidden! This will prevent video from showing.');
+      }
+    } else {
+      console.warn('[Bridge Play] Canvas ref is null!');
+    }
+    
     // Log source node and destination details
     if (activeSource) {
       console.log("[Bridge Play] Source node details:", {

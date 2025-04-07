@@ -278,6 +278,17 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     mediaType,
   });
 
+  // Effect to toggle showFirstFrame based on isPlaying state
+  useEffect(() => {
+    // Only toggle for video types, not images
+    if (isVideoType(mediaType)) {
+      // When playing, hide first frame and show canvas
+      // When paused, show first frame and hide canvas
+      setShowFirstFrame(!isPlaying);
+      console.log(`[VideoPlayer] Setting showFirstFrame=${!isPlaying} based on isPlaying=${isPlaying}`);
+    }
+  }, [isPlaying, mediaType]);
+
   // Initialize the bridge hook *before* callbacks that use it
   const bridge = useVideoContextBridge({
     videoContextInstance: videoContext,

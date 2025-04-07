@@ -219,27 +219,130 @@ The following components/hooks have been identified as candidates for extraction
   4. Replace debug elements in the main component
 - **Testing Focus**: Visibility toggling, information accuracy, performance impact.
 
-#### 7. VideoContext Bridge (IN PROGRESS - DEBUGGING)
+#### 7. VideoContext Bridge (REVISED APPROACH)
 - **Description**: Create an abstraction layer between the component and VideoContext.
 - **Target File**: `src/hooks/useVideoContextBridge.ts`
 - **Benefits**: Reduces direct dependencies on VideoContext, improves testability.
 - **Implementation Status Update (2023-07-05):**
-  - **Progress:** Steps 1-6 of the revised incremental approach below have been **completed**. This involved creating the `useVideoContextBridge` hook and migrating significant parts of the `VideoContext` initialization logic into it.
-  - **Current State:** This migration, while structurally advancing the refactoring, has introduced considerable complexity (~+400 lines added to `VideoContextScenePreviewPlayer.tsx`) and surfaced several state synchronization bugs. Playback and scrubbing interactions, especially with the new native HTML range input for the timeline, are currently unstable.
-  - **Immediate Focus:** Debugging and stabilizing the player controls, specifically the HTML timeline scrubber interaction and the trim bracket functionality. These must be resolved before proceeding.
-  - **Next Steps:** Once controls are stable:
-    1. Complete Step 7 (Full Integration & Cleanup) of the bridge implementation.
-    2. Proceed to Step 8 (Component Structure Refactoring) to simplify the main component.
-- **Implementation Plan (Revised Incremental Approach - Current Status Marked):**
-  1.  **Step 1: Empty Hook with Types:** (DONE)
-  2.  **Step 2: Simple Getter:** (DONE)
-  3.  **Step 3: Basic Play/Pause Wrappers:** (DONE)
-  4.  **Step 4: Isolated Source Creation:** (DONE)
-  5.  **Step 5: Basic Seeking Wrapper:** (DONE)
-  6.  **Step 6: Gradual Initialization Migration:** (DONE - Introduced instability)
-  7.  **Step 7: Full Integration & Cleanup:** (PENDING - Blocked by control debugging)
-  8.  **Continuous Testing:** After *each* small step, manually test play/pause, seeking, timeline updates, visual rendering, and error handling.
-- **Testing Focus**: Ensuring core video playback functionality (play, pause, seek, time updates) remains intact after *each tiny incremental step*. Stabilizing scrubber and trim controls is the immediate priority.
+  - **Progress Assessment:** Previous extraction attempt (steps 1-6) introduced significant instability and synchronization issues between the bridge and main component.
+  - **Issue Analysis:** The current implementation creates dual sources of truth for state, lacks proper async coordination, and doesn't properly account for DOM visibility changes.
+  - **New Approach:** Rather than rolling back the extraction, we will redesign the bridge with proper state management and coordination.
+- **Revised Implementation Plan:**
+
+  1. **Step 1: Redesign the Bridge Interface**
+     - Create a new interface focused on single source of truth
+     - Move all state management to the component
+     - Bridge provides actions (play, pause, seek) and minimal status info
+     - Implement proper Promise-based async methods
+
+  ```typescript
+  // New interface design
+  interface UseVideoContextBridgeProps {
+    // DOM Refs (read-only)
+    canvasRef: RefObject<HTMLCanvasElement>;
+    videoRef: RefObject<HTMLVideoElement>; // For first frame
+    
+    // Media Info (read-only)
+    mediaUrl: string;
+    localMediaUrl?: string | null;
+    mediaType: string;
+    
+    // Visual State (read-only)
+    showFirstFrame: boolean;  // Critical for coordination
+    
+    // Callbacks (for state changes)
+    onIsReadyChange: (isReady: boolean) => void;
+    onDurationChange: (duration: number) => void;
+    onError: (error: Error) => void;
+    onTimeUpdate: (time: number) => void;
+  }
+
+  interface UseVideoContextBridgeReturn {
+    // Actions (methods only, no state)
+    play: () => Promise<void>;
+    pause: () => Promise<void>;
+    seek: (time: number) => Promise<void>;
+    
+    // Status info (derived from internal implementation)
+    isLoading: boolean;
+    hasError: boolean;
+    errorMessage: string | null;
+  }
+  ```
+
+  2. **Step 2: Implement Promise-Based Methods**
+     - All bridge methods return Promises for proper async handling
+     - Add robust error handling and state reporting
+     - Ensure proper coordination with component's visual state
+     
+  ```typescript
+  // Example implementation
+  play: async () => {
+    if (showFirstFrame) {
+      console.warn('Cannot play - canvas is hidden! Check component state.');
+      return Promise.reject(new Error('Canvas not visible'));
+    }
+    
+    try {
+      // Actual VideoContext play logic
+      videoContext.play();
+      return Promise.resolve();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+  ```
+
+  3. **Step 3: Update Component Integration**
+     - Component handles bridge promises properly
+     - Ensures DOM is ready before calling bridge methods
+     - Maintains single source of truth for state
+    
+  ```typescript
+  // Example component usage
+  const handlePlay = async () => {
+    try {
+      // First make canvas visible
+      setShowFirstFrame(false);
+      
+      // Small delay to ensure React has updated the DOM
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      // Now play
+      await bridge.play();
+      
+      // Only update state after successful play
+      setIsPlaying(true);
+    } catch (error) {
+      console.error('Play failed:', error);
+      // Handle error
+    }
+  };
+  ```
+
+  4. **Step 4: Implement Gradual Migration**
+     - Create parallel implementation while maintaining current functionality
+     - Test each method thoroughly before switching
+     - Use feature flags to toggle between implementations
+     
+  5. **Step 5: Testing Strategy**
+     - Create specific unit tests for the bridge in isolation
+     - Test integration points between bridge and component
+     - Focus on edge cases: rapid play/pause, seeking during playback, etc.
+
+- **Expected Timeline**: 
+  - Interface design and skeleton: 1 day
+  - Core methods implementation: 2 days
+  - Component integration: 2 days
+  - Testing and debugging: 3 days
+  - Total: 8 days of focused work
+
+- **Success Metrics**:
+  - Zero frame drops during normal playback
+  - No state synchronization issues between component and bridge
+  - Play/pause actions take effect immediately
+  - All edge cases handled gracefully with proper error reporting
+  - Video element and canvas visibilities properly coordinated
 
 #### 8. Component Structure Refactoring (PENDING)
 - **Description**: Refactor the main component structure after all extractions.
