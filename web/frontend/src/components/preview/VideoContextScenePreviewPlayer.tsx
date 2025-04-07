@@ -967,94 +967,65 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       console.log('[CANVAS DEBUG] Canvas ref is null in visibility effect');
       return; // Canvas must exist
     }
-
-    console.log(`[CANVAS DEBUG] Visibility effect: isPlaying=${isPlaying}, mediaType=${mediaType}`);
-    console.log(`[CANVAS DEBUG] Current display state: canvas=${canvas.style.display}, zIndex=${canvas.style.zIndex}`);
-    if (video) {
-      console.log(`[CANVAS DEBUG] Video element: display=${video.style.display}, exists=${!!video}`);
-    } else {
-      console.log(`[CANVAS DEBUG] Video element does not exist`);
-    }
+    
+    // Define handlers (can be defined outside the if block)
+    const handleMetadataLoaded = () => {
+      if (!video) return;
+      console.log(`[CANVAS DEBUG] FALLBACK: Video metadata loaded, duration=${video.duration}`);
+      if (video.duration > 0) {
+        setDuration(video.duration);
+        setIsReady(true);
+        if (!trimManuallySet) {
+          setTrimEnd(video.duration);
+          if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
+            userTrimEndRef.current = video.duration;
+          }
+        }
+        setCurrentTime(0);
+        setVisualTime(0);
+      }
+    };
+    
+    const timeUpdateHandler = () => {
+      if (!video) return;
+      console.log("[DEBUG] timeupdate event fired!");
+      if (!isDraggingScrubber) {
+        console.log(`[VideoElement] Time update: ${video.currentTime.toFixed(2)}s / ${video.duration.toFixed(2)}s`);
+        setCurrentTime(video.currentTime);
+        setVisualTime(video.currentTime);
+      }
+    };
+    
+    const handleError = (e: Event) => {
+      console.error('[CANVAS DEBUG] Video element error:', e);
+    };
 
     // --- IMPROVED DIRECT RENDERING APPROACH --- 
     if (isVideoType(mediaType)) {
-      // For now, let's hide the canvas since it's not rendering properly
-      // and just use the direct video element
       canvas.style.display = 'none';
       
-      // For videos, show the actual video element as primary renderer
       if (video && localMediaUrl) {
-        console.log('[CANVAS DEBUG] Setting up direct video element for playback');
-        video.style.display = 'block'; // Always show video element 
-        video.style.zIndex = '10'; // Place on top since canvas is hidden
-        
-        // FIX: Improved video element styling to ensure proper display
+        video.style.display = 'block';
+        video.style.zIndex = '10';
         video.style.width = '100%';
         video.style.height = '100%';
-        video.style.objectFit = 'contain'; // Change to 'contain' to prevent cropping
-        video.style.backgroundColor = 'black'; // Add background to fill empty space
+        video.style.objectFit = 'contain';
+        video.style.backgroundColor = 'black';
         
-        // Set video element properties directly
         if (video.src !== localMediaUrl) {
           video.src = localMediaUrl;
           video.crossOrigin = 'anonymous';
-          video.muted = true; // Mute to avoid double audio
+          video.muted = true;
           video.playsInline = true;
           video.controls = false;
           console.log(`[CANVAS DEBUG] Set video.src to ${localMediaUrl}`);
-          
-          // IMPROVED: Set up enhanced metadata detection
-          video.addEventListener('loadedmetadata', () => {
-            console.log(`[CANVAS DEBUG] FALLBACK: Video metadata loaded, duration=${video.duration}`);
-            
-            // Always update time values on metadata load
-            if (video.duration > 0) {
-              setDuration(video.duration);
-              setIsReady(true);
-              
-              // Always update trimEnd unless user manually set it
-              if (!trimManuallySet) {
-                setTrimEnd(video.duration);
-                if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
-                  userTrimEndRef.current = video.duration;
-                }
-              }
-              
-              // Force an immediate current time update
-              setCurrentTime(0);
-              setVisualTime(0);
-            }
-          });
-          
-          // Add additional check for duration
-          const checkDuration = () => {
-            if (video.duration > 0 && !isReady) {
-              console.log(`[CANVAS DEBUG] Duration check: ${video.duration}`);
-              setDuration(video.duration);
-              setIsReady(true);
-              
-              // Force current time update
-              setCurrentTime(video.currentTime || 0);
-              setVisualTime(video.currentTime || 0);
-              
-              // Update trim values
-              if (!trimManuallySet) {
-                setTrimEnd(video.duration);
-                if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
-                  userTrimEndRef.current = video.duration;
-                }
-              }
-            }
-          };
-          
-          // Check duration immediately and also after a delay
-          checkDuration();
-          setTimeout(checkDuration, 500);
-          
-          video.addEventListener('error', (e) => {
-            console.error('[CANVAS DEBUG] Video element error:', e);
-          });
         }
+
+        // Add listeners if video element exists
+        console.log("[DEBUG] Adding event listeners (metadata, timeupdate, error)");
+        video.addEventListener('loadedmetadata', handleMetadataLoaded);
+        video.addEventListener('timeupdate', timeUpdateHandler);
+        video.addEventListener('error', handleError);
         
         // Update video element playback state
         if (isPlaying && video.paused) {
@@ -1074,24 +1045,28 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         }
       }
     } else if (isImageType(mediaType)) {
-      // Image: Always hide canvas, image element is handled separately
-      console.log('[CANVAS DEBUG] Hiding canvas for image content');
       canvas.style.display = 'none';
-      if (video) video.style.display = 'none'; // Also hide video element if it exists
+      if (video) video.style.display = 'none';
     }
-    
-    // Additional debug to check if canvas has content
-    try {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        const pixels = ctx.getImageData(0, 0, 1, 1);
-        const hasContent = pixels.data.some(val => val !== 0);
-        console.log(`[CANVAS DEBUG] Canvas has content: ${hasContent}`);
+
+    // --- Return the cleanup function --- 
+    return () => {
+      const currentVideo = videoRef.current; // Use ref in cleanup
+      if (currentVideo) {
+        console.log("[DEBUG] Removing event listeners (metadata, timeupdate, error)");
+        currentVideo.removeEventListener('loadedmetadata', handleMetadataLoaded);
+        currentVideo.removeEventListener('timeupdate', timeUpdateHandler);
+        currentVideo.removeEventListener('error', handleError);
       }
-    } catch (e) {
-      console.log('[CANVAS DEBUG] Unable to check canvas content:', e);
-    }
-  }, [isPlaying, mediaType, videoRef, canvasRef, localMediaUrl, videoContext, currentTime, isReady, setDuration, setIsReady, setTrimEnd, userTrimEndRef, trimManuallySet, setCurrentTime, setVisualTime]);
+    };
+
+  }, [
+    // Dependencies
+    isPlaying, mediaType, localMediaUrl, // Core state/props
+    videoRef, canvasRef, // Refs
+    isDraggingScrubber, // Interaction state
+    setDuration, setIsReady, setTrimEnd, userTrimEndRef, trimManuallySet, setCurrentTime, setVisualTime // Setters
+  ]);
   
   // Effect to clear image timer on unmount
   useEffect(() => {
