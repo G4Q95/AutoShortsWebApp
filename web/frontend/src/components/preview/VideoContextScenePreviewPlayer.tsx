@@ -9,7 +9,7 @@
  * Now with adaptive scene-based aspect ratio support.
  */
 
-import React, { useState, useRef, useEffect, useCallback, CSSProperties, RefObject } from 'react';
+import React, { useState, useRef, useEffect, useCallback, CSSProperties, RefObject, useMemo } from 'react';
 import { PlayIcon, PauseIcon, ScissorsIcon, CheckIcon } from 'lucide-react';
 import { usePlaybackState } from '@/hooks/usePlaybackState';
 import { VideoContextProvider, useVideoContext } from '@/contexts/VideoContextProvider';
@@ -27,6 +27,7 @@ import { useVoiceContext } from '@/contexts/VoiceContext';
 import { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { PlayerControls } from './PlayerControls';
 import { MediaContainer } from './media/MediaContainer';
+import { useAnimationFrameLoop } from '@/hooks/useAnimationFrameLoop';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -267,7 +268,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const setIsPlayingWithLog = useCallback((value: boolean) => {
     isPlayingRef.current = value;
     setIsPlaying(value); // This now uses the setter from the hook
-  }, [setIsPlaying]); // DEPENDENCY WILL BE UPDATED IN NEXT STEP
+  }, [setIsPlaying]);
 
   const handlePause = useCallback(() => {
     if (isImageType(mediaType)) {
@@ -308,7 +309,35 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setIsPlayingWithLog, // Callback wrapper
     animationFrameRef // Ref for cancelling animation loop
   ]);
-  
+
+  // SAFE ADDITION: Add the animation frame hook with required callbacks (just testing)
+  // This won't replace the existing animation loop yet, just runs in parallel
+  useAnimationFrameLoop({
+    isPlaying,
+    isReady,
+    currentTime,
+    trimStart,
+    trimEnd,
+    onUpdate: (newTime) => {
+      // Update both currentTime and visualTime 
+      setCurrentTime(newTime);
+      
+      // Only update visual time if not dragging scrubber
+      if (!isDraggingScrubber) {
+        setVisualTime(newTime);
+      }
+    },
+    onPause: handlePause,
+    isImageType: isImageType(mediaType),
+    animationFrameRef,
+    forceResetOnPlayRef,
+    // Additional needed properties
+    videoContext,
+    audioRef,
+    isDraggingScrubber,
+    userTrimEndRef,
+  });
+
   // Function to get local media URL
   const getLocalMedia = useCallback(async () => {
     if (!mediaUrl) return;
@@ -817,6 +846,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   }, [isPlaying, mediaType, videoRef, canvasRef]); // Dependencies: Restore isPlaying, keep media type and refs
   
   // --- TIME UPDATE LOOP (Focus of Step 4.2) --- 
+  /* 
+  // COMMENTED OUT: Replaced with useAnimationFrameLoop hook
   useEffect(() => {
     let isActive = true; 
     const updateTime = () => {
@@ -946,6 +977,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       handlePause 
       // Ref dependencies added: forceResetOnPlayRef
   ]); 
+  */
   
   // Effect to clear image timer on unmount
   useEffect(() => {

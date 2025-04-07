@@ -109,6 +109,13 @@ We will refactor the component incrementally using the following methodology to 
    - Extracted playback state into a dedicated hook (`usePlaybackState`)
    - Extracted trim controls logic into a dedicated hook (`useTrimControls`)
    - Extracted aspect ratio calculations into a dedicated hook (`useMediaAspectRatio`)
+   - Extracted animation frame loop logic into a dedicated hook (`useAnimationFrameLoop`)
+
+3. **Media Rendering Improvements:**
+   - Extracted media rendering into dedicated components
+   - Created specialized components for each media type (video, image, canvas)
+   - Improved type safety across components with proper React.RefObject typing
+   - Simplified the main component by delegating rendering to specialized components
 
 ### What Still Needs To Be Done:
 
@@ -127,6 +134,11 @@ We will refactor the component incrementally using the following methodology to 
    - Add automated tests for the new extracted components and hooks
    - Perform thorough manual testing across different media types and interactions
 
+4. **Next Extraction Priorities:**
+   - Consider extracting Media Event Handlers into a dedicated hook
+   - Implement a dedicated Error Handling component
+   - Create a VideoContext Bridge to abstract VideoContext interactions
+
 ## 8. Part 2: Component Decomposition Plan (2023-07-05)
 
 After successfully extracting the UI controls and state management hooks, the `VideoContextScenePreviewPlayer.tsx` file still remains quite large (~1300 lines). This section outlines a plan to further decompose the component into smaller, more focused pieces.
@@ -144,16 +156,16 @@ The following components/hooks have been identified as candidates for extraction
 - **Benefits**: Simplified conditional rendering logic, improved readability, type safety, separation of concerns, easier maintenance.
 - **Implementation Status**: Completed - All media rendering logic has been extracted from VideoContextScenePreviewPlayer.tsx into dedicated components, with proper type safety and consistent behavior.
 
-#### 2. Animation Frame Loop Hook (HIGH PRIORITY)
-- **Description**: Extract the request animation frame (rAF) loop used for tracking media playback time.
-- **Target File**: `src/hooks/useAnimationFrameLoop.ts`
-- **Benefits**: Separates timing logic from component rendering, makes playback tracking more testable.
-- **Implementation Plan**:
-  1. Create a new hook that accepts dependencies like `isPlaying`, media references, etc.
-  2. Move the existing rAF effect into this hook
-  3. Return the necessary state and update functions
-  4. Replace the effect in the main component with this hook
-- **Testing Focus**: Accurate time tracking, performance under continuous playback, cleanup on unmount.
+#### 2. Animation Frame Loop Hook (COMPLETED)
+- **Description**: Extracted the request animation frame (rAF) loop used for tracking media playback time.
+- **Created File**: `src/hooks/useAnimationFrameLoop.ts`
+- **Benefits**: Separates timing logic from component rendering, makes playback tracking more testable and reusable.
+- **Implementation Details**:
+  1. Created a new hook that accepts dependencies like `isPlaying`, media references, etc.
+  2. Moved the existing rAF effect into this hook
+  3. Added callbacks for time updates and pause events
+  4. Used the hook to replace the inline rAF loop in the main component
+- **Implementation Status**: Completed - The animation frame loop logic has been extracted from VideoContextScenePreviewPlayer.tsx into a dedicated hook with proper dependency management and state synchronization.
 
 #### 3. Media Container Component (MEDIUM PRIORITY)
 - **Description**: Extract the container and positioning logic for media elements.
