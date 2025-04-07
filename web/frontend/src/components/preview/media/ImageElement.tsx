@@ -12,7 +12,7 @@ interface ImageElementProps {
   imageLoadError: boolean;
   
   // Refs
-  imgRef: React.RefObject<HTMLImageElement>;
+  imgRef: React.RefObject<HTMLImageElement | null>;
   
   // Styling
   mediaElementStyle: CSSProperties;

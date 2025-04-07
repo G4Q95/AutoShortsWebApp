@@ -206,7 +206,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [showAspectRatio, setShowAspectRatio] = useState<boolean>(false);
 
   // Add state for temporary aspect ratio indicator display
-  const [showTemporaryIndicator, setShowTemporaryIndicator] = useState<boolean>(true);
+  const [showTemporaryAspectRatio, setShowTemporaryAspectRatio] = useState<boolean>(false);
 
   // Add state for position locking
   const [isPositionLocked, setIsPositionLocked] = useState<boolean>(false);
@@ -728,14 +728,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return style;
   }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
   
-  // Add useEffect for temporary aspect ratio display on mount
+  // Add useEffect for temporary aspect ratio display on mount or scene change
   useEffect(() => {
     // Show indicator when component mounts (new scene)
-    setShowTemporaryIndicator(true);
+    setShowTemporaryAspectRatio(true);
     
     // Hide after 2 seconds
     const timer = setTimeout(() => {
-      setShowTemporaryIndicator(false);
+      setShowTemporaryAspectRatio(false);
     }, 2000);
     
     return () => clearTimeout(timer);
@@ -744,11 +744,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add useEffect for aspect ratio changes
   useEffect(() => {
     // Show indicator when aspect ratio changes
-    setShowTemporaryIndicator(true);
+    setShowTemporaryAspectRatio(true);
     
     // Hide after 2 seconds
     const timer = setTimeout(() => {
-      setShowTemporaryIndicator(false);
+      setShowTemporaryAspectRatio(false);
     }, 2000);
     
     return () => clearTimeout(timer);
@@ -1109,6 +1109,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       
       // Extra props
       sceneId={sceneId}
+      
+      // Aspect ratio info
+      showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
+      calculatedAspectRatio={calculatedAspectRatio}
     >
       {/* PlayerControls component is now passed as a child */}
       <PlayerControls
@@ -1137,7 +1141,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         // Time Display
         currentTime={currentTime}
         // Info Button
-        showAspectRatio={showAspectRatio}
+        showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
         onInfoToggle={handleInfoToggle}
         // Trim Toggle Button
         onTrimToggle={handleTrimToggle}

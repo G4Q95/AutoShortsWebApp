@@ -7,6 +7,36 @@ import { FullscreenButton } from '../FullscreenButton';
 const isImageType = (type: string): boolean => type === 'image' || type === 'gallery';
 const isVideoType = (type: string): boolean => type === 'video';
 
+// Helper to determine closest standard aspect ratio
+const getClosestStandardRatio = (ratio: number): string => {
+  // Common aspect ratios to check against
+  const standardRatios = [
+    { ratio: 1, name: '1:1' },      // Square
+    { ratio: 4/3, name: '4:3' },    // Standard TV
+    { ratio: 16/9, name: '16:9' },  // Widescreen
+    { ratio: 9/16, name: '9:16' },  // Vertical video
+    { ratio: 4/5, name: '4:5' },    // Instagram portrait
+    { ratio: 5/4, name: '5:4' },    // Medium format
+    { ratio: 3/2, name: '3:2' },    // 35mm film
+    { ratio: 2/3, name: '2:3' },    // Portrait
+    { ratio: 21/9, name: '21:9' },  // Ultrawide
+  ];
+
+  // Find closest match
+  let closest = standardRatios[0];
+  let minDiff = Math.abs(ratio - closest.ratio);
+
+  for (let i = 1; i < standardRatios.length; i++) {
+    const diff = Math.abs(ratio - standardRatios[i].ratio);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = standardRatios[i];
+    }
+  }
+
+  return closest.name;
+};
+
 // Shared props for both media types
 interface MediaContainerProps {
   // Media properties
@@ -18,7 +48,7 @@ interface MediaContainerProps {
   className?: string;
   isCompactView: boolean;
   projectAspectRatio: string;
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   
   // Media state
   isLoading: boolean;
@@ -29,9 +59,9 @@ interface MediaContainerProps {
   imageLoadError: boolean;
   
   // Refs
-  videoRef: React.RefObject<HTMLVideoElement>;
-  canvasRef: React.RefObject<HTMLCanvasElement>;
-  imgRef: React.RefObject<HTMLImageElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  imgRef: React.RefObject<HTMLImageElement | null>;
   
   // Styling
   mediaElementStyle: CSSProperties;
@@ -47,6 +77,10 @@ interface MediaContainerProps {
   
   // Extra props
   sceneId?: string;
+  
+  // Aspect ratio info display
+  showAspectRatio?: boolean;
+  calculatedAspectRatio?: number;
   
   // For PlayerControls
   children?: ReactNode;
@@ -98,6 +132,10 @@ export function MediaContainer({
   // Extra props
   sceneId = '',
   
+  // Aspect ratio info
+  showAspectRatio = false,
+  calculatedAspectRatio,
+  
   // Children (PlayerControls)
   children
 }: MediaContainerProps) {
@@ -142,6 +180,12 @@ export function MediaContainer({
     videoRef, canvasRef, imgRef, sceneId,
     onImageLoad, onImageError
   ]);
+  
+  // Calculate aspect ratio values for information display
+  const [projWidth, projHeight] = projectAspectRatio.split(':').map(Number);
+  const projectRatio = projWidth / projHeight;
+  const mediaRatio = calculatedAspectRatio || projectRatio;
+  const closestRatio = getClosestStandardRatio(mediaRatio);
 
   return (
     <div 
@@ -175,6 +219,17 @@ export function MediaContainer({
           {renderMediaElement()}
         </div>
       </div>
+      
+      {/* Aspect ratio information overlay - styled to match the original */}
+      {showAspectRatio && (
+        <div className="absolute top-0 left-0 right-0 z-20 flex justify-center text-xs">
+          <div className="inline-flex bg-black bg-opacity-90 px-1">
+            <span className="text-red-400">{mediaRatio.toFixed(4)}</span>
+            <span className="text-gray-300 mx-2">[{closestRatio}]</span>
+            <span className="text-green-400">{projectAspectRatio}</span>
+          </div>
+        </div>
+      )}
       
       {/* Fullscreen toggle button */}
       <FullscreenButton 
