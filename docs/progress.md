@@ -1171,3 +1171,29 @@ description: Tracks the ongoing development tasks, completed milestones, and nex
     -   Address VideoContext interaction complexities.
     -   Apply general optimizations (memoization).
     -   Investigate canvas/fallback logic issues. 
+
+### In Progress
+
+*   **Refactor Playback/Time Logic (DONE):** Separated playback state (`isPlaying`, `currentTime`, `visualTime`) into `usePlaybackState` hook.
+*   **Diagnose Playback Log Spam (NEXT FOCUS):** Use React DevTools profiler and targeted logging to understand the root cause of excessive console logs during video playback.
+*   **Refine timeline scrubber/trim handle drag interaction (address drift):** Currently investigating best approach (native inputs vs. refined custom logic).
+
+### Next Steps
+
+*   **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
+*   **Optimize Rendering (Future):** Apply `React.memo`, `useMemo`, `useCallback` strategically.
+*   **Investigate Canvas/Fallback Logic (Future):** Understand the conditions leading to the canvas errors and the image fallback mechanism.
+*   **Create VideoContext Bridge (Future - POST INTERACTION FIX):** Extract VideoContext API interactions into `useVideoContextBridge` hook.
+*   **Implement Debug Information Component (Low Priority):** Extract debug overlay.
+
+### Completed Tasks
+
+*   **Initial Stability Fixes & Cleanup (DONE)**
+*   **Extract Aspect Ratio Logic (DONE):** `useMediaAspectRatio` hook created.
+*   **Refactor Trim Logic (DONE):** `useTrimControls` hook created and fully implemented.
+*   **Extract Media Type Rendering Components (DONE):** `VideoElement`, `ImageElement`, `MediaContainer` created.
+*   **Extract Animation Frame Loop Hook (DONE):** `useAnimationFrameLoop` hook created.
+*   **Extract Media Event Handlers Hook (DONE):** `useMediaEventHandlers` hook created.
+*   **Implement Error Handling Component (DONE):** `MediaErrorBoundary` created.
+*   **Extract Player Controls Component (DONE):** All individual controls (`PlayPauseButton`, `TimelineControl`, etc.) extracted and combined into `PlayerControls.tsx`.
+*   **Refactor Playback/Time Logic (DONE):** Extracted playback state into `usePlaybackState` hook. 

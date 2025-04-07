@@ -116,20 +116,16 @@ export function useTrimControls({
     if (activeHandle === 'start') {
       // If dragging start handle
       const newStart = Math.min(newTime, trimEnd - 0.1);
-      console.log('[DEBUG][TrimDrag Start] Calculated newStart:', newStart.toFixed(3)); // LOG
       setTrimStart(newStart);
       
       // Update video currentTime to match the trim start
-      console.log('[DEBUG][TrimDrag Start] Setting state: setCurrentTime/setVisualTime to', newStart.toFixed(3)); // LOG
       setCurrentTime(newStart);
       setVisualTime(newStart);
       
       // Also update video element directly if available
       if (videoRef.current) {
         try {
-          console.log(`[DEBUG][TrimDrag Start] Attempting to set videoRef time to ${newStart.toFixed(3)}...`);
           videoRef.current.currentTime = newStart;
-          console.log('[DEBUG][TrimDrag Start] videoRef time AFTER set:', videoRef.current.currentTime.toFixed(3));
         } catch (e) {
           console.error('[DEBUG][TrimDrag Start] Error setting video time:', e);
         }
@@ -138,9 +134,7 @@ export function useTrimControls({
       // Update the video context if available
       if (videoContext) {
         try {
-          console.log(`[DEBUG][TrimDrag Start] Attempting to set videoContext time to ${newStart.toFixed(3)}...`); // LOG
           videoContext.currentTime = newStart;
-          // Reading context time immediately after setting might be unreliable, skip logging it here
         } catch (e) {
           console.error('[DEBUG][TrimDrag Start] Error setting videoContext time:', e);
         }
@@ -152,7 +146,6 @@ export function useTrimControls({
     } else { // activeHandle === 'end'
       newEnd = Math.max(newTime, trimStart + 0.1); // Ensure end doesn't pass start
       newEnd = Math.min(duration, newEnd); // Ensure end doesn't exceed duration
-      console.log(`[TrimDrag][End] Calculated newEnd: ${newEnd.toFixed(3)} (Current trimEnd: ${trimEnd.toFixed(3)}, userTrimEndRef: ${userTrimEndRef.current?.toFixed(3)})`);
       setTrimEnd(newEnd);
       userTrimEndRef.current = newEnd; // Update ref when manually dragging end handle
       
@@ -160,22 +153,18 @@ export function useTrimControls({
       setVisualTime(newEnd); 
       if (videoRef.current) {
         try {
-          console.log(`[DEBUG][TrimDrag End] Attempting to set videoRef time to ${newEnd.toFixed(3)}...`);
           videoRef.current.currentTime = newEnd;
-          console.log('[DEBUG][TrimDrag End] videoRef time AFTER set:', videoRef.current.currentTime.toFixed(3));
         } catch (e) {
           console.error('[DEBUG][TrimDrag End] Error setting video time:', e);
         }
       }
       if (videoContext) {
          try {
-           console.log(`[DEBUG][TrimDrag End] Attempting to set videoContext time to ${newEnd.toFixed(3)}...`);
            videoContext.currentTime = newEnd;
          } catch (e) {
            console.error('[DEBUG][TrimDrag End] Error setting videoContext time:', e);
          }
       }
-      // console.log(`[TrimDrag][End] Moved to: ${newEnd.toFixed(3)}s`);
     }
     
     // Pause playback while dragging
@@ -187,11 +176,8 @@ export function useTrimControls({
 
   const handleTrimDragEnd = useCallback(() => {
     if (!activeHandle) return;
-    console.log(`[TrimDragEnd START] Active: ${activeHandle}, Current Start: ${trimStart.toFixed(3)}, End: ${trimEnd.toFixed(3)}, Ref: ${userTrimEndRef.current?.toFixed(3)})`);
-    // console.log(`[TrimDrag][${activeHandle}] Drag End. Final Start: ${trimStart.toFixed(3)}, End: ${trimEnd.toFixed(3)}`);
     setActiveHandle(null);
     setTrimManuallySet(true); // Mark trim as manually set after dragging
-    console.log(`[useTrimControls] Setting trimManuallySet to TRUE in handleTrimDragEnd`);
     onTrimChange?.(trimStart, trimEnd);
     
     // --- Restore playback time AFTER drag --- 
@@ -233,11 +219,9 @@ export function useTrimControls({
     ownerDocument.body.style.cursor = 'ew-resize';
 
     const moveHandler = (event: MouseEvent) => {
-      // console.log("[TrimDrag][Global Move] Event Triggered");
       handleTrimDragMove(event);
     };
     const endHandler = () => {
-      // console.log("[TrimDrag][Global Up/Leave] Event Triggered");
       handleTrimDragEnd();
     };
 
