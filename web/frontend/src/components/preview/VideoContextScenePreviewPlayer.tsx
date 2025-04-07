@@ -22,6 +22,8 @@ import { LockButton } from './LockButton';
 import { TrimToggleButton } from './TrimToggleButton';
 import { InfoButton } from './InfoButton';
 import { FullscreenButton } from './FullscreenButton';
+import { TimelineControl } from './TimelineControl';
+import { TimeDisplay } from './TimeDisplay';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -1230,276 +1232,58 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         className={`absolute bottom-0 left-0 right-0 transition-opacity duration-200 ${isHovering || isPositionLocked ? 'opacity-100' : 'opacity-0'}`}
         style={{
           backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          zIndex: 50, // Higher than media
+          zIndex: 50, 
           pointerEvents: 'auto',
-          padding: '4px 8px 6px 8px',
+          padding: '4px 8px 4px 8px', // Keep adjusted padding
           width: '100%',
-          minHeight: '32px'
+          minHeight: '30px' // Keep adjusted minHeight
         }}
         data-drag-handle-exclude="true"
       >
-        {/* Main timeline scrubber */}
-        <div className="flex items-center px-1 mb-1 relative" 
-             data-drag-handle-exclude="true"
-             style={{ zIndex: 51, pointerEvents: 'auto' }}>
-          {/* Timeline scrubber */}
-          <input
-            ref={timelineRef}
-            type="range"
-            min="0"
-            max="100"
-            value={positionToTimelineValue(visualTime)}
-            onChange={(e) => {
-              // Only allow timeline scrubbing when not in trim mode
-              if (!trimActive) {
-                const inputValue = parseFloat(e.target.value);
-                const newTime = timelineValueToPosition(inputValue);
-                
-                // Check if trying to go beyond 10s limit
-                if (newTime > 10) {
-                  console.warn(`[VideoContext] Attempting to scrub beyond 10s: ${newTime}s`);
-                }
-                
-                handleTimeUpdate(newTime);
-              }
-            }}
-            className={`w-full h-1 rounded-lg appearance-none cursor-pointer bg-gray-700 small-thumb ${trimActive ? 'pointer-events-none' : ''}`}
-            style={{ 
-              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${positionToTimelineValue(visualTime)}%, #4b5563 ${positionToTimelineValue(visualTime)}%, #4b5563 100%)`,
-              height: '4px',
-              opacity: trimActive ? 0.4 : 1, // Make the scrubber translucent when in trim mode
-              WebkitAppearance: 'none',
-              appearance: 'none',
-              zIndex: 52,
-              pointerEvents: 'auto'
-            }}
-            data-testid="timeline-scrubber"
-            data-drag-handle-exclude="true"
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              if (!trimActive) {
-                setIsDraggingScrubber(true);
-              }
-            }}
-            onMouseUp={() => {
-              setIsDraggingScrubber(false);
-            }}
-            onMouseLeave={() => setIsDraggingScrubber(false)}
-          />
-          
-          {/* Trim brackets */}
-          {duration > 0 && (
-            <>
-              {/* Left trim bracket */}
-              <div 
-                className="absolute"
-                style={{ 
-                  left: `calc(${(trimStart / duration) * 100}% - 6px)`,
-                  top: '-8px', 
-                  height: '20px', // Reduced height to not overlap controls
-                  width: '12px',
-                  zIndex: 53, // Higher z-index than scrubber
-                  pointerEvents: trimActive ? 'auto' : 'none',
-                  opacity: trimActive ? 1 : (trimStart <= 0.01 ? 0 : 0.6),
-                  transition: 'opacity 0.2s ease'
-                }}
-                data-drag-handle-exclude="true"
-                data-testid="trim-start-bracket"
-              >
-                {trimActive && (
-                  <>
-                    {/* Range input */}
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={(trimStart / duration) * 100}
-                      className="trim-bracket-range"
-                      style={{
-                        width: '16px',
-                        height: '20px',
-                        position: 'absolute',
-                        top: '3px',
-                        left: '-2px',
-                        WebkitAppearance: 'none',
-                        appearance: 'none',
-                        zIndex: 90, // Very high z-index to ensure it's clickable
-                        opacity: 0,
-                        pointerEvents: 'auto',
-                        cursor: 'ew-resize' // Add explicit cursor style
-                      }}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        console.log("[Trim Bracket] Left Handle MouseDown");
-                        setActiveHandle('start');
-                        // --- Store time before drag --- 
-                        setTimeBeforeDrag(videoContext ? videoContext.currentTime : currentTime);
-                        // --- END Store time --- 
-                        // Store original playback position
-                        if (videoContext) {
-                          setOriginalPlaybackTime(videoContext.currentTime);
-                        }
-                      }}
-                      onChange={(e) => {
-                        // This doesn't actually set the value, just prevents default handling
-                        e.stopPropagation();
-                      }}
-                      data-testid="trim-start-range"
-                      data-drag-handle-exclude="true"
-                    />
-                    {/* Visual bracket overlay */}
-                    <div 
-                      className="absolute w-0.5 bg-blue-500"
-                      style={{ 
-                        left: '6px',
-                        top: '2px',
-                        height: '14px',
-                        pointerEvents: 'none',
-                        boxShadow: 'none',
-                        borderRadius: '1px'
-                      }}
-                    />
-                  </>
-                )}
-                
-                {/* Backup visual indicator for non-trim mode */}
-                {!trimActive && (
-                  <div 
-                    className="absolute w-0.5 bg-blue-500"
-                    style={{ 
-                      left: '6px',
-                      top: '2px',
-                      height: '14px',
-                      pointerEvents: 'none',
-                      borderRadius: '1px'
-                    }}
-                    data-testid="trim-start-bracket-visual"
-                  />
-                )}
-              </div>
-              
-              {/* Right trim bracket */}
-              <div 
-                className="absolute"
-                style={{ 
-                  left: `calc(${(getEffectiveTrimEnd() / duration) * 100}% - 6px)`,
-                  top: '-8px',
-                  height: '20px', // Reduced height to not overlap controls
-                  width: '12px',
-                  zIndex: 53, // Higher z-index than scrubber
-                  pointerEvents: trimActive ? 'auto' : 'none',
-                  opacity: trimActive ? 1 : (getEffectiveTrimEnd() >= duration - 0.01 ? 0 : 0.6),
-                  transition: 'opacity 0.2s ease'
-                }}
-                data-drag-handle-exclude="true"
-                data-testid="trim-end-bracket"
-              >
-                {trimActive && (
-                  <>
-                    {/* Range input */}
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={(getEffectiveTrimEnd() / duration) * 100}
-                      className="trim-bracket-range"
-                      style={{
-                        width: '16px',
-                        height: '20px',
-                        position: 'absolute',
-                        top: '3px',
-                        left: '-2px',
-                        WebkitAppearance: 'none',
-                        appearance: 'none',
-                        zIndex: 90, // Very high z-index to ensure it's clickable
-                        opacity: 0,
-                        pointerEvents: 'auto',
-                        cursor: 'ew-resize' // Add explicit cursor style
-                      }}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        console.log("[Trim Bracket] Right Handle MouseDown");
-                        setActiveHandle('end');
-                        // --- Store time before drag --- 
-                        setTimeBeforeDrag(videoContext ? videoContext.currentTime : currentTime);
-                        // --- END Store time --- 
-                        // Store original playback position
-                        if (videoContext) {
-                          setOriginalPlaybackTime(videoContext.currentTime);
-                        }
-                      }}
-                      onChange={(e) => {
-                        // This doesn't actually set the value, just prevents default handling
-                        e.stopPropagation();
-                      }}
-                      data-testid="trim-end-range"
-                      data-drag-handle-exclude="true"
-                    />
-                    {/* Visual bracket overlay */}
-                    <div 
-                      className="absolute w-0.5 bg-blue-500"
-                      style={{ 
-                        left: '6px',
-                        top: '2px',
-                        height: '14px',
-                        pointerEvents: 'none',
-                        boxShadow: 'none',
-                        borderRadius: '1px'
-                      }}
-                    />
-                  </>
-                )}
-                
-                {/* Backup visual indicator for non-trim mode */}
-                {!trimActive && (
-                  <div 
-                    className="absolute w-0.5 bg-blue-500"
-                    style={{ 
-                      left: '6px',
-                      top: '2px',
-                      height: '14px',
-                      pointerEvents: 'none',
-                      borderRadius: '1px'
-                    }}
-                    data-testid="trim-end-bracket-visual"
-                  />
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Control buttons row */}
-        <div className="flex justify-between items-center px-1" 
+        {/* Timeline Control (Scrubber + Brackets) - Moved above buttons */}
+        <TimelineControl
+          visualTime={visualTime}
+          duration={duration}
+          trimStart={trimStart}
+          effectiveTrimEnd={getEffectiveTrimEnd()} // Pass function directly
+          activeHandle={activeHandle}
+          trimActive={trimActive} // Pass trimActive
+          isDraggingScrubber={isDraggingScrubber} // Ensure this prop is passed
+          onTimeUpdate={handleTimeUpdate}
+          onScrubberDragStart={() => setIsDraggingScrubber(true)}
+          onScrubberDragEnd={() => setIsDraggingScrubber(false)}
+          setActiveHandle={setActiveHandle}
+          setTimeBeforeDrag={setTimeBeforeDrag}
+          setOriginalPlaybackTime={setOriginalPlaybackTime}
+          videoContext={videoContext}
+          getEffectiveTrimEnd={getEffectiveTrimEnd} // Pass function directly
+        />
+        
+        {/* Control buttons row - Now includes Time Display */}
+        <div className="flex justify-between items-center px-1 mt-1" /* Added margin-top */
              data-drag-handle-exclude="true" 
              style={{ position: 'relative', zIndex: 55, pointerEvents: 'auto' }}>
+          
           {/* Left button section */}
-          <div className="flex-shrink-0 w-14 flex justify-start">
-            {/* Lock button (left side) */}
+          <div className="flex-shrink-0 w-14 flex justify-start items-center">
             <LockButton isLocked={isPositionLocked} onToggle={handleLockToggle} />
           </div>
 
-          {/* Time display (center) */}
-          <div className="flex-grow text-center text-white text-xs">
-            {activeHandle === 'start' 
-              ? `${formatTime(trimStart, true)} / ${formatTime(getEffectiveTrimEnd() - trimStart)}`
-              : activeHandle === 'end'
-                ? `${formatTime(getEffectiveTrimEnd(), true)} / ${formatTime(getEffectiveTrimEnd() - trimStart)}`
-                : `${formatTime(Math.max(0, currentTime - trimStart))} / ${trimStart > 0 || getEffectiveTrimEnd() < duration ? formatTime(getEffectiveTrimEnd() - trimStart) : formatTime(duration)}`
-            }
-          </div>
-          
+          {/* Center section: Time Display */}
+          <TimeDisplay 
+            currentTime={currentTime}
+            duration={duration}
+            trimStart={trimStart}
+            effectiveTrimEnd={getEffectiveTrimEnd()} // Pass function result
+            activeHandle={activeHandle}
+          />
+
           {/* Right buttons section */}
-          <div className="flex-shrink-0 w-14 flex justify-end">
-            {/* Aspect ratio info button */}
+          <div className="flex-shrink-0 w-14 flex justify-end items-center">
             <InfoButton 
               isActive={showAspectRatio}
               onToggle={() => setShowAspectRatio(!showAspectRatio)}
             />
-            
-            {/* Scissor/Save button (right side) */}
             <TrimToggleButton 
               isActive={trimActive}
               onToggle={() => setTrimActive(!trimActive)}

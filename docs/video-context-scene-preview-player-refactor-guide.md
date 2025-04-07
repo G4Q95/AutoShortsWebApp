@@ -79,8 +79,8 @@ We will refactor the component incrementally using the following methodology to 
         *   **Step 4 (DONE):** Extracted `InfoButton.tsx` - A button to toggle aspect ratio information display.
         *   **Step 5 (DONE):** Extracted `FullscreenButton.tsx` - A button to toggle fullscreen mode.
         *   **Step 6 (DONE):** Extracted `MediumViewButton.tsx` - A button to toggle between compact and expanded view modes (used by SceneMediaPlayer.tsx which renders above VideoContextScenePreviewPlayer).
-        *   **Step 7 (NEXT):** Extract `TimelineControl.tsx` - A component combining both the timeline scrubber and time display elements, which are functionally related and share state.
-        *   **Future Steps:** After extracting individual UI components, create a `PlayerControls` container component that combines all control elements into a unified interface.
+        *   **Step 7 (DONE):** Extracted `TimelineControl.tsx` - A component combining the timeline scrubber, time display, AND trim brackets elements. Initially planned as two separate components, but combined to ensure proper alignment and positioning between these tightly coupled UI elements.
+        *   **Step 8 (NEXT):** Create a `PlayerControls` container component that combines all control elements into a unified interface.
 4.  **Diagnose Playback Log Spam (Following):** Use React DevTools profiler and targeted logging to understand the root cause of excessive console logs during video playback before attempting further major refactoring of the rAF loop or VideoContext logic.
 5.  **Address VideoContext Interaction (Future):** Analyze and potentially simplify how the component interacts with the `VideoContextProvider` and the `videoContext` object itself.
 6.  **Optimize Rendering (Future):** Apply `React.memo`, `useMemo`, `useCallback` strategically once the logic is clearer and more modular.
