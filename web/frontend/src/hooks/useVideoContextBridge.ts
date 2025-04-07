@@ -31,16 +31,17 @@ interface UseVideoContextBridgeReturn {
   play: () => void;
   pause: () => void;
   seek: (time: number) => void;
+  createVideoSourceNode: (ctx: VideoContextInstance) => any | null;
   // Add other necessary return values as logic is moved
 }
 
 /**
  * useVideoContextBridge - Hook to abstract VideoContext interactions
  * 
- * (Initial empty structure - logic to be added incrementally)
+ * (Structure updated for Step 4 - Source creation logic added)
  */
 export function useVideoContextBridge({
-  videoContextInstance, // Accept the instance as a prop
+  videoContextInstance,
   canvasRef,
   localMediaUrl,
   mediaType,
@@ -50,25 +51,19 @@ export function useVideoContextBridge({
   onDurationChange,
 }: UseVideoContextBridgeProps): UseVideoContextBridgeReturn {
   
-  // --- Internal State (Placeholders) ---
-  // We won't manage the context state *inside* the hook for now
-  // const [videoContext, setVideoContext] = useState<VideoContextInstance | null>(null);
-  const [isReady, setIsReady] = useState<boolean>(false);
-  const [duration, setDuration] = useState<number>(0);
+  // --- Internal State (Placeholders - Still managed by parent for now) ---
+  const [isReady, setIsReady] = useState<boolean>(false); // Hook might manage this later
+  const [duration, setDuration] = useState<number>(0);   // Hook might manage this later
 
   // --- Effects (Placeholders) ---
-  // Effect for initialization (to be added)
   useEffect(() => {
-    // Placeholder: Initialization logic will go here
     console.log("[useVideoContextBridge] Hook mounted (no-op)");
-    
-    // Placeholder: Cleanup logic
     return () => {
       console.log("[useVideoContextBridge] Hook unmounted (no-op)");
     };
-  }, []); // Dependencies will be added later
+  }, []); 
 
-  // --- Methods (Placeholders) ---
+  // --- Methods ---
   const play = useCallback(() => {
     if (videoContextInstance && typeof videoContextInstance.play === 'function') {
       try {
@@ -104,14 +99,64 @@ export function useVideoContextBridge({
     // Placeholder: Add seek logic
   }, []);
 
+  // STEP 4: Add method for creating the video source node
+  const createVideoSourceNode = useCallback((ctx: VideoContextInstance) => {
+    if (mediaType === 'video' && localMediaUrl && ctx) {
+      console.log(`[useVideoContextBridge] Creating video source node for: ${localMediaUrl}`);
+      try {
+        const source = ctx.video(localMediaUrl);
+        if (!source) throw new Error('Failed to create video source node in bridge');
+
+        source.connect(ctx.destination);
+        source.start(0);
+        // Set a reasonable default stop time, can be adjusted later if needed
+        source.stop(300); // e.g., 5 minutes max, adjust as necessary
+
+        source.registerCallback('loaded', () => {
+          console.log("[useVideoContextBridge] Source 'loaded' callback triggered.");
+          setIsReady(true); // Update hook's internal readiness state
+          onReady?.(); // Notify parent component
+          if (source.element) {
+            const videoElement = source.element as HTMLVideoElement;
+            const videoDuration = videoElement.duration;
+            if (videoDuration && isFinite(videoDuration)) {
+              setDuration(videoDuration); // Update hook's internal duration state
+              onDurationChange?.(videoDuration); // Notify parent component
+            }
+          }
+        });
+          
+        source.registerCallback('error', (err: any) => {
+          console.error("[useVideoContextBridge] Source 'error' callback triggered:", err);
+          setIsReady(false);
+          const error = err instanceof Error ? err : new Error('Video source loading error');
+          onError?.(error); // Notify parent component
+        });
+        
+        // Return the created source node
+        return source;
+
+      } catch (error) {
+        console.error("[useVideoContextBridge] Error creating video source node:", error);
+        setIsReady(false);
+        onError?.(error instanceof Error ? error : new Error('Video source creation failed'));
+        return null;
+      }
+    } else {
+      console.warn("[useVideoContextBridge] createVideoSourceNode called but conditions not met (not video, no URL, or no context)");
+      return null;
+    }
+  }, [localMediaUrl, mediaType, onReady, onError, onDurationChange]); // Dependencies for source creation logic
+
   // --- Return Value ---
   return {
-    // Directly return the passed-in instance for now
     videoContext: videoContextInstance,
     isReady,
     duration,
     play,
     pause,
     seek,
+    // Expose the new method (though it might only be used internally during init later)
+    createVideoSourceNode 
   };
 } 

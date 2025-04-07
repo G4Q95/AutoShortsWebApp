@@ -274,10 +274,32 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     localMediaUrl,
     mediaType,
     initialMediaAspectRatio,
-    // Pass placeholder callbacks for now
-    onReady: () => {},
-    onError: () => {},
-    onDurationChange: () => {},
+    // *** CONNECT CALLBACKS TO ACTUAL STATE SETTERS ***
+    onReady: useCallback(() => {
+      console.log("[VideoContextScenePreviewPlayer] Bridge reported ready.");
+      setIsReady(true);
+    }, [setIsReady]), 
+    onError: useCallback((error: Error) => {
+      console.error("[VideoContextScenePreviewPlayer] Bridge reported error:", error);
+      setIsLoading(false); // Ensure loading stops on error
+      setIsReady(false);
+      // Error UI is handled by MediaErrorBoundary
+    }, [setIsLoading, setIsReady]), 
+    onDurationChange: useCallback((newDuration: number) => {
+      console.log(`[VideoContextScenePreviewPlayer] Bridge reported duration change: ${newDuration}`);
+      // Prevent duration being set to 0 or NaN
+      if (newDuration && isFinite(newDuration) && newDuration > 0) {
+        setDuration(newDuration);
+        // Also update trimEnd if it hasn't been manually set or is invalid
+        if (!trimManuallySet && (trimEnd <= 0 || !isFinite(trimEnd))) {
+          console.log(`[DurationChange] Updating trimEnd to new duration: ${newDuration}`);
+          setTrimEnd(newDuration); 
+          userTrimEndRef.current = newDuration; // Update ref as well
+        }
+      } else {
+        console.warn(`[DurationChange] Received invalid duration: ${newDuration}. Ignoring.`);
+      }
+    }, [setDuration, setTrimEnd, userTrimEndRef, trimManuallySet, trimEnd]), // Added trimEnd and trimManuallySet
   });
 
   // --- CALLBACKS & HANDLERS --- 
@@ -571,53 +593,27 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         if (!ctx) throw new Error('Failed to create VideoContext instance');
         setVideoContext(ctx);
 
-        let source: any;
+        let sourceNode: any = null; // Variable to hold the source node
         if (mediaType === 'video') {
-          if (!localMediaUrl) throw new Error('[VideoCtx Init] No media URL available for video source inside init function');
-          source = ctx.video(localMediaUrl);
-          if (!source) throw new Error('Failed to create video source');
-
-          source.connect(ctx.destination);
-          source.start(0);
-          source.stop(300); // 5 minute max duration
-
-          source.registerCallback('loaded', () => {
-            if (!isMounted) return;
-            // Ensure isLoading is set false here too
-            setIsLoading(false);
-            setIsReady(true);
-
-            if (source.element) {
-              const videoElement = source.element as HTMLVideoElement;
-              const videoDuration = videoElement.duration;
-              setDuration(videoDuration);
-
-              // Keep setVideoDimensions commented out
-              // const videoWidth = videoElement.videoWidth;
-              // const videoHeight = videoElement.videoHeight;
-              // if (videoWidth > 0 && videoHeight > 0) {
-              //   setVideoDimensions({ width: videoWidth, height: videoHeight });
-              // }
-
-              if (trimEnd <= 0 || trimEnd === 10) {
-                setTrimEnd(videoDuration);
-              }
-              if (userTrimEndRef.current === null || userTrimEndRef.current <= 0) {
-                userTrimEndRef.current = videoDuration;
-              }
-            }
-          });
-          
-          source.registerCallback('error', (err: any) => {
-            if (!isMounted) return;
-            setIsLoading(false); // Also set loading false on source error
-            setIsReady(false);
-          });
+          // *** CALL THE BRIDGE TO CREATE THE SOURCE NODE ***
+          sourceNode = bridge.createVideoSourceNode(ctx);
+          if (!sourceNode) {
+             // Error handling is done within the bridge method, just log here if needed
+             console.error("[VideoCtx Init] Bridge failed to create source node.");
+             setIsLoading(false);
+             setIsReady(false);
+             // Potentially throw or return early if source creation is critical
+             return null; // Indicate failure
+          }
+          // --- Original source handling logic REMOVED --- 
+          // No need for connect, start, stop, registerCallback here anymore,
+          // as that's handled inside bridge.createVideoSourceNode()
         }
         
+        // Return the context and the source node (if created)
         return {
           context: ctx,
-          source
+          source: sourceNode
         };
       } catch (error) {
         if (isMounted) {

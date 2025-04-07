@@ -68,14 +68,6 @@ export function VideoElement({
     if (videoElement) {
       videoElement.addEventListener('error', handleVideoError);
       
-      // Also throw error if the video has a source but isn't valid
-      if (videoElement.src && (videoElement.networkState === HTMLMediaElement.NETWORK_NO_SOURCE || 
-          videoElement.networkState === HTMLMediaElement.NETWORK_EMPTY)) {
-        setTimeout(() => {
-          handleVideoError(new Event('error'));
-        }, 3000); // Give a reasonable time for loading before deciding it failed
-      }
-      
       return () => {
         videoElement.removeEventListener('error', handleVideoError);
       };
