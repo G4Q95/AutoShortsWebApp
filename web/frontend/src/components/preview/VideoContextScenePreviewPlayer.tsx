@@ -9,12 +9,11 @@
  * Now with adaptive scene-based aspect ratio support.
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, CSSProperties, RefObject } from 'react';
 import { PlayIcon, PauseIcon, ScissorsIcon, CheckIcon } from 'lucide-react';
 import { usePlaybackState } from '@/hooks/usePlaybackState';
 import { VideoContextProvider, useVideoContext } from '@/contexts/VideoContextProvider';
 import MediaDownloadManager from '@/utils/media/mediaDownloadManager';
-import { CSSProperties } from 'react';
 import { useMediaAspectRatio } from '@/hooks/useMediaAspectRatio';
 import { useTrimControls } from '@/hooks/useTrimControls';
 import PlayPauseButton from './PlayPauseButton';
@@ -27,6 +26,7 @@ import { TimeDisplay } from './TimeDisplay';
 import { useVoiceContext } from '@/contexts/VoiceContext';
 import { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { PlayerControls } from './PlayerControls';
+import { MediaContainer } from './media/MediaContainer';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -1044,21 +1044,58 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     );
   }
   
-  // Fix container hierarchy without disrupting controls
+  // Use the MediaContainer component for rendering all media types
   return (
-    <div 
-      className={`relative bg-gray-800 flex items-center justify-center ${className} cursor-pointer`}
-      style={{
-        width: '100%',
-        height: isCompactView ? '190px' : 'auto',
-        aspectRatio: !isCompactView ? projectAspectRatio.replace(':', '/') : undefined,
-        overflow: 'hidden'
-      }}
-      ref={containerRef}
+    <MediaContainer 
+      // Media properties
+      mediaUrl={mediaUrl}
+      localMediaUrl={localMediaUrl}
+      mediaType={mediaType}
+      
+      // Container props
+      className={className}
+      isCompactView={isCompactView}
+      projectAspectRatio={projectAspectRatio}
+      containerRef={containerRef}
+      
+      // Media state
+      isLoading={isLoading}
+      isHovering={isHovering}
+      isPlaying={isPlaying}
+      showFirstFrame={showFirstFrame}
+      isFullscreen={isFullscreen}
+      imageLoadError={imageLoadError}
+      
+      // Refs
+      videoRef={videoRef}
+      canvasRef={canvasRef}
+      imgRef={imgRef}
+      
+      // Styling
+      mediaElementStyle={mediaElementStyle}
+      getMediaContainerStyle={getMediaContainerStyle}
+      
+      // Event handlers
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
-      data-testid="video-context-preview"
-      onClick={(e) => {
+      onFullscreenToggle={handleFullscreenToggle}
+      onImageLoad={() => {
+        const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
+        console.log(`[Image onLoad][${instanceId}] Fired for scene ${sceneId}. Media Type: ${mediaType}`);
+        
+        // ALWAYS set default 30s duration for images
+        console.log(`[Image onLoad][${instanceId}] Setting default duration (30s).`);
+        setTrimEnd(30);
+        
+        setIsLoading(false);
+        setIsReady(true);
+      }}
+      onImageError={(e) => {
+        console.error(`[DEBUG-FALLBACK] Error loading image:`, e);
+        setIsLoading(false);
+        setImageLoadError(true);
+      }}
+      onContainerClick={(e) => {
         // Don't trigger play/pause if clicking on interactive elements
         const target = e.target as HTMLElement;
         const isButton = target.tagName === 'BUTTON' || 
@@ -1069,222 +1106,43 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           isPlaying ? handlePause() : handlePlay();
         }
       }}
+      
+      // Extra props
+      sceneId={sceneId}
     >
-      {/* Black inner container for letterboxing/pillarboxing */}
-      <div 
-        className="bg-black flex items-center justify-center w-full h-full relative"
-        style={getMediaContainerStyle()}
-      >
-        {/* Add aspect ratio indicator for debugging */}
-        {(showAspectRatio || showTemporaryIndicator) && (
-          <div 
-            className="absolute left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 px-2 py-0.5 text-white rounded whitespace-nowrap"
-            style={{ 
-              zIndex: 60, 
-              pointerEvents: 'none', 
-              top: '0px',
-              fontSize: '0.65rem',
-              opacity: showTemporaryIndicator ? '0.8' : '1',
-              display: 'flex',
-              gap: '4px'
-            }}
-          >
-            {/* Calculate the closest standard aspect ratio */}
-            {(() => {
-              // Function to find closest standard aspect ratio
-              const exactRatio = calculatedAspectRatio;
-              
-              // Common standard aspect ratios as [name, decimal value]
-              type RatioType = [string, number];
-              const standardRatios: RatioType[] = [
-                ['9:16', 0.5625], // 0.5625 - vertical smartphone
-                ['3:4', 0.75],    // 0.75 - classic portrait
-                ['1:1', 1],       // 1.0 - square
-                ['4:3', 1.33],    // 1.33 - classic TV/monitor
-                ['16:9', 1.78]    // 1.78 - widescreen
-              ];
-              
-              // Find the closest standard ratio
-              let closestRatio = standardRatios[0];
-              let smallestDiff = Math.abs(exactRatio - standardRatios[0][1]);
-              
-              for (let i = 1; i < standardRatios.length; i++) {
-                const diff = Math.abs(exactRatio - standardRatios[i][1]);
-                if (diff < smallestDiff) {
-                  smallestDiff = diff;
-                  closestRatio = standardRatios[i];
-                }
-              }
-              
-              // Format and return the new display string
-              return (
-                <>
-                  <span style={{ color: '#fff' }}>{exactRatio.toFixed(2)}</span>
-                  <span style={{ color: '#fff' }}>[{closestRatio[0]}]</span>
-                  <span style={{ color: '#4ade80' }}>{projectAspectRatio}</span>
-                </>
-              );
-            })()}
-          </div>
-        )}
-        
-        {/* Add style tag for custom range styling */}
-        <style>{smallRangeThumbStyles}</style>
-        
-        {/* Separate audio element for voiceover */}
-        {audioUrl && (
-          <audio 
-            ref={audioRef} 
-            src={audioUrl} 
-            preload="auto"
-            style={{ display: 'none' }}
-            data-testid="audio-element"
-            onLoadedMetadata={() => {
-              // NO-OP for duration setting for images here - handled by img onLoad
-            }}
-          />
-        )}
-        
-        {/* Media Display */}
-        <div 
-          className="relative bg-black flex items-center justify-center"
-          style={{
-            ...mediaElementStyle,
-            position: 'relative', 
-            zIndex: 5 // Ensure media container has proper z-index
-          }}
-        >
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          )}
-          
-          {/* First frame video element (visible when not playing) */}
-          {mediaType === 'video' && showFirstFrame && (
-            <video
-              src={localMediaUrl || undefined}
-              ref={videoRef}
-              className="w-auto h-auto"
-              style={{
-                ...mediaElementStyle,
-                pointerEvents: 'none' // Ensure all videos have pointer-events: none
-              }}
-              playsInline
-              muted
-              preload="auto"
-              data-testid="first-frame-video"
-            />
-          )}
-          
-          {/* Image fallback for static images */}
-          {isImageType(mediaType) && (
-            <img
-              ref={imgRef}
-              src={mediaUrl} 
-              alt="Scene content"
-              className="w-auto h-auto max-w-full max-h-full"
-              style={{
-                ...mediaElementStyle,
-                objectFit: 'contain',
-                zIndex: 10,
-                maxHeight: isCompactView ? '190px' : mediaElementStyle.maxHeight,
-                pointerEvents: 'none' // Ensure all clicks pass through
-              }}
-              data-testid="fallback-image"
-              onLoad={() => {
-                const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
-                console.log(`[Image onLoad][${instanceId}] Fired for scene ${sceneId}. Media Type: ${mediaType}`);
-                
-                // ALWAYS set default 30s duration for images
-                console.log(`[Image onLoad][${instanceId}] Setting default duration (30s).`);
-                setTrimEnd(30);
-                
-                setIsLoading(false);
-                setIsReady(true);
-              }}
-              onError={(e) => {
-                console.error(`[DEBUG-FALLBACK] Error loading image:`, e);
-                setIsLoading(false);
-                setImageLoadError(true);
-              }}
-            />
-          )}
-          
-          {/* VideoContext canvas (visible when playing) */}
-          <canvas 
-            ref={canvasRef}
-            className="w-auto h-auto"
-            style={{
-              ...mediaElementStyle,
-              display: (isImageType(mediaType)) ? 'none' : 
-                      (showFirstFrame && mediaType === 'video') ? 'none' : 'block',
-              zIndex: 10, // Match the img z-index
-              pointerEvents: 'none' // Ensure all click events pass through
-            }}
-            data-testid="videocontext-canvas"
-          />
-          
-          {/* Error display if both VideoContext and fallback fail */}
-          {mediaType === 'image' && imageLoadError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 text-white text-sm">
-              <div className="text-center p-4">
-                <div>Failed to load image</div>
-                <div className="text-xs mt-1">Please check the image URL</div>
-              </div>
-            </div>
-          )}
-          
-          {/* Show play/pause indicator in the center when playing or paused */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            {isPlaying ? (
-              <PauseIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
-            ) : (
-              <PlayIcon className={`${isCompactView ? 'w-4 h-4' : 'w-6 h-6'} text-white opacity-70`} />
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Fullscreen toggle button - positioned below the expand/collapse button */}
-      <FullscreenButton 
-        isFullscreen={isFullscreen}
-        onToggle={handleFullscreenToggle}
-      />
-      
-      {/* Render PlayerControls regardless of view mode - show on hover */}
+      {/* PlayerControls component is now passed as a child */}
       <PlayerControls
-          // Visibility
-          isHovering={isHovering}
-          isPositionLocked={isPositionLocked}
-          isMediumView={isMediumView ?? false}
-          // Lock Button
-          onLockToggle={handleLockToggle}
-          // Timeline
-          visualTime={visualTime}
-          duration={duration}
-          trimStart={trimStart}
-          effectiveTrimEnd={getEffectiveTrimEnd()}
-          activeHandle={activeHandle}
-          trimActive={trimActive}
-          isDraggingScrubber={isDraggingScrubber}
-          onTimeUpdate={handleTimeUpdate}
-          onScrubberDragStart={handleScrubberDragStart}
-          onScrubberDragEnd={handleScrubberDragEnd}
-          setActiveHandle={setActiveHandle}
-          setTimeBeforeDrag={setTimeBeforeDrag}
-          setOriginalPlaybackTime={setOriginalPlaybackTime}
-          videoContext={videoContext}
-          getEffectiveTrimEnd={getEffectiveTrimEnd}
-          // Time Display
-          currentTime={currentTime}
-          // Info Button
-          showAspectRatio={showAspectRatio}
-          onInfoToggle={handleInfoToggle}
-          // Trim Toggle Button
-          onTrimToggle={handleTrimToggle}
+        // Visibility
+        isHovering={isHovering}
+        isPositionLocked={isPositionLocked}
+        isMediumView={isMediumView ?? false}
+        // Lock Button
+        onLockToggle={handleLockToggle}
+        // Timeline
+        visualTime={visualTime}
+        duration={duration}
+        trimStart={trimStart}
+        effectiveTrimEnd={getEffectiveTrimEnd()}
+        activeHandle={activeHandle}
+        trimActive={trimActive}
+        isDraggingScrubber={isDraggingScrubber}
+        onTimeUpdate={handleTimeUpdate}
+        onScrubberDragStart={handleScrubberDragStart}
+        onScrubberDragEnd={handleScrubberDragEnd}
+        setActiveHandle={setActiveHandle}
+        setTimeBeforeDrag={setTimeBeforeDrag}
+        setOriginalPlaybackTime={setOriginalPlaybackTime}
+        videoContext={videoContext}
+        getEffectiveTrimEnd={getEffectiveTrimEnd}
+        // Time Display
+        currentTime={currentTime}
+        // Info Button
+        showAspectRatio={showAspectRatio}
+        onInfoToggle={handleInfoToggle}
+        // Trim Toggle Button
+        onTrimToggle={handleTrimToggle}
       />
-    </div>
+    </MediaContainer>
   );
 };
 
