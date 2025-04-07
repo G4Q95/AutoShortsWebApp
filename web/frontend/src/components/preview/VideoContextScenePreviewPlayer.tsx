@@ -28,6 +28,7 @@ import { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { PlayerControls } from './PlayerControls';
 import { MediaContainer } from './media/MediaContainer';
 import { useAnimationFrameLoop } from '@/hooks/useAnimationFrameLoop';
+import { useMediaEventHandlers } from '@/hooks/useMediaEventHandlers';
 
 // Add custom styles for smaller range input thumbs
 const smallRangeThumbStyles = `
@@ -906,6 +907,21 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // Add another important log - right before render, to show the current isMediumView value that will be used for conditional rendering
   console.log(`[VCSPP PreRender] PlayerControls conditional check: isMediumView=${isMediumView}`);
 
+  // Initialize media event handlers
+  const mediaEventHandlers = useMediaEventHandlers({
+    sceneId,
+    mediaType,
+    setIsLoading,
+    setIsReady,
+    setIsHovering,
+    setImageLoadError,
+    setTrimEnd,
+    handlePlay,
+    handlePause,
+    isPlaying,
+    handleFullscreenToggle
+  });
+
   // Render loading state
   if (isLoading && !localMediaUrl) {
     return (
@@ -973,37 +989,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       mediaElementStyle={mediaElementStyle}
       getMediaContainerStyle={getMediaContainerStyle}
       
-      // Event handlers
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-      onFullscreenToggle={handleFullscreenToggle}
-      onImageLoad={() => {
-        const instanceId = `${sceneId}-${Math.random().toString(36).substr(2, 9)}`;
-        console.log(`[Image onLoad][${instanceId}] Fired for scene ${sceneId}. Media Type: ${mediaType}`);
-        
-        // ALWAYS set default 30s duration for images
-        console.log(`[Image onLoad][${instanceId}] Setting default duration (30s).`);
-        setTrimEnd(30);
-        
-        setIsLoading(false);
-        setIsReady(true);
-      }}
-      onImageError={(e) => {
-        console.error(`[DEBUG-FALLBACK] Error loading image:`, e);
-        setIsLoading(false);
-        setImageLoadError(true);
-      }}
-      onContainerClick={(e) => {
-        // Don't trigger play/pause if clicking on interactive elements
-        const target = e.target as HTMLElement;
-        const isButton = target.tagName === 'BUTTON' || 
-                        target.closest('button') !== null ||
-                        target.closest('[data-drag-handle-exclude]') !== null;
-        
-        if (!isButton) {
-          isPlaying ? handlePause() : handlePlay();
-        }
-      }}
+      // Event handlers - use handlers from the hook
+      onMouseEnter={mediaEventHandlers.onMouseEnter}
+      onMouseLeave={mediaEventHandlers.onMouseLeave}
+      onFullscreenToggle={mediaEventHandlers.onFullscreenToggle}
+      onImageLoad={mediaEventHandlers.onImageLoad}
+      onImageError={mediaEventHandlers.onImageError}
+      onContainerClick={mediaEventHandlers.onContainerClick}
       
       // Extra props
       sceneId={sceneId}

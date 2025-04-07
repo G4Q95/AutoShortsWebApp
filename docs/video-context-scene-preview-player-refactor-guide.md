@@ -110,6 +110,7 @@ We will refactor the component incrementally using the following methodology to 
     - Extracted trim controls logic into a dedicated hook (`useTrimControls`)
     - Extracted aspect ratio calculations into a dedicated hook (`useMediaAspectRatio`)
     - Extracted animation frame loop logic into a dedicated hook (`useAnimationFrameLoop`)
+    - Extracted media event handlers into a dedicated hook (`useMediaEventHandlers`)
 
 3.  **Media Rendering Improvements:**
     - Extracted media rendering into dedicated components
@@ -135,7 +136,6 @@ We will refactor the component incrementally using the following methodology to 
     - Perform thorough manual testing across different media types and interactions
 
 4.  **Next Extraction Priorities:**
-    - Consider extracting Media Event Handlers into a dedicated hook
     - Implement a dedicated Error Handling component
     - Create a VideoContext Bridge to abstract VideoContext interactions
 
@@ -189,16 +189,16 @@ The following components/hooks have been identified as candidates for extraction
   4. Wrap media elements in this boundary
 - **Testing Focus**: Error state recovery, fallback UI appearance, error logging.
 
-#### 5. Media Event Handlers Hook (MEDIUM PRIORITY)
+#### 5. Media Event Handlers Hook (COMPLETED)
 - **Description**: Consolidate event handlers for media elements.
-- **Target File**: `src/hooks/useMediaEventHandlers.ts`
+- **Created File**: `src/hooks/useMediaEventHandlers.ts`
 - **Benefits**: Reduces handler duplication, improves handler consistency across media types.
-- **Implementation Plan**:
-  1. Create a hook that accepts media references and state setters
-  2. Extract common event handlers (onLoad, onError, onTimeUpdate, etc.)
-  3. Return object with handler functions
-  4. Replace inline handlers in the media components
-- **Testing Focus**: Event firing and handling, state updates after events.
+- **Implementation Details**:
+  1. Created a hook that accepts media references and state setters
+  2. Extracted common event handlers (onMouseEnter, onMouseLeave, onImageLoad, onImageError, onContainerClick)
+  3. Returned object with handler functions
+  4. Replaced inline handlers in the media components
+- **Implementation Status**: Completed - The media event handlers have been extracted from VideoContextScenePreviewPlayer.tsx into a dedicated hook with proper type safety and consistent behavior.
 
 #### 6. Debug Information Component (LOW PRIORITY)
 - **Description**: Extract debug visualization and logging functionality.
