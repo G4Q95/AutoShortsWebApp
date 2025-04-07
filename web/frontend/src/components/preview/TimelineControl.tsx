@@ -248,12 +248,6 @@ export function TimelineControl({
                 boxShadow: 'none',
               }}
             />
-            <div
-              className="absolute h-4 w-4 bg-blue-500 rounded-full -left-1 top-1"
-              style={{
-                pointerEvents: 'none'
-              }}
-            />
           </div>
               
           {/* Right trim bracket */}
@@ -319,12 +313,6 @@ export function TimelineControl({
                 height: '14px', 
                 pointerEvents: 'none',
                 boxShadow: 'none',
-              }}
-            />
-            <div
-              className="absolute h-4 w-4 bg-blue-500 rounded-full -left-1 top-1"
-              style={{
-                pointerEvents: 'none'
               }}
             />
           </div>
