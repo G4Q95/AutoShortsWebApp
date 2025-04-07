@@ -223,12 +223,16 @@ The following components/hooks have been identified as candidates for extraction
 - **Description**: Create an abstraction layer between the component and VideoContext.
 - **Target File**: `src/hooks/useVideoContextBridge.ts`
 - **Benefits**: Reduces direct dependencies on VideoContext, improves testability.
-- **Implementation Plan**:
-  1. Create a hook that encapsulates VideoContext interactions
-  2. Extract VideoContext access and manipulation code
-  3. Provide a simpler interface for the component
-  4. Replace direct VideoContext calls in the component
-- **Testing Focus**: Proper VideoContext synchronization, playback control, error handling.
+- **Implementation Plan (Revised Incremental Approach)**:
+  1.  **Step 1: Empty Hook with Types:** Create `useVideoContextBridge.ts` with interfaces/types only. Import in the main component without using it. Test for build errors.
+  2.  **Step 2: Simple Getter:** Add a function to the hook returning the existing `videoContext`. Update *one* reference in the main component. Test playback.
+  3.  **Step 3: Basic Play/Pause Wrappers:** Add simple `play()`/`pause()` methods to the hook that *directly call* the existing context methods. Update *one or two* calls in the main component. Test play/pause.
+  4.  **Step 4: Isolated Source Creation:** Add source creation logic to the hook, but keep it separate from initialization for now. Test build and basic playback.
+  5.  **Step 5: Basic Seeking Wrapper:** Add a simple `seek()` method to the hook. Update *one* seeking call in the main component. Test scrubbing.
+  6.  **Step 6: Gradual Initialization Migration:** Move *small, isolated parts* of the `VideoContext` initialization logic from the main component into the hook. Test thoroughly after each small move.
+  7.  **Step 7: Full Integration & Cleanup:** Only after all individual parts are tested and confirmed working, connect them within the hook and gradually remove the original code from the main component.
+  8.  **Continuous Testing:** After *each* small step, manually test play/pause, seeking, timeline updates, visual rendering, and error handling.
+- **Testing Focus**: Ensuring core video playback functionality (play, pause, seek, time updates) remains intact after *each tiny incremental step*.
 
 #### 8. Component Structure Refactoring (FINAL STAGE)
 - **Description**: Refactor the main component structure after all extractions.
