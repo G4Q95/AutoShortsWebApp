@@ -172,6 +172,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const [trimActive, setTrimActive] = useState<boolean>(false);
   const [originalPlaybackTime, setOriginalPlaybackTime] = useState<number>(0);
+  const [isReady, setIsReady] = useState<boolean>(false);
   
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -225,9 +226,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     localMediaUrl,
     mediaType,
     showFirstFrame,
-    onIsReadyChange: (isReady: boolean) => {
-      console.log(`[VCSPP] Bridge reported isReady=${isReady}`);
-      setIsLoading(!isReady);
+    onIsReadyChange: (ready: boolean) => {
+      console.log(`[VCSPP] Bridge reported isReady=${ready}`);
+      setIsLoading(!ready);
+      setIsReady(ready);
     },
     onDurationChange: (duration: number) => {
       console.log(`[VCSPP] Bridge reported duration=${duration}`);
@@ -241,7 +243,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       console.error(`[VCSPP] Bridge error:`, error);
       setIsLoading(false);
       // If this is a video error, try image fallback for video thumbnails
-      if (isVideoType(mediaType)) {
+    if (isVideoType(mediaType)) {
         setUseImageFallback(true);
       }
     },
@@ -347,51 +349,51 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // We'll define any additional properties the hook needs as separate objects
   });
   
-  // -- Play/Pause Handlers -- 
-  const handlePlay = useCallback(async () => {
-    console.log('[VCSPP] handlePlay called');
-    if (isPlaying) return; // Already playing
+  // Define Fullscreen Toggle Handler here (moved before usage)
+  const handleFullscreenToggle = useCallback(() => {
+    if (!containerRef.current) return;
     
-    try {
-      // First make sure we hide the first frame if it's showing
-      if (showFirstFrame) {
-        setShowFirstFrame(false);
-        // Small delay to ensure the DOM updates
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-      
-      // For images, just start the timer
-      if (isImageType(mediaType)) {
-        setIsPlaying(true);
-        return;
-      }
-      
-      // For videos, use the bridge
-      await videoContextBridge.play();
-      setIsPlaying(true);
-    } catch (error) {
-      console.error('[VCSPP] Play error:', error);
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error(`[FS] Error attempting to enable full-screen mode:`, err);
+      });
+        } else {
+      document.exitFullscreen().catch(err => {
+        console.error(`[FS] Error attempting to exit full-screen mode:`, err);
+      });
     }
-  }, [isPlaying, showFirstFrame, mediaType, videoContextBridge]);
+  }, [containerRef]);
   
-  const handlePause = useCallback(async () => {
-    console.log('[VCSPP] handlePause called');
-    if (!isPlaying) return; // Already paused
-    
+  // == DEFINE PLAYBACK HANDLERS (needed for mediaEventHandlers) ==
+  const handlePlay = useCallback(async () => {
     try {
-      // For images, just stop the timer
-      if (isImageType(mediaType)) {
-        setIsPlaying(false);
-        return;
-      }
+      console.log('[VCSPP] handlePlay triggered');
+      // Ensure the context is aware we intend to play
+      setIsPlaying(true); 
+      setShowFirstFrame(false); // Hide first frame on play attempt
       
-      // For videos, use the bridge
-      await videoContextBridge.pause();
-      setIsPlaying(false);
+      // Use the bridge to play
+      await videoContextBridge.play();
+      
       } catch (error) {
+      console.error('[VCSPP] Play error:', error);
+      setIsPlaying(false); // Ensure state reflects failure
+    }
+  }, [setIsPlaying, videoContextBridge]);
+
+  const handlePause = useCallback(async () => {
+    try {
+      console.log('[VCSPP] handlePause triggered');
+      // Use the bridge to pause
+      await videoContextBridge.pause();
+      
+      // Update state after successful pause
+      setIsPlaying(false);
+      
+    } catch (error) {
       console.error('[VCSPP] Pause error:', error);
     }
-  }, [isPlaying, mediaType, videoContextBridge]);
+  }, [setIsPlaying, videoContextBridge]);
   
   const handleSeek = useCallback(async (time: number) => {
     console.log(`[VCSPP] handleSeek called with time=${time}`);
@@ -417,21 +419,19 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   }, [trimStart, trimEnd, setVisualTime, mediaType, videoContextBridge, setCurrentTime]);
   
-  // Get media event handlers
+  // Get media event handlers - Ensure all handlers are defined above
   const mediaEventHandlers = useMediaEventHandlers({
-    setIsHovering,
-    setImageLoadError,
-    containerRef,
-    onContainerClick: (e: React.MouseEvent) => {
-      // Handle click on container (play/pause toggle)
-      if (!trimActive) {
-        if (isPlaying) {
-          handlePause();
-        } else {
-          handlePlay();
-        }
-      }
-    }
+    sceneId, // Pass from props
+    mediaType, // Pass from props
+    setIsLoading, // Pass from state
+    setIsReady, // Pass new state setter
+    setIsHovering, // Pass from state
+    setImageLoadError, // Pass from state
+    setTrimEnd, // Pass from useTrimControls hook
+    handlePlay, // Pass the function defined above
+    handlePause, // Pass the function defined above
+    isPlaying, // Pass from usePlaybackState hook
+    handleFullscreenToggle, // Pass the function defined above
   });
   
   // Handle video error
@@ -445,18 +445,16 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // -- Animation Frame Loop --
   useAnimationFrameLoop({
     isPlaying,
+    isReady,
     currentTime,
-    // Don't pass setCurrentTime if it's not in the hook's props
     trimStart,
     trimEnd,
-    duration: videoContextBridge.duration || 0,
-    handlePause,
-    onTimeUpdate: (newTime: number) => {
+    onPause: handlePause,
+    onUpdate: (newTime: number) => {
       if (!isDraggingScrubber) {
-        setVisualTime(newTime);
+    setVisualTime(newTime);
       }
     },
-    onPause: handlePause,
     isImageType: isImageType(mediaType),
     animationFrameRef,
     forceResetOnPlayRef,
@@ -483,21 +481,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   
   const handleTrimToggle = useCallback(() => {
     setTrimActive(prev => !prev);
-  }, [setTrimActive]);
-  
-  const handleFullscreenToggle = useCallback(() => {
-    if (!containerRef.current) return;
-    
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(err => {
-        console.error(`[FS] Error attempting to enable full-screen mode:`, err);
-      });
+    // When activating trim, pause playback and store current time
+    if (!trimActive) {
+      setOriginalPlaybackTime(currentTime);
+      handlePause();
     } else {
-      document.exitFullscreen().catch(err => {
-        console.error(`[FS] Error attempting to exit full-screen mode:`, err);
-      });
+      // When deactivating trim, potentially resume playback? Or just reset?
     }
-  }, [containerRef]);
+  }, [setTrimActive, currentTime, handlePause]);
   
   // Helper functions for position calculations (keep these as is)
   const positionToPercent = (position: number): number => {
@@ -617,64 +608,30 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         // Aspect ratio info
         showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
         initialMediaAspectRatio={initialMediaAspectRatio}
+        calculatedAspectRatio={calculatedAspectRatio}
+        projectAspectRatio={projectAspectRatio}
+        showLetterboxing={showLetterboxing}
         onAspectRatioInfoClose={() => {
           setShowAspectRatio(false);
           setShowTemporaryAspectRatio(false);
         }}
-      >
-        {/* Audio element for synchronized playback */}
-        {audioUrl && (
-          <audio 
-            ref={audioRef} 
-            src={audioUrl} 
-            loop={false} 
-            preload="auto"
-            style={{ display: 'none' }}
-          />
-        )}
         
-        {/* Render player controls if hovering or medium view */}
-        {(isHovering || isMediumView || isFullscreen) && (
-        <PlayerControls
-            // Visibility props
-            isCompactView={isCompactView}
-            isPositionLocked={isPositionLocked}
-            trimActive={trimActive}
-            // Fix type error by providing a default value
-            isMediumView={!!isMediumView}
-
-            // Time and duration
-            currentTime={visualTime}
-            duration={videoContextBridge.duration || 0}
-            
-            // Trim values
-            trimStart={trimStart}
-            trimEnd={trimEnd}
-            
-            // UI state
-            isPlaying={isPlaying}
-            isFullscreen={isFullscreen}
-            showAspectRatio={showAspectRatio}
-            
-            // Event handlers
-            onPlayPause={handlePlayPauseToggle}
+        // Player Controls props
+        duration={videoContextBridge.duration || 0}
+        trimStart={trimStart}
+        trimEnd={trimEnd}
+        isPlaying={isPlaying}
+          onPlayPauseToggle={handlePlayPauseToggle}
           onLockToggle={handleLockToggle}
-            onInfoToggle={handleInfoToggle}
-            onTrimToggle={handleTrimToggle}
-            onFullscreenToggle={handleFullscreenToggle}
-            onSeek={handleSeek}
-            
-            // Trim handlers
-            onTrimStartChange={setTrimStart}
-            onTrimEndChange={setTrimEnd}
-            onActiveHandleChange={setActiveHandle}
-            
-            // DragState
-            onDragScrubberStart={() => setIsDraggingScrubber(true)}
-            onDragScrubberEnd={() => setIsDraggingScrubber(false)}
-          />
-        )}
-      </MediaContainer>
+        onInfoToggle={handleInfoToggle}
+        onTrimToggle={handleTrimToggle}
+        onFullscreenToggle={handleFullscreenToggle}
+        onSeek={handleSeek}
+        
+        // DragState
+        onDragScrubberStart={() => setIsDraggingScrubber(true)}
+        onDragScrubberEnd={() => setIsDraggingScrubber(false)}
+      />
     </MediaErrorBoundary>
   );
 };

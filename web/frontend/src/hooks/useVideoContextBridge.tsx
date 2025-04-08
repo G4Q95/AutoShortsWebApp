@@ -98,6 +98,19 @@ export function useVideoContextBridge({
         setErrorMessage(null);
         setIsReady(false);
 
+        // Ensure videoRef is available
+        if (!videoRef?.current) {
+          throw new Error('Video element reference is not available.');
+        }
+
+        // --- FIX: Set the video source BEFORE initialization ---
+        const sourceUrl = localMediaUrl || mediaUrl;
+        if (!sourceUrl) {
+          throw new Error('No media URL provided for video source.');
+        }
+        videoRef.current.src = sourceUrl;
+        // ------------------------------------------------------
+
         // Create new bridge instance
         const bridge = new VideoContext();
         
@@ -113,10 +126,10 @@ export function useVideoContextBridge({
         // Store bridge instance
         bridgeRef.current = bridge;
 
-        // Only initialize if we have a mediaUrl
-        if (mediaUrl) {
-          // Wait for bridge to be ready
-          await bridge.initialize(mediaUrl, localMediaUrl);
+        // Only initialize if we have a mediaUrl (redundant check now, but safe)
+        if (mediaUrl) { 
+          // Wait for bridge to be ready (initialize now just sets up listeners)
+          await bridge.initialize(); // Removed URLs - src is already set
           
           // Notify ready state change
           setIsReady(true);
