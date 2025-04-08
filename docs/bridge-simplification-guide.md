@@ -62,8 +62,60 @@ The following steps will be taken to refactor the interaction logic:
     *   **Add:** Expose the current playback time. This could be via a returned state variable (`bridge.currentTime`) updated internally by the bridge listening to `VideoContext`'s time updates, or via a callback (`onTimeUpdateCallback`) that the parent component provides. Using a returned state variable is generally simpler.
 *   **Rationale:** Allows the parent component to get all necessary playback state *from* the bridge.
 
+### Revised Incremental Plan (Revisiting Steps 4 & 5) - [DATE: YYYY-MM-DD]
+
+*Based on difficulties encountered when implementing the original Steps 4 & 5, the following more granular approach will be taken, prioritizing stability:* 
+
+1.  **Action 1: Enable the Bridge to Track Time:**
+    *   **Modify `useVideoContextBridge.ts`:**
+        *   Add internal `currentTime` state.
+        *   Add `useEffect` listening to `videoRef.current.timeupdate` to update internal `currentTime` state.
+        *   Expose `bridge.currentTime` in the return object.
+        *   **Crucially:** Do *not* modify `seek` or the player component yet.
+    *   **Goal:** Bridge accurately tracks time internally without influencing playback.
+    *   **Testing:** Add temporary console logs in the bridge's effect, play video using existing controls, verify bridge's internal time updates correctly in console.
+    *   **Commit Point:** Yes, after successful testing.
+
+2.  **Action 2: Start Using Bridge Time for Display:**
+    *   **Modify `VideoContextScenePreviewPlayer.tsx`:**
+        *   Read `bridge.currentTime` *only* for UI display (e.g., passing to `PlayerControls`/`TimeDisplay`).
+        *   Leave existing `usePlaybackState` and its `currentTime` intact for core logic.
+    *   **Goal:** Verify bridge provides accurate time for UI without changing playback logic.
+    *   **Testing:** Visually inspect time display during playback. Confirm basic play/pause still works.
+    *   **Commit Point:** Yes, after successful testing.
+
+3.  **Action 3: Gradually Migrate Player Logic:**
+    *   **Modify `VideoContextScenePreviewPlayer.tsx` Incrementally:**
+        *   Update *one piece* of logic at a time (e.g., `useAnimationFrameLoop`, specific event handlers) to use `bridge.currentTime` instead of local state.
+    *   **Goal:** Transition core player logic to use the bridge as the time source.
+    *   **Testing:** Test playback, pause, trim boundaries, etc., thoroughly *after each small migration*.
+    *   **Commit Point:** Yes, potentially after each significant, tested migration.
+
+4.  **Action 4: Remove Old Player Time State:**
+    *   **Modify `VideoContextScenePreviewPlayer.tsx` & `usePlaybackState.ts`:**
+        *   Once all logic uses `bridge.currentTime`, remove the `currentTime` state and setter from `usePlaybackState`.
+        *   Remove the corresponding destructuring in `VideoContextScenePreviewPlayer.tsx`.
+    *   **Goal:** Final cleanup of redundant state.
+    *   **Testing:** Rigorous testing of all playback and related features.
+    *   **Commit Point:** Yes, after successful testing.
+
 ## 4. Next Steps
 
 1.  Implement the refinements outlined above in the specified order.
 2.  After simplification, re-implement the timeline scrubber in `TimelineControl.tsx` using a native `<input type="range">` element, ensuring it interacts cleanly with the simplified bridge pattern.
 3.  Thoroughly test playback, seeking, scrubbing, and trimming functionality manually and (eventually) with automated tests. 
+
+## 5. Learnings from Previous Attempts (Post-Step 3)
+
+During the initial attempt to implement Steps 4 and 5 (making the bridge the source of truth for `currentTime`), significant instability was encountered:
+
+*   **Issue:** Playback became erratic, often stuttering or freezing after a few frames. The browser console was flooded with thousands of logs per second, primarily related to `timeupdate` events and `bridge.seek()` calls.
+*   **Root Cause:** A feedback loop was created:
+    1.  The video element fires a `timeupdate` event.
+    2.  The event handler (in the player or bridge) called `bridge.seek()` with the new time.
+    3.  `bridge.seek()` updated the `videoRef.current.currentTime`.
+    4.  Setting `videoRef.current.currentTime` programmatically immediately triggered *another* `timeupdate` event.
+    5.  This cycle repeated indefinitely, overwhelming the browser.
+*   **Attempted Fix:** An `isSettingTime` flag was introduced in the bridge. This flag was set before the bridge modified `videoRef.current.currentTime` and reset shortly after. The `timeupdate` handlers were modified to ignore events if this flag was true.
+*   **Why Fix Failed:** While logically sound, this approach proved insufficient. Timing issues likely meant the flag was reset before all cascaded events were processed, or race conditions allowed the loop to restart. The sheer frequency of `timeupdate` events makes this kind of flag-based debouncing fragile.
+*   **Conclusion:** Directly linking the video element's `timeupdate` event back to a function that programmatically sets the *same* element's `currentTime` is highly prone to feedback loops. A more decoupled approach is needed, as outlined in the Revised Incremental Plan. 

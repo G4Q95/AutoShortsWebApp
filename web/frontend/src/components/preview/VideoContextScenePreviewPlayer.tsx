@@ -1220,9 +1220,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           currentTime={currentTime}
           // Info Button
           showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
-          onInfoToggle={handleInfoToggle}
+        onInfoToggle={handleInfoToggle}
           // Trim Toggle Button
-          onTrimToggle={handleTrimToggle}
+        onTrimToggle={handleTrimToggle}
         />
       </MediaContainer>
     </MediaErrorBoundary>
