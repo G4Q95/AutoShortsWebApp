@@ -31,6 +31,7 @@ interface UseVideoContextBridgeReturn {
   videoContext: VideoContextInstance | null;
   isReady: boolean;
   duration: number;
+  currentTime: number;
   
   // Core playback methods
   play: () => void;
@@ -62,6 +63,7 @@ export function useVideoContextBridge({
   const [internalCtx, setInternalCtx] = useState<VideoContextInstance | null>(null);
   const [isReady, setIsReady] = useState<boolean>(false);
   const [duration, setDuration] = useState<number>(0);
+  const [currentTime, setCurrentTime] = useState<number>(0);
   // Add a reference to the created source node
   const [activeSource, setActiveSource] = useState<any | null>(null);
 
@@ -285,6 +287,42 @@ export function useVideoContextBridge({
       onDurationChange // Add callback prop
   ]); 
 
+  // --- NEW: Effect to listen for time updates from context --- 
+  useEffect(() => {
+    // Get the raw video element
+    const videoElement = videoRef.current;
+    
+    // Only run if we have a video element and the media type is video
+    if (!videoElement || !isVideoType(mediaType)) return;
+
+    const handleTimeUpdate = () => {
+      // Read time directly from the video element
+      if (videoElement && typeof videoElement.currentTime !== 'undefined') {
+        // Update the internal hook state
+        setCurrentTime(videoElement.currentTime);
+        // console.log(`[Bridge TimeUpdate] New time from element: ${videoElement.currentTime.toFixed(3)}`); // DEBUG
+      }
+    };
+
+    console.log("[Bridge TimeUpdate] Adding timeupdate listener to video element");
+    // Use standard event listener on the video element
+    videoElement.addEventListener('timeupdate', handleTimeUpdate);
+
+    // Cleanup
+    return () => {
+      console.log("[Bridge TimeUpdate] Removing timeupdate listener from video element");
+      // Use standard removeEventListener
+      if (videoElement) {
+        try {
+          videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+        } catch (e) {
+          console.warn("[Bridge TimeUpdate] Error removing listener:", e);
+        }
+      }
+    };
+
+  }, [videoRef, isVideoType, mediaType, setCurrentTime]); // ADD videoRef and setCurrentTime, remove internalCtx
+
   // --- Playback Methods (using internalCtx or videoContextInstance?) ---
   // TODO: Decide whether these should operate on internalCtx or videoContextInstance
   // For now, let's keep them using videoContextInstance to minimize changes in the component
@@ -413,6 +451,8 @@ export function useVideoContextBridge({
         console.log(`[Bridge Seek] Seeking video element to ${clampedTime.toFixed(3)} (requested: ${time.toFixed(3)})`);
         targetVideo.currentTime = clampedTime;
         videoSet = true;
+        // ADDED: Directly update bridge state after setting video element
+        setCurrentTime(clampedTime); 
       } catch (e) {
          console.error("Bridge Seek (Video Element) Error:", e); 
          const error = e instanceof Error ? e : new Error('Unknown playback error during seek (video element)');
@@ -427,7 +467,7 @@ export function useVideoContextBridge({
         console.warn(`[Bridge Seek] Seek incomplete (context: ${contextSet}, video: ${videoSet})`);
     }
 
-  }, [internalCtx, duration, onError, videoRef]); // ADD videoRef dependency
+  }, [internalCtx, duration, onError, videoRef, setCurrentTime]); // ADD setCurrentTime dependency
 
 
   // --- Memoize the return object --- 
@@ -436,6 +476,7 @@ export function useVideoContextBridge({
     videoContext: internalCtx, // Expose the internally managed context
     isReady,
     duration,
+    currentTime,
     play,
     pause,
     seek,
@@ -446,6 +487,7 @@ export function useVideoContextBridge({
     internalCtx, 
     isReady, 
     duration, 
+    currentTime,
     play, 
     pause, 
     seek, 
