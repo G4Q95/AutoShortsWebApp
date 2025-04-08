@@ -315,7 +315,15 @@ const TestBridgePage: React.FC = () => {
           <ol className="list-decimal pl-6">
             <li>✅ First test basic HTML5 video functionality - working</li>
             <li>✅ Direct canvas implementation - complete</li>
-            <li>Next: Apply lessons to bridge adapter</li>
+            <li>✅ Apply lessons to bridge adapter - complete
+              <ul className="list-disc pl-6 text-sm">
+                <li>Fixed video source URL handling</li>
+                <li>Improved canvas/video visibility toggling</li>
+                <li>Enhanced canvasRef optional chaining</li>
+                <li>Added mediaUrl and localMediaUrl support</li>
+              </ul>
+            </li>
+            <li>Next: Test integrated components with the bridge adapter</li>
           </ol>
         </div>
       </div>

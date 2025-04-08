@@ -4,7 +4,9 @@ import { VideoContext, VideoContextValue } from './VideoContext';
 interface UseBridgeAdapterProps {
   videoRef: MutableRefObject<HTMLVideoElement | null>;
   canvasRef?: MutableRefObject<HTMLCanvasElement | null>;
-  videoSrc: string;
+  videoSrc?: string;
+  mediaUrl?: string;
+  localMediaUrl?: string;
   onReady?: () => void;
   onError?: (error: Error) => void;
   onTimeUpdate?: (time: number) => void;
@@ -14,7 +16,9 @@ interface UseBridgeAdapterProps {
 export function useBridgeAdapter({
   videoRef,
   canvasRef,
-  videoSrc,
+  videoSrc: externalVideoSrc,
+  mediaUrl,
+  localMediaUrl,
   onReady,
   onError: externalOnError,
   onTimeUpdate,
@@ -26,6 +30,9 @@ export function useBridgeAdapter({
   const [duration, setDuration] = useState(0);
   const [showFirstFrame, setShowFirstFrame] = useState(startWithFirstFrame);
   const [error, setError] = useState<Error | null>(null);
+
+  // Determine the video source - prioritize external provided source, then local, then remote
+  const videoSrc = externalVideoSrc || localMediaUrl || mediaUrl || '';
 
   // Handle errors both internally and pass to external handler if provided
   const handleError = (err: Error) => {
@@ -58,9 +65,8 @@ export function useBridgeAdapter({
         return false;
       }
 
-      // Set canvas dimensions to match video
-      canvasRef.current.width = videoElement.videoWidth;
-      canvasRef.current.height = videoElement.videoHeight;
+      // Make sure canvas dimensions match video
+      syncCanvasSize();
       
       // Draw the video frame
       context.drawImage(videoElement, 0, 0, canvasRef.current.width, canvasRef.current.height);
@@ -74,25 +80,24 @@ export function useBridgeAdapter({
   // Function to ensure canvas size matches video dimensions
   const syncCanvasSize = () => {
     const videoElement = videoRef.current;
-    // Early return if video or canvas is not available
-    if (!videoElement || !canvasRef?.current) return;
+    const canvasElement = canvasRef?.current;
     
-    if (
-      canvasRef.current.width !== videoElement.videoWidth ||
-      canvasRef.current.height !== videoElement.videoHeight
-    ) {
-      canvasRef.current.width = videoElement.videoWidth;
-      canvasRef.current.height = videoElement.videoHeight;
+    if (!videoElement || !canvasElement) return;
+    
+    if (videoElement.videoWidth && videoElement.videoHeight) {
+      canvasElement.width = videoElement.videoWidth;
+      canvasElement.height = videoElement.videoHeight;
+      return true;
     }
+    
+    return false;
   };
   
   // Handle resize events
   const handleResize = () => {
-    if (videoRef.current && canvasRef?.current) {
+    if (videoRef.current && canvasRef?.current && showFirstFrame) {
       syncCanvasSize();
-      if (showFirstFrame) {
-        drawFrameToCanvas();
-      }
+      drawFrameToCanvas();
     }
   };
 
@@ -138,23 +143,28 @@ export function useBridgeAdapter({
     };
   }, [videoRef, onTimeUpdate]);
 
-  // Toggle visibility based on showFirstFrame
+  // First frame visibility handling effect
   useEffect(() => {
-    if (!videoRef.current) return;
+    const videoElement = videoRef.current;
+    const canvasElement = canvasRef?.current;
     
-    // Make the video invisible if showing first frame
+    if (!videoElement || !canvasElement) return;
+    
     if (showFirstFrame) {
-      videoRef.current.style.display = 'none';
-      if (canvasRef?.current) {
-        canvasRef.current.style.display = 'block';
+      // When showing first frame: show canvas, hide video
+      canvasElement.style.display = 'block';
+      videoElement.style.visibility = 'hidden';
+      
+      // Draw frame if video is ready
+      if (videoElement.readyState >= 2) {
+        drawFrameToCanvas();
       }
     } else {
-      videoRef.current.style.display = 'block';
-      if (canvasRef?.current) {
-        canvasRef.current.style.display = 'none';
-      }
+      // When showing video: hide canvas, show video
+      canvasElement.style.display = 'none';
+      videoElement.style.visibility = 'visible';
     }
-  }, [showFirstFrame, videoRef, canvasRef]);
+  }, [videoRef, canvasRef, showFirstFrame, drawFrameToCanvas]);
 
   // Draw the first frame to canvas once video is ready
   useEffect(() => {
@@ -206,7 +216,7 @@ export function useBridgeAdapter({
     videoElement.addEventListener('error', onVideoError);
     
     // Set video source if changed
-    if (videoElement.src !== videoSrc) {
+    if (videoElement.src !== videoSrc && videoSrc) {
       console.log('Setting video source:', videoSrc);
       videoElement.src = videoSrc;
       setIsReady(false);
@@ -289,10 +299,14 @@ export function useBridgeAdapter({
   };
 
   const toggleFirstFrame = () => {
-    if (!showFirstFrame && canvasRef?.current) {
-      drawFrameToCanvas();
+    const canvasElement = canvasRef?.current;
+    if (!showFirstFrame && canvasElement) {
+      if (drawFrameToCanvas()) {
+        setShowFirstFrame(true);
+      }
+    } else {
+      setShowFirstFrame(false);
     }
-    setShowFirstFrame(!showFirstFrame);
   };
 
   // Return the VideoContext interface

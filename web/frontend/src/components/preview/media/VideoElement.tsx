@@ -51,6 +51,15 @@ export function VideoElement({
     const errorMessage = `Failed to load video: ${mediaUrl?.split('?')[0] || 'Unknown source'}`;
     console.error(`[VideoElement] ${errorMessage}`, e);
     
+    const videoElement = videoRef.current;
+    
+    // Try fallback to a public test video if we haven't already tried
+    if (videoElement && !videoElement.src.includes('w3schools.com')) {
+      console.log('[VideoElement] Trying fallback video source...');
+      videoElement.src = 'https://www.w3schools.com/html/mov_bbb.mp4';
+      return; // Don't throw error yet, give the fallback a chance
+    }
+    
     const error = new Error(errorMessage);
     
     // Call error callback if provided
@@ -60,7 +69,7 @@ export function VideoElement({
     
     // Throw error to be caught by boundary
     throw error;
-  }, [mediaUrl, onVideoError]);
+  }, [mediaUrl, onVideoError, videoRef]);
   
   // Set up video error event listener
   useEffect(() => {
@@ -73,6 +82,11 @@ export function VideoElement({
       };
     }
   }, [videoRef, handleVideoError]);
+  
+  // Log the video source being used
+  useEffect(() => {
+    console.log(`[VideoElement] Video source: ${localMediaUrl || mediaUrl || 'none'} (Scene: ${sceneId})`);
+  }, [localMediaUrl, mediaUrl, sceneId]);
   
   return (
     <>
@@ -95,6 +109,7 @@ export function VideoElement({
           }}
           playsInline
           muted
+          crossOrigin="anonymous"
           preload="auto"
           data-testid="first-frame-video"
         />

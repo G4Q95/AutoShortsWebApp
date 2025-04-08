@@ -25,7 +25,7 @@ export class VideoContext {
   /**
    * Initialize the video context with the given media URL
    */
-  async initialize(): Promise<void> {
+  async initialize(directUrl?: string, localUrl?: string | null): Promise<void> {
     if (!this.video) {
       this.error('Video element not set before initialization');
       throw new Error('Video element not set');
@@ -38,6 +38,20 @@ export class VideoContext {
     
     // Reset state
     this.isInitialized = false;
+
+    // If we have a URL, set it (prefer local URL if available)
+    const effectiveUrl = localUrl || directUrl;
+    if (effectiveUrl) {
+      this.log(`Setting video.src to: ${effectiveUrl}`);
+      this.video.src = effectiveUrl;
+    } else {
+      this.log('No URL provided for initialization, using existing video.src');
+      // If no URL is provided, we'll use whatever is already in the video.src
+      if (!this.video.src) {
+        this.error('No source URL available for video');
+        throw new Error('No source URL provided for video');
+      }
+    }
 
     // Wait for the video to be ready
     try {
@@ -61,13 +75,30 @@ export class VideoContext {
             : 'Unknown error';
           
           this.error(`Video load error: ${errorDetails}`, e);
+          
+          // Add more context to the error message
+          let detailedMessage = `Failed to load video: ${errorDetails}`;
+          
+          // Add source URL information (helpful for debugging)
+          if (this.video?.src) {
+            detailedMessage += ` (Source: ${this.video.src.split('?')[0]})`;
+          }
+          
           this.video?.removeEventListener('loadedmetadata', onLoadedMetadata);
           this.video?.removeEventListener('error', onError);
-          reject(new Error(`Failed to load video: ${errorDetails}`));
+          reject(new Error(detailedMessage));
         };
 
         this.video.addEventListener('loadedmetadata', onLoadedMetadata);
         this.video.addEventListener('error', onError);
+        
+        // Set a timeout to prevent hanging indefinitely
+        const timeoutId = setTimeout(() => {
+          this.error('Video metadata load timeout after 10 seconds');
+          this.video?.removeEventListener('loadedmetadata', onLoadedMetadata);
+          this.video?.removeEventListener('error', onError);
+          reject(new Error('Video load timeout'));
+        }, 10000);  // 10 second timeout
         
         // Force a load to trigger events
         this.video.load();

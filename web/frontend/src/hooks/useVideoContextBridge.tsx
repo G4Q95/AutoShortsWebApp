@@ -131,7 +131,8 @@ export function useVideoContextBridge({
           if (!sourceUrl) {
             throw new Error('No media URL provided for video source.');
           }
-          videoRef.current.src = sourceUrl;
+          // Don't set videoRef.current.src directly anymore, let the VideoContext handle it
+          // videoRef.current.src = sourceUrl;
           // ------------------------------------------------------
 
           // Create new bridge instance
@@ -148,8 +149,8 @@ export function useVideoContextBridge({
           // Store bridge instance
           bridgeRef.current = bridge;
 
-          // Initialize the bridge
-          await bridge.initialize(); // Removed URLs - src is already set
+          // Initialize the bridge, explicitly passing both URLs
+          await bridge.initialize(mediaUrl, localMediaUrl);
           
           // Notify ready state change
           setIsReady(true);
