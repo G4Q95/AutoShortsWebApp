@@ -104,58 +104,51 @@ export function useVideoContextBridge({
       canvasRefExists: !!canvasRef?.current
     });
     
-    // Skip if we don't have a mediaUrl or video element
-    if (!videoRef?.current) {
-      console.error('[Bridge Init Error]: Video element reference is not available');
-      if (onError) {
-        onError(new Error('Video element reference is not available'));
+    // Add a small delay to ensure React has had time to attach refs
+    const initTimeout = setTimeout(async () => {
+      // Check for media URL - required for initialization
+      if (!mediaUrl && !localMediaUrl) {
+        console.warn('[VideoContextBridge] No media URL provided, bridge will not be initialized');
+        return;
       }
-      return;
-    }
+      
+      const initBridge = async () => {
+        try {
+          setIsLoading(true);
+          setHasError(false);
+          setErrorMessage(null);
+          setIsReady(false);
 
-    if (!mediaUrl && !localMediaUrl) {
-      console.warn('[VideoContextBridge] No media URL provided, bridge will not be initialized');
-      return;
-    }
+          // Ensure videoRef is available
+          if (!videoRef?.current) {
+            console.warn('[Bridge Init Warning]: Video element reference not available yet, will try again on next render');
+            setIsLoading(false);
+            return;
+          }
 
-    const initBridge = async () => {
-      try {
-        setIsLoading(true);
-        setHasError(false);
-        setErrorMessage(null);
-        setIsReady(false);
+          // --- FIX: Set the video source BEFORE initialization ---
+          const sourceUrl = localMediaUrl || mediaUrl;
+          if (!sourceUrl) {
+            throw new Error('No media URL provided for video source.');
+          }
+          videoRef.current.src = sourceUrl;
+          // ------------------------------------------------------
 
-        // Ensure videoRef is available
-        if (!videoRef?.current) {
-          throw new Error('Video element reference is not available.');
-        }
-
-        // --- FIX: Set the video source BEFORE initialization ---
-        const sourceUrl = localMediaUrl || mediaUrl;
-        if (!sourceUrl) {
-          throw new Error('No media URL provided for video source.');
-        }
-        videoRef.current.src = sourceUrl;
-        // ------------------------------------------------------
-
-        // Create new bridge instance
-        const bridge = new VideoContext();
-        
-        // Set the video and canvas elements
-        if (videoRef?.current) {
+          // Create new bridge instance
+          const bridge = new VideoContext();
+          
+          // Set the video element
           bridge.setVideo(videoRef.current);
-        }
-        
-        if (canvasRef.current) {
-          bridge.setCanvas(canvasRef.current);
-        }
+          
+          // Optional: Set canvas if available
+          if (canvasRef?.current) {
+            bridge.setCanvas(canvasRef.current);
+          }
 
-        // Store bridge instance
-        bridgeRef.current = bridge;
+          // Store bridge instance
+          bridgeRef.current = bridge;
 
-        // Only initialize if we have a mediaUrl (redundant check now, but safe)
-        if (mediaUrl) { 
-          // Wait for bridge to be ready (initialize now just sets up listeners)
+          // Initialize the bridge
           await bridge.initialize(); // Removed URLs - src is already set
           
           // Notify ready state change
@@ -169,27 +162,26 @@ export function useVideoContextBridge({
             setDuration(durationValue);
             onDurationChange?.(durationValue);
           }
+
+          setIsLoading(false);
+        } catch (err) {
+          console.error('[Bridge Init Error]:', err);
+          setHasError(true);
+          const errorMsg = err instanceof Error ? err.message : 'Unknown error during bridge initialization';
+          setErrorMessage(errorMsg);
+          setIsReady(false);
+          onError?.(err instanceof Error ? err : new Error('Bridge initialization failed'));
+          setIsLoading(false);
         }
+      };
 
-        setIsLoading(false);
-      } catch (err) {
-        console.error('[Bridge Init Error]:', err);
-        setHasError(true);
-        const errorMsg = err instanceof Error ? err.message : 'Unknown error during bridge initialization';
-        setErrorMessage(errorMsg);
-        setIsReady(false);
-        onError?.(err instanceof Error ? err : new Error('Bridge initialization failed'));
-        setIsLoading(false);
-      }
-    };
-
-    // Only initialize if we have the necessary elements
-    if (canvasRef.current) {
-      initBridge();
-    }
+      // Initialize regardless of canvas availability
+      await initBridge();
+    }, 100); // Add a short delay to let React finish rendering
 
     // Cleanup
     return () => {
+      clearTimeout(initTimeout);
       if (bridgeRef.current) {
         bridgeRef.current.destroy();
         bridgeRef.current = null;

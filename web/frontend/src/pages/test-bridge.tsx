@@ -309,11 +309,15 @@ const TestBridgePage: React.FC = () => {
         </div>
       </div>
       
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-2">Implementation Plan</h2>
-        <p>1. ✅ First test basic HTML5 video functionality - working</p>
-        <p>2. 🟡 Direct canvas implementation - in progress</p>
-        <p>3. Next: Apply lessons to bridge adapter</p>
+      <div className="grid grid-cols-1 gap-4 mb-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Implementation Plan</h2>
+          <ol className="list-decimal pl-6">
+            <li>✅ First test basic HTML5 video functionality - working</li>
+            <li>✅ Direct canvas implementation - complete</li>
+            <li>Next: Apply lessons to bridge adapter</li>
+          </ol>
+        </div>
       </div>
     </div>
   );

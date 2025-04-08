@@ -39,42 +39,50 @@ export function useBridgeAdapter({
   // Function to draw the current frame to canvas
   const drawFrameToCanvas = () => {
     const videoElement = videoRef.current;
-    const canvas = canvasRef?.current;
     
-    if (!videoElement || !canvas) {
-      console.log('Missing video or canvas element for drawing frame');
-      return;
+    if (!videoElement) {
+      console.log('Missing video element for drawing frame');
+      return false;
+    }
+    
+    // Early return if canvas is not available
+    if (!canvasRef?.current) {
+      console.log('No canvas element available for drawing frame');
+      return false;
     }
 
     try {
-      const context = canvas.getContext('2d');
+      const context = canvasRef.current.getContext('2d');
       if (!context) {
         console.error('Could not get 2D context from canvas');
-        return;
+        return false;
       }
 
       // Set canvas dimensions to match video
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
+      canvasRef.current.width = videoElement.videoWidth;
+      canvasRef.current.height = videoElement.videoHeight;
       
       // Draw the video frame
-      context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      context.drawImage(videoElement, 0, 0, canvasRef.current.width, canvasRef.current.height);
+      return true;
     } catch (err) {
       console.error('Error drawing frame to canvas:', err);
+      return false;
     }
   };
 
   // Function to ensure canvas size matches video dimensions
   const syncCanvasSize = () => {
     const videoElement = videoRef.current;
-    if (videoElement && canvasRef?.current) {
-      if (
-        canvasRef.current.width !== videoElement.videoWidth ||
-        canvasRef.current.height !== videoElement.videoHeight
-      ) {
-        canvasRef.current.width = videoElement.videoWidth;
-        canvasRef.current.height = videoElement.videoHeight;
-      }
+    // Early return if video or canvas is not available
+    if (!videoElement || !canvasRef?.current) return;
+    
+    if (
+      canvasRef.current.width !== videoElement.videoWidth ||
+      canvasRef.current.height !== videoElement.videoHeight
+    ) {
+      canvasRef.current.width = videoElement.videoWidth;
+      canvasRef.current.height = videoElement.videoHeight;
     }
   };
   
