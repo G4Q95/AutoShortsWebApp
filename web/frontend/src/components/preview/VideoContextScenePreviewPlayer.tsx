@@ -227,8 +227,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setIsPlaying,
     currentTime,
     setCurrentTime,
-    visualTime,
-    setVisualTime,
   } = usePlaybackState(); 
 
   // --- Initialize Bridge FIRST --- 
@@ -285,7 +283,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     audioRef,
     isPlaying,
     onTrimChange,
-    setVisualTime,
     setCurrentTime,
     setIsPlaying,
     forceResetOnPlayRef,
@@ -366,9 +363,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Update React state (visuals) immediately at the start
     if (wasReset) {
-      console.log(`[DEBUG][handlePlay] Applying reset state: setCurrentTime/setVisualTime to ${startTime.toFixed(3)}`); // LOG
+      console.log(`[DEBUG][handlePlay] Applying reset state: setCurrentTime to ${startTime.toFixed(3)}`); // LOG
       setCurrentTime(startTime);
-      setVisualTime(startTime);
     }
     
     // If we're at the end, or need to reset, set time explicitly
@@ -472,7 +468,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       bridge, 
       currentTime, trimStart,
       audioUrl, audioRef,
-      setCurrentTime, setVisualTime,
+      setCurrentTime,
       setIsPlayingWithLog,
       forceResetOnPlayRef, mediaType,
       justResetRef,
@@ -486,7 +482,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (isImageType(mediaType)) {
       const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd); // Read trim state
       setCurrentTime(clampedTime); // Use setter from hook
-      setVisualTime(clampedTime); // *** ADDED: Update visual time immediately ***
       
       if (imageTimerRef.current) {
         clearInterval(imageTimerRef.current);
@@ -510,7 +505,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Update React state
     setCurrentTime(clampedTime); // Use setter from hook
-    setVisualTime(clampedTime); // *** ADDED: Update visual time immediately ***
     
     // Update separate audio element if present
     if (audioRef.current) {
@@ -522,7 +516,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   }, [
     trimStart, trimEnd, // Read state from trim hook
-    setCurrentTime, setVisualTime, // *** ADDED setVisualTime to dependencies ***
+    setCurrentTime,
     setIsPlayingWithLog, // Other callbacks
     audioRef, mediaType, imageTimerRef, forceResetOnPlayRef,
     bridge // *** ADDED bridge dependency ***
@@ -542,7 +536,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       
       // Only update visual time if not dragging scrubber
       if (!isDraggingScrubber) {
-        setVisualTime(newTime);
+        setCurrentTime(newTime);
       }
     },
     onPause: handlePause,
@@ -672,9 +666,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     const clampedTime = Math.max(0, Math.min(newTime, duration));
     
     // Update visual time immediately
-    setVisualTime(clampedTime);
+    setCurrentTime(clampedTime);
     
-  }, [isDraggingScrubber, duration, videoRef, setVisualTime]); // Dependencies
+  }, [isDraggingScrubber, duration, videoRef, setCurrentTime]); // Dependencies
 
   const handleScrubberDragStart = useCallback(() => {
     setIsDraggingScrubber(true);
@@ -682,14 +676,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       handlePause(); // Pause playback when scrubbing starts
     }
     if (!isDraggingScrubber) {
-      setOriginalPlaybackTime(visualTime); // Store time before drag
+      setOriginalPlaybackTime(currentTime); // Store time before drag
     }
-  }, [isPlaying, isDraggingScrubber, visualTime, handlePause, setIsDraggingScrubber, setOriginalPlaybackTime]);
+  }, [isPlaying, isDraggingScrubber, currentTime, handlePause, setIsDraggingScrubber, setOriginalPlaybackTime]);
 
   const handleScrubberDragEnd = useCallback(() => {
     if (!isDraggingScrubber) return; // Only act if we were dragging
     
-    let finalTime = visualTime; 
+    let finalTime = currentTime; 
 
     // Clamp the final time just in case
     finalTime = Math.max(0, Math.min(finalTime, duration));
@@ -699,8 +693,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Clean up dragging state
     setIsDraggingScrubber(false);
   }, [
-    isDraggingScrubber, visualTime, duration, videoRef, // Add duration and videoRef
-    setCurrentTime, setVisualTime, // Playback hook state setters
+    isDraggingScrubber, currentTime, duration, videoRef, // Add duration and videoRef
+    setCurrentTime,
     forceResetOnPlayRef, setIsDraggingScrubber // Other refs/setters
   ]);
   
@@ -944,7 +938,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           }
         }
         setCurrentTime(0);
-        setVisualTime(0);
+        return;
       }
     };
     
@@ -954,7 +948,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       if (!isDraggingScrubber) {
         console.log(`[VideoElement] Time update: ${video.currentTime.toFixed(2)}s / ${video.duration.toFixed(2)}s`);
         setCurrentTime(video.currentTime);
-        setVisualTime(video.currentTime);
       }
     };
     
@@ -1027,7 +1020,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     isPlaying, mediaType, localMediaUrl, // Core state/props
     videoRef, canvasRef, // Refs
     isDraggingScrubber, // Interaction state
-    setDuration, setIsReady, setTrimEnd, userTrimEndRef, trimManuallySet, setCurrentTime, setVisualTime // Setters
+    setDuration, setIsReady, setTrimEnd, userTrimEndRef, trimManuallySet, setCurrentTime // Setters
   ]);
   
   // Effect to clear image timer on unmount
@@ -1209,7 +1202,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           // Lock Button
           onLockToggle={handleLockToggle}
           // Timeline
-          visualTime={visualTime}
+          visualTime={currentTime}
           duration={duration}
           trimStart={trimStart}
           effectiveTrimEnd={getEffectiveTrimEnd()}

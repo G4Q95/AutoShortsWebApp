@@ -8,8 +8,8 @@ interface UsePlaybackStateReturn {
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   currentTime: number;
   setCurrentTime: React.Dispatch<React.SetStateAction<number>>;
-  visualTime: number;
-  setVisualTime: React.Dispatch<React.SetStateAction<number>>;
+  // visualTime: number;
+  // setVisualTime: React.Dispatch<React.SetStateAction<number>>;
 }
 
 /**
@@ -22,7 +22,7 @@ interface UsePlaybackStateReturn {
 export function usePlaybackState({}: UsePlaybackStateProps = {}): UsePlaybackStateReturn {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
-  const [visualTime, setVisualTime] = useState<number>(0);
+  // const [visualTime, setVisualTime] = useState<number>(0);
 
   // Effect to sync visualTime will remain in parent for now,
   // Or could be added here if needed later, depending on currentTime dependency.
@@ -32,7 +32,7 @@ export function usePlaybackState({}: UsePlaybackStateProps = {}): UsePlaybackSta
     setIsPlaying,
     currentTime,
     setCurrentTime,
-    visualTime,
-    setVisualTime,
+    // visualTime,
+    // setVisualTime,
   };
 } 
