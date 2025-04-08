@@ -73,6 +73,15 @@ export function useVideoContextBridge({
   onError,
   onTimeUpdate
 }: UseVideoContextBridgeProps): UseVideoContextBridgeReturn {
+  console.log('[VideoContextBridge] Initializing with:', { 
+    mediaUrl, 
+    localMediaUrl, 
+    mediaType, 
+    showFirstFrame,
+    hasVideoRef: !!videoRef?.current,
+    hasCanvasRef: !!canvasRef?.current
+  });
+
   // Internal state
   const [isReady, setIsReady] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -86,11 +95,29 @@ export function useVideoContextBridge({
 
   // Initialize bridge instance
   useEffect(() => {
-    // Skip if we don't have all required dependencies
-    if (!canvasRef.current || !mediaUrl) {
+    console.log('[VideoContextBridge] Setting up bridge adapter with media:', { 
+      mediaUrl, 
+      localMediaUrl,
+      effectiveUrl: localMediaUrl || mediaUrl,
+      mediaType,
+      videoRefExists: !!videoRef?.current,
+      canvasRefExists: !!canvasRef?.current
+    });
+    
+    // Skip if we don't have a mediaUrl or video element
+    if (!videoRef?.current) {
+      console.error('[Bridge Init Error]: Video element reference is not available');
+      if (onError) {
+        onError(new Error('Video element reference is not available'));
+      }
       return;
     }
-    
+
+    if (!mediaUrl && !localMediaUrl) {
+      console.warn('[VideoContextBridge] No media URL provided, bridge will not be initialized');
+      return;
+    }
+
     const initBridge = async () => {
       try {
         setIsLoading(true);
@@ -169,6 +196,20 @@ export function useVideoContextBridge({
       }
     };
   }, [canvasRef, videoRef, mediaUrl, localMediaUrl, onIsReadyChange, onDurationChange, onError, onReady]);
+
+  // Log when bridge adapter is ready or has errors
+  useEffect(() => {
+    console.log('[VideoContextBridge] Bridge adapter state updated:', {
+      isReady: isReady,
+      isPlaying: isReady,
+      duration: duration,
+      errorMessage: errorMessage
+    });
+    
+    if (errorMessage) {
+      console.error('[VideoContextBridge] Bridge adapter error:', errorMessage);
+    }
+  }, [isReady, duration, errorMessage]);
 
   // Bridge actions
   const play = useCallback(async () => {
