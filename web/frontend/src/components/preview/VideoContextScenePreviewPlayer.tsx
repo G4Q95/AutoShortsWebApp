@@ -184,7 +184,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const imageTimerRef = useRef<number | null>(null);
   
   // VideoContext state
-  const [videoContext, setVideoContext] = useState<any>(null);
   const [duration, setDuration] = useState<number>(() => isImageType(mediaType) ? 30 : 0);
   const [isReady, setIsReady] = useState<boolean>(false);
   
@@ -218,6 +217,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   // *** ADDED: Ref to track if playback was just reset ***
   const justResetRef = useRef<boolean>(false);
 
+  // --- Ref for throttling seek calls during drag ---
+  const throttleSeekTimer = useRef<NodeJS.Timeout | null>(null);
+  const SEEK_THROTTLE_MS = 100; // Seek at most every 100ms during drag
+
   // --- Playback State ---
   const {
     isPlaying,
@@ -226,10 +229,39 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setCurrentTime,
     visualTime,
     setVisualTime,
-  } = usePlaybackState();
+  } = usePlaybackState(); 
+
+  // --- Initialize Bridge FIRST --- 
+  // Initialize the bridge hook *before* callbacks that use it
+  const bridge = useVideoContextBridge({
+    canvasRef,
+    videoRef,
+    localMediaUrl,
+    mediaType,
+    initialMediaAspectRatio,
+    onReady: useCallback(() => {
+      console.log("[VideoContextScenePreviewPlayer] Bridge reported ready.");
+      setIsReady(true);
+    }, [setIsReady]), 
+    onError: useCallback((error: Error) => {
+      console.error("[VideoContextScenePreviewPlayer] Bridge reported error:", error);
+      setIsLoading(false); // Ensure loading stops on error
+      setIsReady(false);
+      // Error UI is handled by MediaErrorBoundary
+    }, [setIsLoading, setIsReady]), 
+    onDurationChange: useCallback((newDuration: number) => {
+      console.log(`[VideoContextScenePreviewPlayer] Bridge reported duration change: ${newDuration}`);
+      // SIMPLIFY: Just set the duration state here
+      if (newDuration && isFinite(newDuration) && newDuration > 0) {
+        setDuration(newDuration);
+      } else {
+        console.warn(`[DurationChange Callback] Received invalid duration: ${newDuration}. Ignoring.`);
+      }
+    }, [setDuration]), // Only depends on setDuration now
+  });
   
-  // --- Other Hooks --- 
-  const {
+  // --- Other Hooks (Now after Bridge) --- 
+  const { 
     trimStart,
     setTrimStart,
     trimEnd,
@@ -249,23 +281,34 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     initialDuration: duration,
     containerRef,
     duration,
-    videoContext,
+    videoContext: bridge.videoContext,
     audioRef,
     isPlaying,
     onTrimChange,
     setVisualTime,
     setCurrentTime,
-    setIsPlaying, // Pass direct setter here
+    setIsPlaying,
     forceResetOnPlayRef,
-    videoRef, // <<< ADD THIS LINE
+    videoRef,
   });
   
-  // *** ADDED: Ref to track trimManuallySet state ***
+  // *** ADDED: Ref to track trimManuallySet state (Moved Earlier) ***
   const trimManuallySetRef = useRef(trimManuallySet);
   useEffect(() => {
     trimManuallySetRef.current = trimManuallySet;
     console.log(`[VCSPP] trimManuallySetRef updated to: ${trimManuallySetRef.current}`);
   }, [trimManuallySet]);
+  
+  // --- Effect to update Trim based on Duration --- 
+  useEffect(() => {
+    // Only update trim if duration is valid and trim wasn't manually set
+    if (duration > 0 && !trimManuallySetRef.current) {
+      setTrimEnd(duration);
+      if (userTrimEndRef.current === null || userTrimEndRef.current === 0) {
+        userTrimEndRef.current = duration;
+      }
+    }
+  }, [duration, trimManuallySetRef, setTrimEnd, userTrimEndRef]); // Dependencies
   
   const {
     mediaElementStyle,
@@ -275,45 +318,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     projectAspectRatio,
     showLetterboxing,
     mediaType,
-    videoContext,
-  });
-
-  // Initialize the bridge hook *before* callbacks that use it
-  const bridge = useVideoContextBridge({
-    videoContextInstance: videoContext,
-    canvasRef,
-    localMediaUrl,
-    mediaType,
-    initialMediaAspectRatio,
-    // Pass placeholder callbacks for now
-    onReady: useCallback(() => {
-      console.log("[VideoContextScenePreviewPlayer] Bridge reported ready.");
-      setIsReady(true);
-    }, [setIsReady]), 
-    onError: useCallback((error: Error) => {
-      console.error("[VideoContextScenePreviewPlayer] Bridge reported error:", error);
-      setIsLoading(false); // Ensure loading stops on error
-      setIsReady(false);
-      // Error UI is handled by MediaErrorBoundary
-    }, [setIsLoading, setIsReady]), 
-    onDurationChange: useCallback((newDuration: number) => {
-      console.log(`[VideoContextScenePreviewPlayer] Bridge reported duration change: ${newDuration}`);
-      // Prevent duration being set to 0 or NaN
-      if (newDuration && isFinite(newDuration) && newDuration > 0) {
-        setDuration(newDuration);
-        // *** FIX: Use ref to check the LATEST manual set status ***
-        if (!trimManuallySetRef.current) {
-          console.log(`[DurationChange] Updating trimEnd to new duration (manual set ref is false): ${newDuration}`);
-          setTrimEnd(newDuration); 
-          userTrimEndRef.current = newDuration; // Update ref as well
-        } else {
-          console.log(`[DurationChange] Ignoring duration update as trim was manually set (ref is true).`);
-        }
-      } else {
-        console.warn(`[DurationChange] Received invalid duration: ${newDuration}. Ignoring.`);
-      }
-      // No longer need trimEnd in dependency array
-    }, [setDuration, setTrimEnd, userTrimEndRef]), // REMOVED trimManuallySet, now reading from ref
+    videoContext: bridge.videoContext,
   });
 
   // --- CALLBACKS & HANDLERS --- 
@@ -493,10 +498,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       return;
     }
     
-    // Use original videoContext for now, will be moved later
-    const currentVideoContext = videoContext; 
-    if (!currentVideoContext) return;
-    
     const clampedTime = Math.min(Math.max(newTime, trimStart), trimEnd); // Read trim state
     
     // *** FIX: Call bridge.seek instead of setting context directly ***
@@ -520,7 +521,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
        }
     }
   }, [
-    videoContext, // Keep original dependency for now
     trimStart, trimEnd, // Read state from trim hook
     setCurrentTime, setVisualTime, // *** ADDED setVisualTime to dependencies ***
     setIsPlayingWithLog, // Other callbacks
@@ -550,14 +550,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     animationFrameRef,
     forceResetOnPlayRef,
     // Additional needed properties
-    videoContext,
     audioRef,
     isDraggingScrubber,
     userTrimEndRef,
     // *** ADDED: Pass the new ref ***
     justResetRef,
   });
-
+  
   // Function to get local media URL
   const getLocalMedia = useCallback(async () => {
     if (!mediaUrl) return;
@@ -612,138 +611,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     }
   }, [isPlaying, audioUrl, audioRef, mediaType]); // Added mediaType dependency
   
-  // VideoContext initialization
-  useEffect(() => {
-    console.log('[INIT DEBUG] VideoContext initialization effect running');
-    const canvas = canvasRef.current;
-    if (!canvas || !containerRef.current || !localMediaUrl || !isVideoType(mediaType)) {
-      console.log(`[INIT DEBUG] Early return conditions: canvas=${!!canvas}, container=${!!containerRef.current}, localMediaUrl=${!!localMediaUrl}, isVideo=${isVideoType(mediaType)}`);
-      return; // Bail out if refs not ready, no local URL, or not a video
-    }
-
-    console.log(`[INIT DEBUG] Continuing with VideoContext initialization for media: ${localMediaUrl}`);
-    let isMounted = true; // Track mount status
-
-    const baseSize = 1920;
-    let canvasWidth: number, canvasHeight: number;
-    
-    // Store the current bridge reference to use in async code
-    const currentBridge = bridge;
-    // Store the current context to avoid dependency issues
-    const currentVideoContext = videoContext;
-
-    const initVideoContext = async () => {
-      console.log('[INIT DEBUG] initVideoContext starting');
-      try {
-        // Clean up existing context if any
-        if (currentVideoContext) {
-          console.log('[INIT DEBUG] Cleaning up existing VideoContext');
-          try {
-            currentVideoContext.reset();
-            if (typeof currentVideoContext.dispose === 'function') {
-              currentVideoContext.dispose();
-            }
-          } catch (cleanupError) {
-            console.error(`[INIT-DEBUG] Error during context cleanup:`, cleanupError);
-          }
-          if (isMounted) setVideoContext(null);
-        }
-        
-        // Dynamically import VideoContext
-        console.log('[INIT DEBUG] Importing VideoContext module');
-        const VideoContextModule = await import('videocontext');
-        const VideoContext = VideoContextModule.default || VideoContextModule;
-        
-        // Use initialMediaAspectRatio from props if available, otherwise use a default
-        const initialRatioForCanvas = initialMediaAspectRatio || (9 / 16);
-        if (initialRatioForCanvas >= 1) {
-          canvasWidth = baseSize;
-          canvasHeight = Math.round(baseSize / initialRatioForCanvas);
-        } else {
-          canvasHeight = baseSize;
-          canvasWidth = Math.round(baseSize * initialRatioForCanvas);
-        }
-        
-        console.log(`[INIT DEBUG] Setting canvas dimensions: ${canvasWidth}x${canvasHeight}`);
-        // Set canvas internal resolution
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
-
-        console.log('[INIT DEBUG] Creating new VideoContext instance');
-        const ctx = new VideoContext(canvas);
-        if (!ctx) throw new Error('Failed to create VideoContext instance');
-        console.log('[INIT DEBUG] VideoContext created successfully:', ctx);
-        if (!isMounted) {
-          // If unmounted during async work, clean up the context
-          try {
-            ctx.reset();
-            if (typeof ctx.dispose === 'function') ctx.dispose();
-          } catch (e) {}
-          return null;
-        }
-        setVideoContext(ctx);
-
-        let sourceNode: any = null; // Variable to hold the source node
-        if (mediaType === 'video') {
-          // *** CALL THE BRIDGE TO CREATE THE SOURCE NODE ***
-          console.log('[INIT DEBUG] Calling bridge.createVideoSourceNode');
-          sourceNode = currentBridge.createVideoSourceNode(ctx);
-          console.log('[INIT DEBUG] Source node creation result:', !!sourceNode);
-          if (!sourceNode) {
-             // Error handling is done within the bridge method, just log here if needed
-             console.error("[VideoCtx Init] Bridge failed to create source node.");
-             if (isMounted) {
-               setIsLoading(false);
-               setIsReady(false);
-             }
-             // Potentially throw or return early if source creation is critical
-             return null; // Indicate failure
-          }
-        }
-        
-        // Return the context and the source node (if created)
-        console.log('[INIT DEBUG] initVideoContext complete, returning results');
-        return {
-          context: ctx,
-          source: sourceNode
-        };
-      } catch (error) {
-        console.error('[INIT DEBUG] Error in initVideoContext:', error);
-        if (isMounted) {
-            setIsLoading(false);
-            setIsReady(false);
-        }
-        return null;
-      }
-    };
-    
-    // Run initialization and handle results
-    console.log('[INIT DEBUG] Starting VideoContext setup promise');
-    const setupPromise = initVideoContext();
-    
-    setupPromise.then(result => {
-      console.log('[INIT DEBUG] Setup promise resolved:', result ? 'successfully' : 'failed');
-      if (!isMounted) return;
-      if (result && result.context) {
-        console.log('[INIT DEBUG] Setup succeeded with context:', result.context);
-      } else {
-        console.log('[INIT DEBUG] Setup did not produce a valid context');
-        setIsReady(false); // Ensure ready is false if setup failed
-      }
-    }).catch(error => {
-      console.error('[INIT DEBUG] Setup promise rejected:', error);
-      if (!isMounted) return;
-      setIsReady(false);
-      setIsLoading(false); // Ensure loading is false on promise rejection
-    });
-    
-    // Cleanup function
-    return () => {
-      console.log('[INIT DEBUG] VideoContext initialization effect cleanup');
-      isMounted = false; // Mark as unmounted
-    };
-  }, [localMediaUrl, mediaType, sceneId, initialMediaAspectRatio, setVideoContext, setDuration, setTrimEnd, userTrimEndRef, setCurrentTime]); // REMOVED videoContext dependency
-  
   // After the existing VideoContext initialization hook, add a new test hook for the bridge's prepareVideoContext method
   useEffect(() => {
     // Only run this test if the component is mounted and we have the necessary dependencies
@@ -782,7 +649,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         } else {
           console.warn('[VideoCtx Test] Bridge failed to prepare context');
         }
-      } catch (error) {
+    } catch (error) {
         if (!isMounted) return;
         console.error('[VideoCtx Test] Error testing bridge.prepareVideoContext():', error);
       }
@@ -795,7 +662,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     return () => {
       isMounted = false;
     };
-  // Remove bridge from dependency array to prevent infinite loops  
   }, [canvasRef, localMediaUrl, mediaType]); // REMOVED bridge dependency
   
   // --- Scrubber Drag Handlers (TimelineControl) --- 
@@ -808,23 +674,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Update visual time immediately
     setVisualTime(clampedTime);
     
-    // *** ADDED: Update actual video time for live scrubbing ***
-    if (videoRef.current) {
-      try {
-        videoRef.current.currentTime = clampedTime;
-      } catch (e) {
-        console.warn("[ScrubberDrag] Error setting video element time:", e);
-      }
-    }
-    if (videoContext) { // Also update context if available
-      try {
-        videoContext.currentTime = clampedTime;
-      } catch (e) {
-        console.warn("[ScrubberDrag] Error setting video context time:", e);
-      }
-    }
-    
-  }, [isDraggingScrubber, duration, videoRef, videoContext, setVisualTime]); // Dependencies
+  }, [isDraggingScrubber, duration, videoRef, setVisualTime]); // Dependencies
 
   const handleScrubberDragStart = useCallback(() => {
     setIsDraggingScrubber(true);
@@ -851,7 +701,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   }, [
     isDraggingScrubber, visualTime, duration, videoRef, // Add duration and videoRef
     setCurrentTime, setVisualTime, // Playback hook state setters
-    bridge, // Use bridge object itself
     forceResetOnPlayRef, setIsDraggingScrubber // Other refs/setters
   ]);
   
@@ -870,12 +719,31 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       const percent = Math.max(0, Math.min(1, x / width));
       const newTime = percent * duration;
       
-      // Call the existing move handler
+      // Call the existing move handler to update visual time immediately
       handleScrubberDragMove(newTime);
+
+      // --- Throttled Seek for Live Preview ---
+      if (!throttleSeekTimer.current) {
+        // Log before calling bridge seek
+        console.log(`[VCSPP ScrubberDrag] Throttled: Calling bridge.seek(${newTime.toFixed(3)})`);
+        // Call seek immediately if no timer is running
+        bridge.seek(newTime);
+        // Set a timer to prevent further seeks for a short period
+        throttleSeekTimer.current = setTimeout(() => {
+          throttleSeekTimer.current = null; // Clear the timer ref
+        }, SEEK_THROTTLE_MS);
+      }
+      // --- End Throttled Seek ---
     };
 
     const handleGlobalMouseUp = () => {
-      handleScrubberDragEnd(); // Call the existing end handler
+      // Ensure any pending throttle is cleared on mouse up
+      if (throttleSeekTimer.current) {
+        clearTimeout(throttleSeekTimer.current);
+        throttleSeekTimer.current = null;
+      }
+      // Call the existing end handler (which will do a final accurate seek)
+      handleScrubberDragEnd(); 
     };
 
     // Add listeners to the document
@@ -895,7 +763,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     duration, 
     containerRef, // Need containerRef for position calculation
     handleScrubberDragMove, // Callback dependency
-    handleScrubberDragEnd // Callback dependency
+    handleScrubberDragEnd, // Callback dependency
+    bridge // Need bridge for seek
   ]);
   
   // Function to convert range input value to timeline position
@@ -1353,15 +1222,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           setActiveHandle={setActiveHandle}
           setTimeBeforeDrag={setTimeBeforeDrag}
           setOriginalPlaybackTime={setOriginalPlaybackTime}
-          videoContext={videoContext}
           getEffectiveTrimEnd={getEffectiveTrimEnd}
           // Time Display
           currentTime={currentTime}
           // Info Button
           showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
-          onInfoToggle={handleInfoToggle}
+        onInfoToggle={handleInfoToggle}
           // Trim Toggle Button
-          onTrimToggle={handleTrimToggle}
+        onTrimToggle={handleTrimToggle}
         />
       </MediaContainer>
     </MediaErrorBoundary>

@@ -7,16 +7,19 @@ type VideoContextInstance = any;
  * Props for the useVideoContextBridge hook
  */
 interface UseVideoContextBridgeProps {
-  // Actual VideoContext instance passed from the parent
-  videoContextInstance: VideoContextInstance | null;
+  // REMOVE: Actual VideoContext instance passed from the parent
+  // videoContextInstance: VideoContextInstance | null;
   
   // Canvas reference for rendering
   canvasRef: RefObject<HTMLCanvasElement | null>;
+  // ADD: Video element reference
+  videoRef: RefObject<HTMLVideoElement | null>; 
   localMediaUrl?: string | null;
   mediaType: string;
   initialMediaAspectRatio?: number;
   onReady?: () => void;
   onError?: (error: Error) => void;
+  // SIMPLIFY: Just report the duration, let parent handle trim logic
   onDurationChange?: (duration: number) => void;
 }
 
@@ -44,8 +47,9 @@ interface UseVideoContextBridgeReturn {
  * useVideoContextBridge - Hook to abstract VideoContext interactions
  */
 export function useVideoContextBridge({
-  videoContextInstance,
+  // REMOVE: videoContextInstance,
   canvasRef,
+  videoRef,
   localMediaUrl,
   mediaType,
   initialMediaAspectRatio,
@@ -212,6 +216,7 @@ export function useVideoContextBridge({
               console.log(`[Bridge InitEffect 'loaded'] Valid duration: ${videoDuration}. Setting state.`);
               // Use setters from hook scope captured in closure
               setDuration(videoDuration);   
+              // SIMPLIFY: Just call the callback with the duration
               onDurationChange?.(videoDuration);
               setIsReady(true);             
               onReady?.();
@@ -286,7 +291,8 @@ export function useVideoContextBridge({
   // BUT, the component's videoContextInstance SHOULD eventually be driven BY this hook's internalCtx
   const play = useCallback(() => {
     console.log("[Bridge Play] Attempting to play...");
-    const targetCtx = internalCtx || videoContextInstance; // Prefer internal if available
+    // USE INTERNAL CONTEXT ONLY
+    const targetCtx = internalCtx;
     
     // Since we confirmed source.play doesn't exist (from logs), use context directly
     if (targetCtx && typeof targetCtx.play === 'function') {
@@ -351,11 +357,12 @@ export function useVideoContextBridge({
     } else { 
       console.warn("Bridge Play: No valid context available"); 
     }
-  }, [internalCtx, videoContextInstance, onError, activeSource]);
+  }, [internalCtx, onError, activeSource]); // REMOVE videoContextInstance dependency
 
   const pause = useCallback(() => {
     console.log("[Bridge Pause] Attempting to pause...");
-    const targetCtx = internalCtx || videoContextInstance; // Prefer internal if available
+    // USE INTERNAL CONTEXT ONLY
+    const targetCtx = internalCtx;
     
     // Since we confirmed source.pause doesn't exist (from logs), use context directly
     if (targetCtx && typeof targetCtx.pause === 'function') {
@@ -371,22 +378,56 @@ export function useVideoContextBridge({
     } else { 
       console.warn("Bridge Pause: No valid context available"); 
     }
-  }, [internalCtx, videoContextInstance, onError]);
+  }, [internalCtx, onError]); // REMOVE videoContextInstance dependency
 
   const seek = useCallback((time: number) => {
-     const targetCtx = internalCtx || videoContextInstance; // Prefer internal if available
+    const targetCtx = internalCtx;
+    const targetVideo = videoRef.current; // Get video element
+
+    // Try setting time on both context and video element
+    let contextSet = false;
+    let videoSet = false;
+
     if (targetCtx && typeof targetCtx.currentTime !== 'undefined') {
       try {
         const ctxDuration = targetCtx.duration || duration;
         const clampedTime = Math.max(0, Math.min(time, ctxDuration > 0 ? ctxDuration : Infinity));
+        console.log(`[Bridge Seek] Seeking internal context to ${clampedTime.toFixed(3)} (requested: ${time.toFixed(3)})`);
         targetCtx.currentTime = clampedTime;
+        contextSet = true;
       } catch (e) { 
-        console.error("Bridge Seek Error:", e); 
-        const error = e instanceof Error ? e : new Error('Unknown playback error during seek');
+        console.error("Bridge Seek (Context) Error:", e); 
+        const error = e instanceof Error ? e : new Error('Unknown playback error during seek (context)');
         onError?.(error);
       }
-    } else { console.warn(`Bridge Seek: No context or currentTime. Time: ${time}`); }
-  }, [internalCtx, videoContextInstance, duration, onError]); // Include internalCtx
+    } else {
+      console.warn(`[Bridge Seek] Context seek skipped: No context or currentTime. Time: ${time.toFixed(3)}`);
+    }
+
+    // ALSO set time on the raw video element
+    if (targetVideo) {
+      try {
+        // Use the same clamped time calculation logic or derive from context if successful
+        const videoDuration = targetVideo.duration;
+        const clampedTime = Math.max(0, Math.min(time, isFinite(videoDuration) && videoDuration > 0 ? videoDuration : Infinity));
+        console.log(`[Bridge Seek] Seeking video element to ${clampedTime.toFixed(3)} (requested: ${time.toFixed(3)})`);
+        targetVideo.currentTime = clampedTime;
+        videoSet = true;
+      } catch (e) {
+         console.error("Bridge Seek (Video Element) Error:", e); 
+         const error = e instanceof Error ? e : new Error('Unknown playback error during seek (video element)');
+         onError?.(error);
+      }
+    } else {
+       console.warn(`[Bridge Seek] Video element seek skipped: videoRef is null.`);
+    }
+
+    // Optional: Log if either failed?
+    if (!contextSet || !videoSet) {
+        console.warn(`[Bridge Seek] Seek incomplete (context: ${contextSet}, video: ${videoSet})`);
+    }
+
+  }, [internalCtx, duration, onError, videoRef]); // ADD videoRef dependency
 
 
   // --- Memoize the return object --- 

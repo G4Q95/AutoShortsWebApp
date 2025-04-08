@@ -19,24 +19,28 @@ Simplify the data flow and interaction patterns surrounding `VideoContext` to cr
 
 The following steps will be taken to refactor the interaction logic:
 
-### Step 1: Consolidate Time Updates via Bridge
+### Step 1: Consolidate Time Updates via Bridge (COMPLETED)
 
-*   **Action:** Modify UI event handlers (`handleTimeUpdate`, `handleScrubberDragMove`, potentially others triggered by `TimelineControl`) in `VideoContextScenePreviewPlayer.tsx` so that they **only** call `bridge.seek()` when the user intends to change the playback time.
-*   **Remove:** Eliminate any direct setting of `videoContext.currentTime` or `videoRef.current.currentTime` from these UI interaction handlers.
+*   **Action:** Modified UI event handlers (`handleTimeUpdate`, `handleScrubberDragMove`) in `VideoContextScenePreviewPlayer.tsx` so that they **only** call `bridge.seek()` when the user intends to change the playback time.
+*   **Removed:** Eliminated direct setting of `videoContext.currentTime` or `videoRef.current.currentTime` from `handleScrubberDragMove`.
 *   **Rationale:** Ensures all seek actions go through the single bridge interface.
+*   **Outcome:** Direct manipulation removed. `handleTimeUpdate` already used `bridge.seek`. `handleScrubberDragMove` now only updates visual state during drag, actual seek happens via `handleScrubberDragEnd` -> `handleTimeUpdate` -> `bridge.seek`. *(Note: This initially broke live preview, fixed later).* 
 
-### Step 2: Make the Bridge Own the VideoContext Instance
+### Step 2: Make the Bridge Own the VideoContext Instance (COMPLETED)
 
-*   **Action:** Refactor `useVideoContextBridge.ts`.
-    *   Remove the `videoContextInstance` prop passed *into* the hook.
-    *   The hook should *always* create and manage its own internal `VideoContext` instance (`internalCtx`).
-    *   The hook should expose the necessary state derived from its internal context (e.g., `isReady`, `duration`, potentially `currentTime`).
-*   **Action:** Refactor `VideoContextScenePreviewPlayer.tsx`.
-    *   Remove the `videoContext` state variable (`useState<any>(null)`).
-    *   Rely solely on the state and methods exposed by the `bridge` hook.
+*   **Action:** Refactored `useVideoContextBridge.ts`.
+    *   Removed the `videoContextInstance` prop.
+    *   The hook now *always* creates and manages its own internal `VideoContext` instance (`internalCtx`) and uses it exclusively for operations.
+    *   The hook exposes the necessary state derived from its internal context.
+*   **Action:** Refactored `VideoContextScenePreviewPlayer.tsx`.
+    *   Removed the local `videoContext` state variable.
+    *   Removed the redundant `useEffect` responsible for local context initialization.
+    *   Updated dependent hooks (`useTrimControls`, `useMediaAspectRatio`) to receive `bridge.videoContext`.
+    *   Updated internal logic to read context state from `bridge.videoContext` where needed.
 *   **Rationale:** Enforces the bridge as the single source of truth and interaction point for `VideoContext`. Eliminates confusing dual context management.
+*   **Outcome:** Bridge hook is now the sole owner. Parent component relies only on the bridge. Interactions are centralized.
 
-### Step 3: Remove Direct `videoContext` Prop from UI Controls
+### Step 3: Remove Direct `videoContext` Prop from UI Controls (NEXT)
 
 *   **Action:** Remove the `videoContext` prop currently passed down through `PlayerControls` to `TimelineControl`.
 *   **Action:** If the trim bracket handlers in `TimelineControl` need playback state (e.g., `currentTime` for `setTimeBeforeDrag` or `setOriginalPlaybackTime`), pass the required *state variable* down as a prop from `VideoContextScenePreviewPlayer` (which gets it from the `bridge`). Alternatively, modify the relevant callbacks (`setTimeBeforeDrag`, `setOriginalPlaybackTime`) so they are handled in the parent component which has access to the bridge state.

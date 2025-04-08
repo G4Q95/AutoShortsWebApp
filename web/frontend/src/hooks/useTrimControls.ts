@@ -115,13 +115,15 @@ export function useTrimControls({
 
     if (activeHandle === 'start') {
       // If dragging start handle
-      const newStart = Math.min(newTime, trimEnd - 0.1);
+      newStart = Math.min(newTime, trimEnd - 0.1);
       setTrimStart(newStart);
       
       // Update video currentTime to match the trim start
       setCurrentTime(newStart);
       setVisualTime(newStart);
       
+      // Log direct manipulation
+      console.log(`[TrimDrag Start] Directly setting videoRef/videoContext time to ${newStart.toFixed(3)}`);
       // Also update video element directly if available
       if (videoRef.current) {
         try {
@@ -149,6 +151,8 @@ export function useTrimControls({
       setTrimEnd(newEnd);
       userTrimEndRef.current = newEnd; // Update ref when manually dragging end handle
       
+      // Log direct manipulation
+      console.log(`[TrimDrag End] Directly setting videoRef/videoContext time to ${newEnd.toFixed(3)}`);
       // Update visual time AND actual video time
       setVisualTime(newEnd); 
       if (videoRef.current) {
