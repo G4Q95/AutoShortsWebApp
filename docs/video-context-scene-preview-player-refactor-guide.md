@@ -378,3 +378,94 @@ The refactoring will be considered successful when:
 4. Playwright tests show improved stability for video interactions
 5. The component demonstrates reduced console log spam during normal operation
 6. Manual testing confirms all functionality works as expected across different media types
+
+## 9. Bridge Adapter Findings (2025-04-10)
+
+During testing of the canvas-based first frame functionality, we discovered an important issue with the bridge adapter implementation. The following key findings should inform any further refactoring:
+
+### 9.1. Bridge Adapter Issues
+
+- **Empty Source URL**: In `useBridgeAdapter.tsx`, the video source is explicitly being set to an empty string: `const sourceUrl = '';` (around line 190). This causes any loaded video to be reset, breaking playback functionality.
+
+- **Type Safety Concerns**: There are TypeScript errors related to `RefObject` types that need proper optional chaining throughout the codebase.
+
+- **Integration Complexity**: The bridge introduces additional state management complexity, especially when managing both the video element and the canvas.
+
+### 9.2. Successful Implementation Patterns
+
+Our test implementation demonstrated several successful patterns:
+
+- **Visibility Management**: Rather than recreating elements, properly toggling visibility between the video and canvas elements works reliably:
+  ```tsx
+  // When showing first frame (canvas)
+  canvasElement.style.display = 'block';
+  videoElement.style.visibility = 'hidden';
+  
+  // When showing video
+  canvasElement.style.display = 'none';
+  videoElement.style.visibility = 'visible';
+  ```
+
+- **Canvas Drawing**: The successful pattern for drawing video frames to canvas:
+  ```tsx
+  const drawFrameToCanvas = () => {
+    if (!videoRef.current || !canvasRef.current) return false;
+    
+    try {
+      const context = canvasRef.current.getContext('2d');
+      if (!context) return false;
+      
+      // Set canvas dimensions to match video
+      canvasRef.current.width = videoRef.current.videoWidth;
+      canvasRef.current.height = videoRef.current.videoHeight;
+      
+      // Draw video frame to canvas
+      context.drawImage(
+        videoRef.current,
+        0, 0,
+        canvasRef.current.width,
+        canvasRef.current.height
+      );
+      
+      return true;
+    } catch (err) {
+      console.error('Error drawing frame to canvas:', err);
+      return false;
+    }
+  };
+  ```
+
+- **State Management**: Proper state synchronization between UI controls, video element state, and canvas visibility.
+
+### 9.3. Recommended Fixes for Bridge Adapter
+
+1. **Fix the Empty Source URL**: Update `useBridgeAdapter.tsx` to use the provided media URL instead of an empty string:
+   ```tsx
+   // Change this:
+   const sourceUrl = '';
+   
+   // To this:
+   const sourceUrl = mediaUrl || '';
+   ```
+
+2. **Type Safety**: Add proper optional chaining to all `canvasRef` access points:
+   ```tsx
+   if (canvasRef?.current) {
+     // Safe to use canvasRef.current here
+   }
+   ```
+
+3. **First Frame Management**: Refactor the first frame visibility logic in `useBridgeAdapter.tsx` to follow the pattern from our test implementation.
+
+4. **Error Handling**: Improve error handling and reporting, particularly for canvas operations that may fail.
+
+### 9.4. Testing Approach
+
+The most reliable testing approach involves:
+
+1. Confirming basic video functionality works without the bridge
+2. Testing canvas drawing functionality in isolation
+3. Testing the toggle between video and first frame (canvas)
+4. Only then integrating with the bridge adapter
+
+This approach helps isolate issues and ensures each component works independently before integration.
