@@ -1,180 +1,197 @@
-import { useCallback, useState, RefObject, useEffect } from 'react';
-import { useVideoContextBridge as useNewBridge } from './useVideoContextBridge';
+import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { VideoContext } from '@/contexts/VideoContext';
 
-/**
- * Bridge adapter to provide a consistent interface between 
- * the legacy bridge and new bridge implementations
- */
+interface UseBridgeAdapterProps {
+  // DOM Refs - Allow potential null references which is how React.useRef works
+  canvasRef: RefObject<HTMLCanvasElement | null> | RefObject<HTMLCanvasElement>;
+  videoRef: RefObject<HTMLVideoElement | null> | RefObject<HTMLVideoElement>;
+  
+  // Media Info (read-only)
+  mediaUrl: string;
+  localMediaUrl?: string | null;
+  mediaType: string;
+  
+  // Visual State (read-only)
+  showFirstFrame: boolean;
+  
+  // Callbacks (for state changes)
+  onIsReadyChange?: (isReady: boolean) => void;
+  onDurationChange?: (duration: number) => void;
+  onError?: (error: Error) => void;
+  onTimeUpdate?: (time: number) => void;
+}
+
+interface UseBridgeAdapterReturn {
+  // Actions (methods only, no state)
+  play: () => Promise<void>;
+  pause: () => Promise<void>;
+  seek: (time: number) => Promise<void>;
+  
+  // Status info (derived from internal implementation)
+  isLoading: boolean;
+  hasError: boolean;
+  errorMessage: string | null;
+}
+
 export function useBridgeAdapter({
   canvasRef,
   videoRef,
   mediaUrl,
   localMediaUrl,
   mediaType,
-  initialMediaAspectRatio,
   showFirstFrame,
-  onInitialLoad,
+  onIsReadyChange,
+  onDurationChange,
   onError,
-}: {
-  canvasRef: RefObject<HTMLCanvasElement | null>;
-  videoRef: RefObject<HTMLVideoElement | null>;
-  mediaUrl: string;
-  localMediaUrl?: string | null;
-  mediaType: string;
-  initialMediaAspectRatio?: number;
-  showFirstFrame: boolean;
-  onInitialLoad?: () => void;
-  onError?: (error: Error) => void;
-}) {
-  // State that would normally be in the main component
-  const [isReady, setIsReady] = useState<boolean>(false);
-  const [duration, setDuration] = useState<number>(0);
-  const [currentTime, setCurrentTime] = useState<number>(0);
-  const [timeUpdateHandlers] = useState<Array<(time: number) => void>>([]);
-  const [durationChangeHandlers] = useState<Array<(duration: number) => void>>([]);
-
-  // Debugging
-  console.log('[BridgeAdapter] Initializing with', {
-    mediaUrl, 
-    localMediaUrl,
-    mediaType,
-    hasCanvasRef: !!canvasRef.current,
-    hasVideoRef: !!videoRef.current,
-    showFirstFrame
-  });
-
-  // Stable callbacks for the underlying bridge
-  const handleBridgeIsReadyChange = useCallback((ready: boolean) => {
-    console.log(`[BridgeAdapter] isReady changed to ${ready}`);
-    setIsReady(ready);
-    if (ready && onInitialLoad) {
-      onInitialLoad();
-    }
-  }, [onInitialLoad]); // Dependency: onInitialLoad from props
-
-  const handleBridgeDurationChange = useCallback((newDuration: number) => {
-    console.log(`[BridgeAdapter] duration changed to ${newDuration}`);
-    setDuration(newDuration);
-    durationChangeHandlers.forEach(handler => handler(newDuration));
-  }, [durationChangeHandlers]); // Dependency: Internal state
+  onTimeUpdate
+}: UseBridgeAdapterProps): UseBridgeAdapterReturn {
+  // Internal state
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
-  const handleBridgeTimeUpdate = useCallback((time: number) => {
-    setCurrentTime(time);
-    timeUpdateHandlers.forEach(handler => handler(time));
-  }, [timeUpdateHandlers]); // Dependency: Internal state
-  
-  const handleBridgeError = useCallback((error: Error) => {
-    console.error('[BridgeAdapter] Error from bridge:', error);
-    if (onError) {
-      onError(error);
-    }
-  }, [onError]); // Dependency: onError from props
+  // Keep reference to the bridge instance
+  const bridgeRef = useRef<VideoContext | null>(null);
 
-  // Create a new bridge instance
-  const bridge = useNewBridge({
-    canvasRef,
-    videoRef,
-    mediaUrl: mediaUrl || '',
-    localMediaUrl: localMediaUrl || mediaUrl || '',
-    mediaType: mediaType || 'video',
-    initialMediaAspectRatio,
-    showFirstFrame,
-    
-    // Pass stable callbacks
-    onIsReadyChange: handleBridgeIsReadyChange,
-    onDurationChange: handleBridgeDurationChange,
-    onTimeUpdate: handleBridgeTimeUpdate,
-    onError: handleBridgeError,
-  });
+  // Initialize bridge instance
+  useEffect(() => {
+    const initBridge = async () => {
+      try {
+        setIsLoading(true);
+        setHasError(false);
+        setErrorMessage(null);
 
-  // Create adapter functions to match legacy API
-  const legacyPlay = useCallback(async () => {
-    try {
-      console.log('[BridgeAdapter] Play called');
-      await bridge.play();
-      return true;
-    } catch (error) {
-      console.error('[BridgeAdapter] Play error:', error);
-      if (onError && error instanceof Error) {
-        onError(error);
-      }
-      return false;
-    }
-  }, [bridge, onError]);
+        // Create new bridge instance
+        const bridge = new VideoContext();
+        
+        // Set the video and canvas elements
+        if (videoRef.current) {
+          bridge.setVideo(videoRef.current);
+        } else {
+          throw new Error('Video element not available');
+        }
+        
+        if (canvasRef.current) {
+          bridge.setCanvas(canvasRef.current);
+        }
 
-  const legacyPause = useCallback(async () => {
-    try {
-      console.log('[BridgeAdapter] Pause called');
-      await bridge.pause();
-      return true;
-    } catch (error) {
-      console.error('[BridgeAdapter] Pause error:', error);
-      if (onError && error instanceof Error) {
-        onError(error);
-      }
-      return false;
-    }
-  }, [bridge, onError]);
+        // Store bridge instance
+        bridgeRef.current = bridge;
 
-  const legacySeek = useCallback(async (time: number) => {
-    try {
-      console.log(`[BridgeAdapter] Seek called with time ${time}`);
-      await bridge.seek(time);
-      return true;
-    } catch (error) {
-      console.error('[BridgeAdapter] Seek error:', error);
-      if (onError && error instanceof Error) {
-        onError(error);
-      }
-      return false;
-    }
-  }, [bridge, onError]);
+        // Wait for bridge to be ready
+        await bridge.initialize(mediaUrl, localMediaUrl);
+        
+        // Notify ready state change
+        onIsReadyChange?.(true);
+        
+        // Get and notify duration
+        const duration = bridge.getDuration();
+        if (duration) {
+          onDurationChange?.(duration);
+        }
 
-  // Add helper methods for event handling
-  const registerTimeUpdateHandler = useCallback((handler: (time: number) => void) => {
-    if (!timeUpdateHandlers.includes(handler)) {
-      timeUpdateHandlers.push(handler);
-    }
-    return () => {
-      const index = timeUpdateHandlers.indexOf(handler);
-      if (index !== -1) {
-        timeUpdateHandlers.splice(index, 1);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('[Bridge Init Error]:', err);
+        setHasError(true);
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error during bridge initialization';
+        setErrorMessage(errorMsg);
+        onError?.(err instanceof Error ? err : new Error('Bridge initialization failed'));
+        setIsLoading(false);
       }
     };
-  }, [timeUpdateHandlers]);
 
-  const registerDurationChangeHandler = useCallback((handler: (duration: number) => void) => {
-    if (!durationChangeHandlers.includes(handler)) {
-      durationChangeHandlers.push(handler);
-    }
+    initBridge();
+
+    // Cleanup
     return () => {
-      const index = durationChangeHandlers.indexOf(handler);
-      if (index !== -1) {
-        durationChangeHandlers.splice(index, 1);
+      if (bridgeRef.current) {
+        bridgeRef.current.destroy();
+        bridgeRef.current = null;
       }
     };
-  }, [durationChangeHandlers]);
+  }, [canvasRef, videoRef, mediaUrl, localMediaUrl, onIsReadyChange, onDurationChange, onError]);
 
-  // Return an object that mimics the legacy bridge interface
+  // Bridge actions
+  const play = useCallback(async () => {
+    if (showFirstFrame) {
+      console.warn('[Bridge] Cannot play - canvas is hidden! Check component state.');
+      return Promise.reject(new Error('Canvas not visible'));
+    }
+
+    if (!bridgeRef.current) {
+      console.error('[Bridge] No bridge instance available');
+      return Promise.reject(new Error('Bridge not initialized'));
+    }
+
+    try {
+      await bridgeRef.current.play();
+      return Promise.resolve();
+    } catch (err) {
+      console.error('[Bridge Play Error]:', err);
+      const error = err instanceof Error ? err : new Error('Play failed');
+      onError?.(error);
+      return Promise.reject(error);
+    }
+  }, [showFirstFrame, onError]);
+
+  const pause = useCallback(async () => {
+    if (!bridgeRef.current) {
+      console.error('[Bridge] No bridge instance available');
+      return Promise.reject(new Error('Bridge not initialized'));
+    }
+
+    try {
+      await bridgeRef.current.pause();
+      return Promise.resolve();
+    } catch (err) {
+      console.error('[Bridge Pause Error]:', err);
+      const error = err instanceof Error ? err : new Error('Pause failed');
+      onError?.(error);
+      return Promise.reject(error);
+    }
+  }, [onError]);
+
+  const seek = useCallback(async (time: number) => {
+    if (!bridgeRef.current) {
+      console.error('[Bridge] No bridge instance available');
+      return Promise.reject(new Error('Bridge not initialized'));
+    }
+
+    try {
+      await bridgeRef.current.seek(time);
+      return Promise.resolve();
+    } catch (err) {
+      console.error('[Bridge Seek Error]:', err);
+      const error = err instanceof Error ? err : new Error('Seek failed');
+      onError?.(error);
+      return Promise.reject(error);
+    }
+  }, [onError]);
+
+  // Time update effect
+  useEffect(() => {
+    if (!bridgeRef.current || !onTimeUpdate) return;
+
+    const handleTimeUpdate = () => {
+      const currentTime = bridgeRef.current?.getCurrentTime() || 0;
+      onTimeUpdate(currentTime);
+    };
+
+    // Set up time update interval
+    const intervalId = setInterval(handleTimeUpdate, 1000 / 30); // 30fps updates
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [onTimeUpdate]);
+
   return {
-    // Bridge status
-    videoContext: {}, // Placeholder to match interface
-    isReady,
-    duration,
-    currentTime,
-    
-    // Methods
-    play: legacyPlay,
-    pause: legacyPause,
-    seek: legacySeek,
-    
-    // Event registration helpers
-    registerTimeUpdateHandler,
-    registerDurationChangeHandler,
-    
-    // Debug info
-    isInitializing: bridge.isInitializing,
-    hasError: bridge.hasError,
-    errorMessage: bridge.errorMessage,
+    play,
+    pause,
+    seek,
+    isLoading,
+    hasError,
+    errorMessage
   };
 } 

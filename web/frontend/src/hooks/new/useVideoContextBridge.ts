@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { VideoContext, type VideoContextValue } from './VideoContext';
+import { useCallback, useEffect, useRef, useState, RefObject } from 'react';
+import { VideoContext } from '@/contexts/VideoContext';
 
 // Custom error class for bridge-related errors
 export class BridgeError extends Error {
@@ -9,135 +9,183 @@ export class BridgeError extends Error {
   }
 }
 
-// State interface for the bridge
-export interface VideoContextBridgeState {
-  isPlaying: boolean;
-  currentTime: number;
-  duration: number;
-  error: string | null;
-  isReady: boolean;
+export interface UseVideoContextBridgeProps {
+  // DOM Refs (read-only)
+  canvasRef: RefObject<HTMLCanvasElement>;
+  videoRef: RefObject<HTMLVideoElement>;
+  
+  // Media Info (read-only)
+  mediaUrl: string;
+  localMediaUrl?: string | null;
+  mediaType: string;
+  
+  // Visual State (read-only)
+  showFirstFrame: boolean;
+  
+  // Callbacks (for state changes)
+  onIsReadyChange: (isReady: boolean) => void;
+  onDurationChange: (duration: number) => void;
+  onError: (error: Error) => void;
+  onTimeUpdate: (time: number) => void;
 }
 
-// Controls interface for the bridge
-export interface VideoContextBridgeControls {
+export interface UseVideoContextBridgeReturn {
+  // Actions (methods only, no state)
   play: () => Promise<void>;
   pause: () => Promise<void>;
   seek: (time: number) => Promise<void>;
+  
+  // Status info (derived from internal implementation)
+  isInitializing: boolean;
+  hasError: boolean;
+  errorMessage: string | null;
 }
 
-// Main hook implementation
-export function useVideoContextBridge(
-  videoElement: HTMLVideoElement | null,
-  onError?: (error: Error) => void
-): [VideoContextBridgeState, VideoContextBridgeControls] {
-  // Refs for managing state and cleanup
+export function useVideoContextBridge({
+  canvasRef,
+  videoRef,
+  mediaUrl,
+  localMediaUrl,
+  mediaType,
+  showFirstFrame,
+  onIsReadyChange,
+  onDurationChange,
+  onError,
+  onTimeUpdate,
+}: UseVideoContextBridgeProps): UseVideoContextBridgeReturn {
+  // Internal state
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Refs
   const contextRef = useRef<VideoContext | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timeUpdateIntervalRef = useRef<number | null>(null);
 
-  // State management
-  const [state, setState] = useState<VideoContextBridgeState>({
-    isPlaying: false,
-    currentTime: 0,
-    duration: 0,
-    error: null,
-    isReady: false,
-  });
-
-  // Initialize VideoContext when video element changes
+  // Initialize VideoContext when dependencies change
   useEffect(() => {
-    if (!videoElement) {
-      return;
-    }
+    const initializeContext = async () => {
+      setIsInitializing(true);
+      setHasError(false);
+      setErrorMessage(null);
 
-    try {
-      contextRef.current = new VideoContext(videoElement);
-      
-      // Update initial state
-      setState(prev => ({
-        ...prev,
-        duration: videoElement.duration || 0,
-        isReady: videoElement.readyState >= 2,
-      }));
-
-      // Set up periodic state updates
-      intervalRef.current = setInterval(() => {
+      try {
+        // Clear existing context
         if (contextRef.current) {
-          setState(prev => ({
-            ...prev,
-            currentTime: videoElement.currentTime,
-            isPlaying: !videoElement.paused,
-            duration: videoElement.duration || 0,
-            isReady: videoElement.readyState >= 2,
-          }));
+          contextRef.current.destroy();
+          contextRef.current = null;
         }
-      }, 100);
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to initialize VideoContext');
-      setState(prev => ({ ...prev, error: error.message }));
-      onError?.(error);
-    }
 
-    // Cleanup function
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+        // Ensure we have required refs
+        if (!videoRef.current || !canvasRef.current) {
+          throw new BridgeError('Video or canvas element not available');
+        }
+
+        // Create new context
+        const context = new VideoContext();
+        context.setVideo(videoRef.current);
+        context.setCanvas(canvasRef.current);
+        
+        // Initialize with media
+        await context.initialize(mediaUrl, localMediaUrl);
+        
+        // Store context
+        contextRef.current = context;
+        
+        // Set up time update interval
+        if (timeUpdateIntervalRef.current) {
+          window.clearInterval(timeUpdateIntervalRef.current);
+        }
+        
+        timeUpdateIntervalRef.current = window.setInterval(() => {
+          if (contextRef.current) {
+            onTimeUpdate(contextRef.current.getCurrentTime());
+            onDurationChange(contextRef.current.getDuration());
+            onIsReadyChange(true);
+          }
+        }, 100) as unknown as number;
+
+        setIsInitializing(false);
+        onIsReadyChange(true);
+        
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Failed to initialize VideoContext');
+        setHasError(true);
+        setErrorMessage(error.message);
+        onError(error);
+        setIsInitializing(false);
       }
-      contextRef.current = null;
     };
-  }, [videoElement, onError]);
+
+    initializeContext();
+
+    // Cleanup
+    return () => {
+      if (timeUpdateIntervalRef.current) {
+        window.clearInterval(timeUpdateIntervalRef.current);
+      }
+      if (contextRef.current) {
+        contextRef.current.destroy();
+        contextRef.current = null;
+      }
+    };
+  }, [mediaUrl, localMediaUrl, videoRef, canvasRef, onIsReadyChange, onDurationChange, onTimeUpdate, onError]);
 
   // Play control
   const play = useCallback(async () => {
+    if (showFirstFrame) {
+      throw new BridgeError('Cannot play while showing first frame');
+    }
+    
+    if (!contextRef.current) {
+      throw new BridgeError('VideoContext not initialized');
+    }
+
     try {
-      if (!contextRef.current) {
-        throw new BridgeError('VideoContext not initialized');
-      }
       await contextRef.current.play();
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to play video');
-      setState(prev => ({ ...prev, error: error.message }));
-      onError?.(error);
+      onError(error);
       throw error;
     }
-  }, [onError]);
+  }, [showFirstFrame, onError]);
 
   // Pause control
   const pause = useCallback(async () => {
+    if (!contextRef.current) {
+      throw new BridgeError('VideoContext not initialized');
+    }
+
     try {
-      if (!contextRef.current) {
-        throw new BridgeError('VideoContext not initialized');
-      }
       await contextRef.current.pause();
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to pause video');
-      setState(prev => ({ ...prev, error: error.message }));
-      onError?.(error);
+      onError(error);
       throw error;
     }
   }, [onError]);
 
   // Seek control
   const seek = useCallback(async (time: number) => {
+    if (!contextRef.current) {
+      throw new BridgeError('VideoContext not initialized');
+    }
+
     try {
-      if (!contextRef.current) {
-        throw new BridgeError('VideoContext not initialized');
-      }
       await contextRef.current.seek(time);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to seek video');
-      setState(prev => ({ ...prev, error: error.message }));
-      onError?.(error);
+      onError(error);
       throw error;
     }
   }, [onError]);
 
-  // Return state and controls
-  return [
-    state,
-    {
-      play,
-      pause,
-      seek,
-    },
-  ];
+  return {
+    play,
+    pause,
+    seek,
+    isInitializing,
+    hasError,
+    errorMessage,
+  };
 }
