@@ -323,6 +323,47 @@ export function useVideoContextBridge({
 
   }, [videoRef, isVideoType, mediaType, setCurrentTime]); // ADD videoRef and setCurrentTime, remove internalCtx
 
+  // --- Effect to track time updates from the video element ---
+  useEffect(() => {
+    // Only run if we have a video element, it's a video type, and the bridge is ready
+    const videoElement = videoRef.current;
+    if (!videoElement || !isVideoType(mediaType) || !isReady) {
+      return;
+    }
+    
+    console.log('[Bridge TimeUpdate Effect] Setting up timeupdate listener...');
+    
+    const handleTimeUpdate = () => {
+      // Check if the video element still exists and currentTime is valid
+      if (videoElement && 
+          typeof videoElement.currentTime === 'number' && 
+          isFinite(videoElement.currentTime)) {
+        // Only update internal state - don't trigger a seek back to the video
+        // This is crucial to avoid feedback loops!
+        // Log only once per second (at most) to avoid console spam
+        if (Math.floor(videoElement.currentTime) !== Math.floor(currentTime)) {
+          console.log(`[Bridge Time] Update from video: ${videoElement.currentTime.toFixed(2)}s, previous bridge time: ${currentTime.toFixed(2)}s`);
+        }
+        setCurrentTime(videoElement.currentTime);
+      }
+    };
+    
+    // Add the event listener
+    videoElement.addEventListener('timeupdate', handleTimeUpdate);
+    
+    // Cleanup function
+    return () => {
+      if (videoElement) {
+        try {
+          videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+          console.log('[Bridge TimeUpdate Effect] Listener removed');
+        } catch (e) {
+          console.warn('[Bridge TimeUpdate Effect] Error removing listener:', e);
+        }
+      }
+    };
+  }, [videoRef, isVideoType, mediaType, isReady]);
+
   // --- Playback Methods (using internalCtx or videoContextInstance?) ---
   // TODO: Decide whether these should operate on internalCtx or videoContextInstance
   // For now, let's keep them using videoContextInstance to minimize changes in the component
