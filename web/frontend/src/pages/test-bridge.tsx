@@ -113,14 +113,15 @@ function BridgeVideoTest() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [statusLogs, setStatusLogs] = useState<string[]>([]);
 
   const addStatusLog = useCallback((message: string) => {
-    setStatusLogs(prev => [...prev.slice(-10), `[${new Date().toISOString()}] ${message}`]); // Keep last 10 logs
+    setStatusLogs(prev => [...prev.slice(-10), `[${new Date().toISOString()}] ${message}`]);
   }, []);
 
-  // Video configuration
   const mediaUrl = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
   const localMediaUrl = mediaUrl;
 
@@ -134,11 +135,6 @@ function BridgeVideoTest() {
     addStatusLog('Initial load callback triggered');
   }, [addStatusLog]);
   
-  const handleIsReadyChange = useCallback((ready: boolean) => {
-    addStatusLog(`isReady changed to: ${ready}`);
-    setIsReady(ready);
-  }, [addStatusLog]);
-
   // Initialize the bridge
   const bridge = useBridgeAdapter({
     canvasRef,
@@ -147,21 +143,20 @@ function BridgeVideoTest() {
     localMediaUrl,
     mediaType: "video",
     initialMediaAspectRatio: 16/9,
-    showFirstFrame: false, // Force immediate init
+    showFirstFrame: false, 
     onInitialLoad: handleInitialLoad,
     onError: handleError,
   });
   
-  // Log bridge state changes
+  // Sync component state with bridge state
   useEffect(() => {
-    addStatusLog(`Adapter State - isReady: ${bridge.isReady}, isInitializing: ${bridge.isInitializing}, hasError: ${bridge.hasError}, duration: ${bridge.duration?.toFixed(2)}`);
-  }, [bridge.isReady, bridge.isInitializing, bridge.hasError, bridge.duration, addStatusLog]);
-  
-  useEffect(() => {
+    addStatusLog(`Adapter State - isReady: ${bridge.isReady}, isInitializing: ${bridge.isInitializing}, hasError: ${bridge.hasError}, duration: ${bridge.duration?.toFixed(2)}, currentTime: ${bridge.currentTime?.toFixed(2)}`);
     setIsReady(bridge.isReady);
-  }, [bridge.isReady]);
-
-  // --- Add back Play/Pause handlers ---
+    setDuration(bridge.duration);
+    setCurrentTime(bridge.currentTime); // Sync currentTime from adapter state
+  }, [bridge.isReady, bridge.isInitializing, bridge.hasError, bridge.duration, bridge.currentTime, addStatusLog]);
+  
+  // Play/Pause handlers
   const handlePlay = () => {
     addStatusLog('handlePlay called');
     if (!isReady) {
@@ -192,12 +187,23 @@ function BridgeVideoTest() {
       handleError(err instanceof Error ? err : new Error(String(err)));
     });
   };
-  // --- End Play/Pause handlers ---
-
+  
+  // Seek handler
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    addStatusLog(`handleSeek called with time: ${time.toFixed(2)}`);
+    setCurrentTime(time); // Optimistically update UI
+    bridge.seek(time).catch(err => {
+      const message = err instanceof Error ? err.message : String(err);
+      addStatusLog(`bridge.seek() FAILED: ${message}`);
+      handleError(err instanceof Error ? err : new Error(String(err)));
+    });
+  };
+  
   return (
     <>
       <p className="mb-4 text-gray-700">
-        Minimal Bridge Test - Focusing on initialization & Play/Pause.
+        Minimal Bridge Test - Testing Play/Pause & Seek.
       </p>
 
       {/* Render both elements permanently for simplicity during init test */}
@@ -243,10 +249,31 @@ function BridgeVideoTest() {
       </div>
       {/* --- End Play/Pause Buttons --- */}
 
+      {/* --- Add back Seek Bar / Timeline --- */}
+      <div className="mb-6 space-y-2">
+         <label htmlFor="seek-slider" className="block text-sm font-medium text-gray-700">Seek:</label>
+         <div className="flex items-center space-x-2">
+           <span>{Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')}</span>
+           <input
+             id="seek-slider"
+             type="range"
+             min="0"
+             max={duration || 100} // Use duration from state
+             value={currentTime}   // Use currentTime from state
+             onChange={handleSeek} // Use seek handler
+             className="flex-1"
+             disabled={!isReady}   // Disable if not ready
+           />
+           <span>{Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}</span>
+         </div>
+      </div>
+      {/* --- End Seek Bar / Timeline --- */}
+
       <div className="mb-4">
         <h2 className="text-xl font-bold">Bridge Status</h2>
         <p>Component Ready State: {isReady ? 'Yes' : 'No'}</p>
         <p>Component Is Playing: {isPlaying ? 'Yes' : 'No'}</p>
+        <p>Component Current Time: {currentTime.toFixed(2)}</p>
         <p>Adapter isInitializing: {bridge.isInitializing ? 'Yes' : 'No'}</p>
         <p>Adapter Has Error: {bridge.hasError ? 'Yes' : 'No'}</p>
         {bridge.errorMessage && <p>Adapter Error Message: {bridge.errorMessage}</p>}
