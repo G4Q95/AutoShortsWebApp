@@ -1,4 +1,4 @@
-import { useEffect, useRef, MutableRefObject, useState, useCallback } from 'react';
+import { useEffect, useRef, MutableRefObject, useState, useCallback, RefObject } from 'react';
 import { VideoContext } from '@/contexts/VideoContext';
 
 export interface UseBridgeAdapterProps {
@@ -10,39 +10,40 @@ export interface UseBridgeAdapterProps {
 }
 
 interface UseBridgeAdapterReturn {
-  // Actions (methods only, no state)
+  isPlaying: boolean;
+  isReady: boolean;
+  duration: number;
+  currentTime: number;
   play: () => Promise<void>;
-  pause: () => Promise<void>;
+  pause: () => void;
   seek: (time: number) => Promise<void>;
-  
-  // Status info (derived from internal implementation)
-  isLoading: boolean;
-  hasError: boolean;
+  toggleFirstFrame: () => void;
   errorMessage: string | null;
 }
 
-export function useBridgeAdapter({
-  canvasRef,
-  videoRef,
-  mediaUrl,
-  showFirstFrame,
-  onError
-}: UseBridgeAdapterProps): UseBridgeAdapterReturn {
-  // Internal state
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+interface BridgeAdapterOptions {
+  initialShowFirstFrame?: boolean;
+  onError?: (error: Error) => void;
+}
+
+export function useBridgeAdapter(
+  videoRef: RefObject<HTMLVideoElement>,
+  canvasRef: RefObject<HTMLCanvasElement>,
+  options: BridgeAdapterOptions = {}
+): UseBridgeAdapterReturn {
+  const { initialShowFirstFrame = false, onError } = options;
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [duration, setDuration] = useState(0);
-  const _debugMode = true; // Enable logging for this hook
-
-  const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [showFirstFrame, setShowFirstFrame] = useState(initialShowFirstFrame);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const log = useCallback((...args: any[]) => {
-    if (_debugMode) {
-      console.log('[useBridgeAdapter]', ...args);
-    }
-  }, [_debugMode]);
+    console.log('[BridgeAdapter]', ...args);
+  }, []);
+
+  const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const errorLog = useCallback((...args: any[]) => {
     console.error('[useBridgeAdapter ERROR]', ...args);
@@ -50,9 +51,7 @@ export function useBridgeAdapter({
 
   const triggerError = useCallback((message: string, originalError?: any) => {
     errorLog(message, originalError);
-    setHasError(true);
     setErrorMessage(message);
-    setIsLoading(false);
     setIsReady(false);
     const errorToSend = originalError instanceof Error ? originalError : new Error(message);
     onError?.(errorToSend);
@@ -147,9 +146,7 @@ export function useBridgeAdapter({
       if (!isReady) { // Only trigger updates if state changes
         log('Video can play (readyState >= 2)');
         setIsReady(true);
-        setIsLoading(false);
-        setHasError(false);
-        setErrorMessage(null);
+        setIsPlaying(true);
       }
     };
 
@@ -173,11 +170,8 @@ export function useBridgeAdapter({
 
     // --- Initialization ---
     cleanup(); // Clean up any previous listeners first
-    setIsLoading(true);
     setIsReady(false);
-    setHasError(false);
-    setErrorMessage(null);
-    setDuration(0);
+    setIsPlaying(false);
 
     // Configure video element
     videoElement.crossOrigin = 'anonymous';
@@ -194,7 +188,7 @@ export function useBridgeAdapter({
 
 
     // Set source and load
-    const sourceUrl = mediaUrl || '';
+    const sourceUrl = '';
     log('Setting video source to:', sourceUrl);
     videoElement.src = sourceUrl;
     videoElement.load(); // Explicitly call load
@@ -202,7 +196,7 @@ export function useBridgeAdapter({
     return cleanup; // Return cleanup function
 
   }, [
-      videoRef, canvasRef, mediaUrl, showFirstFrame, // dependencies
+      videoRef, canvasRef, showFirstFrame, // dependencies
       isReady, // Include isReady to re-evaluate canplay if needed
       triggerError, log, onError // Stable callbacks
   ]);
@@ -236,54 +230,57 @@ export function useBridgeAdapter({
   }, [showFirstFrame, videoRef, canvasRef, isReady, log]); // Re-run if isReady changes, as drawing needs ready state
 
   // Helper to draw frame
-  const drawFrameToCanvas = useCallback(() => {
-    const videoElement = videoRef.current;
-    if (!videoElement) return;
+  const drawFrameToCanvas = useCallback((): boolean => {
+    if (!videoRef.current || !canvasRef.current) {
+      return false;
+    }
 
-    const canvasElement = canvasRef?.current;
-    if (!canvasElement) return;
+    const context = canvasRef.current.getContext('2d');
+    if (!context) {
+      return false;
+    }
 
     try {
-      // Get dimensions
-      const { videoWidth, videoHeight } = videoElement;
-      
-      // Match canvas to video dimensions
-      canvasElement.width = videoWidth;
-      canvasElement.height = videoHeight;
-      
-      // Draw the current frame
-      const ctx = canvasElement.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoElement, 0, 0, videoWidth, videoHeight);
-      }
+      canvasRef.current.width = videoRef.current.videoWidth;
+      canvasRef.current.height = videoRef.current.videoHeight;
+      context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
+      return true;
     } catch (err) {
-      console.error('Error drawing frame to canvas:', err);
+      log('Error drawing frame to canvas:', err);
+      return false;
     }
-  }, [videoRef, canvasRef]);
+  }, [videoRef, canvasRef, log]);
 
   // Canvas sync functions
-  const syncCanvasSize = () => {
+  const syncCanvasSize = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
     const videoElement = videoRef.current;
-    if (!videoElement || !canvasRef?.current) return;
-
     const canvas = canvasRef.current;
+    
     canvas.width = videoElement.videoWidth;
     canvas.height = videoElement.videoHeight;
-  };
+  }, [videoRef, canvasRef]);
 
   // Update canvas size when video dimensions change
-  const handleResize = () => {
-    if (videoRef.current && canvasRef?.current) {
-      syncCanvasSize();
-    }
-  };
+  const handleResize = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current) return;
+    syncCanvasSize();
+  }, [videoRef, canvasRef, syncCanvasSize]);
 
   // Handle showing first frame (thumbnail)
   useEffect(() => {
-    if (videoRef.current && canvasRef?.current && showFirstFrame && videoRef.current.readyState >= 2) {
+    if (!canvasRef || !videoRef.current) {
+      return;
+    }
+
+    const videoElement = videoRef.current;
+    const canvasElement = canvasRef.current;
+    
+    if (videoElement && canvasElement && showFirstFrame && videoElement.readyState >= 2) {
       drawFrameToCanvas();
     }
-  }, [showFirstFrame, drawFrameToCanvas, videoRef]);
+  }, [showFirstFrame, drawFrameToCanvas, videoRef, canvasRef]);
 
   // --- Actions ---
 
@@ -291,7 +288,6 @@ export function useBridgeAdapter({
     log('Play action called');
     const videoElement = videoRef.current;
     if (!videoElement) return triggerError('Play failed: Video element not available');
-    if (hasError) return triggerError('Play failed: Video is in an error state');
     if (!isReady) {
          log('Video not ready, attempting to load/wait...');
          videoElement.load(); // Try loading again
@@ -318,10 +314,11 @@ export function useBridgeAdapter({
       videoElement.muted = true;
       await videoElement.play();
       log('Playback started via video.play()');
+      setIsPlaying(true);
     } catch (err) {
       triggerError('Play failed', err);
     }
-  }, [videoRef, canvasRef, hasError, isReady, showFirstFrame, triggerError, log, errorLog]);
+  }, [videoRef, isReady, showFirstFrame, triggerError, log, errorLog]);
 
   const pause = useCallback(async () => {
     log('Pause action called');
@@ -335,6 +332,7 @@ export function useBridgeAdapter({
          clearInterval(timeUpdateIntervalRef.current);
          timeUpdateIntervalRef.current = null;
        }
+      setIsPlaying(false);
     } catch (err) {
       // Pause rarely throws errors, but good practice
       triggerError('Pause failed', err);
@@ -342,35 +340,43 @@ export function useBridgeAdapter({
   }, [videoRef, triggerError, log]);
 
   const seek = useCallback(async (time: number) => {
-    log(`Seek action called: ${time}`);
     const videoElement = videoRef.current;
-    if (!videoElement) return triggerError('Seek failed: Video element not available');
-     if (hasError) return triggerError('Seek failed: Video is in an error state');
-     if (videoElement.readyState < 1) return triggerError('Seek failed: Video metadata not loaded'); // HAVE_METADATA
+    if (!videoElement) {
+      return triggerError('Seek failed: Video element not available');
+    }
 
     try {
-      // Clamp seek time to valid range
-      const seekTime = Math.max(0, Math.min(time, duration || Infinity));
-      log(`Seeking to clamped time: ${seekTime}`);
-      videoElement.currentTime = seekTime;
-      // If showing first frame, redraw canvas after seek
-      if (showFirstFrame && videoElement.readyState >= 2) {
-        // Wait a moment for seek to potentially update frame data
-        await new Promise(resolve => setTimeout(resolve, 50));
+      videoElement.currentTime = time;
+      // Only attempt to draw frame if we have both video and canvas elements
+      if (showFirstFrame && videoElement.readyState >= 2 && canvasRef?.current) {
         drawFrameToCanvas();
       }
     } catch (err) {
       triggerError('Seek failed', err);
     }
-  }, [videoRef, duration, showFirstFrame, hasError, triggerError, log, drawFrameToCanvas]);
+  }, [videoRef, canvasRef, showFirstFrame, drawFrameToCanvas, triggerError]);
 
+  const toggleFirstFrame = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    setShowFirstFrame(prev => {
+      const newValue = !prev;
+      if (newValue) {
+        drawFrameToCanvas();
+      }
+      return newValue;
+    });
+  }, [videoRef, canvasRef, drawFrameToCanvas]);
 
   return {
+    isPlaying,
+    isReady,
+    duration,
+    currentTime,
     play,
     pause,
     seek,
-    isLoading,
-    hasError,
+    toggleFirstFrame,
     errorMessage
   };
 } 
