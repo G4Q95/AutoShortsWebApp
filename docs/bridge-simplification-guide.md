@@ -78,20 +78,20 @@ The following steps will be taken to refactor the interaction logic:
     *   **Testing:** Visually inspect time display during playback. Confirm basic play/pause still works.
     *   **Commit Point:** Yes, after successful testing.
 
-3.  **Action 3: Gradually Migrate Player Logic: (IN PROGRESS - est. 90% complete)**
+3.  **Action 3: Gradually Migrate Player Logic: (COMPLETED)** ✅
     *   **Modify `VideoContextScenePreviewPlayer.tsx` Incrementally:**
         *   Fixed TimelineControl component's time handling functions (`timelineValueToPosition` and `positionToTimelineValue`) to properly use visualTime instead of defaulting to 0 when activeHandle is true. ✅
         *   **Sub-task 3.1 (COMPLETED):** ✅ Update the `useAnimationFrameLoop` hook to read `bridge.currentTime` as its primary time source, potentially removing the need for it to set the time state itself.
         *   **Sub-task 3.2 (COMPLETED):** ✅ Review and update core event handlers (`handlePlay`, `handlePause`, `handleTimeUpdate`, boundary checks within rAF loop, etc.) to rely on `bridge.currentTime` for their logic and state updates, removing dependencies on the local `currentTime` from `usePlaybackState`.
-        *   **Sub-task 3.3 (IN PROGRESS):** Identify and migrate any other remaining logic within the component that currently uses the local `currentTime` state.
+        *   **Sub-task 3.3 (COMPLETED):** ✅ Identify and migrate any other remaining logic within the component that currently uses the local `currentTime` state.
     *   **Goal:** Transition core player logic to use the bridge as the time source, ensuring consistent state management.
     *   **Testing:** Test playback, pause, scrubbing, trim boundaries, and visual display thoroughly *after each sub-task migration*.
-    *   **Commit Point:** Yes, potentially after each significant, tested sub-task migration.
+    *   **Commit Point:** Yes, after successful testing.
 
-4.  **Action 4: Remove Old Player Time State: (NOT STARTED)**
+4.  **Action 4: Remove Old Player Time State: (COMPLETED)** ✅
     *   **Modify `VideoContextScenePreviewPlayer.tsx` & `usePlaybackState.ts`:**
-        *   Once all logic uses `bridge.currentTime`, remove the `currentTime` state and setter from `usePlaybackState`.
-        *   Remove the corresponding destructuring in `VideoContextScenePreviewPlayer.tsx`.
+        *   Removed the `currentTime` state and setter from `usePlaybackState` hook. ✅
+        *   Removed the corresponding destructuring in `VideoContextScenePreviewPlayer.tsx`. ✅
     *   **Goal:** Final cleanup of redundant state.
     *   **Testing:** Rigorous testing of all playback and related features.
     *   **Commit Point:** Yes, after successful testing.
