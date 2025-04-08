@@ -7,7 +7,7 @@ interface UseTrimControlsProps {
   initialDuration?: number;
   containerRef: React.RefObject<HTMLDivElement | null>;
   duration: number;
-  videoContext: any; // Type for VideoContext instance
+  seek?: (time: number) => void; // Function to seek to a specific time using the bridge
   audioRef: React.RefObject<HTMLAudioElement | null>;
   isPlaying: boolean;
   onTrimChange?: (start: number, end: number) => void;
@@ -45,7 +45,7 @@ export function useTrimControls({
   initialDuration = 0,
   containerRef,
   duration,
-  videoContext,
+  seek,
   audioRef,
   isPlaying,
   onTrimChange,
@@ -126,13 +126,9 @@ export function useTrimControls({
         }
       }
       
-      // Update the video context if available
-      if (videoContext) {
-        try {
-          videoContext.currentTime = newStart;
-        } catch (e) {
-          console.error('[DEBUG][TrimDrag Start] Error setting videoContext time:', e);
-        }
+      // Use the seek function instead of directly accessing videoContext
+      if (seek) {
+        seek(newStart);
       }
       
       if (onTrimChange) {
@@ -156,13 +152,9 @@ export function useTrimControls({
         }
       }
       
-      // Update the video context if available
-      if (videoContext) {
-         try {
-           videoContext.currentTime = newEnd;
-         } catch (e) {
-           console.error('[DEBUG][TrimDrag End] Error setting videoContext time:', e);
-         }
+      // Use the seek function instead of directly accessing videoContext
+      if (seek) {
+        seek(newEnd);
       }
       
       if (onTrimChange) {
@@ -175,7 +167,7 @@ export function useTrimControls({
       setIsPlaying(false);
     }
 
-  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, videoContext, isPlaying, setIsPlaying, onTrimChange]);
+  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, seek, isPlaying, setIsPlaying, onTrimChange]);
 
   const handleTrimDragEnd = useCallback(() => {
     if (!activeHandle) return;
@@ -185,9 +177,9 @@ export function useTrimControls({
     
     // --- Restore playback time AFTER drag --- 
     const restoreTime = trimStart;
-    if (videoContext) {
-      try { videoContext.currentTime = restoreTime; } 
-      catch(e) { console.warn("[TrimEnd] Error setting video context time:", e); }
+    // Use seek function instead of directly accessing videoContext
+    if (seek) {
+      seek(restoreTime);
     }
     if (audioRef.current) {
       try { audioRef.current.currentTime = restoreTime; } 
@@ -204,7 +196,7 @@ export function useTrimControls({
     }
   }, [
       activeHandle, trimStart, trimEnd, onTrimChange, 
-      videoContext, audioRef, containerRef, forceResetOnPlayRef
+      audioRef, containerRef, seek, forceResetOnPlayRef
   ]);
 
   // --- Global Listener Effect ---

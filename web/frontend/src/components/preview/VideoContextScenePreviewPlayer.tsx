@@ -280,7 +280,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     initialDuration: duration,
     containerRef,
     duration,
-    videoContext: bridge.videoContext,
+    seek: bridge.seek,
     audioRef,
     isPlaying,
     onTrimChange,
