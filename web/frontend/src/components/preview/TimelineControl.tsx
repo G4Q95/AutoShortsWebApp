@@ -40,7 +40,7 @@ interface TimelineControlProps {
   /**
    * Callback when the time is updated (e.g., by scrubbing)
    */
-  onTimeUpdate: (newTime: number) => void;
+  onTimeUpdate: (time: number) => void;
   
   /**
    * Callback when user starts dragging the scrubber
@@ -66,11 +66,6 @@ interface TimelineControlProps {
    * Callback to set original playback time
    */
   setOriginalPlaybackTime?: (time: number) => void;
-
-  /**
-   * VideoContext instance
-   */
-  videoContext?: any;
 
   /**
    * Function to get effective trim end value
@@ -100,7 +95,6 @@ export function TimelineControl({
   setActiveHandle,
   setTimeBeforeDrag,
   setOriginalPlaybackTime,
-  videoContext,
   getEffectiveTrimEnd,
   className
 }: TimelineControlProps) {
@@ -217,7 +211,7 @@ export function TimelineControl({
                 setActiveHandle('start');
                 // Need currentTime passed in if we want to set this properly
                 setTimeBeforeDrag(visualTime); // Use visualTime as fallback?
-                if (videoContext && setOriginalPlaybackTime) {
+                if (setOriginalPlaybackTime) {
                   // Need currentTime passed in
                   setOriginalPlaybackTime(visualTime); // Use visualTime as fallback?
                 }
@@ -284,7 +278,7 @@ export function TimelineControl({
                 setActiveHandle('end');
                 // Need currentTime passed in if we want to set this properly
                 setTimeBeforeDrag(visualTime); // Use visualTime as fallback?
-                if (videoContext && setOriginalPlaybackTime) {
+                if (setOriginalPlaybackTime) {
                   // Need currentTime passed in
                   setOriginalPlaybackTime(visualTime); // Use visualTime as fallback?
                 }

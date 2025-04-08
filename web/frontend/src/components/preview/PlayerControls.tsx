@@ -30,7 +30,6 @@ interface PlayerControlsProps {
   setActiveHandle: (handle: 'start' | 'end' | null) => void;
   setTimeBeforeDrag: (time: number) => void;
   setOriginalPlaybackTime?: (time: number) => void; // Optional?
-  videoContext?: any; // Optional?
   getEffectiveTrimEnd: () => number; // Function to get the value
 
   // Time Display
@@ -67,7 +66,6 @@ export function PlayerControls({
   setActiveHandle,
   setTimeBeforeDrag,
   setOriginalPlaybackTime,
-  videoContext,
   getEffectiveTrimEnd,
   // Time Display props
   currentTime,
@@ -113,7 +111,6 @@ export function PlayerControls({
           setActiveHandle={setActiveHandle}
           setTimeBeforeDrag={setTimeBeforeDrag}
           setOriginalPlaybackTime={setOriginalPlaybackTime}
-          videoContext={videoContext}
           getEffectiveTrimEnd={getEffectiveTrimEnd}
         />
       </div>
