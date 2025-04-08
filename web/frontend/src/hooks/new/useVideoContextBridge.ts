@@ -100,19 +100,24 @@ export function useVideoContextBridge({
   useEffect(() => {
     // Skip non-video media types
     if (!isVideoType(mediaType)) {
+      console.log(`[Bridge] Skipping initialization for non-video type: ${mediaType}`);
       return;
     }
     
     // Skip if missing required refs
     if (!canvasRef.current) {
+      console.error('[Bridge] Missing canvas reference');
       handleError(new Error('Canvas reference is not available'), 'Initialization failed');
       return;
     }
     
     if (!localMediaUrl) {
+      console.error('[Bridge] Missing media URL');
       handleError(new Error('Media URL is not available'), 'Initialization failed');
       return;
     }
+    
+    console.log(`[Bridge] Starting initialization with media: ${localMediaUrl}`);
     
     // Flag for cleanup if effect re-runs
     let isActive = true;
@@ -124,8 +129,10 @@ export function useVideoContextBridge({
       
       try {
         // Import VideoContext dynamically
+        console.log('[Bridge] Importing VideoContext module');
         const VideoContextModule = await import('videocontext');
         const VideoContext = VideoContextModule.default || VideoContextModule;
+        console.log('[Bridge] VideoContext module imported');
         
         // Configure canvas dimensions
         const canvas = canvasRef.current;
@@ -143,44 +150,54 @@ export function useVideoContextBridge({
           canvasWidth = Math.round(baseSize * ratio);
         }
         
+        console.log(`[Bridge] Setting canvas dimensions: ${canvasWidth}x${canvasHeight}`);
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
         
         // Create context
+        console.log('[Bridge] Creating VideoContext instance');
         const ctx = new VideoContext(canvas);
         if (!ctx) throw new Error('Failed to create VideoContext instance');
         
         // Only continue if effect is still active
         if (!isActive) return;
         
+        console.log('[Bridge] VideoContext instance created');
         setVideoContext(ctx);
         
         // Create video source
+        console.log(`[Bridge] Creating video source with URL: ${localMediaUrl}`);
         const source = ctx.video(localMediaUrl);
         if (!source) throw new Error('Failed to create video source node');
         
         // Connect to destination and set time range (0 to 300 seconds)
+        console.log('[Bridge] Connecting source to destination');
         source.connect(ctx.destination);
         source.start(0);
         source.stop(300); // Reasonable upper limit for short videos
         
         if (!isActive) return;
         
+        console.log('[Bridge] Video source connected and scheduled');
         setVideoSource(source);
         
         // Register callbacks on source
+        console.log('[Bridge] Registering source callbacks');
         source.registerCallback('loaded', () => {
           if (!isActive) return;
+          
+          console.log('[Bridge] Source loaded callback triggered');
           
           // Get video duration
           let videoDuration = 0;
           if (source && source.element) {
             const videoElement = source.element as HTMLVideoElement;
             videoDuration = videoElement.duration;
+            console.log(`[Bridge] Video element duration: ${videoDuration}`);
           }
           
           if (videoDuration && isFinite(videoDuration) && videoDuration > 0) {
-            console.log(`[Bridge] Video loaded with duration: ${videoDuration}`);
+            console.log(`[Bridge] Video loaded with valid duration: ${videoDuration}`);
             onDurationChange(videoDuration);
             onIsReadyChange(true);
           } else {
@@ -197,6 +214,7 @@ export function useVideoContextBridge({
         
         source.registerCallback('error', (function(err: any) {
           if (!isActive) return;
+          console.error('[Bridge] Source error callback triggered:', err);
           handleError(err, 'Video source error');
           onIsReadyChange(false);
           setIsInitializing(false);
@@ -204,6 +222,7 @@ export function useVideoContextBridge({
         
       } catch (error) {
         if (!isActive) return;
+        console.error('[Bridge] Initialization error:', error);
         handleError(error, 'VideoContext initialization failed');
         onIsReadyChange(false);
         setIsInitializing(false);
@@ -215,13 +234,16 @@ export function useVideoContextBridge({
     
     // Cleanup function
     return () => {
+      console.log('[Bridge] Running cleanup function');
       isActive = false;
       
       // Clean up VideoContext
       if (videoContext) {
         try {
+          console.log('[Bridge] Resetting VideoContext');
           videoContext.reset();
           if (typeof videoContext.dispose === 'function') {
+            console.log('[Bridge] Disposing VideoContext');
             videoContext.dispose();
           }
         } catch (error) {

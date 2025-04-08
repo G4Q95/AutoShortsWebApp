@@ -1,4 +1,4 @@
-import { useCallback, useState, RefObject } from 'react';
+import { useCallback, useState, RefObject, useEffect } from 'react';
 import { useVideoContextBridge as useNewBridge } from './useVideoContextBridge';
 
 /**
@@ -14,6 +14,7 @@ export function useBridgeAdapter({
   initialMediaAspectRatio,
   showFirstFrame,
   onInitialLoad,
+  onError,
 }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -23,19 +24,32 @@ export function useBridgeAdapter({
   initialMediaAspectRatio?: number;
   showFirstFrame: boolean;
   onInitialLoad?: () => void;
+  onError?: (error: Error) => void;
 }) {
   // State that would normally be in the main component
   const [isReady, setIsReady] = useState<boolean>(false);
   const [duration, setDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
+  const [timeUpdateHandlers] = useState<Array<(time: number) => void>>([]);
+  const [durationChangeHandlers] = useState<Array<(duration: number) => void>>([]);
+
+  // Debugging
+  console.log('[BridgeAdapter] Initializing with', {
+    mediaUrl, 
+    localMediaUrl,
+    mediaType,
+    hasCanvasRef: !!canvasRef.current,
+    hasVideoRef: !!videoRef.current,
+    showFirstFrame
+  });
 
   // Create a new bridge instance
   const bridge = useNewBridge({
     canvasRef,
     videoRef,
-    mediaUrl,
-    localMediaUrl,
-    mediaType,
+    mediaUrl: mediaUrl || '',
+    localMediaUrl: localMediaUrl || mediaUrl || '',
+    mediaType: mediaType || 'video',
     initialMediaAspectRatio,
     showFirstFrame,
     
@@ -50,45 +64,87 @@ export function useBridgeAdapter({
     onDurationChange: (newDuration: number) => {
       console.log(`[BridgeAdapter] duration changed to ${newDuration}`);
       setDuration(newDuration);
+      durationChangeHandlers.forEach(handler => handler(newDuration));
     },
     onTimeUpdate: (time: number) => {
       setCurrentTime(time);
+      timeUpdateHandlers.forEach(handler => handler(time));
     },
     onError: (error: Error) => {
       console.error('[BridgeAdapter] Error from bridge:', error);
+      if (onError) {
+        onError(error);
+      }
     },
   });
 
   // Create adapter functions to match legacy API
   const legacyPlay = useCallback(async () => {
     try {
+      console.log('[BridgeAdapter] Play called');
       await bridge.play();
       return true;
     } catch (error) {
       console.error('[BridgeAdapter] Play error:', error);
+      if (onError && error instanceof Error) {
+        onError(error);
+      }
       return false;
     }
-  }, [bridge]);
+  }, [bridge, onError]);
 
   const legacyPause = useCallback(async () => {
     try {
+      console.log('[BridgeAdapter] Pause called');
       await bridge.pause();
       return true;
     } catch (error) {
       console.error('[BridgeAdapter] Pause error:', error);
+      if (onError && error instanceof Error) {
+        onError(error);
+      }
       return false;
     }
-  }, [bridge]);
+  }, [bridge, onError]);
 
   const legacySeek = useCallback(async (time: number) => {
     try {
+      console.log(`[BridgeAdapter] Seek called with time ${time}`);
       await bridge.seek(time);
       return true;
     } catch (error) {
       console.error('[BridgeAdapter] Seek error:', error);
+      if (onError && error instanceof Error) {
+        onError(error);
+      }
       return false;
     }
-  }, [bridge]);
+  }, [bridge, onError]);
+
+  // Add helper methods for event handling
+  const registerTimeUpdateHandler = useCallback((handler: (time: number) => void) => {
+    if (!timeUpdateHandlers.includes(handler)) {
+      timeUpdateHandlers.push(handler);
+    }
+    return () => {
+      const index = timeUpdateHandlers.indexOf(handler);
+      if (index !== -1) {
+        timeUpdateHandlers.splice(index, 1);
+      }
+    };
+  }, [timeUpdateHandlers]);
+
+  const registerDurationChangeHandler = useCallback((handler: (duration: number) => void) => {
+    if (!durationChangeHandlers.includes(handler)) {
+      durationChangeHandlers.push(handler);
+    }
+    return () => {
+      const index = durationChangeHandlers.indexOf(handler);
+      if (index !== -1) {
+        durationChangeHandlers.splice(index, 1);
+      }
+    };
+  }, [durationChangeHandlers]);
 
   // Return an object that mimics the legacy bridge interface
   return {
@@ -102,6 +158,10 @@ export function useBridgeAdapter({
     play: legacyPlay,
     pause: legacyPause,
     seek: legacySeek,
+    
+    // Event registration helpers
+    registerTimeUpdateHandler,
+    registerDurationChangeHandler,
     
     // Debug info
     isInitializing: bridge.isInitializing,
