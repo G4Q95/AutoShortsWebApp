@@ -156,6 +156,11 @@ export function TimelineControl({
               onScrubberDragStart();
             }
           }}
+          onChange={(e) => {
+            const newValue = parseFloat(e.target.value);
+            const newTime = timelineValueToPosition(newValue);
+            onTimeUpdate(newTime);
+          }}
           onMouseUp={() => {
             if (!activeHandle) onScrubberDragEnd();
           }}

@@ -115,8 +115,9 @@ export function useTrimControls({
       setTrimStart(newStart);
       
       // Log direct manipulation
-      console.log(`[TrimDrag Start] Directly setting videoRef/videoContext time to ${newStart.toFixed(3)}`);
-      // Also update video element directly if available
+      console.log(`[TrimDrag Start] Setting video time to ${newStart.toFixed(3)}`);
+      
+      // Update video position through videoRef
       if (videoRef.current) {
         try {
           videoRef.current.currentTime = newStart;
@@ -144,8 +145,9 @@ export function useTrimControls({
       userTrimEndRef.current = newEnd; // Update ref when manually dragging end handle
       
       // Log direct manipulation
-      console.log(`[TrimDrag End] Directly setting videoRef/videoContext time to ${newEnd.toFixed(3)}`);
-      // Update visual time AND actual video time
+      console.log(`[TrimDrag End] Setting video time to ${newEnd.toFixed(3)}`);
+      
+      // Update video position through videoRef
       if (videoRef.current) {
         try {
           videoRef.current.currentTime = newEnd;
@@ -153,12 +155,18 @@ export function useTrimControls({
           console.error('[DEBUG][TrimDrag End] Error setting video time:', e);
         }
       }
+      
+      // Update the video context if available
       if (videoContext) {
          try {
            videoContext.currentTime = newEnd;
          } catch (e) {
            console.error('[DEBUG][TrimDrag End] Error setting videoContext time:', e);
          }
+      }
+      
+      if (onTrimChange) {
+        onTrimChange(trimStart, newEnd);
       }
     }
     
@@ -167,7 +175,7 @@ export function useTrimControls({
       setIsPlaying(false);
     }
 
-  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, videoContext, audioRef, isPlaying, setIsPlaying]);
+  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, videoContext, isPlaying, setIsPlaying, onTrimChange]);
 
   const handleTrimDragEnd = useCallback(() => {
     if (!activeHandle) return;
@@ -248,8 +256,7 @@ export function useTrimControls({
     userTrimEndRef,
     timeBeforeDrag,
     setTimeBeforeDrag,
-    // Return handlers
     handleTrimDragMove,
-    handleTrimDragEnd,
+    handleTrimDragEnd
   };
 } 
