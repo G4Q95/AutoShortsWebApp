@@ -226,7 +226,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     isPlaying,
     setIsPlaying,
   } = usePlaybackState(); 
-  
+
   // === NEW: Local state for visual scrubbing feedback ===
   const [scrubTime, setScrubTime] = useState<number | null>(null);
 
