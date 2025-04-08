@@ -101,21 +101,18 @@ export function TimelineControl({
   const timelineRef = useRef<HTMLInputElement>(null);
   
   const timelineValueToPosition = (value: number): number => {
-    // Note: Need currentTime prop back if we keep this activeHandle logic
-    // For now, assume currentTime is 0 if activeHandle is set during conversion
-    const currentT = activeHandle ? 0 : visualTime; 
+    // When trim handles are being dragged, use current visualTime
     if (activeHandle) {
-      return currentT; // Return 0 or a default time if handle is active?
+      return visualTime; // Return the visualTime parameter
     }
     const position = (value / 100) * duration;
     return position;
   };
   
   const positionToTimelineValue = (position: number): number => {
-    // Need currentTime prop back if we keep this activeHandle logic
-    const currentT = activeHandle ? 0 : position; 
+    // When activeHandle is true, use the visualTime passed to the component
     if (activeHandle) {
-      return (currentT / duration) * 100; // Use 0 or a default time?
+      return (visualTime / duration) * 100; // Use the visualTime parameter
     }
     const value = (position / duration) * 100;
     return value;

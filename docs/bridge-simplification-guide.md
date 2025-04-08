@@ -40,11 +40,12 @@ The following steps will be taken to refactor the interaction logic:
 *   **Rationale:** Enforces the bridge as the single source of truth and interaction point for `VideoContext`. Eliminates confusing dual context management.
 *   **Outcome:** Bridge hook is now the sole owner. Parent component relies only on the bridge. Interactions are centralized.
 
-### Step 3: Remove Direct `videoContext` Prop from UI Controls (NEXT)
+### Step 3: Remove Direct `videoContext` Prop from UI Controls (COMPLETED)
 
 *   **Action:** Remove the `videoContext` prop currently passed down through `PlayerControls` to `TimelineControl`.
 *   **Action:** If the trim bracket handlers in `TimelineControl` need playback state (e.g., `currentTime` for `setTimeBeforeDrag` or `setOriginalPlaybackTime`), pass the required *state variable* down as a prop from `VideoContextScenePreviewPlayer` (which gets it from the `bridge`). Alternatively, modify the relevant callbacks (`setTimeBeforeDrag`, `setOriginalPlaybackTime`) so they are handled in the parent component which has access to the bridge state.
 *   **Rationale:** Prevents UI components from bypassing the bridge abstraction.
+*   **Outcome:** Successfully removed videoContext prop from TimelineControl, PlayerControls now only passes down necessary state variables.
 
 ### Step 4: Simplify Time State Management (Initial Pass)
 
@@ -55,43 +56,39 @@ The following steps will be taken to refactor the interaction logic:
     *   For smoother visual feedback *during* drag *without* constant video seeking, we might later re-introduce a temporary `visualTime` state updated only by the input's `onChange` during drag, with the actual `bridge.seek()` happening only on `onMouseUp` (drag end) or throttled. However, start with the simpler direct binding and seek-on-change first.
 *   **Rationale:** Reduces state synchronization complexity.
 
-### Step 5: Enhance Bridge Feedback Mechanisms
-
-*   **Action:** Ensure `useVideoContextBridge` provides all necessary state feedback to its consumer (`VideoContextScenePreviewPlayer`).
-    *   It already provides `isReady` and `duration` (via `onDurationChange` callback, which updates parent state).
-    *   **Add:** Expose the current playback time. This could be via a returned state variable (`bridge.currentTime`) updated internally by the bridge listening to `VideoContext`'s time updates, or via a callback (`onTimeUpdateCallback`) that the parent component provides. Using a returned state variable is generally simpler.
-*   **Rationale:** Allows the parent component to get all necessary playback state *from* the bridge.
-
-### Revised Incremental Plan (Revisiting Steps 4 & 5) - [DATE: YYYY-MM-DD]
+### Revised Incremental Plan (Revisiting Steps 4 & 5) - [DATE: 2023-07-06]
 
 *Based on difficulties encountered when implementing the original Steps 4 & 5, the following more granular approach will be taken, prioritizing stability:* 
 
-1.  **Action 1: Enable the Bridge to Track Time:**
+1.  **Action 1: Enable the Bridge to Track Time: (IN PROGRESS)**
     *   **Modify `useVideoContextBridge.ts`:**
-        *   Add internal `currentTime` state.
-        *   Add `useEffect` listening to `videoRef.current.timeupdate` to update internal `currentTime` state.
-        *   Expose `bridge.currentTime` in the return object.
-        *   **Crucially:** Do *not* modify `seek` or the player component yet.
+        *   Add internal `currentTime` state. ✅
+        *   Add `useEffect` listening to `videoRef.current.timeupdate` to update internal `currentTime` state. ✅
+        *   Expose `bridge.currentTime` in the return object. ✅
+        *   **Crucially:** Do *not* modify `seek` or the player component yet. ✅
     *   **Goal:** Bridge accurately tracks time internally without influencing playback.
     *   **Testing:** Add temporary console logs in the bridge's effect, play video using existing controls, verify bridge's internal time updates correctly in console.
     *   **Commit Point:** Yes, after successful testing.
 
-2.  **Action 2: Start Using Bridge Time for Display:**
+2.  **Action 2: Start Using Bridge Time for Display: (IN PROGRESS)**
     *   **Modify `VideoContextScenePreviewPlayer.tsx`:**
-        *   Read `bridge.currentTime` *only* for UI display (e.g., passing to `PlayerControls`/`TimeDisplay`).
+        *   Read `bridge.currentTime` *only* for UI display (e.g., passing to `PlayerControls`/`TimeDisplay`). ✅
         *   Leave existing `usePlaybackState` and its `currentTime` intact for core logic.
     *   **Goal:** Verify bridge provides accurate time for UI without changing playback logic.
     *   **Testing:** Visually inspect time display during playback. Confirm basic play/pause still works.
     *   **Commit Point:** Yes, after successful testing.
 
-3.  **Action 3: Gradually Migrate Player Logic:**
+3.  **Action 3: Gradually Migrate Player Logic: (IN PROGRESS - est. 30% complete)**
     *   **Modify `VideoContextScenePreviewPlayer.tsx` Incrementally:**
-        *   Update *one piece* of logic at a time (e.g., `useAnimationFrameLoop`, specific event handlers) to use `bridge.currentTime` instead of local state.
-    *   **Goal:** Transition core player logic to use the bridge as the time source.
-    *   **Testing:** Test playback, pause, trim boundaries, etc., thoroughly *after each small migration*.
-    *   **Commit Point:** Yes, potentially after each significant, tested migration.
+        *   Fixed TimelineControl component's time handling functions (`timelineValueToPosition` and `positionToTimelineValue`) to properly use visualTime instead of defaulting to 0 when activeHandle is true. ✅
+        *   **Sub-task 3.1 (IN PROGRESS):** Update the `useAnimationFrameLoop` hook to read `bridge.currentTime` as its primary time source, potentially removing the need for it to set the time state itself.
+        *   **Sub-task 3.2 (NOT STARTED):** Review and update core event handlers (`handlePlay`, `handlePause`, `handleTimeUpdate`, boundary checks within rAF loop, etc.) to rely on `bridge.currentTime` for their logic and state updates, removing dependencies on the local `currentTime` from `usePlaybackState`.
+        *   **Sub-task 3.3 (NOT STARTED):** Identify and migrate any other remaining logic within the component that currently uses the local `currentTime` state.
+    *   **Goal:** Transition core player logic to use the bridge as the time source, ensuring consistent state management.
+    *   **Testing:** Test playback, pause, scrubbing, trim boundaries, and visual display thoroughly *after each sub-task migration*.
+    *   **Commit Point:** Yes, potentially after each significant, tested sub-task migration.
 
-4.  **Action 4: Remove Old Player Time State:**
+4.  **Action 4: Remove Old Player Time State: (NOT STARTED)**
     *   **Modify `VideoContextScenePreviewPlayer.tsx` & `usePlaybackState.ts`:**
         *   Once all logic uses `bridge.currentTime`, remove the `currentTime` state and setter from `usePlaybackState`.
         *   Remove the corresponding destructuring in `VideoContextScenePreviewPlayer.tsx`.
