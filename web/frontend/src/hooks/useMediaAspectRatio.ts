@@ -7,7 +7,7 @@ interface UseMediaAspectRatioProps {
   projectAspectRatio?: '9:16' | '16:9' | '1:1' | '4:5';
   showLetterboxing?: boolean;
   mediaType?: 'image' | 'video' | 'gallery';
-  videoContext?: any;
+  bridge?: any;
 }
 
 // Define the hook's return type
@@ -30,11 +30,12 @@ export const useMediaAspectRatio = ({
   projectAspectRatio,
   showLetterboxing,
   mediaType,
-  videoContext,
+  bridge,
 }: UseMediaAspectRatioProps): UseMediaAspectRatioReturn => {
 
   const calculatedAspectRatio = useMemo(() => {
-    // Priority: 1. Dimensions from videoContext if available
+    // Priority: 1. Dimensions from bridge.videoContext if available
+    const videoContext = bridge?.videoContext;
     if (videoContext?.sourceNode?.element && videoContext.sourceNode.element.videoWidth > 0) {
       const videoElement = videoContext.sourceNode.element as HTMLVideoElement;
       return videoElement.videoWidth / videoElement.videoHeight;
@@ -49,7 +50,7 @@ export const useMediaAspectRatio = ({
         return projWidth / projHeight;
     }
     return DEFAULT_ASPECT_RATIO;
-  }, [initialMediaAspectRatio, mediaType, projectAspectRatio, videoContext]);
+  }, [initialMediaAspectRatio, mediaType, projectAspectRatio, bridge]);
 
   // Calculate the style FOR THE MEDIA ELEMENT, replicating original getMediaStyle logic
   const mediaElementStyle = useMemo(() => {

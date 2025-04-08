@@ -78,11 +78,11 @@ The following steps will be taken to refactor the interaction logic:
     *   **Testing:** Visually inspect time display during playback. Confirm basic play/pause still works.
     *   **Commit Point:** Yes, after successful testing.
 
-3.  **Action 3: Gradually Migrate Player Logic: (IN PROGRESS - est. 30% complete)**
+3.  **Action 3: Gradually Migrate Player Logic: (IN PROGRESS - est. 60% complete)**
     *   **Modify `VideoContextScenePreviewPlayer.tsx` Incrementally:**
         *   Fixed TimelineControl component's time handling functions (`timelineValueToPosition` and `positionToTimelineValue`) to properly use visualTime instead of defaulting to 0 when activeHandle is true. ✅
-        *   **Sub-task 3.1 (IN PROGRESS):** Update the `useAnimationFrameLoop` hook to read `bridge.currentTime` as its primary time source, potentially removing the need for it to set the time state itself.
-        *   **Sub-task 3.2 (NOT STARTED):** Review and update core event handlers (`handlePlay`, `handlePause`, `handleTimeUpdate`, boundary checks within rAF loop, etc.) to rely on `bridge.currentTime` for their logic and state updates, removing dependencies on the local `currentTime` from `usePlaybackState`.
+        *   **Sub-task 3.1 (COMPLETED):** ✅ Update the `useAnimationFrameLoop` hook to read `bridge.currentTime` as its primary time source, potentially removing the need for it to set the time state itself.
+        *   **Sub-task 3.2 (IN PROGRESS):** Review and update core event handlers (`handlePlay`, `handlePause`, `handleTimeUpdate`, boundary checks within rAF loop, etc.) to rely on `bridge.currentTime` for their logic and state updates, removing dependencies on the local `currentTime` from `usePlaybackState`.
         *   **Sub-task 3.3 (NOT STARTED):** Identify and migrate any other remaining logic within the component that currently uses the local `currentTime` state.
     *   **Goal:** Transition core player logic to use the bridge as the time source, ensuring consistent state management.
     *   **Testing:** Test playback, pause, scrubbing, trim boundaries, and visual display thoroughly *after each sub-task migration*.

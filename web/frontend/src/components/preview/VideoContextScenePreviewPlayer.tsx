@@ -315,7 +315,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     projectAspectRatio,
     showLetterboxing,
     mediaType,
-    videoContext: bridge.videoContext,
+    bridge,
   });
 
   // --- CALLBACKS & HANDLERS --- 
@@ -379,13 +379,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     if (needsReset) {
       console.log('[DEBUG][handlePlay] Attempting to set media element times...'); // LOG
       // Set time in all media elements
-      if (bridge.videoContext) { // Video
-         try { 
-           console.log(`[DEBUG][handlePlay] Setting bridge context currentTime to ${startTime.toFixed(3)}`); // LOG
-           bridge.videoContext.currentTime = startTime; 
-         } 
-         catch (e) { console.warn("[handlePlay Reset] Error setting video context time:", e); }
+      // UPDATED: Use bridge.seek instead of direct VideoContext manipulation
+      try { 
+        console.log(`[DEBUG][handlePlay] Using bridge.seek(${startTime.toFixed(3)})`); // LOG
+        bridge.seek(startTime);
+      } 
+      catch (e) { 
+        console.warn("[handlePlay Reset] Error seeking with bridge:", e); 
       }
+      
       if (audioRef.current) { // Audio
           try { 
             console.log(`[DEBUG][handlePlay] Setting audioRef currentTime to ${startTime.toFixed(3)}`); // LOG
@@ -406,17 +408,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Handle video playback
     if (isVideoType(mediaType)) {
-      if (bridge.videoContext && bridge.isReady) {
+      if (bridge.isReady) {
         console.log("[handlePlay] Bridge is ready and media is video - calling bridge.play()");
         
-        // Double check if the context is in a playable state
-        if (bridge.videoContext.state === 'paused' || bridge.videoContext.state === 'suspended') {
-          bridge.play();
-          console.log("[handlePlay] Bridge play called successfully");
-        } else {
-          console.warn(`[handlePlay] VideoContext is in state: ${bridge.videoContext.state}, which may not respond to play()`);
-          bridge.play(); // Try anyway
-        }
+        bridge.play();
+        console.log("[handlePlay] Bridge play called successfully");
       } else {
         console.warn(`[handlePlay] Bridge not ready, attempting direct video element fallback`);
         // FALLBACK: Try playing the video element directly if bridge isn't ready
@@ -460,12 +456,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Play separate audio if present
     if (audioRef.current && audioUrl) {
       try {
-        // Ensure we have a time source
-        if (bridge.videoContext) {
-          audioRef.current.currentTime = bridge.videoContext.currentTime;
-        } else {
-          audioRef.current.currentTime = startTime;
-        }
+        // Ensure we have a time source - use bridge.currentTime directly
+        audioRef.current.currentTime = bridge.currentTime;
         audioRef.current.play().catch(err => console.error(`[handlePlay] Error playing audio:`, err));
       } catch (e) {
         console.warn("[handlePlay] Error setting/playing audio time:", e);
@@ -518,13 +510,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     trimStart,
     trimEnd,
     onUpdate: (newTime) => {
-      // Update both currentTime and visualTime 
-      // setCurrentTime(newTime); // REMOVED: Bridge internally updates its currentTime
-      
-      // Only update visual time if not dragging scrubber
-      // if (!isDraggingScrubber) {
-      //   setCurrentTime(newTime);
-      // }
+      // Only need to call bridge.seek when forcing time to a boundary
+      if (Math.abs(bridge.currentTime - newTime) > 0.1) {
+        console.log(`[VCSPP onUpdate] Forcing time to ${newTime.toFixed(3)} (current: ${bridge.currentTime.toFixed(3)})`);
+        bridge.seek(newTime);
+      }
     },
     onPause: () => {
       console.log("[VCSPP onPause Callback] Boundary hit or pause requested by loop.");
@@ -536,11 +526,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     isImageType: isImageType(mediaType),
     animationFrameRef,
     forceResetOnPlayRef,
-    // Additional needed properties
+    // UPDATED: Pass bridge instead of videoContext
+    bridge,
     audioRef,
     isDraggingScrubber,
     userTrimEndRef,
-    // *** ADDED: Pass the new ref ***
     justResetRef,
   });
   
@@ -966,7 +956,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         if (isPlaying && video.paused) {
           console.log(`[CANVAS DEBUG] Starting direct video playback at time: ${bridge.currentTime}`);
           
-          // Set current time before playing
+          // Set current time before playing - use bridge as source of truth
           try {
             video.currentTime = bridge.currentTime; 
           } catch (e) {

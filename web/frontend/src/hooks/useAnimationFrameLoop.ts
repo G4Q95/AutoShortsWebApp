@@ -25,7 +25,7 @@ interface UseAnimationFrameLoopProps {
   forceResetOnPlayRef: React.MutableRefObject<boolean>;
   
   // Optional additional references needed for specific media types
-  videoContext?: any;
+  bridge?: any;
   audioRef?: React.RefObject<HTMLAudioElement | null>;
   isDraggingScrubber?: boolean;
   userTrimEndRef?: React.MutableRefObject<number | null>;
@@ -51,7 +51,7 @@ interface UseAnimationFrameLoopReturn {
  * - Manages different time update strategies for video vs image content
  * - Enforces trim boundaries (start/end times)
  * - Handles time reset when forceResetOnPlayRef is true
- * - Synchronizes media elements (videoContext, audio) with current time
+ * - Synchronizes media elements (bridge.videoContext, audio) with current time
  * - Provides time updates through callback for parent component state management
  * 
  * @param props Configuration object for the animation frame loop
@@ -62,7 +62,7 @@ interface UseAnimationFrameLoopReturn {
  * useAnimationFrameLoop({
  *   isPlaying, 
  *   isReady,
- *   currentTime,
+ *   currentTime: bridge.currentTime,
  *   trimStart,
  *   trimEnd,
  *   onUpdate: (newTime) => setCurrentTime(newTime),
@@ -70,7 +70,7 @@ interface UseAnimationFrameLoopReturn {
  *   isImageType: mediaType === 'image',
  *   animationFrameRef,
  *   forceResetOnPlayRef,
- *   videoContext
+ *   bridge
  * });
  */
 export function useAnimationFrameLoop({
@@ -84,7 +84,7 @@ export function useAnimationFrameLoop({
   isImageType,
   animationFrameRef,
   forceResetOnPlayRef,
-  videoContext,
+  bridge,
   audioRef,
   isDraggingScrubber = false,
   userTrimEndRef,
@@ -140,7 +140,7 @@ export function useAnimationFrameLoop({
       // *** USE currentTime PROP for boundary checks ***
       // The timeupdate listener is handling the actual state advancement.
       // The loop only needs to check boundaries based on the current state.
-      const newTime = currentTime; 
+      const newTime = bridge && typeof bridge.currentTime === 'number' ? bridge.currentTime : currentTime;
       
       // Check justResetRef before processing boundary
       if (justResetRef.current) {
@@ -167,11 +167,13 @@ export function useAnimationFrameLoop({
         } else if (newTime < trimStart) {
           // Handle case where time somehow got behind trimStart
           console.warn(`[DEBUG][rAF Boundary] newTime (${newTime.toFixed(3)}) < trimStart (${trimStart.toFixed(3)}). Forcing to trimStart.`); // LOG
-          if (videoContext) {
+          
+          // UPDATED: Use bridge.seek instead of direct videoContext access
+          if (bridge && typeof bridge.seek === 'function') {
             try { 
-              videoContext.currentTime = trimStart; 
+              bridge.seek(trimStart);
             } catch(e) { 
-              console.warn("[rAF SeekForward] Error setting video context time:", e); 
+              console.warn("[rAF SeekForward] Error seeking using bridge:", e); 
             }
           }
           
@@ -220,7 +222,7 @@ export function useAnimationFrameLoop({
     // Dependencies for the rAF loop
     isPlaying, 
     isReady,
-    videoContext,
+    bridge,
     trimStart, 
     trimEnd,
     currentTime,
