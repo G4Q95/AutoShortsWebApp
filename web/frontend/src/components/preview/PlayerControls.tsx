@@ -33,8 +33,8 @@ interface PlayerControlsProps {
   getEffectiveTrimEnd: () => number; // Function to get the value
 
   // Time Display
-  currentTime: number;
-  // Uses duration, trimStart, effectiveTrimEnd, activeHandle from above
+  // Uses visualTime instead of currentTime
+  // uses duration, trimStart, effectiveTrimEnd, activeHandle from above
 
   // Info Button
   showAspectRatio: boolean;
@@ -67,8 +67,6 @@ export function PlayerControls({
   setTimeBeforeDrag,
   setOriginalPlaybackTime,
   getEffectiveTrimEnd,
-  // Time Display props
-  currentTime,
   // Info Button props
   showAspectRatio,
   onInfoToggle,

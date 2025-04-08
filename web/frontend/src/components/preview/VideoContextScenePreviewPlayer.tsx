@@ -680,10 +680,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setScrubTime(null); // Reset scrubTime
 
   }, [
-    isDraggingScrubber, bridge.currentTime, duration, // Keep bridge.currentTime as fallback
-    scrubTime, setScrubTime, // Add scrubTime state and setter
-    forceResetOnPlayRef, setIsDraggingScrubber, // Other refs/setters
-    bridge // Need bridge.seek
+    isDraggingScrubber, 
+    bridge, // Using bridge both for currentTime and seek
+    duration, 
+    scrubTime, 
+    setScrubTime, 
+    setIsDraggingScrubber
   ]);
   
   // *** ADDED: useEffect for global scrubber drag listeners ***
@@ -917,7 +919,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       if (!video) return;
       console.log("[DEBUG] timeupdate event fired!");
       if (!isDraggingScrubber) {
-        console.log(`[VideoElement] Time update: ${video.currentTime.toFixed(2)}s / ${video.duration.toFixed(2)}s`);
+        // Use bridge.currentTime instead of video.currentTime for consistency
+        console.log(`[VideoElement] Time update: ${bridge.currentTime.toFixed(2)}s / ${video.duration.toFixed(2)}s`);
       }
     };
     
@@ -974,24 +977,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       if (video) video.style.display = 'none';
     }
 
-    // --- Return the cleanup function --- 
+    // Clean up event listeners when component unmounts or dependencies change
     return () => {
-      const currentVideo = videoRef.current; // Use ref in cleanup
-      if (currentVideo) {
-        console.log("[DEBUG] Removing event listeners (metadata, timeupdate, error)");
-        currentVideo.removeEventListener('loadedmetadata', handleMetadataLoaded);
-        currentVideo.removeEventListener('timeupdate', timeUpdateHandler);
-        currentVideo.removeEventListener('error', handleError);
+      if (video) {
+        video.removeEventListener('loadedmetadata', handleMetadataLoaded);
+        video.removeEventListener('timeupdate', timeUpdateHandler);
+        video.removeEventListener('error', handleError);
       }
     };
-
-  }, [
-    // Dependencies
-    isPlaying, mediaType, localMediaUrl, // Core state/props
-    videoRef, canvasRef, // Refs
-    isDraggingScrubber, // Interaction state
-    setDuration, setIsReady, setTrimEnd, userTrimEndRef, trimManuallySet // REMOVED setCurrentTime
-  ]);
+  }, [isPlaying, mediaType, localMediaUrl, isDraggingScrubber, trimManuallySet, userTrimEndRef, bridge]);
   
   // Effect to clear image timer on unmount
   useEffect(() => {
@@ -1166,7 +1160,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         {/* Controls Overlay - Play/Pause, Scrubber, Time Display, Info Button */}
         <PlayerControls
           // Visibility
-          isHovering={isHovering}
+          isHovering={isHovering || isLoading}
           isPositionLocked={isPositionLocked}
           isMediumView={!!isMediumView}
           onLockToggle={handleLockToggle}
@@ -1185,13 +1179,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           setTimeBeforeDrag={setTimeBeforeDrag}
           setOriginalPlaybackTime={setOriginalPlaybackTime}
           getEffectiveTrimEnd={getEffectiveTrimEnd}
-          // Time Display
-          currentTime={scrubTime ?? bridge.currentTime}
           // Info Button
           showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
-        onInfoToggle={handleInfoToggle}
+          onInfoToggle={handleInfoToggle}
           // Trim Toggle Button
-        onTrimToggle={handleTrimToggle}
+          onTrimToggle={handleTrimToggle}
         />
       </MediaContainer>
     </MediaErrorBoundary>
