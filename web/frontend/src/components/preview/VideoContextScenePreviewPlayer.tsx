@@ -355,19 +355,28 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const handlePlay = useCallback(() => {
     console.log('[DEBUG][handlePlay] Entered function.'); // LOG
     
-    const wasReset = forceResetOnPlayRef.current;
-    const startTime = wasReset ? trimStart : bridge.currentTime; // Use bridge.currentTime
+    const currentBridgeTime = bridge.currentTime;
+    const effectiveTrimEnd = getEffectiveTrimEnd(); // Get current effective end
+    
+    // Determine if we need to reset
+    let needsReset = forceResetOnPlayRef.current;
+    if (!needsReset && currentBridgeTime >= effectiveTrimEnd - 0.05) { // Check if close to end boundary (add tolerance)
+      console.log(`[DEBUG][handlePlay] Time (${currentBridgeTime.toFixed(3)}) is at or beyond end boundary (${effectiveTrimEnd.toFixed(3)}). Forcing reset.`);
+      needsReset = true;
+    }
+    
+    const startTime = needsReset ? trimStart : currentBridgeTime;
     
     // Log status for debugging
-    console.log(`[DEBUG][handlePlay] Force reset flag is ${wasReset ? 'TRUE' : 'FALSE'}. Target startTime: ${startTime.toFixed(3)}`); // LOG
+    console.log(`[DEBUG][handlePlay] Needs reset: ${needsReset ? 'TRUE' : 'FALSE'}. Target startTime: ${startTime.toFixed(3)}`); // LOG
     
     // Update React state (visuals) immediately at the start
-    if (wasReset) {
+    if (needsReset) {
       console.log(`[DEBUG][handlePlay] Applying reset state: Using start time ${startTime.toFixed(3)}`); // LOG
     }
     
     // If we're at the end, or need to reset, set time explicitly
-    if (wasReset) {
+    if (needsReset) {
       console.log('[DEBUG][handlePlay] Attempting to set media element times...'); // LOG
       // Set time in all media elements
       if (bridge.videoContext) { // Video
@@ -415,7 +424,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         if (video && localMediaUrl) {
           try {
             // If we were reset, or we're using the start time, seek explicitly
-            if (wasReset || Math.abs(video.currentTime - startTime) > 0.5) {
+            if (needsReset || Math.abs(video.currentTime - startTime) > 0.5) {
               video.currentTime = startTime;
             }
             
@@ -517,7 +526,13 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       //   setCurrentTime(newTime);
       // }
     },
-    onPause: handlePause,
+    onPause: () => {
+      console.log("[VCSPP onPause Callback] Boundary hit or pause requested by loop.");
+      setIsPlayingWithLog(false);
+      // FIX: Explicitly seek back to the start when the loop pauses due to hitting trimEnd
+      console.log(`[VCSPP onPause Callback] Seeking to trimStart: ${trimStart.toFixed(3)}`);
+      bridge.seek(trimStart);
+    },
     isImageType: isImageType(mediaType),
     animationFrameRef,
     forceResetOnPlayRef,
@@ -1158,23 +1173,22 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
         calculatedAspectRatio={calculatedAspectRatio}
       >
-        {/* PlayerControls component is now passed as a child */}
+        {/* Controls Overlay - Play/Pause, Scrubber, Time Display, Info Button */}
         <PlayerControls
           // Visibility
           isHovering={isHovering}
           isPositionLocked={isPositionLocked}
-          isMediumView={isMediumView ?? false}
-          // Lock Button
+          isMediumView={!!isMediumView}
           onLockToggle={handleLockToggle}
           // Timeline
-          visualTime={scrubTime !== null ? scrubTime : bridge.currentTime}
+          visualTime={scrubTime ?? bridge.currentTime}
           duration={duration}
           trimStart={trimStart}
           effectiveTrimEnd={getEffectiveTrimEnd()}
           activeHandle={activeHandle}
           trimActive={trimActive}
           isDraggingScrubber={isDraggingScrubber}
-          onTimeUpdate={handleScrubberDragMove}
+          onTimeUpdate={handleTimeUpdate}
           onScrubberDragStart={handleScrubberDragStart}
           onScrubberDragEnd={handleScrubberDragEnd}
           setActiveHandle={setActiveHandle}
@@ -1182,12 +1196,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           setOriginalPlaybackTime={setOriginalPlaybackTime}
           getEffectiveTrimEnd={getEffectiveTrimEnd}
           // Time Display
-          currentTime={bridge.currentTime}
+          currentTime={scrubTime ?? bridge.currentTime}
           // Info Button
           showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
-        onInfoToggle={handleInfoToggle}
+          onInfoToggle={handleInfoToggle}
           // Trim Toggle Button
-        onTrimToggle={handleTrimToggle}
+          onTrimToggle={handleTrimToggle}
         />
       </MediaContainer>
     </MediaErrorBoundary>
