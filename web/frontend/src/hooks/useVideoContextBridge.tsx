@@ -73,14 +73,19 @@ export function useVideoContextBridge({
   onError,
   onTimeUpdate
 }: UseVideoContextBridgeProps): UseVideoContextBridgeReturn {
-  console.log('[VideoContextBridge] Initializing with:', { 
-    mediaUrl, 
-    localMediaUrl, 
-    mediaType, 
-    showFirstFrame,
-    hasVideoRef: !!videoRef?.current,
-    hasCanvasRef: !!canvasRef?.current
-  });
+  // Avoid excessive logging on every render
+  const isInitialRender = useRef(true);
+  if (isInitialRender.current) {
+    console.log('[VideoContextBridge] Initializing with:', { 
+      mediaUrl, 
+      localMediaUrl, 
+      mediaType, 
+      showFirstFrame,
+      hasVideoRef: !!videoRef?.current,
+      hasCanvasRef: !!canvasRef?.current
+    });
+    isInitialRender.current = false;
+  }
 
   // Internal state
   const [isReady, setIsReady] = useState(false);
@@ -92,9 +97,35 @@ export function useVideoContextBridge({
   
   // Keep reference to the bridge instance
   const bridgeRef = useRef<VideoContext | null>(null);
+  
+  // Track if initialization has been attempted
+  const initAttempted = useRef(false);
+  
+  // Track current media URL to avoid re-initializing for the same URL
+  const currentMediaUrlRef = useRef<string | null | undefined>(null);
+  const currentLocalMediaUrlRef = useRef<string | null | undefined>(null);
 
-  // Initialize bridge instance
+  // Initialize bridge instance when refs or media URL changes
   useEffect(() => {
+    // Skip if no media URL available
+    if (!mediaUrl && !localMediaUrl) {
+      console.warn('[VideoContextBridge] No media URL provided, bridge will not be initialized');
+      return;
+    }
+    
+    // Skip if URLs haven't changed
+    const mediaUrlChanged = mediaUrl !== currentMediaUrlRef.current;
+    const localMediaUrlChanged = localMediaUrl !== currentLocalMediaUrlRef.current;
+    
+    if (!mediaUrlChanged && !localMediaUrlChanged && bridgeRef.current && initAttempted.current) {
+      console.log('[VideoContextBridge] Skipping initialization as URLs have not changed');
+      return;
+    }
+    
+    // Update URL refs
+    currentMediaUrlRef.current = mediaUrl;
+    currentLocalMediaUrlRef.current = localMediaUrl;
+    
     console.log('[VideoContextBridge] Setting up bridge adapter with media:', { 
       mediaUrl, 
       localMediaUrl,
@@ -104,20 +135,16 @@ export function useVideoContextBridge({
       canvasRefExists: !!canvasRef?.current
     });
     
+    // Set loading state
+    setIsLoading(true);
+    setHasError(false);
+    setErrorMessage(null);
+    
     // Add a small delay to ensure React has had time to attach refs
     const initTimeout = setTimeout(async () => {
-      // Check for media URL - required for initialization
-      if (!mediaUrl && !localMediaUrl) {
-        console.warn('[VideoContextBridge] No media URL provided, bridge will not be initialized');
-        return;
-      }
-      
       const initBridge = async () => {
         try {
-          setIsLoading(true);
-          setHasError(false);
-          setErrorMessage(null);
-          setIsReady(false);
+          initAttempted.current = true;
 
           // Ensure videoRef is available
           if (!videoRef?.current) {
@@ -126,17 +153,14 @@ export function useVideoContextBridge({
             return;
           }
 
-          // --- FIX: Set the video source BEFORE initialization ---
-          const sourceUrl = localMediaUrl || mediaUrl;
-          if (!sourceUrl) {
-            throw new Error('No media URL provided for video source.');
+          // If we already have a bridge instance, destroy it first
+          if (bridgeRef.current) {
+            bridgeRef.current.destroy();
+            bridgeRef.current = null;
           }
-          // Don't set videoRef.current.src directly anymore, let the VideoContext handle it
-          // videoRef.current.src = sourceUrl;
-          // ------------------------------------------------------
 
-          // Create new bridge instance
-          const bridge = new VideoContext();
+          // Create new bridge instance with debug mode
+          const bridge = new VideoContext(true);
           
           // Set the video element
           bridge.setVideo(videoRef.current);
@@ -183,26 +207,27 @@ export function useVideoContextBridge({
     // Cleanup
     return () => {
       clearTimeout(initTimeout);
+    };
+  }, [
+    videoRef, 
+    canvasRef, 
+    mediaUrl, 
+    localMediaUrl, 
+    onIsReadyChange, 
+    onDurationChange, 
+    onError, 
+    onReady
+  ]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
       if (bridgeRef.current) {
         bridgeRef.current.destroy();
         bridgeRef.current = null;
       }
     };
-  }, [canvasRef, videoRef, mediaUrl, localMediaUrl, onIsReadyChange, onDurationChange, onError, onReady]);
-
-  // Log when bridge adapter is ready or has errors
-  useEffect(() => {
-    console.log('[VideoContextBridge] Bridge adapter state updated:', {
-      isReady: isReady,
-      isPlaying: isReady,
-      duration: duration,
-      errorMessage: errorMessage
-    });
-    
-    if (errorMessage) {
-      console.error('[VideoContextBridge] Bridge adapter error:', errorMessage);
-    }
-  }, [isReady, duration, errorMessage]);
+  }, []);
 
   // Bridge actions
   const play = useCallback(async () => {
@@ -261,9 +286,9 @@ export function useVideoContextBridge({
     }
   }, [onError]);
 
-  // Time update effect
+  // Time update effect - only set up once bridge is ready
   useEffect(() => {
-    if (!bridgeRef.current || !onTimeUpdate) return;
+    if (!bridgeRef.current || !onTimeUpdate || !isReady) return;
 
     const handleTimeUpdate = () => {
       const currentTime = bridgeRef.current?.getCurrentTime() || 0;
@@ -276,7 +301,7 @@ export function useVideoContextBridge({
     return () => {
       clearInterval(intervalId);
     };
-  }, [onTimeUpdate]);
+  }, [onTimeUpdate, isReady]);
 
   // Legacy methods for backward compatibility
   const createVideoSourceNode = useCallback((ctx: any) => {

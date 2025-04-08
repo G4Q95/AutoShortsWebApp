@@ -122,10 +122,10 @@ export function useAnimationFrameLoop({
       }
       
       // Add diagnostic logging
-      if (videoContext && typeof videoContext.currentTime !== 'undefined') {
+      if (videoContext && typeof videoContext.getCurrentTime === 'function') {
         // Only log every 2 seconds for readability
         if (Math.floor(currentTime) % 2 === 0 && Math.floor(currentTime * 10) % 10 === 0) {
-          console.log(`[rAF Diagnostic] videoContext.currentTime=${videoContext.currentTime.toFixed(3)}, currentTime=${currentTime.toFixed(3)}, isPlaying=${isPlayingRef.current}, isReady=${isReady}`);
+          console.log(`[rAF Diagnostic] videoContext.getCurrentTime=${videoContext.getCurrentTime().toFixed(3)}, currentTime=${currentTime.toFixed(3)}, isPlaying=${isPlayingRef.current}, isReady=${isReady}`);
         }
       } else {
         // Only log every 2 seconds for readability
@@ -169,15 +169,53 @@ export function useAnimationFrameLoop({
       
       // Calculate new time value: Prioritize reading VideoContext, fallback to manual increment.
       let newTime = currentTime; // Start with previous state time
-      const vcTime = videoContext ? videoContext.currentTime : undefined;
+      const vcTime = videoContext && typeof videoContext.getCurrentTime === 'function' 
+        ? videoContext.getCurrentTime() 
+        : videoContext?.currentTime;
+      
+      // Add diagnosis for vcTime
+      if (typeof vcTime === 'undefined' || vcTime === null) {
+        if (Math.floor(currentTime) % 2 === 0 && Math.floor(currentTime * 10) % 10 === 0) {
+          console.log(`[rAF Debug] Video context time undefined. Using manual increment. videoContext:`, 
+            videoContext ? typeof videoContext.getCurrentTime : 'null');
+        }
+      }
 
-      if (typeof vcTime === 'number' && Math.abs(vcTime - lastVideoContextTimeRef.current) > 0.001) {
-          // Use the updated time from VideoContext
-          newTime = vcTime;
-          lastVideoContextTimeRef.current = vcTime; // Update the last read time
+      if (typeof vcTime === 'number' && !isNaN(vcTime)) {
+        // Always use the time from VideoContext if it's available
+        newTime = vcTime;
+        lastVideoContextTimeRef.current = vcTime; // Update the last read time
+        
+        // For debugging video updates
+        if (Math.floor(vcTime) !== Math.floor(lastVideoContextTimeRef.current) && 
+            Math.abs(vcTime - lastVideoContextTimeRef.current) > 0.5) {
+          console.log(`[rAF] VideoContext time updated: ${vcTime.toFixed(3)}`);
+        }
       } else {
-          // VideoContext time hasn't changed OR not available, use manual increment for UI smoothness
-          newTime = currentTime + deltaTime;
+        // VideoContext time not available, use manual increment for UI smoothness
+        newTime = currentTime + deltaTime;
+        
+        // If we get here and isPlaying is true, we should check if video element exists but is hidden
+        if (isPlayingRef.current && videoContext && 
+            typeof videoContext.video?.style === 'object') {
+          // Log visibility issue no more than once per second
+          if (Math.floor(currentTime) !== Math.floor(lastFrameTimeRef.current / 1000)) {
+            console.log(`[rAF] Video visibility check: display=${videoContext.video.style.display}, visibility=${videoContext.video.style.visibility}`);
+            
+            // Fix visibility if needed
+            if (videoContext.video.style.display === 'none' || 
+                videoContext.video.style.visibility === 'hidden') {
+              console.log('[rAF] Fixing video visibility...');
+              videoContext.video.style.display = 'block';
+              videoContext.video.style.visibility = 'visible';
+              
+              // If there's a canvas, check if it's blocking the video
+              if (videoContext.canvas && videoContext.canvas.style.display === 'block') {
+                videoContext.canvas.style.display = 'none';
+              }
+            }
+          }
+        }
       }
       
       // Check justResetRef before processing boundary

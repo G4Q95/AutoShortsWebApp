@@ -368,18 +368,37 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const handlePlay = useCallback(async () => {
     try {
       console.log('[VCSPP] handlePlay triggered');
+      
+      // Always ensure we're not showing first frame when playing
+      if (showFirstFrame) {
+        setShowFirstFrame(false);
+        
+        // Ensure video element is correctly shown
+        if (videoRef.current) {
+          videoRef.current.style.display = 'block';
+          videoRef.current.style.visibility = 'visible';
+        }
+        
+        // Ensure canvas is hidden
+        if (canvasRef.current) {
+          canvasRef.current.style.display = 'none';
+        }
+        
+        // Add a small delay to let the DOM update before playing
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
       // Ensure the context is aware we intend to play
-      setIsPlaying(true); 
-      setShowFirstFrame(false); // Hide first frame on play attempt
+      setIsPlaying(true);
       
       // Use the bridge to play
       await videoContextBridge.play();
       
-      } catch (error) {
+    } catch (error) {
       console.error('[VCSPP] Play error:', error);
       setIsPlaying(false); // Ensure state reflects failure
     }
-  }, [setIsPlaying, videoContextBridge]);
+  }, [setIsPlaying, videoContextBridge, showFirstFrame, videoRef, canvasRef]);
 
   const handlePause = useCallback(async () => {
     try {
@@ -394,6 +413,38 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       console.error('[VCSPP] Pause error:', error);
     }
   }, [setIsPlaying, videoContextBridge]);
+
+  const toggleFirstFrame = useCallback(() => {
+    const newState = !showFirstFrame;
+    console.log(`[VCSPP] toggleFirstFrame to ${newState}`);
+    
+    // If playing, pause first
+    if (isPlaying) {
+      handlePause();
+    }
+    
+    setShowFirstFrame(newState);
+    
+    // Update DOM elements directly for immediate effect
+    if (newState) {
+      // Show canvas, hide video
+      if (canvasRef.current) {
+        canvasRef.current.style.display = 'block';
+      }
+      if (videoRef.current) {
+        videoRef.current.style.visibility = 'hidden';
+      }
+    } else {
+      // Hide canvas, show video
+      if (canvasRef.current) {
+        canvasRef.current.style.display = 'none';
+      }
+      if (videoRef.current) {
+        videoRef.current.style.visibility = 'visible';
+        videoRef.current.style.display = 'block';
+      }
+    }
+  }, [showFirstFrame, setShowFirstFrame, canvasRef, videoRef, isPlaying, handlePause]);
   
   const handleSeek = useCallback(async (time: number) => {
     console.log(`[VCSPP] handleSeek called with time=${time}`);

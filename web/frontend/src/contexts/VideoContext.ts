@@ -43,7 +43,11 @@ export class VideoContext {
     const effectiveUrl = localUrl || directUrl;
     if (effectiveUrl) {
       this.log(`Setting video.src to: ${effectiveUrl}`);
-      this.video.src = effectiveUrl;
+      
+      // Handle Reddit and other problematic URLs by adding cache-busting
+      const urlObj = this.processUrl(effectiveUrl);
+      
+      this.video.src = urlObj;
     } else {
       this.log('No URL provided for initialization, using existing video.src');
       // If no URL is provided, we'll use whatever is already in the video.src
@@ -62,10 +66,18 @@ export class VideoContext {
           return reject(new Error('Video element not set'));
         }
 
+        // If metadata is already loaded, resolve immediately
+        if (this.video.readyState >= 1) {
+          this.log('Video metadata already loaded');
+          resolve();
+          return;
+        }
+
         const onLoadedMetadata = () => {
           this.log('Video metadata loaded successfully');
           this.video?.removeEventListener('loadedmetadata', onLoadedMetadata);
           this.video?.removeEventListener('error', onError);
+          clearTimeout(timeoutId);
           resolve();
         };
 
@@ -86,6 +98,7 @@ export class VideoContext {
           
           this.video?.removeEventListener('loadedmetadata', onLoadedMetadata);
           this.video?.removeEventListener('error', onError);
+          clearTimeout(timeoutId);
           reject(new Error(detailedMessage));
         };
 
@@ -94,11 +107,18 @@ export class VideoContext {
         
         // Set a timeout to prevent hanging indefinitely
         const timeoutId = setTimeout(() => {
-          this.error('Video metadata load timeout after 10 seconds');
+          this.error('Video metadata load timeout after 15 seconds');
           this.video?.removeEventListener('loadedmetadata', onLoadedMetadata);
           this.video?.removeEventListener('error', onError);
-          reject(new Error('Video load timeout'));
-        }, 10000);  // 10 second timeout
+          
+          // Instead of rejecting, try to continue if there's a valid video element
+          if (this.video && this.video.src) {
+            this.log('Continuing despite timeout - some videos might still play');
+            resolve();
+          } else {
+            reject(new Error('Video load timeout'));
+          }
+        }, 15000);  // 15 second timeout
         
         // Force a load to trigger events
         this.video.load();
@@ -115,6 +135,36 @@ export class VideoContext {
       this.isInitialized = false;
       this.error('Initialization failed:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Process URL to handle special cases (Reddit, etc.)
+   */
+  private processUrl(url: string): string {
+    if (!url) return url;
+    
+    try {
+      // Check if it's a Reddit video URL
+      if (url.includes('v.redd.it') || url.includes('reddit')) {
+        this.log('Reddit video URL detected - adding cache-busting');
+        
+        // Add a timestamp parameter to prevent caching
+        const delimiter = url.includes('?') ? '&' : '?';
+        return `${url}${delimiter}_t=${Date.now()}`;
+      }
+      
+      // Check if it's a blob URL (already local, no need to process)
+      if (url.startsWith('blob:')) {
+        return url;
+      }
+      
+      // For other URLs, just return as is
+      return url;
+    } catch (e) {
+      this.error('Error processing URL:', e);
+      // Return original URL if anything goes wrong
+      return url;
     }
   }
 
@@ -180,15 +230,26 @@ export class VideoContext {
     try {
       this.log('Starting playback...');
       
-      // Make sure video is visible
-      if (this.video.style.display === 'none') {
-        this.error('Cannot play - video element is not visible (display: none)');
-        throw new Error('Video element not visible');
+      // Check video visibility and fix it if needed
+      const isHidden = this.video.style.display === 'none' || 
+                       this.video.style.visibility === 'hidden' ||
+                       this.video.getBoundingClientRect().width === 0;
+                       
+      if (isHidden) {
+        this.log('Video element is hidden, making it visible...');
+        // Make video visible - this is critical for playback
+        this.video.style.display = 'block';
+        this.video.style.visibility = 'visible';
+        
+        // If using a canvas for first-frame display, hide it now
+        if (this.canvas) {
+          this.canvas.style.display = 'none';
+        }
       }
       
       // Ensure video element is ready to play
       if (this.video.readyState < 2) {
-        this.log('Video not ready to play (readyState < 2), waiting for metadata...');
+        this.log('Video not ready to play (readyState < 2), waiting for canplay event...');
         await new Promise<void>((resolve, reject) => {
           const videoElement = this.video;
           if (!videoElement) {
@@ -196,28 +257,53 @@ export class VideoContext {
             return;
           }
           
+          // If already in ready state, resolve immediately
+          if (videoElement.readyState >= 2) {
+            resolve();
+            return;
+          }
+          
           const onCanPlay = () => {
             videoElement.removeEventListener('canplay', onCanPlay);
             videoElement.removeEventListener('error', onError);
+            clearTimeout(timeoutId);
             resolve();
           };
           
           const onError = (e: Event) => {
             videoElement.removeEventListener('canplay', onCanPlay);
             videoElement.removeEventListener('error', onError);
-            reject(new Error('Failed to load video'));
+            clearTimeout(timeoutId);
+            reject(new Error('Video playback error: ' + 
+              (videoElement.error ? videoElement.error.message : 'Unknown error')));
           };
           
           videoElement.addEventListener('canplay', onCanPlay);
           videoElement.addEventListener('error', onError);
+          
+          // Add timeout to avoid hanging
+          const timeoutId = setTimeout(() => {
+            videoElement.removeEventListener('canplay', onCanPlay);
+            videoElement.removeEventListener('error', onError);
+            
+            // Try to continue even if not fully ready
+            if (videoElement.readyState >= 1) {
+              this.log('Proceeding with play despite readyState < 2');
+              resolve();
+            } else {
+              reject(new Error('Timeout waiting for video to be ready to play'));
+            }
+          }, 5000);
         });
       }
       
+      // Start playback
       await this.video.play();
+      
       this.log('Playback started successfully');
     } catch (error) {
-      this.error('Playback start failed:', error);
-      throw new Error(`Failed to start playback: ${error instanceof Error ? error.message : String(error)}`);
+      this.error('Failed to start playback:', error);
+      throw error;
     }
   }
 
