@@ -1,181 +1,122 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { useBridgeAdapter } from '@/hooks/new/useBridgeAdapter';
 
-// Using a local test video to avoid cross-origin issues
-const TEST_VIDEO_URL = '/sample-video.mp4'; // Place a short sample video in public directory
+// Use an external video source that's guaranteed to work
+const TEST_VIDEO_URL = 'https://www.w3schools.com/html/mov_bbb.mp4';
 
 export default function TestBridgePage() {
+  // Video element ref
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  // Separate video element state from bridge state
-  const [directVideoState, setDirectVideoState] = useState({
-    loaded: false,
-    networkState: 0,
-    readyState: 0,
-    error: null as string | null,
-    duration: 0
-  });
-  
-  // Bridge state
-  const [bridgeState, setBridgeState] = useState({
-    error: null as string | null,
-    isPlaying: false,
+  // Video loading state
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
+  const [videoState, setVideoState] = useState({
     currentTime: 0,
     duration: 0,
-    videoReady: false,
-    showFirstFrame: true
+    paused: true,
+    networkState: 0,
+    readyState: 0
   });
-
-  // Set up direct video element only once
+  
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    // Track all state changes in a single handler to avoid race conditions
-    const handleVideoStateChange = () => {
-      if (!video) return;
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+    
+    console.log('Setting up video event listeners');
+    
+    // Track video state changes
+    const updateVideoState = () => {
+      if (!videoElement) return;
       
-      setDirectVideoState({
-        loaded: video.readyState >= 1,
-        networkState: video.networkState,
-        readyState: video.readyState,
-        error: video.error ? `Video error: ${video.error.message || 'Unknown error'}` : null,
-        duration: video.duration || 0
+      setVideoState({
+        currentTime: videoElement.currentTime,
+        duration: videoElement.duration || 0,
+        paused: videoElement.paused,
+        networkState: videoElement.networkState,
+        readyState: videoElement.readyState
       });
     };
-
-    // Set up all event listeners
-    const events = [
-      'loadstart', 'loadedmetadata', 'loadeddata', 
-      'progress', 'canplay', 'canplaythrough',
-      'error', 'stalled', 'suspend', 'waiting'
-    ];
     
-    events.forEach(event => {
-      video.addEventListener(event, handleVideoStateChange);
-    });
-
-    // Initial load
-    handleVideoStateChange();
+    const handleLoadedData = () => {
+      console.log('Video loaded successfully');
+      setVideoLoaded(true);
+      setVideoLoadError(null);
+      updateVideoState();
+    };
     
-    // Set source and load
-    video.crossOrigin = 'anonymous';
-    video.src = TEST_VIDEO_URL;
-    video.load();
+    const handleError = () => {
+      const errorMessage = videoElement.error 
+        ? `Error: ${videoElement.error.message || 'Unknown video loading error'}`
+        : 'Unknown error';
+        
+      console.error('Video load error:', errorMessage);
+      setVideoLoaded(false);
+      setVideoLoadError(errorMessage);
+    };
     
-    // Cleanup
+    // Add event listeners
+    videoElement.addEventListener('loadeddata', handleLoadedData);
+    videoElement.addEventListener('error', handleError);
+    videoElement.addEventListener('timeupdate', updateVideoState);
+    videoElement.addEventListener('play', updateVideoState);
+    videoElement.addEventListener('pause', updateVideoState);
+    
+    // Set video source
+    videoElement.src = TEST_VIDEO_URL;
+    
+    // Update state initially
+    updateVideoState();
+    
+    // Clean up event listeners
     return () => {
-      events.forEach(event => {
-        video.removeEventListener(event, handleVideoStateChange);
-      });
+      videoElement.removeEventListener('loadeddata', handleLoadedData);
+      videoElement.removeEventListener('error', handleError);
+      videoElement.removeEventListener('timeupdate', updateVideoState);
+      videoElement.removeEventListener('play', updateVideoState);
+      videoElement.removeEventListener('pause', updateVideoState);
     };
   }, []);
-
-  // Handle bridge errors
-  const handleBridgeError = (err: Error) => {
-    console.error('Bridge error:', err);
-    setBridgeState(prev => ({
-      ...prev,
-      error: err.message
-    }));
-    
-    // Auto-clear error after 5 seconds
-    setTimeout(() => {
-      setBridgeState(prev => ({
-        ...prev,
-        error: null
-      }));
-    }, 5000);
+  
+  // Helper functions for human-readable state values
+  const getNetworkStateText = (state: number): string => {
+    const states = [
+      'NETWORK_EMPTY',
+      'NETWORK_IDLE',
+      'NETWORK_LOADING',
+      'NETWORK_NO_SOURCE'
+    ];
+    return `${state} (${states[state] || 'UNKNOWN'})`;
   };
-
-  // Initialize bridge adapter
-  const bridge = useBridgeAdapter({
-    videoRef,
-    canvasRef,
-    mediaUrl: TEST_VIDEO_URL,
-    mediaType: 'video/mp4',
-    showFirstFrame: bridgeState.showFirstFrame,
-    onError: handleBridgeError,
-    onTimeUpdate: (time) => {
-      setBridgeState(prev => ({
-        ...prev,
-        currentTime: time
-      }));
-    },
-    onDurationChange: (dur) => {
-      setBridgeState(prev => ({
-        ...prev,
-        duration: dur
-      }));
-    },
-    onIsReadyChange: (ready) => {
-      setBridgeState(prev => ({
-        ...prev,
-        videoReady: ready
-      }));
-    }
-  });
-
-  // Bridge action handlers with state updates
-  const handlePlayPause = async () => {
-    try {
-      if (bridgeState.isPlaying) {
-        await bridge.pause();
-        setBridgeState(prev => ({
-          ...prev,
-          isPlaying: false
-        }));
-      } else {
-        // Toggle first frame off when playing
-        if (bridgeState.showFirstFrame) {
-          setBridgeState(prev => ({
-            ...prev,
-            showFirstFrame: false
-          }));
-          
-          // Wait one tick for state to update before playing
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-        
-        await bridge.play();
-        setBridgeState(prev => ({
-          ...prev,
-          isPlaying: true
-        }));
-      }
-    } catch (err) {
-      console.error('Play/Pause error:', err);
+  
+  const getReadyStateText = (state: number): string => {
+    const states = [
+      'HAVE_NOTHING',
+      'HAVE_METADATA',
+      'HAVE_CURRENT_DATA',
+      'HAVE_FUTURE_DATA',
+      'HAVE_ENOUGH_DATA'
+    ];
+    return `${state} (${states[state] || 'UNKNOWN'})`;
+  };
+  
+  const handlePlay = () => {
+    if (videoRef.current) {
+      videoRef.current.play().catch(err => {
+        console.error('Error playing video:', err);
+        setVideoLoadError(`Error playing: ${err.message}`);
+      });
     }
   };
-
-  const handleSeek = async (time: number) => {
-    try {
-      await bridge.seek(time);
-      setBridgeState(prev => ({
-        ...prev,
-        currentTime: time
-      }));
-    } catch (err) {
-      console.error('Seek error:', err);
+  
+  const handlePause = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
     }
   };
-
-  const toggleFirstFrame = () => {
-    // If playing, pause first
-    if (bridgeState.isPlaying) {
-      bridge.pause().then(() => {
-        setBridgeState(prev => ({
-          ...prev,
-          isPlaying: false,
-          showFirstFrame: !prev.showFirstFrame
-        }));
-      }).catch(console.error);
-    } else {
-      setBridgeState(prev => ({
-        ...prev,
-        showFirstFrame: !prev.showFirstFrame
-      }));
+  
+  const seekTo = (time: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = time;
     }
   };
 
@@ -183,137 +124,76 @@ export default function TestBridgePage() {
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Video Bridge Test Page</h1>
       
-      {/* Status Display */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div className="p-4 bg-gray-100 rounded">
-          <h2 className="text-xl font-semibold mb-2">Video Status</h2>
-          <div className="space-y-2">
-            <p>Video URL: {TEST_VIDEO_URL}</p>
-            <p>Loaded: {directVideoState.loaded ? 'Yes' : 'No'}</p>
-            <p>Network State: {directVideoState.networkState} ({getNetworkStateText(directVideoState.networkState)})</p>
-            <p>Ready State: {directVideoState.readyState} ({getReadyStateText(directVideoState.readyState)})</p>
-            {directVideoState.error && (
-              <p className="text-red-500">Error: {directVideoState.error}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="p-4 bg-gray-100 rounded">
-          <h2 className="text-xl font-semibold mb-2">Bridge Status</h2>
-          <div className="space-y-2">
-            {bridgeState.error && (
-              <div className="text-red-600">
-                Bridge Error: {bridgeState.error}
-              </div>
-            )}
-            <div>Video Ready: {bridgeState.videoReady ? 'Yes' : 'No'}</div>
-            <div>Playing: {bridgeState.isPlaying ? 'Yes' : 'No'}</div>
-            <div>Current Time: {bridgeState.currentTime.toFixed(2)}s</div>
-            <div>Duration: {bridgeState.duration.toFixed(2)}s</div>
-            <div>Show First Frame: {bridgeState.showFirstFrame ? 'Yes' : 'No'}</div>
-            <div>Bridge Loading: {bridge.isLoading ? 'Yes' : 'No'}</div>
-            <div>Bridge Has Error: {bridge.hasError ? 'Yes' : 'No'}</div>
-            {bridge.errorMessage && (
-              <div className="text-red-600">
-                Bridge Error Message: {bridge.errorMessage}
-              </div>
-            )}
-          </div>
-        </div>
+      <h2 className="text-xl font-semibold mb-2">Video Status</h2>
+      <div className="space-y-2 mb-4">
+        <p>Video URL: {TEST_VIDEO_URL}</p>
+        <p>Loaded: {videoLoaded ? 'Yes' : 'No'}</p>
+        <p>Network State: {getNetworkStateText(videoState.networkState)}</p>
+        <p>Ready State: {getReadyStateText(videoState.readyState)}</p>
+        {videoLoadError && (
+          <p className="text-red-500">Error: {videoLoadError}</p>
+        )}
       </div>
-
-      {/* Direct Video Test */}
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-2">Direct Video Test</h2>
+      
+      <h2 className="text-xl font-semibold mb-2">Direct Video Test</h2>
+      <p className="mb-2">This is a direct video element to verify if the video file can be loaded correctly.</p>
+      
+      <div>
         <video 
-          src={TEST_VIDEO_URL}
+          ref={videoRef}
           controls
-          className="w-full max-w-2xl border border-gray-300"
+          width="400"
+          height="225"
+          style={{ border: '1px solid #ccc' }}
         />
-        <p className="mt-2 text-sm text-gray-600">
-          This is a direct video element, separate from the bridge implementation above.
-          It should help us verify if the video file itself can be loaded correctly.
-        </p>
       </div>
-
-      {/* Video and Canvas Container */}
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-2">Video Element and Canvas</h2>
-        <div className="space-y-4">
-          <div className="relative w-full max-w-2xl h-[360px] border border-gray-300">
-            {/* Single video element used by both direct and bridge mode */}
-            <video
-              ref={videoRef}
-              className="w-full h-full object-contain bg-black"
-              playsInline
-              crossOrigin="anonymous"
-              style={{ display: bridgeState.showFirstFrame ? 'none' : 'block' }}
-            />
-            <canvas
-              ref={canvasRef}
-              className="w-full h-full object-contain bg-black"
-              style={{ display: bridgeState.showFirstFrame ? 'block' : 'none' }}
-            />
-          </div>
+      
+      <div className="mt-4 space-y-2">
+        <div>
+          <button 
+            className="px-3 py-1 bg-blue-500 text-white rounded mr-2"
+            disabled={!videoLoaded} 
+            onClick={videoState.paused ? handlePlay : handlePause}
+          >
+            {videoState.paused ? 'Play' : 'Pause'}
+          </button>
           
-          {/* Controls */}
-          <div className="space-y-4">
-            <div className="flex gap-4">
-              <button
-                onClick={handlePlayPause}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
-                disabled={!bridgeState.videoReady && directVideoState.readyState < 1}
-              >
-                {bridgeState.isPlaying ? 'Pause' : 'Play'}
-              </button>
-              
-              <button
-                onClick={toggleFirstFrame}
-                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-400"
-                disabled={!bridgeState.videoReady && directVideoState.readyState < 1}
-              >
-                Toggle First Frame
-              </button>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <input
-                type="range"
-                min={0}
-                max={bridgeState.duration || directVideoState.duration || 100}
-                value={bridgeState.currentTime}
-                onChange={(e) => handleSeek(parseFloat(e.target.value))}
-                className="w-full max-w-xl"
-                disabled={!bridgeState.videoReady && directVideoState.readyState < 1}
-              />
-              <span>
-                {bridgeState.currentTime.toFixed(2)} / {bridgeState.duration.toFixed(2)}
-              </span>
-            </div>
-          </div>
+          <button 
+            className="px-3 py-1 bg-gray-500 text-white rounded"
+            disabled={!videoLoaded}
+            onClick={() => seekTo(0)}
+          >
+            Go to Start
+          </button>
         </div>
+        
+        <div className="flex items-center">
+          <input
+            type="range"
+            disabled={!videoLoaded}
+            min={0}
+            max={videoState.duration || 0}
+            step={0.01}
+            value={videoState.currentTime}
+            onChange={(e) => seekTo(parseFloat(e.target.value))}
+            style={{ width: '400px' }}
+          />
+          <span className="ml-2">
+            {videoState.currentTime.toFixed(2)} / {videoState.duration.toFixed(2)}
+          </span>
+        </div>
+      </div>
+      
+      <div className="mt-6">
+        <h2 className="text-xl font-semibold mb-2">Debug Information</h2>
+        <pre className="bg-gray-100 p-2 rounded">
+          {JSON.stringify({
+            videoLoaded,
+            error: videoLoadError,
+            ...videoState
+          }, null, 2)}
+        </pre>
       </div>
     </div>
   );
-}
-
-function getNetworkStateText(state: number): string {
-  switch (state) {
-    case 0: return 'NETWORK_EMPTY';
-    case 1: return 'NETWORK_IDLE';
-    case 2: return 'NETWORK_LOADING';
-    case 3: return 'NETWORK_NO_SOURCE';
-    default: return 'UNKNOWN';
-  }
-}
-
-function getReadyStateText(state: number): string {
-  switch (state) {
-    case 0: return 'HAVE_NOTHING';
-    case 1: return 'HAVE_METADATA';
-    case 2: return 'HAVE_CURRENT_DATA';
-    case 3: return 'HAVE_FUTURE_DATA';
-    case 4: return 'HAVE_ENOUGH_DATA';
-    default: return 'UNKNOWN';
-  }
 }
