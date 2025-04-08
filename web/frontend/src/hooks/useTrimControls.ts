@@ -11,7 +11,6 @@ interface UseTrimControlsProps {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   isPlaying: boolean;
   onTrimChange?: (start: number, end: number) => void;
-  setCurrentTime: (time: number) => void; // Setter for actual playback time
   setIsPlaying: (playing: boolean) => void; // Setter for play state
   forceResetOnPlayRef: React.MutableRefObject<boolean>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -50,7 +49,6 @@ export function useTrimControls({
   audioRef,
   isPlaying,
   onTrimChange,
-  setCurrentTime,
   setIsPlaying,
   forceResetOnPlayRef,
   videoRef,
@@ -116,9 +114,6 @@ export function useTrimControls({
       newStart = Math.min(newTime, trimEnd - 0.1);
       setTrimStart(newStart);
       
-      // Update video currentTime to match the trim start
-      setCurrentTime(newStart);
-      
       // Log direct manipulation
       console.log(`[TrimDrag Start] Directly setting videoRef/videoContext time to ${newStart.toFixed(3)}`);
       // Also update video element directly if available
@@ -151,7 +146,6 @@ export function useTrimControls({
       // Log direct manipulation
       console.log(`[TrimDrag End] Directly setting videoRef/videoContext time to ${newEnd.toFixed(3)}`);
       // Update visual time AND actual video time
-      setCurrentTime(newEnd);
       if (videoRef.current) {
         try {
           videoRef.current.currentTime = newEnd;
@@ -173,7 +167,7 @@ export function useTrimControls({
       setIsPlaying(false);
     }
 
-  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, videoContext, audioRef, isPlaying, setIsPlaying, setCurrentTime]);
+  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, videoContext, audioRef, isPlaying, setIsPlaying]);
 
   const handleTrimDragEnd = useCallback(() => {
     if (!activeHandle) return;
@@ -183,7 +177,6 @@ export function useTrimControls({
     
     // --- Restore playback time AFTER drag --- 
     const restoreTime = trimStart;
-    setCurrentTime(restoreTime);
     if (videoContext) {
       try { videoContext.currentTime = restoreTime; } 
       catch(e) { console.warn("[TrimEnd] Error setting video context time:", e); }
@@ -203,7 +196,6 @@ export function useTrimControls({
     }
   }, [
       activeHandle, trimStart, trimEnd, onTrimChange, 
-      setCurrentTime,
       videoContext, audioRef, containerRef, forceResetOnPlayRef
   ]);
 
