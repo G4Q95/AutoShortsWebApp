@@ -1,14 +1,18 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 
 // Constants for testing
 const TEST_VIDEO_URL = '/sample-video.mp4';
 const FALLBACK_VIDEO_URL = 'https://www.w3schools.com/html/mov_bbb.mp4';
 
 const TestBridgePage: React.FC = () => {
-  // Video element reference
+  // Element references
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  // State for video status
+  // UI state
+  const [showFirstFrame, setShowFirstFrame] = useState(false);
+  
+  // Video state
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -37,6 +41,40 @@ const TestBridgePage: React.FC = () => {
     return `${state} (${states[state] || 'UNKNOWN'})`;
   };
 
+  // Draw the current frame to canvas
+  const drawFrameToCanvas = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current) {
+      console.log('Cannot draw frame: video or canvas not available');
+      return false;
+    }
+    
+    try {
+      const context = canvasRef.current.getContext('2d');
+      if (!context) {
+        console.log('Cannot draw frame: canvas context not available');
+        return false;
+      }
+      
+      // Set canvas dimensions to match video
+      canvasRef.current.width = videoRef.current.videoWidth;
+      canvasRef.current.height = videoRef.current.videoHeight;
+      
+      // Draw video frame to canvas
+      context.drawImage(
+        videoRef.current,
+        0, 0,
+        canvasRef.current.width,
+        canvasRef.current.height
+      );
+      
+      console.log('Frame drawn to canvas successfully');
+      return true;
+    } catch (err) {
+      console.error('Error drawing frame to canvas:', err);
+      return false;
+    }
+  }, [videoRef, canvasRef]);
+
   // Set up video event listeners
   useEffect(() => {
     const video = videoRef.current;
@@ -53,6 +91,11 @@ const TestBridgePage: React.FC = () => {
       console.log("Video data loaded");
       setLoaded(true);
       setDuration(video.duration);
+      
+      // Try to draw the first frame once loaded
+      if (showFirstFrame) {
+        drawFrameToCanvas();
+      }
     };
     
     const handleTimeUpdate = () => {
@@ -70,6 +113,9 @@ const TestBridgePage: React.FC = () => {
       }
     };
     
+    // Set initial video source
+    video.src = TEST_VIDEO_URL;
+    
     // Add event listeners
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
     video.addEventListener("loadeddata", handleLoadedData);
@@ -81,6 +127,11 @@ const TestBridgePage: React.FC = () => {
       console.log("Video already loaded on mount");
       setLoaded(true);
       setDuration(video.duration);
+      
+      // Try to draw the first frame right away
+      if (showFirstFrame) {
+        drawFrameToCanvas();
+      }
     }
     
     return () => {
@@ -90,10 +141,52 @@ const TestBridgePage: React.FC = () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("error", handleError);
     };
-  }, []);
+  }, [showFirstFrame, drawFrameToCanvas]);
+  
+  // Handle visibility changes with useEffect
+  useEffect(() => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    if (showFirstFrame) {
+      // Pause video, draw frame to canvas, show canvas, hide video
+      if (videoRef.current.readyState >= 2) {
+        if (isPlaying) {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        }
+        
+        if (drawFrameToCanvas()) {
+          // Toggle visibility
+          canvasRef.current.style.display = 'block';
+          videoRef.current.style.visibility = 'hidden';
+          console.log("Showing canvas, hiding video");
+        } else {
+          // If drawing fails, keep video visible as fallback
+          canvasRef.current.style.display = 'none';
+          videoRef.current.style.visibility = 'visible';
+          console.log("Failed to draw to canvas, keeping video visible");
+        }
+      }
+    } else {
+      // Hide canvas, show video
+      canvasRef.current.style.display = 'none';
+      videoRef.current.style.visibility = 'visible';
+      console.log("Showing video, hiding canvas");
+    }
+  }, [showFirstFrame, isPlaying, drawFrameToCanvas]);
+  
+  // Toggle showing first frame (canvas)
+  const toggleFirstFrame = () => {
+    setShowFirstFrame(prev => !prev);
+  };
   
   // Play/pause control
   const handlePlay = () => {
+    if (showFirstFrame) {
+      // If showing first frame, switch to video
+      setShowFirstFrame(false);
+    }
+    
     if (videoRef.current) {
       videoRef.current.play()
         .then(() => setIsPlaying(true))
@@ -112,10 +205,16 @@ const TestBridgePage: React.FC = () => {
   };
   
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    
     if (videoRef.current) {
-      const time = parseFloat(e.target.value);
       videoRef.current.currentTime = time;
       setCurrentTime(time);
+      
+      // If showing canvas, redraw after seek
+      if (showFirstFrame && videoRef.current.readyState >= 2) {
+        drawFrameToCanvas();
+      }
     }
   };
   
@@ -125,28 +224,48 @@ const TestBridgePage: React.FC = () => {
       
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-2">Video Player</h2>
-        <video
-          ref={videoRef}
-          src={TEST_VIDEO_URL}
-          className="w-full max-w-lg border border-gray-300"
-          controls
-        />
+        <div className="relative w-full max-w-lg border border-gray-300">
+          {/* Canvas for first frame display */}
+          <canvas 
+            ref={canvasRef}
+            className="absolute top-0 left-0 w-full h-full"
+            style={{ display: 'none' }}
+          />
+          
+          {/* Video element */}
+          <video
+            ref={videoRef}
+            className="w-full"
+            controls={!showFirstFrame}
+          />
+        </div>
         
         {error && (
           <div className="text-red-500 mt-2">{error}</div>
         )}
       </div>
       
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-2">Video Status</h2>
-        <p><strong>URL:</strong> {videoRef.current?.src || TEST_VIDEO_URL}</p>
-        <p><strong>Loaded:</strong> {loaded ? 'Yes' : 'No'}</p>
-        <p><strong>Network State:</strong> {videoRef.current ? getNetworkStateText(videoRef.current.networkState) : 'N/A'}</p>
-        <p><strong>Ready State:</strong> {videoRef.current ? getReadyStateText(videoRef.current.readyState) : 'N/A'}</p>
-        <p><strong>Duration:</strong> {duration.toFixed(2)}s</p>
-        <p><strong>Current Time:</strong> {currentTime.toFixed(2)}s</p>
-        <p><strong>Playing:</strong> {isPlaying ? 'Yes' : 'No'}</p>
-        <p><strong>Load Error:</strong> {error || 'None'}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Video Status</h2>
+          <p><strong>URL:</strong> {videoRef.current?.src || TEST_VIDEO_URL}</p>
+          <p><strong>Loaded:</strong> {loaded ? 'Yes' : 'No'}</p>
+          <p><strong>Network State:</strong> {videoRef.current ? getNetworkStateText(videoRef.current.networkState) : 'N/A'}</p>
+          <p><strong>Ready State:</strong> {videoRef.current ? getReadyStateText(videoRef.current.readyState) : 'N/A'}</p>
+          <p><strong>Duration:</strong> {duration.toFixed(2)}s</p>
+          <p><strong>Current Time:</strong> {currentTime.toFixed(2)}s</p>
+          <p><strong>Playing:</strong> {isPlaying ? 'Yes' : 'No'}</p>
+          <p><strong>Load Error:</strong> {error || 'None'}</p>
+        </div>
+        
+        <div>
+          <h2 className="text-xl font-semibold mb-2">First Frame Status</h2>
+          <p><strong>Show First Frame:</strong> {showFirstFrame ? 'Yes' : 'No'}</p>
+          <p><strong>Canvas Width:</strong> {canvasRef.current?.width || 0}px</p>
+          <p><strong>Canvas Height:</strong> {canvasRef.current?.height || 0}px</p>
+          <p><strong>Video Width:</strong> {videoRef.current?.videoWidth || 0}px</p>
+          <p><strong>Video Height:</strong> {videoRef.current?.videoHeight || 0}px</p>
+        </div>
       </div>
       
       <div className="mb-6">
@@ -165,6 +284,13 @@ const TestBridgePage: React.FC = () => {
             className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300"
           >
             Pause
+          </button>
+          <button
+            onClick={toggleFirstFrame}
+            disabled={!loaded}
+            className="px-4 py-2 bg-green-500 text-white rounded disabled:bg-gray-300"
+          >
+            {showFirstFrame ? 'Show Video' : 'Show First Frame'}
           </button>
         </div>
         
@@ -186,8 +312,8 @@ const TestBridgePage: React.FC = () => {
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-2">Implementation Plan</h2>
         <p>1. ✅ First test basic HTML5 video functionality - working</p>
-        <p>2. Next we'll add the bridge adapter - connecting to useBridgeAdapter</p>
-        <p>3. Finally we'll connect to the full VideoContext implementation</p>
+        <p>2. 🟡 Direct canvas implementation - in progress</p>
+        <p>3. Next: Apply lessons to bridge adapter</p>
       </div>
     </div>
   );
