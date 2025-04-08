@@ -23,6 +23,7 @@ interface UseBridgeAdapterReturn {
 
 interface BridgeAdapterOptions {
   initialShowFirstFrame?: boolean;
+  mediaUrl?: string;
   onError?: (error: Error) => void;
 }
 
@@ -31,7 +32,7 @@ export function useBridgeAdapter(
   canvasRef: RefObject<HTMLCanvasElement>,
   options: BridgeAdapterOptions = {}
 ): UseBridgeAdapterReturn {
-  const { initialShowFirstFrame = false, onError } = options;
+  const { initialShowFirstFrame = false, mediaUrl, onError } = options;
   const [isPlaying, setIsPlaying] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -188,46 +189,22 @@ export function useBridgeAdapter(
 
 
     // Set source and load
-    const sourceUrl = '';
+    const sourceUrl = mediaUrl || '';
     log('Setting video source to:', sourceUrl);
-    videoElement.src = sourceUrl;
-    videoElement.load(); // Explicitly call load
+    if (sourceUrl) {
+      videoElement.src = sourceUrl;
+      videoElement.load(); // Explicitly call load
+    } else {
+      log('No media URL provided, skipping video source setup');
+    }
 
     return cleanup; // Return cleanup function
 
   }, [
       videoRef, canvasRef, showFirstFrame, // dependencies
       isReady, // Include isReady to re-evaluate canplay if needed
-      triggerError, log, onError // Stable callbacks
+      triggerError, log, onError, mediaUrl // Stable callbacks
   ]);
-
-  // Effect to handle drawing the first frame / visibility toggle
-  useEffect(() => {
-    log('Visibility effect: showFirstFrame =', showFirstFrame);
-    const videoElement = videoRef.current;
-    const canvasElement = canvasRef?.current;
-
-    if (!videoElement || !canvasElement) return;
-
-    if (showFirstFrame) {
-      // Draw frame and show canvas, hide video
-      const drawn = drawFrameToCanvas();
-      if (drawn) {
-        canvasElement.style.display = 'block';
-        videoElement.style.display = 'none';
-        log('Show canvas, hide video');
-      } else {
-         log('Failed to draw frame, ensuring video is visible as fallback');
-         canvasElement.style.display = 'none';
-         videoElement.style.display = 'block';
-      }
-    } else {
-      // Show video, hide canvas
-      canvasElement.style.display = 'none';
-      videoElement.style.display = 'block';
-      log('Show video, hide canvas');
-    }
-  }, [showFirstFrame, videoRef, canvasRef, isReady, log]); // Re-run if isReady changes, as drawing needs ready state
 
   // Helper to draw frame
   const drawFrameToCanvas = useCallback((): boolean => {
@@ -250,6 +227,51 @@ export function useBridgeAdapter(
       return false;
     }
   }, [videoRef, canvasRef, log]);
+
+  // Effect to handle drawing the first frame / visibility toggle
+  useEffect(() => {
+    log('Visibility effect: showFirstFrame =', showFirstFrame);
+    const videoElement = videoRef.current;
+    const canvasElement = canvasRef?.current;
+
+    if (!videoElement || !canvasElement) return;
+
+    if (showFirstFrame) {
+      // Only attempt to draw if video has loaded enough data
+      if (videoElement.readyState >= 2) {
+        // Draw frame and show canvas, hide video
+        const drawn = drawFrameToCanvas();
+        if (drawn) {
+          // Success - show canvas, hide video
+          canvasElement.style.display = 'block';
+          videoElement.style.visibility = 'hidden'; // Use visibility instead of display to keep video loaded
+          log('Show canvas, hide video');
+          
+          // Pause video if playing
+          if (!videoElement.paused) {
+            videoElement.pause();
+            setIsPlaying(false);
+          }
+        } else {
+          // Drawing failed - use video as fallback
+          log('Failed to draw frame, ensuring video is visible as fallback');
+          canvasElement.style.display = 'none';
+          videoElement.style.visibility = 'visible';
+        }
+      } else {
+        // Video not ready, can't draw yet
+        log('Video not ready for drawing (readyState:', videoElement.readyState, ') - waiting for more data');
+        // Keep video visible until we can draw
+        canvasElement.style.display = 'none';
+        videoElement.style.visibility = 'visible';
+      }
+    } else {
+      // Show video, hide canvas
+      canvasElement.style.display = 'none';
+      videoElement.style.visibility = 'visible';
+      log('Show video, hide canvas');
+    }
+  }, [showFirstFrame, videoRef, canvasRef, isReady, drawFrameToCanvas, log]);
 
   // Canvas sync functions
   const syncCanvasSize = useCallback(() => {
@@ -298,14 +320,13 @@ export function useBridgeAdapter(
          setIsReady(true); // Update state if it became ready
     }
 
-    // Ensure video is visible before playing (handled by useEffect now, but double-check)
-     if (showFirstFrame) {
-         errorLog('Attempted to play while showFirstFrame is true. This should not happen.');
-         // Force video visible as a recovery mechanism - UI state should control this via showFirstFrame prop
-         if (canvasRef.current) canvasRef.current.style.display = 'none';
-         videoElement.style.display = 'block';
-     }
-
+    // If showing first frame, switch to video mode
+    if (showFirstFrame) {
+      log('Switching from first frame to video mode for playback');
+      setShowFirstFrame(false);
+      // Need to ensure DOM has updated before playing
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
 
     try {
       // Ensure muted for autoplay policies
@@ -316,7 +337,7 @@ export function useBridgeAdapter(
     } catch (err) {
       triggerError('Play failed', err);
     }
-  }, [videoRef, isReady, showFirstFrame, triggerError, log, errorLog]);
+  }, [videoRef, isReady, showFirstFrame, triggerError, log]);
 
   const pause = useCallback(async () => {
     log('Pause action called');
@@ -345,15 +366,21 @@ export function useBridgeAdapter(
 
     try {
       videoElement.currentTime = time;
-      // Only attempt to draw frame if we have both video and canvas elements
+      
+      // Update internal state
+      setCurrentTime(time);
+      
+      // If showing first frame, we need to redraw the canvas with the new frame
       if (showFirstFrame && videoElement.readyState >= 2 && canvasRef?.current) {
         log(`Seeking to ${time} and drawing to canvas`);
+        // Small delay to ensure the video has rendered the new frame
+        await new Promise(resolve => setTimeout(resolve, 50));
         drawFrameToCanvas();
       }
     } catch (err) {
       triggerError('Seek failed', err);
     }
-  }, [videoRef, canvasRef, showFirstFrame, drawFrameToCanvas, triggerError]);
+  }, [videoRef, canvasRef, showFirstFrame, drawFrameToCanvas, triggerError, log]);
 
   const toggleFirstFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
