@@ -111,39 +111,35 @@ function Html5VideoTest() {
 function BridgeVideoTest() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
-  
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [statusLogs, setStatusLogs] = useState<string[]>([]);
+
+  const addStatusLog = useCallback((message: string) => {
+    setStatusLogs(prev => [...prev.slice(-10), `[${new Date().toISOString()}] ${message}`]); // Keep last 10 logs
+  }, []);
+
   // Video configuration
   const mediaUrl = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-  const localMediaUrl = mediaUrl; // Same URL for local and remote in this test
+  const localMediaUrl = mediaUrl;
+
+  const handleError = useCallback((err: Error) => {
+    addStatusLog(`ERROR: ${err?.message || 'Unknown error'}`);
+    setError(err?.message || 'Unknown error occurred');
+    setTimeout(() => setError(null), 5000);
+  }, [addStatusLog]);
   
-  // Custom callbacks for the bridge
-  const handleTimeUpdate = useCallback((time: number) => {
-    setCurrentTime(time);
-  }, []);
-  
-  const handleDurationChange = useCallback((newDuration: number) => {
-    setDuration(newDuration);
-  }, []);
+  const handleInitialLoad = useCallback(() => {
+    addStatusLog('Initial load callback triggered');
+  }, [addStatusLog]);
   
   const handleIsReadyChange = useCallback((ready: boolean) => {
-    console.log(`Bridge ready state changed to: ${ready}`);
+    addStatusLog(`isReady changed to: ${ready}`);
     setIsReady(ready);
-  }, []);
-  
-  const handleError = useCallback((err: Error) => {
-    console.error('Bridge error:', err);
-    setError(err?.message || 'Unknown error occurred');
-    
-    // Clear error after 5 seconds
-    setTimeout(() => setError(null), 5000);
-  }, []);
-  
-  // Initialize the bridge with required props
+  }, [addStatusLog]);
+
+  // Initialize the bridge
   const bridge = useBridgeAdapter({
     canvasRef,
     videoRef,
@@ -151,81 +147,68 @@ function BridgeVideoTest() {
     localMediaUrl,
     mediaType: "video",
     initialMediaAspectRatio: 16/9,
-    showFirstFrame: true,
-    onInitialLoad: () => console.log('Initial load complete'),
+    showFirstFrame: false, // Force immediate init
+    onInitialLoad: handleInitialLoad,
     onError: handleError,
   });
   
-  // Subscribe to bridge state changes
+  // Log bridge state changes
   useEffect(() => {
-    setCurrentTime(bridge.currentTime);
-  }, [bridge.currentTime]);
-  
-  useEffect(() => {
-    setDuration(bridge.duration);
-  }, [bridge.duration]);
+    addStatusLog(`Adapter State - isReady: ${bridge.isReady}, isInitializing: ${bridge.isInitializing}, hasError: ${bridge.hasError}, duration: ${bridge.duration?.toFixed(2)}`);
+  }, [bridge.isReady, bridge.isInitializing, bridge.hasError, bridge.duration, addStatusLog]);
   
   useEffect(() => {
     setIsReady(bridge.isReady);
   }, [bridge.isReady]);
 
-  // Custom play/pause handlers
+  // --- Add back Play/Pause handlers ---
   const handlePlay = () => {
-    console.log('Play button clicked');
+    addStatusLog('handlePlay called');
     if (!isReady) {
-      setError('Video is not ready yet. Please wait...');
+      addStatusLog('Play attempted but not ready');
+      setError('Video is not ready yet.');
       setTimeout(() => setError(null), 3000);
       return;
     }
     
     bridge.play().then(() => {
+      addStatusLog('bridge.play() resolved successfully');
       setIsPlaying(true);
     }).catch(err => {
-      console.error('Error playing video:', err);
-      setError('Failed to play video');
-      setTimeout(() => setError(null), 3000);
+      const message = err instanceof Error ? err.message : String(err);
+      addStatusLog(`bridge.play() FAILED: ${message}`);
+      handleError(err instanceof Error ? err : new Error(String(err)));
     });
   };
 
   const handlePause = () => {
-    console.log('Pause button clicked');
+    addStatusLog('handlePause called');
     bridge.pause().then(() => {
+      addStatusLog('bridge.pause() resolved successfully');
       setIsPlaying(false);
     }).catch(err => {
-      console.error('Error pausing video:', err);
-      setError('Failed to pause video');
-      setTimeout(() => setError(null), 3000);
+      const message = err instanceof Error ? err.message : String(err);
+      addStatusLog(`bridge.pause() FAILED: ${message}`);
+      handleError(err instanceof Error ? err : new Error(String(err)));
     });
   };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = parseFloat(e.target.value);
-    bridge.seek(time).catch(err => {
-      console.error('Error seeking:', err);
-      setError('Failed to seek to position');
-      setTimeout(() => setError(null), 3000);
-    });
-  };
+  // --- End Play/Pause handlers ---
 
   return (
     <>
       <p className="mb-4 text-gray-700">
-        This tab tests video playback using our custom VideoContextBridge implementation.
+        Minimal Bridge Test - Focusing on initialization & Play/Pause.
       </p>
 
+      {/* Render both elements permanently for simplicity during init test */}
       <div className="mb-8 border rounded-lg overflow-hidden relative">
-        {/* Hidden canvas for bridge operations */}
         <canvas 
           ref={canvasRef}
-          className="w-full aspect-video"
-          style={{ display: isPlaying ? 'block' : 'none' }}
+          className="w-full aspect-video block bg-gray-200"
         />
-        
-        {/* Video element that the bridge will control */}
         <video
           ref={videoRef}
-          className="w-full aspect-video"
-          style={{ display: !isPlaying ? 'block' : 'none' }}
+          className="w-full aspect-video absolute top-0 left-0 opacity-0 pointer-events-none" 
           poster="https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg"
           preload="auto"
         />
@@ -237,6 +220,7 @@ function BridgeVideoTest() {
         )}
       </div>
 
+      {/* --- Add back Play/Pause Buttons --- */}
       <div className="mb-6 space-y-4">
         <div className="flex space-x-4">
           {!isPlaying ? (
@@ -255,42 +239,26 @@ function BridgeVideoTest() {
               Pause
             </button>
           )}
-          
-          <div className="flex-1 flex items-center space-x-2">
-            <span>{Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')}</span>
-            <input
-              type="range"
-              min="0"
-              max={duration || 100}
-              value={currentTime}
-              onChange={handleSeek}
-              className="flex-1"
-              disabled={!isReady}
-            />
-            <span>{Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}</span>
-          </div>
         </div>
       </div>
+      {/* --- End Play/Pause Buttons --- */}
 
       <div className="mb-4">
         <h2 className="text-xl font-bold">Bridge Status</h2>
-        <p>Ready: {isReady ? 'Yes' : 'No'}</p>
-        <p>Playing: {isPlaying ? 'Yes' : 'No'}</p>
-        <p>Current Time: {currentTime.toFixed(2)} seconds</p>
-        <p>Duration: {duration.toFixed(2)} seconds</p>
-        <p>Initializing: {bridge.isInitializing ? 'Yes' : 'No'}</p>
-        <p>Has Error: {bridge.hasError ? 'Yes' : 'No'}</p>
-        {bridge.errorMessage && <p>Error: {bridge.errorMessage}</p>}
+        <p>Component Ready State: {isReady ? 'Yes' : 'No'}</p>
+        <p>Component Is Playing: {isPlaying ? 'Yes' : 'No'}</p>
+        <p>Adapter isInitializing: {bridge.isInitializing ? 'Yes' : 'No'}</p>
+        <p>Adapter Has Error: {bridge.hasError ? 'Yes' : 'No'}</p>
+        {bridge.errorMessage && <p>Adapter Error Message: {bridge.errorMessage}</p>}
+        <p>Adapter Duration: {bridge.duration?.toFixed(2) || 'N/A'}</p>
       </div>
-
-      <div className="mt-8 bg-gray-100 p-4 rounded-lg">
-        <h2 className="text-lg font-semibold mb-2">Implementation Notes</h2>
-        <ul className="list-disc pl-5 space-y-2">
-          <li>This implementation uses our custom VideoContextBridge</li>
-          <li>It handles play/pause and seeking through the bridge adapter</li>
-          <li>The bridge manages the video element and reports its state back</li>
-          <li>This simpler implementation helps isolate issues from the complex player UI</li>
-        </ul>
+      
+      <div className="mt-4 border rounded p-2 bg-gray-50">
+         <h3 className="font-bold text-lg mb-2">Status Logs</h3>
+         <div className="font-mono text-xs space-y-1 max-h-40 overflow-y-auto">
+            {statusLogs.map((log, index) => <div key={index}>{log}</div>)}
+            {statusLogs.length === 0 && <div>No status logs yet...</div>}
+         </div>
       </div>
     </>
   );

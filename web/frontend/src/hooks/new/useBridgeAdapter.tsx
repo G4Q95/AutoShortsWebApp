@@ -43,6 +43,33 @@ export function useBridgeAdapter({
     showFirstFrame
   });
 
+  // Stable callbacks for the underlying bridge
+  const handleBridgeIsReadyChange = useCallback((ready: boolean) => {
+    console.log(`[BridgeAdapter] isReady changed to ${ready}`);
+    setIsReady(ready);
+    if (ready && onInitialLoad) {
+      onInitialLoad();
+    }
+  }, [onInitialLoad]); // Dependency: onInitialLoad from props
+
+  const handleBridgeDurationChange = useCallback((newDuration: number) => {
+    console.log(`[BridgeAdapter] duration changed to ${newDuration}`);
+    setDuration(newDuration);
+    durationChangeHandlers.forEach(handler => handler(newDuration));
+  }, [durationChangeHandlers]); // Dependency: Internal state
+  
+  const handleBridgeTimeUpdate = useCallback((time: number) => {
+    setCurrentTime(time);
+    timeUpdateHandlers.forEach(handler => handler(time));
+  }, [timeUpdateHandlers]); // Dependency: Internal state
+  
+  const handleBridgeError = useCallback((error: Error) => {
+    console.error('[BridgeAdapter] Error from bridge:', error);
+    if (onError) {
+      onError(error);
+    }
+  }, [onError]); // Dependency: onError from props
+
   // Create a new bridge instance
   const bridge = useNewBridge({
     canvasRef,
@@ -53,29 +80,11 @@ export function useBridgeAdapter({
     initialMediaAspectRatio,
     showFirstFrame,
     
-    // Callbacks to update component state
-    onIsReadyChange: (ready: boolean) => {
-      console.log(`[BridgeAdapter] isReady changed to ${ready}`);
-      setIsReady(ready);
-      if (ready && onInitialLoad) {
-        onInitialLoad();
-      }
-    },
-    onDurationChange: (newDuration: number) => {
-      console.log(`[BridgeAdapter] duration changed to ${newDuration}`);
-      setDuration(newDuration);
-      durationChangeHandlers.forEach(handler => handler(newDuration));
-    },
-    onTimeUpdate: (time: number) => {
-      setCurrentTime(time);
-      timeUpdateHandlers.forEach(handler => handler(time));
-    },
-    onError: (error: Error) => {
-      console.error('[BridgeAdapter] Error from bridge:', error);
-      if (onError) {
-        onError(error);
-      }
-    },
+    // Pass stable callbacks
+    onIsReadyChange: handleBridgeIsReadyChange,
+    onDurationChange: handleBridgeDurationChange,
+    onTimeUpdate: handleBridgeTimeUpdate,
+    onError: handleBridgeError,
   });
 
   // Create adapter functions to match legacy API
