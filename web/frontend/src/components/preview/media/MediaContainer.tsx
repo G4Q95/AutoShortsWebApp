@@ -93,7 +93,7 @@ interface MediaContainerProps {
  * Handles the container styling, media type selection, and event handling
  * for all media types (video, image).
  */
-export function MediaContainer({
+function _MediaContainer({
   // Media properties
   mediaUrl,
   localMediaUrl,
@@ -145,6 +145,14 @@ export function MediaContainer({
   // Determine which media element to render based on type
   const renderMediaElement = useCallback(() => {
     if (isImageType(mediaType)) {
+      // Create an adapter function that calls onImageLoad without passing the event
+      const handleImageLoad = () => {
+        if (onImageLoad) {
+          // Call the original function but don't pass any arguments
+          onImageLoad({} as React.SyntheticEvent<HTMLImageElement, Event>);
+        }
+      };
+      
       return (
         <ImageElement
           mediaUrl={mediaUrl}
@@ -154,8 +162,8 @@ export function MediaContainer({
           imageLoadError={imageLoadError}
           imgRef={imgRef}
           mediaElementStyle={mediaElementStyle}
-          onImageLoad={onImageLoad}
-          onImageError={onImageError}
+          onImageLoad={handleImageLoad} // Use the adapter function
+          onImageError={onImageError || ((_e: React.SyntheticEvent<HTMLImageElement, Event>) => {})}
           sceneId={sceneId}
         />
       );
@@ -235,10 +243,14 @@ export function MediaContainer({
       )}
       
       {/* Fullscreen toggle button */}
-      <FullscreenButton 
-        isFullscreen={isFullscreen}
-        onToggle={onFullscreenToggle}
-      />
+      <div
+        className="absolute top-2 right-2 z-20"
+      >
+        <FullscreenButton
+          isFullscreen={isFullscreen}
+          onToggle={onFullscreenToggle ? () => onFullscreenToggle(!isFullscreen) : () => {}}
+        />
+      </div>
       
       {/* Render children (PlayerControls) */}
       {children}
@@ -246,4 +258,5 @@ export function MediaContainer({
   );
 }
 
-export default MediaContainer; 
+// Export the memoized component with the original name
+export const MediaContainer = React.memo(_MediaContainer); 
