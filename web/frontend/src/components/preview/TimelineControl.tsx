@@ -72,6 +72,21 @@ interface TimelineControlProps {
    */
   getEffectiveTrimEnd: () => number;
 
+  /**
+   * NEW: Callback fired continuously during scrubber drag (value 0-100)
+   */
+  onScrubberInput?: (newValue: number) => void;
+
+  /**
+   * NEW: Callback fired during left bracket drag (value 0-100)
+   */
+  onTrimStartInput?: (newValue: number) => void;
+
+  /**
+   * NEW: Callback fired during right bracket drag (value 0-100)
+   */
+  onTrimEndInput?: (newValue: number) => void;
+
   className?: string; // Add optional className prop
 }
 
@@ -96,6 +111,9 @@ export function TimelineControl({
   setTimeBeforeDrag,
   setOriginalPlaybackTime,
   getEffectiveTrimEnd,
+  onScrubberInput,
+  onTrimStartInput,
+  onTrimEndInput,
   className
 }: TimelineControlProps) {
   const timelineRef = useRef<HTMLInputElement>(null);
@@ -157,6 +175,13 @@ export function TimelineControl({
             const newValue = parseFloat(e.target.value);
             const newTime = timelineValueToPosition(newValue);
             onTimeUpdate(newTime);
+          }}
+          onInput={(e) => {
+            // New onInput handler for continuous drag events
+            const newValue = parseFloat((e.target as HTMLInputElement).value);
+            if (onScrubberInput) {
+              onScrubberInput(newValue);
+            }
           }}
           onMouseUp={() => {
             if (!activeHandle) onScrubberDragEnd();
@@ -220,6 +245,13 @@ export function TimelineControl({
               }}
               onChange={(e) => {
                 e.stopPropagation();
+              }}
+              onInput={(e) => {
+                e.stopPropagation();
+                const newValue = parseFloat((e.target as HTMLInputElement).value);
+                if (onTrimStartInput) {
+                  onTrimStartInput(newValue);
+                }
               }}
               data-testid="trim-start-range"
               data-drag-handle-exclude="true"
@@ -287,6 +319,13 @@ export function TimelineControl({
               }}
               onChange={(e) => {
                 e.stopPropagation();
+              }}
+              onInput={(e) => {
+                e.stopPropagation();
+                const newValue = parseFloat((e.target as HTMLInputElement).value);
+                if (onTrimEndInput) {
+                  onTrimEndInput(newValue);
+                }
               }}
               data-testid="trim-end-range"
               data-drag-handle-exclude="true"
