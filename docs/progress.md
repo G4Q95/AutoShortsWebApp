@@ -398,11 +398,12 @@ The current focus is on improving code stability, API connectivity, and refactor
   - Implemented fallback mechanism using S3 API for environments without Wrangler
   - Updated all documentation to reflect the solution
 - **Investigate `video-player.spec.ts` Failures (2025-04-09):**
-  - Narrowed down root cause to component instability during automated test execution, specifically failing Playwright's `.hover()` stability checks.
-  - Confirmed timing mismatch between component readiness signals and visual stability.
-  - Added explicit `data-media-status` readiness attribute to `MediaContainer`.
+  - Confirmed test fails to find the media container element (`[data-testid="video-context-preview"]`) for both video *and* image scenes.
+  - Verified image path uses `<img>` and bypasses `VideoContext`, proving the issue isn't specific to video rendering.
+  - **Narrowed root cause:** Delayed or conditional rendering of the `<MediaContainer>` component within the scene card structure is preventing the test from finding it promptly.
+  - Added explicit `data-media-status` attribute to `MediaContainer` (kept for future testability).
   - Updated `docs/video-context-scene-preview-player-refactor-guide.md` with detailed findings.
-  - Temporarily commented out failing interaction steps in `video-player.spec.ts` pending component refactoring.
+  - Temporarily commented out failing interaction steps in `video-player.spec.ts` pending component investigation.
 
 ## Recent Progress (Updated June 2025)
 

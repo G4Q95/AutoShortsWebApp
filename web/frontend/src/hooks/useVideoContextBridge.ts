@@ -225,8 +225,17 @@ export function useVideoContextBridge({
               setDuration(videoDuration);   
               // SIMPLIFY: Just call the callback with the duration
               onDurationChange?.(videoDuration);
-              setIsReady(true);             
-              onReady?.();
+              
+              // --- ADD DELAY --- 
+              console.log("[Bridge InitEffect 'loaded'] Adding short delay before setting ready...");
+              setTimeout(() => {
+                if (isActive) { // Check if still active after delay
+                  console.log("[Bridge InitEffect 'loaded'] Delay finished. Setting isReady=true.");
+                  setIsReady(true);             
+                  onReady?.();
+                }
+              }, 150); // 150ms delay - adjust if needed
+              // --- END DELAY ---
           } else {
               console.warn(`[Bridge InitEffect 'loaded'] Invalid duration (${videoDuration}). Not setting ready.`);
               setIsReady(false); // Ensure ready is false
