@@ -908,10 +908,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         console.log(`%c[Image Timer Tick ${componentId}] Current: ${currentTime.toFixed(3)}, New: ${newTime.toFixed(3)}, End: ${effectiveEndTime.toFixed(3)}`, 'color: cyan');
 
         if (newTime >= effectiveEndTime) {
-          console.log(`%c[Image Timer ${componentId}] Reached end (${effectiveEndTime.toFixed(3)}). Pausing.`, 'color: yellow');
+          console.log(`%c[Image Timer ${componentId}] Reached end (${effectiveEndTime.toFixed(3)}). Pausing & Resetting.`, 'color: yellow');
+          forceResetOnPlayRef.current = true; // Set flag to reset on next play
           handlePause(); // Call pause handler
-          // Call H T U *after* pausing, ensure it gets the final end time
-          handleTimeUpdate(effectiveEndTime, 'imageTimerEnd'); // Ensure time snaps to end
+          // Reset time visually back to the start bracket
+          handleTimeUpdate(trimStart, 'imageTimerReset'); 
           clearExistingTimer(); // Stop the timer
         } else {
           // console.log(`%c[Image Timer Tick ${componentId}] Calling handleTimeUpdate(${newTime.toFixed(3)})`, 'color: cyan');
