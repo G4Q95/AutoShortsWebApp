@@ -15,7 +15,8 @@ interface UseVideoContextBridgeProps {
   // ADD: Video element reference
   videoRef: RefObject<HTMLVideoElement | null>; 
   localMediaUrl?: string | null;
-  mediaType: string;
+  mediaType: 'image' | 'video' | 'gallery';
+  isImageType: (type: 'image' | 'video' | 'gallery') => boolean;
   initialMediaAspectRatio?: number;
   onReady?: () => void;
   onError?: (error: Error) => void;
@@ -53,6 +54,7 @@ export function useVideoContextBridge({
   videoRef,
   localMediaUrl,
   mediaType,
+  isImageType,
   initialMediaAspectRatio,
   onReady,
   onError,
@@ -69,9 +71,10 @@ export function useVideoContextBridge({
 
   // --- Methods (useCallbacks) ---
   // Helper function to check if media type is video
-  const isVideoType = useCallback((type: string): boolean => {
-    return type === 'video';
-  }, []);
+  // No longer needed here as we receive isImageType prop
+  // const isVideoType = useCallback((type: string): boolean => {
+  //   return type === 'video';
+  // }, []);
   
   // prepareVideoContext (modified slightly to be internal)
   const internalPrepareVideoContext = useCallback(async (baseSize: number = 1920): Promise<VideoContextInstance | null> => {
@@ -105,8 +108,9 @@ export function useVideoContextBridge({
 
   // internalCreateVideoSourceNode now just creates and returns the source
   const internalCreateVideoSourceNode = useCallback((ctx: VideoContextInstance) => {
-    if (!isVideoType(mediaType) || !localMediaUrl || !ctx) {
-      console.warn('[useVideoContextBridge Internal] Create source node conditions not met.');
+    // Use the passed isImageType function instead of local isVideoType
+    if (isImageType(mediaType) || !localMediaUrl || !ctx) { // Check if it IS an image type
+      console.warn('[useVideoContextBridge Internal] Create source node conditions not met (Image or missing URL/Ctx).');
       return null;
     }
     console.log(`[useVideoContextBridge Internal] Creating source node for: ${localMediaUrl}`);
@@ -154,7 +158,7 @@ export function useVideoContextBridge({
       onError?.(error instanceof Error ? error : new Error('Internal source creation failed'));
       return null;
     }
-  }, [localMediaUrl, mediaType, isVideoType, onError]); // Dependencies are only for creation itself
+  }, [localMediaUrl, mediaType, isImageType, onError]); // Dependencies are only for creation itself
 
   // --- NEW: Internal Initialization Effect (Revised Structure) --- 
   useEffect(() => {
@@ -164,8 +168,9 @@ export function useVideoContextBridge({
     let createdSource: any | null = null; // Hold source within effect scope
 
     const initialize = async () => {
-      if (!isVideoType(mediaType) || !localMediaUrl || !canvasRef.current) {
-        console.log('[Bridge InitEffect] Conditions not met, bailing out.');
+      // Use the passed isImageType function
+      if (isImageType(mediaType) || !localMediaUrl || !canvasRef.current) { // Check if it IS an image type
+        console.log('[Bridge InitEffect] Conditions not met (Image or missing URL/Canvas), bailing out.');
         if (internalCtx) setInternalCtx(null);
         setIsReady(false);
         setDuration(0);
@@ -279,7 +284,7 @@ export function useVideoContextBridge({
       localMediaUrl, 
       mediaType, 
       canvasRef, 
-      isVideoType, 
+      isImageType, 
       internalPrepareVideoContext, 
       internalCreateVideoSourceNode, 
       onReady, // Add callback prop
@@ -292,8 +297,8 @@ export function useVideoContextBridge({
     // Get the raw video element
     const videoElement = videoRef.current;
     
-    // Only run if we have a video element and the media type is video
-    if (!videoElement || !isVideoType(mediaType)) return;
+    // Only run if we have a video element and the media type is NOT image
+    if (!videoElement || isImageType(mediaType)) return;
 
     const handleTimeUpdate = () => {
       // Read time directly from the video element
@@ -321,13 +326,13 @@ export function useVideoContextBridge({
       }
     };
 
-  }, [videoRef, isVideoType, mediaType, setCurrentTime]); // ADD videoRef and setCurrentTime, remove internalCtx
+  }, [videoRef, isImageType, mediaType, setCurrentTime]); // ADD videoRef and setCurrentTime, remove internalCtx
 
   // --- Effect to track time updates from the video element ---
   useEffect(() => {
-    // Only run if we have a video element, it's a video type, and the bridge is ready
+    // Only run if we have a video element, it's NOT an image type, and the bridge is ready
     const videoElement = videoRef.current;
-    if (!videoElement || !isVideoType(mediaType) || !isReady) {
+    if (!videoElement || isImageType(mediaType) || !isReady) { // Use isImageType
       return;
     }
     
@@ -362,12 +367,12 @@ export function useVideoContextBridge({
         }
       }
     };
-  }, [videoRef, isVideoType, mediaType, isReady]);
+  }, [videoRef, isImageType, mediaType, isReady]); // Added isImageType dependency
 
   // --- Time Update Listener ---
   useEffect(() => {
     const videoElement = videoRef.current;
-    if (!videoElement || isImageType(mediaType)) return; // Only for video
+    if (!videoElement || isImageType(mediaType)) return; // Use isImageType
 
     const handleTimeUpdate = () => {
       if (videoElement) {
@@ -386,7 +391,7 @@ export function useVideoContextBridge({
       videoElement.removeEventListener('timeupdate', handleTimeUpdate);
       console.log("[DEBUG BridgeTime] Removed timeupdate listener");
     };
-  }, [videoRef, mediaType]); // Re-run if videoRef or mediaType changes
+  }, [videoRef, mediaType, isImageType]); // Added isImageType dependency
 
   // --- Ready State Listener ---
 

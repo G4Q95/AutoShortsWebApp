@@ -244,6 +244,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     videoRef,
     localMediaUrl,
     mediaType,
+    isImageType: isImageType,
     initialMediaAspectRatio,
     onReady: useCallback(() => {
       console.log("[VideoContextScenePreviewPlayer] Bridge reported ready.");

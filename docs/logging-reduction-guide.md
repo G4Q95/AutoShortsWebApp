@@ -20,11 +20,14 @@ The primary goal of this guide is to systematically identify, diagnose, and redu
 3.  **Trim Bracket Dragging:** (Potential) High volume of logs during trim handle drag.
 4.  **Media Playback:** (Potential) Repetitive logs during standard playback.
 
-## 3. Current Task: Hover State Re-renders
+## 3. Current Task: Hover State Re-renders (In Progress)
 
 ### 3.1 Problem Description
 
-When the user's cursor enters or leaves the hover area of a scene preview (specifically the `MediaContainer` within `VideoContextScenePreviewPlayer`), a significant burst of console logs (~12-13 logs) and associated component re-renders occurs. This happens during the transition where the player controls fade in or out. While the logging stops once the hover state is stable (either on or off), this initial burst of activity causes instability, particularly interfering with automated click attempts on the dynamically appearing controls.
+When the user's cursor enters or leaves the hover area of a scene preview (`MediaContainer` within `VideoContextScenePreviewPlayer`), a significant burst of console logs and associated component re-renders occurs. 
+*   Hovering over the general media area triggers ~14 logs.
+*   Hovering specifically over the controls overlay triggers ~18 logs.
+This burst happens during the fade-in/out transition of the controls and causes instability for automated interactions.
 
 ### 3.2 Observed Logs (During Hover Enter/Leave Burst)
 
@@ -36,15 +39,27 @@ The following types of logs are frequently observed during the hover transition:
 *   `[TimelineControl] Rendering with trimActive=...`
 *   `[useAnimationFrameLoop] isPlaying=...`
 
-### 3.3 Investigation Plan
+### 3.3 Investigation & Actions Taken
 
-1.  **Examine Event Handlers:** Analyze the `onMouseEnter` and `onMouseLeave` handlers, likely defined within the `useMediaEventHandlers` hook and used by `MediaContainer`.
-2.  **Trace State Flow:** Understand how the `isHovering` state update (managed within `VideoContextScenePreviewPlayer`) propagates to child components (`PlayerControls`, `TimelineControl`).
-3.  **Identify Re-render Triggers:** Determine precisely why `VCSPP`, `PlayerControls`, and `TimelineControl` re-render multiple times in response to a single `isHovering` change.
-4.  **Optimize:**
-    *   **`React.memo`:** Consider wrapping child components like `PlayerControls` and `TimelineControl` in `React.memo` to prevent re-renders if their relevant props haven't actually changed, even if the parent (`VCSPP`) re-renders.
-    *   **Prop Drilling:** Ensure props passed down are stable (e.g., memoized functions using `useCallback`, stable object references).
-    *   **Selector Functions:** If applicable, use selector functions with context to prevent unnecessary updates.
+1.  **Examined Event Handlers:** Confirmed `onMouseEnter`/`onMouseLeave` in `useMediaEventHandlers` are simple, memoized state setters (`setIsHovering`).
+2.  **Traced State Flow:** Determined the `isHovering` state change in `VideoContextScenePreviewPlayer` (VCSPP) triggers re-renders of VCSPP itself and its children.
+3.  **Memoized `PlayerControls`:** Wrapped `PlayerControls` in `React.memo`. 
+    *   **Outcome:** Reduced logs when hovering *above* controls (approx. down to ~14). Logs when hovering *over* controls remained higher (~18), indicating `PlayerControls` still re-renders, likely due to props changing or other triggers when controls are interacted with.
+4.  **Memoized `TimelineControl`:** Wrapped `TimelineControl` (a child of `PlayerControls`) in `React.memo`.
+    *   **Outcome:** No significant further reduction in logs observed during the hover transition burst. This suggests the re-renders are still being triggered higher up (either VCSPP or `PlayerControls` itself).
+5.  **Checked Prop Stability:** Verified that most function props passed from VCSPP to `PlayerControls` are wrapped in `useCallback`.
+
+### 3.4 Current Hypothesis
+
+The remaining burst of re-renders when hovering (especially over controls) is likely due to:
+*   The parent `VideoContextScenePreviewPlayer` re-rendering multiple times itself in response to the single hover state change.
+*   OR: Unstable props (non-function objects/arrays, or maybe a less obvious non-memoized function) being passed to `PlayerControls`, causing its `React.memo` check to fail.
+
+### 3.5 Next Steps
+
+1.  **Memoize `MediaContainer`:** Wrap `MediaContainer` (another direct child of VCSPP) in `React.memo` to see if that prevents re-renders originating from the parent.
+2.  **Analyze VCSPP Renders:** If memoizing children doesn't stop the burst, use React DevTools Profiler to investigate *why* `VideoContextScenePreviewPlayer` itself re-renders multiple times on a single hover state change.
+3.  **Deep Prop Audit:** If necessary, meticulously check *all* props passed to `PlayerControls` for referential stability.
 
 ## 4. Future Tasks
 
