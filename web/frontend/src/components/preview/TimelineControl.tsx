@@ -96,7 +96,7 @@ interface TimelineControlProps {
  * This component handles the display and interaction with the video timeline,
  * including the progress bar and trim brackets. Time display is handled separately.
  */
-export function TimelineControl({
+export const TimelineControl: React.FC<TimelineControlProps> = React.memo(({
   visualTime,
   duration,
   trimStart,
@@ -115,7 +115,7 @@ export function TimelineControl({
   onTrimStartInput,
   onTrimEndInput,
   className
-}: TimelineControlProps) {
+}: TimelineControlProps) => {
   const timelineRef = useRef<HTMLInputElement>(null);
   
   const timelineValueToPosition = (value: number): number => {
@@ -326,4 +326,7 @@ export function TimelineControl({
       )}
     </div>
   );
-} 
+});
+
+// Optional: Add display name
+TimelineControl.displayName = 'TimelineControl'; 

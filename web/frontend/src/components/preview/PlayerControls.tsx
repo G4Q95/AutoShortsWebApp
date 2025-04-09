@@ -56,7 +56,8 @@ interface PlayerControlsProps {
   onPlayPauseToggle: () => void;
 }
 
-export function PlayerControls({
+// Wrap the component definition with React.memo
+export const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
   // Visibility props
   isHovering,
   isPositionLocked,
@@ -90,7 +91,7 @@ export function PlayerControls({
   isPlaying,
   isReady,
   onPlayPauseToggle,
-}: PlayerControlsProps) {
+}: PlayerControlsProps) => {
   // Debug log for PlayerControls props
   console.log(`[DEBUG PlayerControls Props] visualTime=${visualTime.toFixed(3)}, duration=${duration.toFixed(3)}, trimStart=${trimStart.toFixed(3)}, effectiveTrimEnd=${effectiveTrimEnd.toFixed(3)}, activeHandle=${activeHandle}, trimActive=${trimActive}, isDraggingScrubber=${isDraggingScrubber}`);
 
@@ -176,4 +177,7 @@ export function PlayerControls({
       </div>
     </div>
   );
-} 
+}); // Close React.memo
+
+// Optional: Define displayName for better debugging
+PlayerControls.displayName = 'PlayerControls'; 
