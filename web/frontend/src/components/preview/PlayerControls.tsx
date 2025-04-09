@@ -143,11 +143,12 @@ export function PlayerControls({
            style={{ position: 'relative', zIndex: 55, pointerEvents: 'auto' }}>
 
         {/* Left button section */}
-        <div className="flex-shrink-0 w-14 flex justify-start items-center space-x-2">
+        <div className="flex-shrink-0 w-14 flex justify-start items-center">
           <PlayPauseButton 
             isPlaying={isPlaying}
             isReady={isReady}
             onClick={onPlayPauseToggle}
+            className="mr-1"
           />
           <LockButton isLocked={isPositionLocked} onToggle={onLockToggle} />
         </div>
