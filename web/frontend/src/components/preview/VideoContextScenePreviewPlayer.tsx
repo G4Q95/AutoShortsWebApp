@@ -185,7 +185,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const forceResetOnPlayRef = useRef<boolean>(false);
   const isPlayingRef = useRef<boolean>(false);
   const animationFrameRef = useRef<number | null>(null);
-  const imageTimerRef = useRef<number | null>(null);
+  const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // VideoContext state
   const [duration, setDuration] = useState<number>(() => isImageType(mediaType) ? 30 : 0);
@@ -438,18 +438,23 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
     setIsDraggingScrubber(false);
 
-    // Final sync: Ensure the bridge time matches the last scrub time
-    // The 'seek' in handleScrubberInput should handle this, but a final check can be good.
+    // Final sync: Ensure the final scrubTime is applied via handleTimeUpdate
     if (scrubTime !== null) {
-        // bridge.seek(scrubTime); // Redundant if handleScrubberInput worked reliably
+       handleTimeUpdate(scrubTime, 'scrubberEnd'); // Ensure final state update
     }
 
     // Resume playback ONLY if it was playing before the drag started
     if (wasPlayingBeforeSeek) {
       handlePlay();
     }
-    setScrubTime(null); // Clear scrub time override after drag ends
-  }, [bridge, handlePlay, wasPlayingBeforeSeek, scrubTime]);
+
+    // Clear scrub time override ONLY for non-image types after drag ends
+    // For images, the timer relies on scrubTime persisting.
+    if (!isImageType(mediaType)) {
+        setScrubTime(null); 
+    }
+
+  }, [bridge, handlePlay, wasPlayingBeforeSeek, scrubTime, handleTimeUpdate, mediaType]); // Added mediaType dependency
 
   // Called when user presses mouse down on EITHER trim handle
   const handleTrimHandleMouseDown = useCallback((handle: 'start' | 'end') => {
@@ -860,15 +865,72 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     };
   }, [isPlaying, mediaType, localMediaUrl, isDraggingScrubber, trimManuallySet, userTrimEndRef, bridge]);
   
-  // Effect to clear image timer on unmount
+  // Effect to clear image timer on unmount (Keep this simple one for final cleanup)
   useEffect(() => {
-    // Return cleanup function
     return () => {
       if (imageTimerRef.current) {
+        console.log("[Image Timer Cleanup] Clearing on unmount."); // Log cleanup
         clearInterval(imageTimerRef.current);
       }
     };
   }, []); // Empty dependency array ensures this runs only on mount and unmount
+
+  // *** ADDED: useEffect for Image Playback Simulation Timer ***
+  useEffect(() => {
+    const componentId = sceneId.slice(-4); // Short ID for less log noise
+
+    // Clear any existing timer when dependencies change or component unmounts
+    const clearExistingTimer = () => {
+      if (imageTimerRef.current) {
+        console.log(`[Image Timer ${componentId}] Clearing existing timer.`);
+        clearInterval(imageTimerRef.current);
+        imageTimerRef.current = null;
+      }
+    };
+
+    if (isPlaying && isReady && isImageType(mediaType)) {
+      // Start timer for image playback simulation
+      clearExistingTimer(); // Ensure no duplicate timers
+      console.log(`%c[Image Timer ${componentId}] Starting simulation. isReady=${isReady}, isPlaying=${isPlaying}`, 'color: lightgreen');
+
+      imageTimerRef.current = setInterval(() => {
+        if (!bridge) {
+            console.warn(`%c[Image Timer ${componentId}] Bridge not available, stopping timer.`, 'color: orange');
+            clearExistingTimer();
+            return;
+        }
+        // Read from scrubTime state for current time, default to 0 if null
+        const currentTime = scrubTime ?? 0; 
+        const intervalSeconds = 0.1; // Update every 100ms
+        const newTime = currentTime + intervalSeconds;
+        const effectiveEndTime = getEffectiveTrimEnd();
+
+        console.log(`%c[Image Timer Tick ${componentId}] Current: ${currentTime.toFixed(3)}, New: ${newTime.toFixed(3)}, End: ${effectiveEndTime.toFixed(3)}`, 'color: cyan');
+
+        if (newTime >= effectiveEndTime) {
+          console.log(`%c[Image Timer ${componentId}] Reached end (${effectiveEndTime.toFixed(3)}). Pausing.`, 'color: yellow');
+          handlePause(); // Call pause handler
+          // Call H T U *after* pausing, ensure it gets the final end time
+          handleTimeUpdate(effectiveEndTime, 'imageTimerEnd'); // Ensure time snaps to end
+          clearExistingTimer(); // Stop the timer
+        } else {
+          // console.log(`%c[Image Timer Tick ${componentId}] Calling handleTimeUpdate(${newTime.toFixed(3)})`, 'color: cyan');
+          handleTimeUpdate(newTime, 'imageTimer'); // Update time state
+        }
+      }, 100); // 100ms interval
+
+    } else {
+      // If not playing an image, ensure timer is stopped
+      if (imageTimerRef.current) {
+        console.log(`%c[Image Timer ${componentId}] Condition not met (isPlaying=${isPlaying}, isReady=${isReady}, isImageType=${isImageType(mediaType)}), clearing timer.`, 'color: lightcoral');
+        clearExistingTimer();
+      }
+    }
+
+    // Cleanup function for the effect
+    return clearExistingTimer;
+
+  }, [isPlaying, isReady, mediaType, bridge, handleTimeUpdate, handlePause, getEffectiveTrimEnd, scrubTime, sceneId]); // Added scrubTime and sceneId
   
   // Add formatTime function back inside the component scope
   const formatTime = (seconds: number, showTenths: boolean = false): string => {
