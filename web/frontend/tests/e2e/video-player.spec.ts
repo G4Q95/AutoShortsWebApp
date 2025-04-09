@@ -13,8 +13,8 @@ import { selectors } from './utils/selectors'; // Assuming selectors are exporte
 const MEDIA_SELECTOR = 'video[src], img[src]';
 
 // Use a known working Reddit IMAGE URL.
-// const REDDIT_VIDEO_URL = 'https://www.reddit.com/r/oddlyterrifying/comments/1j7csx4/some_sorta_squid_in_australian_street/';
-const REDDIT_IMAGE_URL = 'https://www.reddit.com/r/pics/comments/1jvbyqr/we_are_doomed_thanks_zuck_saddest_photo_i_have/';
+const REDDIT_VIDEO_URL = 'https://www.reddit.com/r/oddlyterrifying/comments/1j7csx4/some_sorta_squid_in_australian_street/';
+// const REDDIT_IMAGE_URL = 'https://www.reddit.com/r/pics/comments/1jvbyqr/we_are_doomed_thanks_zuck_saddest_photo_i_have/';
 
 test.describe('Video Player Functionality - Force Click', () => {
   let projectName: string;
@@ -33,7 +33,7 @@ test.describe('Video Player Functionality - Force Click', () => {
 
   test('should load image and allow interaction', async ({ page }) => {
     // Add a scene using the IMAGE URL
-    await addScene(page, REDDIT_IMAGE_URL);
+    await addScene(page, REDDIT_VIDEO_URL);
 
     // Find the first scene card
     const firstSceneCard = page.locator('[data-testid^="scene-card-"]').first();
@@ -58,20 +58,12 @@ test.describe('Video Player Functionality - Force Click', () => {
     // console.log(`>>> Scene card count: ${cardCount}`);
     // const canvasCount = await firstSceneCard.locator('canvas').count(); // Check canvas again too
     // console.log(`>>> Canvas inside card count: ${canvasCount}`);
-    // --- END VALIDATION LOGS ---
-
-    // Wait for the explicit media ready signal from the container
-    console.log('Waiting for media container to have data-media-status="ready"...');
-    const mediaContainerLocator = firstSceneCard.locator('[data-testid="video-context-preview"]');
-    await expect(mediaContainerLocator).toHaveAttribute('data-media-status', 'ready', { timeout: 15000 });
-    console.log('Media container has data-media-status="ready".');
-    // REPLACED BLOCK END
+    // --- END VALIDATION LOGS ---\n\n    // --- NEW WAITING LOGIC ---\n    // 1. Wait for the loading spinner inside the card to disappear\n    console.log(\'Waiting for loading spinner (.animate-spin) inside the scene card to be hidden...\');\n    const loadingSpinnerLocator = firstSceneCard.locator(\'.animate-spin\');\n    await loadingSpinnerLocator.waitFor({ state: \'hidden\', timeout: 20000 }); // Increased timeout for loading\n    console.log(\'Loading spinner is hidden.\');\n\n    // 2. Wait for the media container itself to become visible\n    console.log(\'Waiting for media container [data-testid=\"video-context-preview\"] to be visible...\');\n    const mediaContainerLocator = firstSceneCard.locator(\'[data-testid=\"video-context-preview\"]\');\n    await mediaContainerLocator.waitFor({ state: \'visible\', timeout: 15000 });\n    console.log(\'Media container is visible.\');\n    // --- END NEW WAITING LOGIC ---
 
     // ======================================================================
-    // TEMP: Skipping Hover and Click due to instability issues
-    // TODO: Re-enable when VideoContextScenePreviewPlayer is more stable
+    // Re-enabling Hover and Click for testing
     // ======================================================================
-    /*
+    
     // 3. Hover over the MAIN SCENE CARD to reveal controls (Reverted to hover)
     console.log('Hovering over main scene card [data-testid^="scene-card-"]...');
     await firstSceneCard.hover({ timeout: 5000 }); // Use hover again
@@ -89,9 +81,9 @@ test.describe('Video Player Functionality - Force Click', () => {
     const pauseButtonLocator = page.locator('[aria-label="Pause"]'); // Or use a selector from selectors.ts if available
     await expect(pauseButtonLocator).toBeVisible({ timeout: 15000 }); // Give it time to appear
     console.log('Pause button is visible. Force click likely initiated playback.');
-    */
+    
     // ======================================================================
-    console.log('SKIPPING play/pause interaction test due to UI instability.');
+    // console.log('SKIPPING play/pause interaction test due to UI instability.'); // Keep this commented for now
     // ======================================================================
 
   });

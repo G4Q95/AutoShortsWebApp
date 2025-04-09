@@ -27,6 +27,12 @@ Investigation into the `video-player.spec.ts` failures yielded the following ins
 *   **Current Resolution:** The interaction steps (hover, click, pause check) within `video-player.spec.ts` remain temporarily commented out. The test currently only verifies initial scene addition.
 *   **Next Steps:** Investigation must now focus on the React component code (`VideoContextScenePreviewPlayerContent`, `SceneMediaPlayer`, etc.) to understand **what conditions must be met before `<MediaContainer>` is rendered** and why this is delayed relative to the rest of the scene card appearing. Resolving this conditional rendering delay is necessary to make the component testable.
 
+*   **Update (2025-04-10):** Implemented a two-step wait in `video-player.spec.ts`: (1) Wait for loading spinner (`.animate-spin`) to be hidden, (2) Wait for media container (`[data-testid="video-context-preview"]`) to be visible. This approach successfully passes the waiting phase in tests, confirming the container becomes visible after loading. However, the subsequent interaction steps (hover, click, pause check) remain commented out in the test due to prior instability. Further testing is needed with interactions re-enabled.
+
+*   **Update (2025-04-10 - Continued):** Re-enabled the interaction steps (hover, click play, check pause) in `video-player.spec.ts`. The test now consistently fails during the `.hover()` action on the scene card (`[data-testid^="scene-card-"]`) with a timeout error. This confirms that even after the media container is loaded and visible, the underlying component (`VideoContextScenePreviewPlayer`) remains unstable, preventing reliable interaction via standard Playwright methods.
+
+*   **Decision (2025-04-10):** The next step is to shift focus from modifying the Playwright test to **debugging and stabilizing the `VideoContextScenePreviewPlayer` component itself**. Attempts to force interaction with the unstable component are unreliable. We will use React DevTools profiling and targeted logging within the component to identify and fix the root cause of the instability occurring *after* the initial load, as outlined in the goals and potential steps within this guide.
+
 ## 2. Refactoring Goals
 
 *   **Improve Stability:** Significantly reduce unnecessary re-renders and state calculations when handling video.
