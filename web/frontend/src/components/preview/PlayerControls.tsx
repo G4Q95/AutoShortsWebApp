@@ -81,6 +81,9 @@ export function PlayerControls({
   // Trim Toggle Button props
   onTrimToggle,
 }: PlayerControlsProps) {
+  // Debug log for PlayerControls props
+  console.log(`[DEBUG PlayerControls Props] visualTime=${visualTime.toFixed(3)}, duration=${duration.toFixed(3)}, trimStart=${trimStart.toFixed(3)}, effectiveTrimEnd=${effectiveTrimEnd.toFixed(3)}, activeHandle=${activeHandle}, trimActive=${trimActive}, isDraggingScrubber=${isDraggingScrubber}`);
+
   // Controls Overlay - updated to always show on hover regardless of view mode
   return (
     <div

@@ -364,6 +364,32 @@ export function useVideoContextBridge({
     };
   }, [videoRef, isVideoType, mediaType, isReady]);
 
+  // --- Time Update Listener ---
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement || isImageType(mediaType)) return; // Only for video
+
+    const handleTimeUpdate = () => {
+      if (videoElement) {
+        const newTime = videoElement.currentTime;
+        // Log the update being detected by the bridge
+        console.log(`[DEBUG BridgeTime] Bridge received timeupdate event: ${newTime.toFixed(3)}s`);
+        setCurrentTime(newTime);
+        // Check against previous time if needed (e.g., for debouncing, though likely not needed here)
+      }
+    };
+
+    videoElement.addEventListener('timeupdate', handleTimeUpdate);
+    console.log("[DEBUG BridgeTime] Added timeupdate listener");
+
+    return () => {
+      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+      console.log("[DEBUG BridgeTime] Removed timeupdate listener");
+    };
+  }, [videoRef, mediaType]); // Re-run if videoRef or mediaType changes
+
+  // --- Ready State Listener ---
+
   // --- Playback Methods (using internalCtx or videoContextInstance?) ---
   // TODO: Decide whether these should operate on internalCtx or videoContextInstance
   // For now, let's keep them using videoContextInstance to minimize changes in the component
