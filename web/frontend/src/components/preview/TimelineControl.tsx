@@ -216,22 +216,10 @@ export function TimelineControl({
               type="range"
               min="0"
               max="100"
-              step="0.01"
-              value={(trimStart / duration) * 100}
-              className="trim-bracket-range"
-              style={{
-                width: '16px',
-                height: '16px', // Match container height
-                position: 'absolute',
-                top: '0px',
-                left: '-2px',
-                WebkitAppearance: 'none',
-                appearance: 'none',
-                zIndex: 90,
-                opacity: 0,
-                pointerEvents: 'auto',
-                cursor: 'ew-resize'
-              }}
+              step="any"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize trim-bracket-range"
+              aria-hidden="true"
+              tabIndex={-1}
               onMouseDown={(e) => {
                 e.stopPropagation();
                 console.log("[Trim Bracket] Left Handle MouseDown");
@@ -290,22 +278,10 @@ export function TimelineControl({
               type="range"
               min="0"
               max="100"
-              step="0.01"
-              value={(getEffectiveTrimEnd() / duration) * 100}
-              className="trim-bracket-range"
-              style={{
-                width: '16px',
-                height: '16px', // Match container height
-                position: 'absolute',
-                top: '0px',
-                left: '-2px',
-                WebkitAppearance: 'none',
-                appearance: 'none',
-                zIndex: 90,
-                opacity: 0,
-                pointerEvents: 'auto',
-                cursor: 'ew-resize'
-              }}
+              step="any"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize trim-bracket-range"
+              aria-hidden="true"
+              tabIndex={-1}
               onMouseDown={(e) => {
                 e.stopPropagation();
                 console.log("[Trim Bracket] Right Handle MouseDown");
