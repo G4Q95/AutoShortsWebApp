@@ -93,3 +93,12 @@ This plan aims to achieve the "drift-free" goal of the "Failed Native Attempt" w
 
 *   **2023-07-07:** Document created. Initial plan drafted based on fixing drift while preserving functionality lost in the previous native attempt. Key change: Remove global listeners and implement comprehensive `onInput` handlers.
 *   *(... Add notes here as implementation progresses ...) * 
+
+###
+How: We should systematically debug the bracket dragging:
+Add detailed console logs within handleTrimStartInput, handleTrimEndInput, and potentially within the useTrimControls hook and the rendering of TimelineControl to trace the state values (trimStart, trimEnd, scrubTime, visualTime, bridge.currentTime) during a bracket drag. Look for rapid changes or conflicting values.
+Review the logic within handleTrimStartInput/handleTrimEndInput carefully, especially the calculations and state setters.
+Examine how activeHandle state is set and used in both TimelineControl and VideoContextScenePreviewPlayer to ensure it correctly isolates the events.
+Temporarily disable parts of the logic (e.g., the bridge.seek call within the trim handlers) to see if that stops the flickering, helping to pinpoint the source.
+Review the useTrimControls hook again to ensure its internal logic isn't conflicting now that the primary input handling is done in the parent.
+Let me know how you'd like to proceed with debugging. We can start by adding more targeted logging.
