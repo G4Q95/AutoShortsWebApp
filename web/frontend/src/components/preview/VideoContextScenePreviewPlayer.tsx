@@ -1062,6 +1062,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           setTimeBeforeDrag={setTimeBeforeDrag}
           setOriginalPlaybackTime={setOriginalPlaybackTime}
           getEffectiveTrimEnd={getEffectiveTrimEnd}
+          
+          // Playback
+          isPlaying={isPlaying}
+          isReady={isReady}
+          onPlayPauseToggle={handlePlayPauseToggle}
+          
           // Info Button
           showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
           onInfoToggle={handleInfoToggle}
