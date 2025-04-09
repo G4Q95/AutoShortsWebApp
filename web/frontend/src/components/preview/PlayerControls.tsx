@@ -4,6 +4,7 @@ import { TimeDisplay } from './TimeDisplay';
 import { InfoButton } from './InfoButton';
 import { TrimToggleButton } from './TrimToggleButton';
 import { TimelineControl } from './TimelineControl';
+import { PlayPauseButton } from './PlayPauseButton';
 
 // Define props based on the exact needs of the copied JSX
 interface PlayerControlsProps {
@@ -48,6 +49,11 @@ interface PlayerControlsProps {
   // Trim Toggle Button
   // Uses trimActive from above
   onTrimToggle: () => void;
+  
+  // PlayPause Button props
+  isPlaying: boolean;
+  isReady: boolean;
+  onPlayPauseToggle: () => void;
 }
 
 export function PlayerControls({
@@ -80,6 +86,10 @@ export function PlayerControls({
   onInfoToggle,
   // Trim Toggle Button props
   onTrimToggle,
+  // PlayPause Button props
+  isPlaying,
+  isReady,
+  onPlayPauseToggle,
 }: PlayerControlsProps) {
   // Debug log for PlayerControls props
   console.log(`[DEBUG PlayerControls Props] visualTime=${visualTime.toFixed(3)}, duration=${duration.toFixed(3)}, trimStart=${trimStart.toFixed(3)}, effectiveTrimEnd=${effectiveTrimEnd.toFixed(3)}, activeHandle=${activeHandle}, trimActive=${trimActive}, isDraggingScrubber=${isDraggingScrubber}`);
@@ -133,7 +143,12 @@ export function PlayerControls({
            style={{ position: 'relative', zIndex: 55, pointerEvents: 'auto' }}>
 
         {/* Left button section */}
-        <div className="flex-shrink-0 w-14 flex justify-start items-center">
+        <div className="flex-shrink-0 w-14 flex justify-start items-center space-x-2">
+          <PlayPauseButton 
+            isPlaying={isPlaying}
+            isReady={isReady}
+            onClick={onPlayPauseToggle}
+          />
           <LockButton isLocked={isPositionLocked} onToggle={onLockToggle} />
         </div>
 

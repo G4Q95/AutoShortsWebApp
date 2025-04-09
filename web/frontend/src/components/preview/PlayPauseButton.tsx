@@ -24,15 +24,17 @@ export const PlayPauseButton: React.FC<PlayPauseButtonProps> = ({
 
   return (
     <button
-      className={`${className} flex items-center justify-center rounded-full bg-black/50 w-8 h-8 text-white hover:bg-black/70 transition focus:outline-none focus:ring-2 focus:ring-blue-500`}
+      className={`${className} text-white hover:opacity-100 focus:outline-none`}
       onClick={handleClick}
       aria-label={isPlaying ? 'Pause' : 'Play'}
       title={isPlaying ? 'Pause' : 'Play'}
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto' }}
     >
       {isPlaying ? (
-        <PauseIcon className="w-4 h-4" />
+        <PauseIcon className="w-3 h-3" />
       ) : (
-        <PlayIcon className="w-4 h-4" />
+        <PlayIcon className="w-3 h-3" />
       )}
     </button>
   );

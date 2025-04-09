@@ -522,7 +522,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   //--------------------------------------------------------------------------
   // Effect for Updating Bridge State Listeners
   //--------------------------------------------------------------------------
-
+  
   // Function to get local media URL
   const getLocalMedia = useCallback(async () => {
     if (!mediaUrl) return;
@@ -596,8 +596,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         const testContext = await currentBridge.prepareVideoContext();
         
         if (!isMounted) return; // Prevent state updates if unmounted
-        
-        // Clean up the test context to avoid interference with the main context
+          
+          // Clean up the test context to avoid interference with the main context
         if (testContext) {
           try {
             testContext.reset();
@@ -608,7 +608,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             console.warn('[VideoCtx Test] Error cleaning up test context:', cleanupError);
           }
         }
-      } catch (error) {
+    } catch (error) {
         if (!isMounted) return;
         console.error('[VideoCtx Test] Error testing bridge.prepareVideoContext():', error);
       }
@@ -636,7 +636,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       }, SEEK_THROTTLE_MS);
     }
   }, [bridge, duration]); // Removed isDraggingScrubber, videoRef - scrubTime handles visual
-
+  
   // Function to convert range input value to timeline position
   const timelineValueToPosition = (value: number): number => {
     // When trim handles are being dragged, maintain current position
@@ -1041,7 +1041,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
             {(() => {
               return null;
             })()}
-            <PlayerControls
+        <PlayerControls
           // Visibility
           isHovering={isHovering || isLoading}
           isPositionLocked={isPositionLocked}
@@ -1056,8 +1056,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           trimActive={trimActive}
           isDraggingScrubber={isDraggingScrubber}
               onTimeUpdate={handleSimpleTimeUpdate}
-              onScrubberDragStart={handleScrubberDragStart}
-              onScrubberDragEnd={handleScrubberDragEnd}
+          onScrubberDragStart={handleScrubberDragStart}
+          onScrubberDragEnd={handleScrubberDragEnd}
           setActiveHandle={setActiveHandle}
           setTimeBeforeDrag={setTimeBeforeDrag}
           setOriginalPlaybackTime={setOriginalPlaybackTime}
