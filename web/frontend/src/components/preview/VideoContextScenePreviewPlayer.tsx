@@ -350,15 +350,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   }, [setIsPlaying]);
 
   const handlePause = useCallback(() => {
-    console.log(`[DEBUG VCSPP handlePause] Called. Current state: isPlaying=${isPlaying}, time=${bridge?.currentTime.toFixed(3)}`);
     if (!bridge) return;
     bridge.pause();
     setIsPlaying(false);
-    console.log('[DEBUG VCSPP handlePause] Pause command sent, setIsPlaying(false).');
   }, [bridge, isPlaying]);
 
   const handlePlay = useCallback(() => {
-    console.log(`[DEBUG VCSPP handlePlay] Called. Current state: isPlaying=${isPlaying}, trimActive=${trimActive}, time=${bridge?.currentTime.toFixed(3)}`);
     if (!bridge) return;
     // Ensure playback starts from the correct position, considering trim
     const effectiveStartTime = trimActive ? trimStart : 0;
@@ -367,19 +364,15 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       ? effectiveStartTime
       : bridge.currentTime;
 
-    console.log(`[DEBUG VCSPP handlePlay] Seeking to ${timeToSet.toFixed(3)} before play.`);
     bridge.seek(timeToSet); // Seek first to ensure starting at the right point
     bridge.play();
     setIsPlaying(true);
-    console.log('[DEBUG VCSPP handlePlay] Play command sent, setIsPlaying(true).');
   }, [bridge, trimActive, trimStart, duration, getEffectiveTrimEnd, isPlaying]);
 
   const handleTimeUpdate = useCallback((newTime: number, source: string) => {
-    console.log(`[DEBUG VCSPP handleTimeUpdate] Called from: ${source}, New time: ${newTime.toFixed(3)}`);
     if (!bridge) return;
 
     const clampedTime = Math.max(0, Math.min(newTime, duration));
-    console.log(`[DEBUG VCSPP handleTimeUpdate] Clamped time: ${clampedTime.toFixed(3)}`);
 
     // Update visual time immediately for responsiveness
     setScrubTime(clampedTime); // Update scrubTime for immediate visual feedback
@@ -389,7 +382,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
     // Handle playback state during seek
     if (isPlaying && source !== 'animationFrameLoop') { // Don't pause if called from loop's boundary check
-      console.log('[DEBUG VCSPP handleTimeUpdate] Pausing playback during manual seek.');
       bridge.pause(); // Pause during manual seek
       setWasPlayingBeforeSeek(true); // Remember it was playing
     }
@@ -432,11 +424,9 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
   // Called when the user presses down on the scrubber
   const handleScrubberDragStart = useCallback(() => {
-    console.log('[DEBUG VCSPP handleScrubberDragStart] Drag started.');
     setIsDraggingScrubber(true);
     setWasPlayingBeforeSeek(isPlaying); // Store current play state
     if (isPlaying) {
-      console.log('[DEBUG VCSPP handleScrubberDragStart] Pausing playback due to drag start.');
       handlePause(); // Pause if playing
     }
      setActiveHandle(null); // Ensure no trim handle is active
@@ -444,7 +434,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
   // Called when the user releases the scrubber
   const handleScrubberDragEnd = useCallback(() => {
-    console.log('[DEBUG VCSPP handleScrubberDragEnd] Drag ended.');
     if (!bridge) return;
 
     setIsDraggingScrubber(false);
@@ -452,30 +441,21 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Final sync: Ensure the bridge time matches the last scrub time
     // The 'seek' in handleScrubberInput should handle this, but a final check can be good.
     if (scrubTime !== null) {
-         console.log(`[DEBUG VCSPP handleScrubberDragEnd] Final seek check to scrubTime: ${scrubTime.toFixed(3)}`);
         // bridge.seek(scrubTime); // Redundant if handleScrubberInput worked reliably
     }
 
-
     // Resume playback ONLY if it was playing before the drag started
     if (wasPlayingBeforeSeek) {
-      console.log('[DEBUG VCSPP handleScrubberDragEnd] Resuming playback.');
-      // Use a slight delay ONLY if absolutely needed to avoid race conditions
-      // setTimeout(() => handlePlay(), 50); // Usually not needed now
       handlePlay();
     }
     setScrubTime(null); // Clear scrub time override after drag ends
-    console.log('[DEBUG VCSPP handleScrubberDragEnd] Resetting scrubTime.');
-
   }, [bridge, handlePlay, wasPlayingBeforeSeek, scrubTime]);
 
   // Called when user presses mouse down on EITHER trim handle
   const handleTrimHandleMouseDown = useCallback((handle: 'start' | 'end') => {
-    console.log(`[DEBUG VCSPP handleTrimHandleMouseDown] Handle: ${handle}`);
     setActiveHandle(handle);
     setWasPlayingBeforeSeek(isPlaying); // Store play state
     if (isPlaying) {
-        console.log('[DEBUG VCSPP handleTrimHandleMouseDown] Pausing playback.');
         handlePause(); // Pause playback when interacting with trim handles
     }
     setIsDraggingScrubber(false); // Ensure scrubber dragging is false
@@ -484,13 +464,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
   // Called when user releases mouse up from EITHER trim handle
   const handleTrimHandleMouseUp = useCallback(() => {
-     console.log(`[DEBUG VCSPP handleTrimHandleMouseUp] Releasing handle: ${activeHandle}`);
     if (!bridge || activeHandle === null) return;
 
     const handleEndTime = activeHandle === 'end' ? (userTrimEndRef.current ?? duration) : getEffectiveTrimEnd();
     const finalTime = activeHandle === 'start' ? trimStart : handleEndTime;
 
-     console.log(`[DEBUG VCSPP handleTrimHandleMouseUp] Final seek check to: ${finalTime.toFixed(3)}`);
      // Final sync: Ensure the video is at the handle's release position
      bridge.seek(finalTime);
      setScrubTime(finalTime); // Ensure visual time matches
@@ -499,16 +477,11 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
     // Resume playback ONLY if it was playing before the drag started
     if (wasPlayingBeforeSeek) {
-         console.log('[DEBUG VCSPP handleTrimHandleMouseUp] Resuming playback.');
-         // Schedule the resume slightly after state updates to ensure consistency
-         // setTimeout(() => handlePlay(), 50); // Delay might help, test without first
          handlePlay();
     }
 
      // Set scrubTime back to null *after* potential resume logic
-     // Need slight delay to ensure the resume logic uses the correct finalTime if needed
      setTimeout(() => {
-         console.log('[DEBUG VCSPP handleTrimHandleMouseUp] Resetting scrubTime.');
          setScrubTime(null);
      }, 0);
 
@@ -522,7 +495,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
 
   const handleTrimToggle = useCallback(() => {
     const nextTrimActive = !trimActive;
-    console.log(`[DEBUG VCSPP handleTrimToggle] Toggling trim. Before: ${trimActive}, After: ${nextTrimActive}`);
     setTrimActive(nextTrimActive);
     setActiveHandle(null); // Deactivate handles on toggle
     setIsDraggingScrubber(false); // Ensure not dragging scrubber on toggle
@@ -532,21 +504,17 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       const currentBridgeTime = bridge.currentTime;
       const effectiveStartTime = trimStart;
       const effectiveEndTime = getEffectiveTrimEnd();
-      console.log(`[DEBUG VCSPP handleTrimToggle] Activating. Checking time ${currentBridgeTime.toFixed(3)} against bounds [${effectiveStartTime.toFixed(3)}, ${effectiveEndTime.toFixed(3)})`);
       if (currentBridgeTime < effectiveStartTime || currentBridgeTime >= effectiveEndTime) {
-        console.log(`[DEBUG VCSPP handleTrimToggle] Time out of bounds. Seeking to start: ${effectiveStartTime.toFixed(3)}`);
         bridge.seek(effectiveStartTime);
         setScrubTime(effectiveStartTime); // Update visual time as well
       }
     }
     // If deactivating trim and it was paused, ensure scrubTime is cleared
     if (!nextTrimActive && !isPlaying) {
-       console.log('[DEBUG VCSPP handleTrimToggle] Deactivating while paused. Clearing scrubTime.');
        setScrubTime(null);
     }
     // Reset wasPlayingBeforeSeek when toggling trim, as the context changes
     setWasPlayingBeforeSeek(false);
-    console.log('[DEBUG VCSPP handleTrimToggle] Reset wasPlayingBeforeSeek.');
 
   }, [trimActive, setTrimActive, bridge, trimStart, getEffectiveTrimEnd, isPlaying, handlePause]);
 
@@ -623,19 +591,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Test the bridge's prepareVideoContext method
     const testBridgePrepare = async () => {
-      console.log('[VideoCtx Test] Testing bridge.prepareVideoContext()...');
-      
       try {
         // Call the bridge's method to prepare the context
         const testContext = await currentBridge.prepareVideoContext();
         
         if (!isMounted) return; // Prevent state updates if unmounted
         
-        // Log success or failure
+        // Clean up the test context to avoid interference with the main context
         if (testContext) {
-          console.log('[VideoCtx Test] Bridge successfully prepared context:', testContext);
-          
-          // Clean up the test context to avoid interference with the main context
           try {
             testContext.reset();
             if (typeof testContext.dispose === 'function') {
@@ -644,10 +607,8 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           } catch (cleanupError) {
             console.warn('[VideoCtx Test] Error cleaning up test context:', cleanupError);
           }
-        } else {
-          console.warn('[VideoCtx Test] Bridge failed to prepare context');
         }
-    } catch (error) {
+      } catch (error) {
         if (!isMounted) return;
         console.error('[VideoCtx Test] Error testing bridge.prepareVideoContext():', error);
       }
@@ -669,7 +630,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     // Keep the throttled seek for live preview during drag
     if (!throttleSeekTimer.current) {
-      console.log(`[VCSPP ScrubberDrag] Throttled: Calling bridge.seek(${newTime.toFixed(3)})`);
       bridge.seek(newTime);
       throttleSeekTimer.current = setTimeout(() => {
         throttleSeekTimer.current = null;
@@ -716,8 +676,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     const projectRatio = projWidth / projHeight;
     const mediaRatio = calculatedAspectRatio || projectRatio;
 
-    console.log(`[AspectRatio-Debug] Scene: ${sceneId}, Project ratio: ${projectRatio.toFixed(4)}, Media ratio: ${mediaRatio.toFixed(4)}, CompactView: ${isCompactView}`);
-
     // Base container style for both compact and full-screen views
     const style: CSSProperties = {
       display: 'flex',
@@ -746,9 +704,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       style.height = 'auto';
       style.aspectRatio = projectAspectRatio.replace(':', '/');
     }
-
-    // Calculate and log precise details about the scaling
-    console.log(`[AspectRatio-Scaling] Scene ${sceneId}: MediaRatio=${mediaRatio.toFixed(4)}, ProjectRatio=${projectRatio.toFixed(4)}`);
 
     return style;
   }, [calculatedAspectRatio, projectAspectRatio, showLetterboxing, isCompactView, sceneId]);
@@ -815,14 +770,12 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     const video = videoRef.current;
     
     if (!canvas) {
-      console.log('[CANVAS DEBUG] Canvas ref is null in visibility effect');
       return; // Canvas must exist
     }
     
     // Define handlers (can be defined outside the if block)
     const handleMetadataLoaded = () => {
       if (!video) return;
-      console.log(`[CANVAS DEBUG] FALLBACK: Video metadata loaded, duration=${video.duration}`);
       if (video.duration > 0) {
         setDuration(video.duration);
         setIsReady(true);
@@ -838,7 +791,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     
     const timeUpdateHandler = () => {
       if (!video) return;
-      console.log("[DEBUG] timeupdate event fired!");
       if (!isDraggingScrubber) {
         // Use bridge.currentTime instead of video.currentTime for consistency
         console.log(`[VideoElement] Time update: ${bridge.currentTime.toFixed(2)}s / ${video.duration.toFixed(2)}s`);
@@ -976,18 +928,20 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // The actual error UI will be handled by the MediaErrorBoundary
   }, []);
 
-  // Create a reset key for the error boundary based on various factors
-  // This ensures the error boundary resets when relevant props change
-  const errorBoundaryResetKey = `${sceneId}-${mediaUrl}-${localMediaUrl}-${mediaType}-${Date.now()}`;
-
-  // Debug log for UI updates and currentTime values
-  console.log(`[DEBUG UI Updates] Before rendering PlayerControls: bridge.currentTime=${bridge.currentTime.toFixed(3)}, scrubTime=${scrubTime !== null ? scrubTime.toFixed(3) : 'null'}`);
-
+  // Change scene loading state management
+  // This is the ref-based approach to track scene loading
+  const handleLoadingStateChange = useCallback((isLoading: boolean) => {
+    setIsLoading(isLoading);
+  }, []);
+  
   // Wrapper for onTimeUpdate prop to match expected signature
   const handleSimpleTimeUpdate = useCallback((newTime: number) => {
     // Call the main handler, providing a default source or identifying it comes from player controls
     handleTimeUpdate(newTime, 'playerControls'); 
   }, [handleTimeUpdate]);
+  
+  // This ensures the error boundary resets when relevant props change
+  const errorBoundaryResetKey = `${sceneId}-${mediaUrl}-${localMediaUrl}-${mediaType}-${Date.now()}`;
 
   // Render loading state
   if (isLoading && !localMediaUrl) {
@@ -1085,7 +1039,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
       >
         {/* Controls Overlay - Play/Pause, Scrubber, Time Display, Info Button */}
             {(() => {
-              console.log(`[DEBUG VCSPP] Passing to PlayerControls: visualTime=${(scrubTime ?? bridge.currentTime).toFixed(3)}, bridge.currentTime=${bridge.currentTime.toFixed(3)}, scrubTime=${scrubTime?.toFixed(3) || 'null'}, isDraggingScrubber=${isDraggingScrubber}, trimActive=${trimActive}`);
               return null;
             })()}
             <PlayerControls
