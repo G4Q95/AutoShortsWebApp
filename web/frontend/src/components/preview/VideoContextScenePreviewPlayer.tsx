@@ -1100,6 +1100,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         // Aspect ratio info
         showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
         calculatedAspectRatio={calculatedAspectRatio}
+        isMediaReady={bridge.isReady}
       >
         {/* Controls Overlay - Play/Pause, Scrubber, Time Display, Info Button */}
             {(() => {

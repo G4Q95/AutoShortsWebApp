@@ -85,6 +85,9 @@ interface MediaContainerProps {
   
   // For PlayerControls
   children?: ReactNode;
+  
+  // NEW PROP
+  isMediaReady: boolean;
 }
 
 /**
@@ -139,7 +142,10 @@ function _MediaContainer({
   calculatedAspectRatio,
   
   // Children (PlayerControls)
-  children
+  children,
+
+  // NEW PROP
+  isMediaReady // Passed down from parent based on bridge.isReady
 }: MediaContainerProps) {
   
   // Determine which media element to render based on type
@@ -212,6 +218,7 @@ function _MediaContainer({
       onMouseLeave={onMouseLeave}
       onClick={onContainerClick}
       data-testid="video-context-preview"
+      data-media-status={isMediaReady ? 'ready' : 'loading'}
     >
       {/* Black inner container for letterboxing/pillarboxing */}
       <div 
