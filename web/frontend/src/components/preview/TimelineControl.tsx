@@ -72,6 +72,21 @@ interface TimelineControlProps {
    */
   getEffectiveTrimEnd: () => number;
 
+  /**
+   * NEW: Callback fired continuously during scrubber drag (value 0-100)
+   */
+  onScrubberInput?: (newValue: number) => void;
+
+  /**
+   * NEW: Callback fired during left bracket drag (value 0-100)
+   */
+  onTrimStartInput?: (newValue: number) => void;
+
+  /**
+   * NEW: Callback fired during right bracket drag (value 0-100)
+   */
+  onTrimEndInput?: (newValue: number) => void;
+
   className?: string; // Add optional className prop
 }
 
@@ -96,6 +111,9 @@ export function TimelineControl({
   setTimeBeforeDrag,
   setOriginalPlaybackTime,
   getEffectiveTrimEnd,
+  onScrubberInput,
+  onTrimStartInput,
+  onTrimEndInput,
   className
 }: TimelineControlProps) {
   const scrubberRef = useRef<HTMLInputElement>(null);
@@ -193,6 +211,13 @@ export function TimelineControl({
             const newTime = percentToTime(newPercent);
             onTimeUpdate(newTime);
           }}
+          onInput={(e) => {
+            // New onInput handler for continuous drag events
+            const newValue = parseFloat((e.target as HTMLInputElement).value);
+            if (onScrubberInput) {
+              onScrubberInput(newValue);
+            }
+          }}
           onMouseUp={() => {
             if (!activeHandle) onScrubberDragEnd();
           }}
@@ -224,8 +249,35 @@ export function TimelineControl({
                 setOriginalPlaybackTime(visualTime);
                 }
               }}
+<<<<<<< HEAD
           >
             <div className="bg-blue-500 w-0.5 h-4" />
+=======
+              onChange={(e) => {
+                e.stopPropagation();
+              }}
+              onInput={(e) => {
+                e.stopPropagation();
+                const newValue = parseFloat((e.target as HTMLInputElement).value);
+                if (onTrimStartInput) {
+                  onTrimStartInput(newValue);
+                }
+              }}
+              data-testid="trim-start-range"
+              data-drag-handle-exclude="true"
+            />
+            {/* Visual bracket overlay */}
+            <div 
+              className="absolute w-0.5 bg-blue-500"
+              style={{ 
+                left: '6px',
+                top: '1px', // Adjust visual indicator slightly
+                height: '14px',
+                pointerEvents: 'none',
+                boxShadow: 'none',
+              }}
+            />
+>>>>>>> 95457d0
           </div>
               
           {/* Right trim bracket */}
@@ -247,8 +299,35 @@ export function TimelineControl({
                 setOriginalPlaybackTime(visualTime);
                 }
               }}
+<<<<<<< HEAD
           >
             <div className="bg-blue-500 w-0.5 h-4" />
+=======
+              onChange={(e) => {
+                e.stopPropagation();
+              }}
+              onInput={(e) => {
+                e.stopPropagation();
+                const newValue = parseFloat((e.target as HTMLInputElement).value);
+                if (onTrimEndInput) {
+                  onTrimEndInput(newValue);
+                }
+              }}
+              data-testid="trim-end-range"
+              data-drag-handle-exclude="true"
+            />
+            {/* Visual bracket overlay */}
+            <div 
+              className="absolute w-0.5 bg-blue-500"
+              style={{ 
+                left: '6px',
+                top: '1px', // Adjust visual indicator slightly
+                height: '14px', 
+                pointerEvents: 'none',
+                boxShadow: 'none',
+              }}
+            />
+>>>>>>> 95457d0
           </div>
         </>
       )}

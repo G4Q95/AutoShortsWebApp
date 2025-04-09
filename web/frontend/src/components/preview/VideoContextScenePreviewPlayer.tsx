@@ -688,53 +688,6 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     setIsDraggingScrubber
   ]);
   
-  // *** ADDED: useEffect for global scrubber drag listeners ***
-  useEffect(() => {
-    if (!isDraggingScrubber) return;
-
-    const handleGlobalMouseMove = (event: MouseEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const width = rect.width;
-      const percent = Math.max(0, Math.min(1, x / width));
-      const newTime = percent * duration;
-      
-      // Call the move handler to update visual time (scrubTime)
-      handleScrubberDragMove(newTime); 
-    };
-
-    const handleGlobalMouseUp = () => {
-      // Ensure any pending throttle is cleared on mouse up
-      if (throttleSeekTimer.current) {
-        clearTimeout(throttleSeekTimer.current);
-        throttleSeekTimer.current = null;
-      }
-      // Call the existing end handler (which will do a final accurate seek)
-      handleScrubberDragEnd(); 
-    };
-
-    // Add listeners to the document
-    document.addEventListener('mousemove', handleGlobalMouseMove);
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-    // Optional: Add mouseleave on documentElement as a safety net
-    // document.documentElement.addEventListener('mouseleave', handleGlobalMouseUp);
-
-    // Cleanup function
-    return () => {
-      document.removeEventListener('mousemove', handleGlobalMouseMove);
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
-      // document.documentElement.removeEventListener('mouseleave', handleGlobalMouseUp);
-    };
-  }, [
-    isDraggingScrubber, 
-    duration, 
-    containerRef, 
-    handleScrubberDragMove, // Depends on the modified handler
-    handleScrubberDragEnd, 
-    bridge // Keep bridge for throttled seek in move handler
-  ]);
-  
   // Function to convert range input value to timeline position
   const timelineValueToPosition = (value: number): number => {
     // When trim handles are being dragged, maintain current position
@@ -775,6 +728,73 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     // Fallback to a reasonable default (10 seconds)
     return 10;
   };
+  
+  // NEW: Handler for continuous scrubber input (called by native input element)
+  const handleScrubberInput = useCallback((newValue: number) => {
+    // Convert 0-100 range to time in seconds
+    const newTime = (newValue / 100) * duration;
+    
+    // Update visual time for responsive UI
+    setScrubTime(newTime);
+    
+    // Apply throttling for actual seek operations to avoid overwhelming the player
+    if (!throttleSeekTimer.current) {
+      console.log(`[VCSPP ScrubberInput] Throttled: Calling bridge.seek(${newTime.toFixed(3)})`);
+      bridge.seek(newTime);
+      throttleSeekTimer.current = setTimeout(() => {
+        throttleSeekTimer.current = null;
+      }, SEEK_THROTTLE_MS);
+    }
+  }, [bridge, duration, setScrubTime]);
+  
+  // NEW: Handler for trim start bracket input
+  const handleTrimStartInput = useCallback((newValue: number) => {
+    // Convert 0-100 range to time in seconds
+    const newTime = (newValue / 100) * duration;
+    
+    // Ensure the start time doesn't exceed the end time minus minimum duration
+    const maxStart = getEffectiveTrimEnd() - 0.1;
+    const clampedTime = Math.min(Math.max(0, newTime), maxStart);
+    
+    // Update trim state
+    setTrimStart(clampedTime);
+    
+    // Update visual time to show current handle position
+    setScrubTime(clampedTime);
+    
+    // Seek to the new position
+    bridge.seek(clampedTime);
+    
+    // Notify parent component if needed
+    if (onTrimChange) {
+      onTrimChange(clampedTime, getEffectiveTrimEnd());
+    }
+  }, [bridge, duration, getEffectiveTrimEnd, onTrimChange, setTrimStart, setScrubTime]);
+  
+  // NEW: Handler for trim end bracket input
+  const handleTrimEndInput = useCallback((newValue: number) => {
+    // Convert 0-100 range to time in seconds
+    const newTime = (newValue / 100) * duration;
+    
+    // Ensure the end time isn't less than the start time plus minimum duration
+    const minEnd = trimStart + 0.1;
+    const clampedTime = Math.max(Math.min(duration, newTime), minEnd);
+    
+    // Update trim state
+    setTrimEnd(clampedTime);
+    userTrimEndRef.current = clampedTime; // Update ref when manually dragging end handle
+    
+    // Update visual time to show current handle position
+    setScrubTime(clampedTime);
+    
+    // Seek to the new position
+    bridge.seek(clampedTime);
+    
+    // Notify parent component if needed
+    if (onTrimChange) {
+      onTrimChange(trimStart, clampedTime);
+    }
+  }, [bridge, duration, trimStart, onTrimChange, setTrimEnd, setScrubTime]);
   
   // Get media container style - this will create letterboxing/pillarboxing effect
   const getMediaContainerStyle = useCallback(() => {
@@ -1184,6 +1204,10 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
           onInfoToggle={handleInfoToggle}
           // Trim Toggle Button
           onTrimToggle={handleTrimToggle}
+          // New handlers
+          onScrubberInput={handleScrubberInput}
+          onTrimStartInput={handleTrimStartInput}
+          onTrimEndInput={handleTrimEndInput}
         />
       </MediaContainer>
     </MediaErrorBoundary>

@@ -31,6 +31,11 @@ interface PlayerControlsProps {
   setTimeBeforeDrag: (time: number) => void;
   setOriginalPlaybackTime?: (time: number) => void; // Optional?
   getEffectiveTrimEnd: () => number; // Function to get the value
+  
+  // NEW: Input callbacks
+  onScrubberInput?: (newValue: number) => void;
+  onTrimStartInput?: (newValue: number) => void;
+  onTrimEndInput?: (newValue: number) => void;
 
   // Time Display
   // Uses visualTime instead of currentTime
@@ -67,6 +72,9 @@ export function PlayerControls({
   setTimeBeforeDrag,
   setOriginalPlaybackTime,
   getEffectiveTrimEnd,
+  onScrubberInput,
+  onTrimStartInput,
+  onTrimEndInput,
   // Info Button props
   showAspectRatio,
   onInfoToggle,
@@ -110,6 +118,9 @@ export function PlayerControls({
           setTimeBeforeDrag={setTimeBeforeDrag}
           setOriginalPlaybackTime={setOriginalPlaybackTime}
           getEffectiveTrimEnd={getEffectiveTrimEnd}
+          onScrubberInput={onScrubberInput}
+          onTrimStartInput={onTrimStartInput}
+          onTrimEndInput={onTrimEndInput}
         />
       </div>
 
