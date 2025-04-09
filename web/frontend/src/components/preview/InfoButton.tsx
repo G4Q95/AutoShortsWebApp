@@ -45,7 +45,7 @@ export function InfoButton({ isActive, onToggle }: InfoButtonProps) {
         e.stopPropagation();
         onToggle();
       }}
-      className={`text-white hover:opacity-100 focus:outline-none ${isActive ? 'opacity-100' : 'opacity-60'}`}
+      className={`text-white hover:opacity-100 focus:outline-none`}
       data-testid="toggle-aspect-ratio"
       onMouseDown={(e) => e.stopPropagation()}
       style={{ padding: '1.5px', position: 'relative', zIndex: 56, pointerEvents: 'auto', marginRight: '4px' }}

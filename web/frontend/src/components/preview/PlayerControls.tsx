@@ -148,7 +148,7 @@ export function PlayerControls({
             isPlaying={isPlaying}
             isReady={isReady}
             onClick={onPlayPauseToggle}
-            className="mr-1"
+            className="mr-0.5"
           />
           <LockButton isLocked={isPositionLocked} onToggle={onLockToggle} />
         </div>
