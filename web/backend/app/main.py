@@ -243,11 +243,13 @@ from app.api.test import router as test_router
 from app.api.media import router as media_router
 from app.api.debug import router as debug_router  # Add import for debug router
 from app.api.endpoints.project_operations import project_router as project_operations_router
+from app.api.endpoints.scene_operations import scene_router as scene_operations_router
 
 # Include routers
 app.include_router(content_router, prefix="/api/v1/content")
 app.include_router(projects_router, prefix="/api/v1/projects")
 app.include_router(project_operations_router, prefix="/api/v1/projects-ops")
+app.include_router(scene_operations_router, prefix="/api/v1/scenes")
 app.include_router(voice_router, prefix="/api/v1/voice")
 app.include_router(test_router, prefix="/api/v1")
 app.include_router(media.router, prefix="/api/v1")  # Media router with correct name
