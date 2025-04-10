@@ -194,7 +194,7 @@ test.describe('Audio mock tests', () => {
     
     // Add a scene for testing voice
     console.log('Adding a scene for voice testing...');
-    const urlInput = page.getByPlaceholder('Enter Reddit URL');
+    const urlInput = page.getByPlaceholder('Enter post URL');
     await expect(urlInput).toBeVisible({ timeout: PAGE_LOAD_TIMEOUT });
     await urlInput.fill(TEST_REDDIT_PHOTO_URL);
     await page.getByRole('button', { name: 'Add' }).click();

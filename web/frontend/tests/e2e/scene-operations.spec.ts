@@ -131,11 +131,11 @@ test.describe('Scene Operations', () => {
     
     // Wait for the Reddit URL input field
     console.log('Waiting for Reddit URL input to be visible...');
-    await page.waitForSelector('input[placeholder="Enter Reddit URL"]', { timeout: CRITICAL_STEP_TIMEOUT });
+    await page.waitForSelector('input[placeholder="Enter post URL"]', { timeout: CRITICAL_STEP_TIMEOUT });
     console.log('Reddit URL input is visible, workspace is ready');
     
     // Add a scene - using a photo URL as it's more likely to load consistently
-    await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_VIDEO_URL);
+    await page.getByPlaceholder('Enter post URL').fill(TEST_REDDIT_VIDEO_URL);
     console.log('Filled URL input with:', TEST_REDDIT_VIDEO_URL);
     
     // Take screenshot before clicking Add

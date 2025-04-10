@@ -70,11 +70,11 @@ test.describe('Project Management', () => {
     
     // Wait for the URL input to be visible
     console.log('Waiting for URL input to be ready...');
-    await page.waitForSelector('input[placeholder="Enter Reddit URL"]', { timeout: PAGE_LOAD_TIMEOUT });
+    await page.waitForSelector('input[placeholder="Enter post URL"]', { timeout: PAGE_LOAD_TIMEOUT });
     
     // Add a scene
     console.log('Adding a scene to project...');
-    await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_PHOTO_URL);
+    await page.getByPlaceholder('Enter post URL').fill(TEST_REDDIT_PHOTO_URL);
     await page.getByRole('button', { name: 'Add' }).click();
     
     // Wait for scene to appear
@@ -219,11 +219,11 @@ test.describe('Project Management', () => {
     console.log('Project ID:', projectId);
     
     // Wait for workspace to be fully loaded
-    await page.waitForSelector('input[placeholder="Enter Reddit URL"]', { timeout: PAGE_LOAD_TIMEOUT });
+    await page.waitForSelector('input[placeholder="Enter post URL"]', { timeout: PAGE_LOAD_TIMEOUT });
     
     // Add a scene
     console.log('Adding scene to project...');
-    await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_PHOTO_URL);
+    await page.getByPlaceholder('Enter post URL').fill(TEST_REDDIT_PHOTO_URL);
     await page.getByRole('button', { name: 'Add' }).click();
     
     // Wait for scene to appear
@@ -291,7 +291,7 @@ test.describe('Project Management', () => {
     
     // Add a second scene to verify the project is fully functional
     console.log('Adding second scene to verify project functionality...');
-    await page.getByPlaceholder('Enter Reddit URL').fill(TEST_REDDIT_PHOTO_URL);
+    await page.getByPlaceholder('Enter post URL').fill(TEST_REDDIT_PHOTO_URL);
     await page.getByRole('button', { name: 'Add' }).click();
     
     // Wait for second scene to appear
@@ -472,7 +472,7 @@ async function findAndClickProject(page: Page, projectName: string) {
   }
   
   // 7. Wait for the workspace to load
-  await page.waitForSelector('input[placeholder="Enter Reddit URL"]', { timeout: 15000 });
+  await page.waitForSelector('input[placeholder="Enter post URL"]', { timeout: 15000 });
   
   console.log('Successfully navigated to project workspace:', page.url());
   return true;
