@@ -362,16 +362,25 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   const handlePlay = useCallback(() => {
     if (!bridge) return;
     // Ensure playback starts from the correct position, considering trim
-    const effectiveStartTime = trimActive ? trimStart : 0;
-    const effectiveEndTime = trimActive ? getEffectiveTrimEnd() : duration;
+    const effectiveStartTime = trimStart; // Always use trimStart
+    const effectiveEndTime = getEffectiveTrimEnd(); // Always use effectiveTrimEnd
+    
+    // Determine the correct time to start playback from
     const timeToSet = bridge.currentTime < effectiveStartTime || bridge.currentTime >= effectiveEndTime
-      ? effectiveStartTime
-      : bridge.currentTime;
+      ? effectiveStartTime // Start from the beginning of the trim if outside bounds
+      : bridge.currentTime; // Otherwise, resume from current position
 
-    bridge.seek(timeToSet); // Seek first to ensure starting at the right point
+    console.log(`[handlePlay RE-EDIT] Determined timeToSet: ${timeToSet}, effectiveStartTime: ${effectiveStartTime}, effectiveEndTime: ${effectiveEndTime}, bridge.currentTime: ${bridge.currentTime}`);
+
+    // Seek first if needed, then play
+    if (Math.abs(bridge.currentTime - timeToSet) > 0.01) { // Add tolerance for floating point comparison
+      console.log(`[handlePlay RE-EDIT] Seeking to ${timeToSet} before playing.`);
+      bridge.seek(timeToSet);
+    }
+    
     bridge.play();
     setIsPlaying(true);
-  }, [bridge, trimActive, trimStart, duration, getEffectiveTrimEnd, isPlaying]);
+  }, [bridge, trimStart, duration, getEffectiveTrimEnd, isPlaying, setIsPlaying]); // Removed trimActive dependency
 
   const handleTimeUpdate = useCallback((newTime: number, source: string) => {
     if (!bridge) return;
