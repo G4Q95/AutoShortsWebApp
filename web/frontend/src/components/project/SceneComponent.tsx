@@ -336,7 +336,7 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       ) : scene.error ? (
         renderSceneInfo(scene, false)
       ) : (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full bg-white">
           {/* Media section - fixed or dynamic height based on view mode */}
           <div className={isCompactView ? "h-[190px]" : ""} data-testid="scene-media">
             {/* NEWER IMPLEMENTATION - Video Player with trimming and expand features */}
@@ -363,8 +363,8 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             */}
           </div>
 
-          {/* Content section - with minimal spacing */}
-          <div className={`p-1 ${isCompactView ? 'flex-1' : ''} flex flex-col`}>
+          {/* Content section - Remove bg-white from here */}
+          <div className={`px-1 pb-1 ${isCompactView ? 'flex-1' : ''} flex flex-col m-0 pt-0`} style={{marginTop: 0, paddingTop: 0}}>
             {/* Text content with overlay expansion */}
             <div data-testid="scene-text-section">
               {renderTextContent(textState, scene)}
