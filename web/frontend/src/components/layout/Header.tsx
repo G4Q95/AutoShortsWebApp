@@ -107,7 +107,7 @@ export default function Header() {
                   onToggleLetterboxing={handleToggleLetterboxing}
                   className="flex-shrink-0"
                 />
-                <div className="flex items-center space-x-2 flex-shrink-0">
+                <div className="flex flex-col items-end flex-shrink-0 space-y-1">
                   <button
                     onClick={handleManualSave}
                     className="flex items-center px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded text-xs"

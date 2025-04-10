@@ -38,7 +38,7 @@ export default function RootLayout({
               <MediaDownloadProvider>
                 <ProjectProvider>
                   <Header />
-                  <main className="flex-grow px-4 py-8">{children}</main>
+                  <main className="flex-grow py-8 bg-gray-50">{children}</main>
                   <Footer />
                   <EnvironmentValidator />
                 </ProjectProvider>

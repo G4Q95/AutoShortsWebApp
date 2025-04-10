@@ -681,53 +681,48 @@ export default function ProjectWorkspace({
 
   // Use the original UI rendering for the workspace when we have a project
   return (
-    <div className="bg-white" data-testid="project-workspace">
-      <div className="bg-white p-6 rounded-lg shadow">
+    <div data-testid="project-workspace">
+      <div className="p-6">
         <div>
-          {/* Project Header Section Removed - Now in layout/Header.tsx */}
-          {/* Apply max-width and centering to Add URL form section */}
-          <div className="max-w-3xl mx-auto">
-            <div className="mb-8 bg-white p-6 rounded-lg shadow">
-              <h2 className="text-xl font-semibold mb-4">Add Content</h2>
-
-              <div className="mb-4">
-                <div className="flex items-center">
-                  <input
-                    type="text"
-                    value={url}
-                    onChange={(e) => handleUrlChange(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
-                    placeholder="Enter Reddit URL"
-                    className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={isAddingScene}
-                    data-testid="url-input"
-                  />
-                  <button
-                    onClick={() => handleUrlSubmit()}
-                    className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                    disabled={isAddingScene || !url.trim()}
-                    data-testid="add-content-button"
-                  >
-                    {isAddingScene ? <LoaderIcon className="h-5 w-5 animate-spin" /> : 'Add'}
-                  </button>
-                </div>
-              </div>
-
-              {addSceneError && (
-                <div className="text-red-500 text-sm mt-2 mb-4">Error: {addSceneError}</div>
-              )}
-
-              <div className="flex justify-between items-center">
-                <button
-                  type="button"
-                  onClick={fillExampleUrl}
-                  className="text-blue-600 text-sm underline"
-                  data-testid="fill-example-button"
-                >
-                  Fill with example URL
-                </button>
-              </div>
+          {/* Project Header Section Removed */}
+          
+          {/* Simplified Add URL section (No Card) */}
+          <div className="max-w-3xl mx-auto mb-8"> {/* Keep centering, add mb-8 */}
+            {/* Combined Input, Add Button, Example Link */}
+            <div className="flex items-center">
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
+                placeholder="Enter post URL"
+                className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isAddingScene}
+                data-testid="url-input"
+              />
+              <button
+                onClick={() => handleUrlSubmit()}
+                // Smaller padding/text size
+                className="ml-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex-shrink-0"
+                disabled={isAddingScene || !url.trim()}
+                data-testid="add-content-button"
+              >
+                {isAddingScene ? <LoaderIcon className="h-5 w-5 animate-spin" /> : 'Add'}
+              </button>
+              <button
+                type="button"
+                onClick={fillExampleUrl}
+                // Kept text-xs, added margin
+                className="ml-4 text-blue-600 text-xs flex-shrink-0"
+                data-testid="fill-example-button"
+              >
+                Fill Example
+              </button>
             </div>
+            {addSceneError && (
+              // Added mt-2 for spacing below the input group
+              <div className="text-red-500 text-sm mt-2">Error: {addSceneError}</div>
+            )}
           </div>
 
           {/* Scenes list - Should now be full width within the outer padding */}
