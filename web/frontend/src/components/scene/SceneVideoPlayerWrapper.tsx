@@ -43,7 +43,7 @@ const SceneVideoPlayerWrapper: React.FC<SceneVideoPlayerWrapperProps> = ({
   showLetterboxing = true
 }) => {
   // Extract media state from scene
-  const [isCompactView, setIsCompactView] = useState<boolean>(true);
+  const [isCompactView, setIsCompactView] = useState<boolean>(false);
   
   // Toggle view mode between compact and expanded
   const toggleViewMode = useCallback(() => {
