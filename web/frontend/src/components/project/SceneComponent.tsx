@@ -296,11 +296,11 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   return !manuallyRemoving ? (
     <div
       id={`scene-${scene.id}`}
-      className={`${getSceneContainerClassName(
+      className={getSceneContainerClassName(
         isFullWidth, 
         !isDragging && scene.id === currentProject?.id, 
         textState.isEditing
-      )} ${fadeOut ? 'opacity-50' : 'opacity-100'}`}
+      ) + (fadeOut ? ' opacity-50' : ' opacity-100')} 
       style={{
         maxWidth: '100%',
         minHeight: '200px'

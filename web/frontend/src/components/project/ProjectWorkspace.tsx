@@ -726,52 +726,55 @@ export default function ProjectWorkspace({
           {effectiveProject.scenes.length > 0 && (
             // Added pt-4 for spacing above title now that overall padding is reduced
             <div className="mb-8 pt-4" data-testid="scenes-container"> 
-              {/* Removed centering, increased size text-2xl */}
-              <h2 className="text-2xl font-semibold mb-4">Scenes</h2> 
-              <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="scenes" direction="horizontal">
-                  {(provided) => (
-                    <div
-                      {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      // Conditional grid layout based on aspect ratio
-                      className={`grid ${effectiveProject.aspectRatio === '16:9' 
-                        ? 'grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-10 pb-20' // Fewer columns, more gap/padding for 16:9
-                        : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4' // Default layout
-                      }`}
-                    >
-                      {effectiveProject.scenes.map((scene, i) => (
-                        <Draggable key={scene.id} draggableId={scene.id} index={i}>
-                          {(provided, snapshot) => (
-                            // Apply draggable props to the wrapper div
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              // Add margin bottom only in 16:9 mode for vertical spacing
-                              className={`h-full ${effectiveProject.aspectRatio === '16:9' ? 'mb-8' : ''}`}
-                            >
-                              {/* Pass drag handle props down to SceneComponent */}
-                              <SceneComponent
-                                scene={scene}
-                                preview={scene.url || null}
-                                index={i}
-                                onSceneRemove={handleRemoveScene}
-                                _onSceneMove={(id: string, newIndex: number) => console.log(`Move scene ${id} to position ${newIndex}`)}
-                                onSceneReorder={(id: string, newIndex: number) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
-                                isDragging={snapshot.isDragging}
-                                dragHandleProps={provided.dragHandleProps || undefined} // Pass handle props
-                                projectAspectRatio={effectiveProject.aspectRatio || '9:16'}
-                                showLetterboxing={effectiveProject.showLetterboxing || true}
-                              />
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
+              {/* Re-add max-w-7xl mx-auto wrapper */}
+              <div className="max-w-7xl mx-auto">
+                {/* Move heading inside the constrained wrapper */}
+                <h2 className="text-2xl font-semibold mb-4">Scenes</h2> 
+                <DragDropContext onDragEnd={handleDragEnd}>
+                  <Droppable droppableId="scenes" direction="horizontal">
+                    {(provided) => (
+                      <div
+                        {...provided.droppableProps}
+                        ref={provided.innerRef}
+                        // Update conditional layout: 3 cols for 16:9, 4 for others
+                        className={`grid ${effectiveProject.aspectRatio === '16:9' 
+                          ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-8 pb-16' // 3 columns max, wide gap for 16:9
+                          : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4' // 4 columns max, smaller gap for others
+                        }`}
+                      >
+                        {effectiveProject.scenes.map((scene, i) => (
+                          <Draggable key={scene.id} draggableId={scene.id} index={i}>
+                            {(provided, snapshot) => (
+                              // Apply draggable props to the wrapper div
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                // Use consistent height, no conditional margin
+                                className={`h-full`}
+                              >
+                                {/* Pass drag handle props down to SceneComponent */}
+                                <SceneComponent
+                                  scene={scene}
+                                  preview={scene.url || null}
+                                  index={i}
+                                  onSceneRemove={handleRemoveScene}
+                                  _onSceneMove={(id: string, newIndex: number) => console.log(`Move scene ${id} to position ${newIndex}`)}
+                                  onSceneReorder={(id: string, newIndex: number) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
+                                  isDragging={snapshot.isDragging}
+                                  dragHandleProps={provided.dragHandleProps || undefined} // Pass handle props
+                                  projectAspectRatio={effectiveProject.aspectRatio || '9:16'}
+                                  showLetterboxing={effectiveProject.showLetterboxing || true}
+                                />
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+              </div> {/* End max-width wrapper */}
             </div>
           )}
 
