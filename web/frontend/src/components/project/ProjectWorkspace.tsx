@@ -127,6 +127,7 @@ export default function ProjectWorkspace({
   const [title, setTitle] = useState(initialProjectName || 'New Project');
   const [isCreating, setIsCreating] = useState(false);
   const [debugInfo, setDebugInfo] = useState<{ lastAction: string }>({ lastAction: 'Initial load' });
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   // Local state to track if we're already loaded from the preloaded project
   const loadAttemptedRef = useRef(false);
@@ -773,8 +774,9 @@ export default function ProjectWorkspace({
             </div>
           )}
 
-          {/* Action Buttons Section - Apply max-width and centering */}
+          {/* Action Buttons & Debug Toggle Section */}
           <div className="max-w-3xl mx-auto">
+            {/* Action Buttons */}
             <div className="grid grid-cols-2 mt-4 gap-4">
               {/* Process Video / Fast Video Buttons */}
               <button
@@ -802,8 +804,20 @@ export default function ProjectWorkspace({
               </p>
             </div>
 
-            {/* Debug information */}
+            {/* Debug Info Toggle Button (Development Only) */}
             {process.env.NODE_ENV === 'development' && (
+              <div className="mt-4 text-center">
+                <button 
+                  onClick={() => setShowDebugInfo(!showDebugInfo)}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline"
+                >
+                  {showDebugInfo ? 'Hide' : 'Show'} Debug Info
+                </button>
+              </div>
+            )}
+
+            {/* Conditionally Rendered Debug Information */}
+            {process.env.NODE_ENV === 'development' && showDebugInfo && (
               <div className="mt-8 border-t pt-4">
                 <h3 className="text-sm font-medium text-gray-500 mb-2">Debug Info</h3>
                 <div className="text-xs text-gray-500">
