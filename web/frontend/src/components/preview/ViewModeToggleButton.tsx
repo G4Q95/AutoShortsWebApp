@@ -26,7 +26,6 @@ export function ViewModeToggleButton({ isCompactView, onToggleViewMode }: ViewMo
       }}
       className="absolute top-9 right-2 bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
       style={{
-        zIndex: 100, // Use a very high z-index to ensure it's above all other elements
         pointerEvents: 'auto' // Explicitly ensure it captures pointer events
       }}
       data-testid="view-mode-toggle"

@@ -244,29 +244,30 @@ function _MediaContainer({
         </div>
       </div>
       
-      {/* Aspect ratio information overlay - styled to match the original */}
-      {showAspectRatio && (
-        <div className="absolute top-0 left-0 right-0 z-20 flex justify-center text-[10px]">
-          <div className="inline-flex bg-black bg-opacity-90 px-1">
-            <span className="text-red-400">{mediaRatio.toFixed(4)}</span>
-            <span className="text-gray-300 mx-1">[{closestRatio}]</span>
-            <span className="text-green-400">{projectAspectRatio}</span>
+      {/* Controls container - all UI controls should be in this container to share stacking context */}
+      <div className="absolute inset-0 z-10">
+        {/* Aspect ratio information overlay - styled to match the original */}
+        {showAspectRatio && (
+          <div className="absolute top-0 left-0 right-0 flex justify-center text-[10px]">
+            <div className="inline-flex bg-black bg-opacity-90 px-1">
+              <span className="text-red-400">{mediaRatio.toFixed(4)}</span>
+              <span className="text-gray-300 mx-1">[{closestRatio}]</span>
+              <span className="text-green-400">{projectAspectRatio}</span>
+            </div>
           </div>
+        )}
+        
+        {/* Fullscreen toggle button */}
+        <div className="absolute top-2 right-2">
+          <FullscreenButton
+            isFullscreen={isFullscreen}
+            onToggle={onFullscreenToggle ? () => onFullscreenToggle(!isFullscreen) : () => {}}
+          />
         </div>
-      )}
-      
-      {/* Fullscreen toggle button */}
-      <div
-        className="absolute top-2 right-2 z-20"
-      >
-        <FullscreenButton
-          isFullscreen={isFullscreen}
-          onToggle={onFullscreenToggle ? () => onFullscreenToggle(!isFullscreen) : () => {}}
-        />
+        
+        {/* View mode toggle button - render if provided */}
+        {toggleButton}
       </div>
-      
-      {/* View mode toggle button - render if provided */}
-      {toggleButton}
       
       {/* Render children (PlayerControls) */}
       {children}
