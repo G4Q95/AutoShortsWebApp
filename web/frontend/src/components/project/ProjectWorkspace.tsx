@@ -682,12 +682,12 @@ export default function ProjectWorkspace({
   // Use the original UI rendering for the workspace when we have a project
   return (
     <div data-testid="project-workspace">
-      <div className="p-6">
+      <div className="px-6 py-2">
         <div>
           {/* Project Header Section Removed */}
           
-          {/* Simplified Add URL section (No Card) */}
-          <div className="max-w-3xl mx-auto mb-8"> {/* Keep centering, add mb-8 */}
+          {/* Removed mb-8 from this wrapper */}
+          <div className="max-w-3xl mx-auto"> 
             {/* Combined Input, Add Button, Example Link */}
             <div className="flex items-center">
               <input
@@ -702,7 +702,6 @@ export default function ProjectWorkspace({
               />
               <button
                 onClick={() => handleUrlSubmit()}
-                // Smaller padding/text size
                 className="ml-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex-shrink-0"
                 disabled={isAddingScene || !url.trim()}
                 data-testid="add-content-button"
@@ -712,7 +711,6 @@ export default function ProjectWorkspace({
               <button
                 type="button"
                 onClick={fillExampleUrl}
-                // Kept text-xs, added margin
                 className="ml-4 text-blue-600 text-xs flex-shrink-0"
                 data-testid="fill-example-button"
               >
@@ -720,15 +718,16 @@ export default function ProjectWorkspace({
               </button>
             </div>
             {addSceneError && (
-              // Added mt-2 for spacing below the input group
               <div className="text-red-500 text-sm mt-2">Error: {addSceneError}</div>
             )}
           </div>
 
-          {/* Scenes list - Should now be full width within the outer padding */}
+          {/* Scenes list - Full width */} 
           {effectiveProject.scenes.length > 0 && (
-            <div className="mb-8" data-testid="scenes-container">
-              <h2 className="text-xl font-semibold mb-4 max-w-3xl mx-auto">Scenes</h2>
+            // Added pt-4 for spacing above title now that overall padding is reduced
+            <div className="mb-8 pt-4" data-testid="scenes-container"> 
+              {/* Removed centering, increased size text-2xl */}
+              <h2 className="text-2xl font-semibold mb-4">Scenes</h2> 
               <DragDropContext onDragEnd={handleDragEnd}>
                 <Droppable droppableId="scenes" direction="horizontal">
                   {(provided) => (
