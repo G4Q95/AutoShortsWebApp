@@ -193,7 +193,7 @@ export const TimelineControl: React.FC<TimelineControlProps> = React.memo(({
       </div>
       
       {/* Trim brackets (position relative to the container above) */}
-      {trimActive && duration > 0 ? (
+      {duration > 0 ? (
         <>
           {/* Left trim bracket */}
           <div 
@@ -246,7 +246,7 @@ export const TimelineControl: React.FC<TimelineControlProps> = React.memo(({
             />
             {/* Visual bracket overlay */}
             <div 
-              className="absolute w-0.5 bg-blue-500"
+              className={`absolute w-0.5 ${trimActive ? 'bg-blue-500' : 'bg-red-500'}`}
               style={{ 
                 left: '6px',
                 top: '1px', // Adjust visual indicator slightly
@@ -308,7 +308,7 @@ export const TimelineControl: React.FC<TimelineControlProps> = React.memo(({
             />
             {/* Visual bracket overlay */}
             <div 
-              className="absolute w-0.5 bg-blue-500"
+              className={`absolute w-0.5 ${trimActive ? 'bg-blue-500' : 'bg-red-500'}`}
               style={{ 
                 left: '6px',
                 top: '1px', // Adjust visual indicator slightly
@@ -321,7 +321,7 @@ export const TimelineControl: React.FC<TimelineControlProps> = React.memo(({
         </>
       ) : (
         <div style={{display: 'none'}} data-testid="trim-controls-hidden">
-          Trim controls hidden - trimActive: {String(trimActive)}, duration: {duration.toFixed(2)}
+          Trim controls hidden - duration: {duration.toFixed(2)}
         </div>
       )}
     </div>

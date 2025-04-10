@@ -232,7 +232,7 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
         
         {/* Active region between trim points */}
         <div 
-          className="absolute h-1 bg-blue-400 rounded-full"
+          className={`absolute h-1 rounded-full ${trimActive ? 'bg-blue-400' : 'bg-red-400'}`}
           style={{ 
             left: `${(trimStart / duration) * 100}%`, 
             width: `${(trimEnd - trimStart) / duration * 100}%` 
@@ -254,9 +254,9 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
           ></div>
         )}
         
-        {/* Start trim handle - always visible but more prominent when trim mode is active */}
+        {/* Start trim handle */}
         <div 
-          className={`absolute h-6 w-3 bg-blue-500 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'opacity-100' : 'opacity-70'}`}
+          className={`absolute h-6 w-3 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'bg-blue-500' : 'bg-red-500'}`}
           style={{ 
             left: `${(trimStart / duration) * 100}%`,
             transform: "translate(-50%, 0)",  // Center the handle on the position exactly
@@ -266,16 +266,11 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
           onMouseDown={(e) => handleTrimHandleMouseDown('start', e)}
           data-testid="trim-start-handle"
         >
-          {trimActive && (
-            <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-[8px] text-blue-600">
-              {formatTime(trimStart)}
-            </div>
-          )}
         </div>
         
-        {/* End trim handle - always visible but more prominent when trim mode is active */}
+        {/* End trim handle */}
         <div 
-          className={`absolute h-6 w-3 bg-blue-500 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'opacity-100' : 'opacity-70'}`}
+          className={`absolute h-6 w-3 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'bg-blue-500' : 'bg-red-500'}`}
           style={{ 
             left: `${(trimEnd / duration) * 100}%`,
             transform: "translate(-50%, 0)",  // Center the handle on the position exactly
@@ -285,11 +280,6 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
           onMouseDown={(e) => handleTrimHandleMouseDown('end', e)}
           data-testid="trim-end-handle"
         >
-          {trimActive && (
-            <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-[8px] text-blue-600">
-              {formatTime(trimEnd)}
-            </div>
-          )}
         </div>
         
         {/* Time markers */}
