@@ -36,7 +36,7 @@ export default function RootLayout({
             <VoiceProvider>
               <MediaDownloadProvider>
                 <Header />
-                <main className="flex-grow container mx-auto px-4 py-8">{children}</main>
+                <main className="flex-grow px-4 py-8">{children}</main>
                 <Footer />
                 <EnvironmentValidator />
               </MediaDownloadProvider>

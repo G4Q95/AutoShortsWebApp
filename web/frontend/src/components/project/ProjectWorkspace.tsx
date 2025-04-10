@@ -32,7 +32,7 @@ import { processVideoWithCustomization, processVideoFast } from '@/lib/project-u
 import { getProject } from '@/lib/storage-utils';
 import SaveStatusIndicator from './SaveStatusIndicator';
 import AspectRatioDropdown from '../ui/AspectRatioDropdown';
-import { type AspectRatioOption } from '@/types/project-types';
+import { type AspectRatioOption } from '../ui/AspectRatioIcon';
 
 /**
  * Props for the ProjectWorkspace component
@@ -680,197 +680,203 @@ export default function ProjectWorkspace({
 
   // Use the original UI rendering for the workspace when we have a project
   return (
-    <div className="max-w-3xl mx-auto bg-white" data-testid="project-workspace">
+    <div className="bg-white" data-testid="project-workspace">
       <div className="bg-white p-6 rounded-lg shadow">
-        {/* Project header */}
-        <div className="mb-6 flex justify-between items-center">
-          <div className="flex items-center">
-            <input
-              type="text"
-              value={effectiveProject.title}
-              onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
-              className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800"
-              aria-label="Project title"
-              data-testid="project-title"
-            />
-            
-            {/* Aspect Ratio Dropdown - moved next to title */}
-            <AspectRatioDropdown
-              currentRatio={effectiveProject?.aspectRatio || '9:16'}
-              onChange={handleAspectRatioChange}
-              showLetterboxing={effectiveProject?.showLetterboxing || true}
-              onToggleLetterboxing={(show) => handleToggleLetterboxing(show)}
-              className="ml-4"
-            />
-          </div>
-          
-          <div className="flex flex-col items-end">
-            <button
-              onClick={handleManualSave}
-              className="flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm"
-              disabled={isSaving}
-              data-testid="save-project-button"
-            >
-              <SaveIcon className="h-4 w-4 mr-1" />
-              Save
-            </button>
-            <SaveStatusIndicator isSaving={isSaving} lastSaved={lastSaved} />
-          </div>
-        </div>
+        <div>
+          <div className="max-w-3xl mx-auto">
+            {/* Project header */}
+            <div className="mb-6 flex justify-between items-center">
+              <div className="flex items-center">
+                <input
+                  type="text"
+                  value={effectiveProject.title}
+                  onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
+                  className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800"
+                  aria-label="Project title"
+                  data-testid="project-title"
+                />
+                
+                {/* Aspect Ratio Dropdown - moved next to title */}
+                <AspectRatioDropdown
+                  currentRatio={effectiveProject?.aspectRatio || '9:16'}
+                  onChange={handleAspectRatioChange}
+                  showLetterboxing={effectiveProject?.showLetterboxing || true}
+                  onToggleLetterboxing={(show) => handleToggleLetterboxing(show)}
+                  className="ml-4"
+                />
+              </div>
+              
+              <div className="flex flex-col items-end">
+                <button
+                  onClick={handleManualSave}
+                  className="flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm"
+                  disabled={isSaving}
+                  data-testid="save-project-button"
+                >
+                  <SaveIcon className="h-4 w-4 mr-1" />
+                  Save
+                </button>
+                <SaveStatusIndicator isSaving={isSaving} lastSaved={lastSaved} />
+              </div>
+            </div>
 
-        {/* API status warning */}
-        {apiStatus.isChecked && !apiStatus.isAvailable && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-            <div className="flex">
-              <AlertIcon className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0" />
-              <div>
-                <p className="text-sm text-yellow-700">
-                  The Auto Shorts API is currently unavailable. You can still create and edit
-                  projects, but you won&apos;t be able to process videos until the API is back
-                  online.
-                </p>
+            {/* API status warning */}
+            {apiStatus.isChecked && !apiStatus.isAvailable && (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                <div className="flex">
+                  <AlertIcon className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm text-yellow-700">
+                      The Auto Shorts API is currently unavailable. You can still create and edit
+                      projects, but you won&apos;t be able to process videos until the API is back
+                      online.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Apply max-width and centering to Add URL form section */}
+            <div className="mb-8 bg-white p-6 rounded-lg shadow max-w-3xl mx-auto">
+              <h2 className="text-xl font-semibold mb-4">Add Content</h2>
+
+              <div className="mb-4">
+                <div className="flex items-center">
+                  <input
+                    type="text"
+                    value={url}
+                    onChange={(e) => handleUrlChange(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
+                    placeholder="Enter Reddit URL"
+                    className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={isAddingScene}
+                    data-testid="url-input"
+                  />
+                  <button
+                    onClick={() => handleUrlSubmit()}
+                    className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    disabled={isAddingScene || !url.trim()}
+                    data-testid="add-content-button"
+                  >
+                    {isAddingScene ? <LoaderIcon className="h-5 w-5 animate-spin" /> : 'Add'}
+                  </button>
+                </div>
+              </div>
+
+              {addSceneError && (
+                <div className="text-red-500 text-sm mt-2 mb-4">Error: {addSceneError}</div>
+              )}
+
+              <div className="flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={fillExampleUrl}
+                  className="text-blue-600 text-sm underline"
+                  data-testid="fill-example-button"
+                >
+                  Fill with example URL
+                </button>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Add URL form */}
-        <div className="mb-8 bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4">Add Content</h2>
-
-          <div className="mb-4">
-            <div className="flex items-center">
-              <input
-                type="text"
-                value={url}
-                onChange={(e) => handleUrlChange(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
-                placeholder="Enter Reddit URL"
-                className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isAddingScene}
-                data-testid="url-input"
-              />
-              <button
-                onClick={() => handleUrlSubmit()}
-                className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                disabled={isAddingScene || !url.trim()}
-                data-testid="add-content-button"
-              >
-                {isAddingScene ? <LoaderIcon className="h-5 w-5 animate-spin" /> : 'Add'}
-              </button>
+          {/* Scenes list - Should now be full width within the outer padding */}
+          {effectiveProject.scenes.length > 0 && (
+            <div className="mb-8" data-testid="scenes-container">
+              <h2 className="text-xl font-semibold mb-4 max-w-3xl mx-auto">Scenes</h2>
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId="scenes" direction="horizontal">
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
+                    >
+                      {effectiveProject.scenes.map((scene, i) => (
+                        <Draggable key={scene.id} draggableId={scene.id} index={i}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className="h-full"
+                            >
+                              <SceneComponent
+                                scene={scene}
+                                preview={scene.url || null}
+                                index={i}
+                                onSceneRemove={handleRemoveScene}
+                                _onSceneMove={(id: string, newIndex: number) => console.log(`Move scene ${id} to position ${newIndex}`)}
+                                onSceneReorder={(id: string, newIndex: number) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
+                                isDragging={snapshot.isDragging}
+                                dragHandleProps={provided.dragHandleProps || undefined}
+                                projectAspectRatio={(effectiveProject as any)?.aspectRatio || '9:16'}
+                                showLetterboxing={(effectiveProject as any)?.showLetterboxing || true}
+                              />
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
             </div>
-          </div>
-
-          {addSceneError && (
-            <div className="text-red-500 text-sm mt-2 mb-4">Error: {addSceneError}</div>
           )}
 
-          <div className="flex justify-between items-center">
-            <button
-              type="button"
-              onClick={fillExampleUrl}
-              className="text-blue-600 text-sm underline"
-              data-testid="fill-example-button"
-            >
-              Fill with example URL
-            </button>
-          </div>
-        </div>
+          {/* Action Buttons Section - Apply max-width and centering */}
+          <div className="max-w-3xl mx-auto">
+            <div className="grid grid-cols-2 mt-4 gap-4">
+              {/* Process Video / Fast Video Buttons */}
+              <button
+                onClick={handleProcessVideo}
+                className="px-3 py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
+                disabled={isAddingScene || isSaving}
+                data-testid="process-video-button"
+              >
+                Process Video
+              </button>
 
-        {/* Scenes list */}
-        {effectiveProject.scenes.length > 0 && (
-          <div className="mb-8" data-testid="scenes-container">
-            <h2 className="text-xl font-semibold mb-4">Scenes</h2>
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="scenes" direction="horizontal">
-                {(provided) => (
-                  <div
-                    {...provided.droppableProps}
-                    ref={provided.innerRef}
-                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
-                  >
-                    {effectiveProject.scenes.map((scene, i) => (
-                      <Draggable key={scene.id} draggableId={scene.id} index={i}>
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            className="h-full"
-                          >
-                            <SceneComponent
-                              scene={scene}
-                              preview={scene.url || null}
-                              index={i}
-                              onSceneRemove={handleRemoveScene}
-                              _onSceneMove={(id: string, newIndex: number) => console.log(`Move scene ${id} to position ${newIndex}`)}
-                              onSceneReorder={(id: string, newIndex: number) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
-                              isDragging={snapshot.isDragging}
-                              dragHandleProps={provided.dragHandleProps || undefined}
-                              projectAspectRatio={(effectiveProject as any)?.aspectRatio || '9:16'}
-                              showLetterboxing={(effectiveProject as any)?.showLetterboxing || true}
-                            />
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
-          </div>
-        )}
+              {/* Fast Video button always visible */}
+              <button
+                onClick={handleFastVideo}
+                className="px-3 py-2 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
+                disabled={isAddingScene || isSaving}
+                data-testid="fast-video-button"
+              >
+                <ZapIcon className="h-5 w-5 mr-2" />
+                Fast Video
+              </button>
 
-        {/* Action Buttons Section */}
-        <div className="grid grid-cols-2 mt-4 gap-4">
-          {/* Process Video / Fast Video Buttons */}
-          <button
-            onClick={handleProcessVideo}
-            className="px-3 py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition flex items-center justify-center"
-            disabled={isAddingScene || isSaving}
-            data-testid="process-video-button"
-          >
-            Process Video
-          </button>
-
-          {/* Fast Video button always visible */}
-          <button
-            onClick={handleFastVideo}
-            className="px-3 py-2 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition flex items-center justify-center"
-            disabled={isAddingScene || isSaving}
-            data-testid="fast-video-button"
-          >
-            <ZapIcon className="h-5 w-5 mr-2" />
-            Fast Video
-          </button>
-
-          <p className="text-sm text-gray-600 mt-1 col-span-2">
-            <strong>Process Video:</strong> Customize each scene before processing
-          </p>
-        </div>
-
-        {/* Debug information */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-8 border-t pt-4">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Debug Info</h3>
-            <div className="text-xs text-gray-500">
-              Last action: {debugInfo?.lastAction || 'Component mounted'}
-              <br />
-              Timestamp: {new Date().toLocaleTimeString()}
+              <p className="text-sm text-gray-600 mt-1 col-span-2">
+                <strong>Process Video:</strong> Customize each scene before processing
+              </p>
             </div>
-            <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-              {JSON.stringify(
-                {
-                  hasCurrentProject: !!currentProject,
-                  hasLocalProject: !!localProject,
-                  effectiveProjectId: effectiveProject?.id,
-                },
-                null,
-                2
-              )}
-            </pre>
+
+            {/* Debug information */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-8 border-t pt-4">
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Debug Info</h3>
+                <div className="text-xs text-gray-500">
+                  Last action: {debugInfo?.lastAction || 'Component mounted'}
+                  <br />
+                  Timestamp: {new Date().toLocaleTimeString()}
+                </div>
+                <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                  {JSON.stringify(
+                    {
+                      hasCurrentProject: !!currentProject,
+                      hasLocalProject: !!localProject,
+                      effectiveProjectId: effectiveProject?.id,
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
