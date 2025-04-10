@@ -27,7 +27,7 @@ export function FullscreenButton({ isFullscreen, onToggle }: FullscreenButtonPro
         e.stopPropagation();
         onToggle();
       }}
-      className="absolute top-1 right-px bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
+      className="absolute top-0 right-px bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
       style={{
         zIndex: 100, // Use a very high z-index to ensure it's above all other elements
         pointerEvents: 'auto' // Explicitly ensure it captures pointer events
