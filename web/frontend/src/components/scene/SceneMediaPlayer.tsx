@@ -146,7 +146,7 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
   return (
     <div 
       className={`relative w-full bg-black rounded-t-lg overflow-hidden ${className}`}
-      style={{ height: isCompactView ? '190px' : 'auto', minHeight: '190px' }}
+      style={{ height: isCompactView ? '190px' : 'auto' }}
       data-testid="scene-media"
     >
       {/* Center the content in compact view */}
