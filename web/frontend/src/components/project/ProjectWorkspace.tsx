@@ -734,16 +734,23 @@ export default function ProjectWorkspace({
                     <div
                       {...provided.droppableProps}
                       ref={provided.innerRef}
-                      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
+                      // Conditional grid layout based on aspect ratio
+                      className={`grid ${effectiveProject.aspectRatio === '16:9' 
+                        ? 'grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-10 pb-20' // Fewer columns, more gap/padding for 16:9
+                        : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4' // Default layout
+                      }`}
                     >
                       {effectiveProject.scenes.map((scene, i) => (
                         <Draggable key={scene.id} draggableId={scene.id} index={i}>
                           {(provided, snapshot) => (
+                            // Apply draggable props to the wrapper div
                             <div
                               ref={provided.innerRef}
                               {...provided.draggableProps}
-                              className="h-full"
+                              // Add margin bottom only in 16:9 mode for vertical spacing
+                              className={`h-full ${effectiveProject.aspectRatio === '16:9' ? 'mb-8' : ''}`}
                             >
+                              {/* Pass drag handle props down to SceneComponent */}
                               <SceneComponent
                                 scene={scene}
                                 preview={scene.url || null}
@@ -752,9 +759,9 @@ export default function ProjectWorkspace({
                                 _onSceneMove={(id: string, newIndex: number) => console.log(`Move scene ${id} to position ${newIndex}`)}
                                 onSceneReorder={(id: string, newIndex: number) => console.log(`Reorder scene ${id} to position ${newIndex}`)}
                                 isDragging={snapshot.isDragging}
-                                dragHandleProps={provided.dragHandleProps || undefined}
-                                projectAspectRatio={(effectiveProject as any)?.aspectRatio || '9:16'}
-                                showLetterboxing={(effectiveProject as any)?.showLetterboxing || true}
+                                dragHandleProps={provided.dragHandleProps || undefined} // Pass handle props
+                                projectAspectRatio={effectiveProject.aspectRatio || '9:16'}
+                                showLetterboxing={effectiveProject.showLetterboxing || true}
                               />
                             </div>
                           )}
