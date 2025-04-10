@@ -74,6 +74,17 @@ The application will feature an intuitive video project creation workflow:
 - Pay only for what you store
 - Global distribution network
 
+#### Video Editing: Core Architecture
+- **Preview & UI:** Utilize the `video-context` library in the frontend (React) for:
+  - Real-time visual preview of scenes and sequence.
+  - Interactive trimming controls.
+  - Management of the editing timeline UI.
+- **Edit Definition:** User interactions (trims, scene order, audio settings) generate a JSON-based Edit Decision List (EDL).
+- **Final Rendering:** Use server-side FFmpeg (integrated with the FastAPI backend) to process the EDL:
+  - Fetches original media from R2 based on EDL.
+  - Performs precise cuts, audio mixing, and scene concatenation.
+  - Produces the final downloadable video file.
+
 #### Media Processing: Google Cloud Run
 - Container-based for FFMPEG integration
 - No minimum instances (scales to zero)

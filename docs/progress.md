@@ -2,7 +2,7 @@
 
 ## Current Development Focus
 
-The current focus is on improving code stability, API connectivity, and refactoring the state management:
+The current focus is on defining the core architecture for the video editor and implementing the foundational editing features like persistent trimming and sequential playback.
 
 ### Completed Tasks
 - ✅ Fixed the Not-Found page component error
@@ -248,345 +248,146 @@ The current focus is on improving code stability, API connectivity, and refactor
     - Improved error handling with informative logging
   - [x] Split large test file into domain-specific test files (100%)
     - Created separate test files for different functional areas:
-      - Home page and navigation (`home-page.spec.ts`)
-      - Project management (`project-management.spec.ts`)
-      - Scene operations (`scene-operations.spec.ts`)
-      - Audio generation (`audio-generation.spec.ts`)
-      - Mock audio testing (`mock-audio-test.spec.ts`)
-      - Example workflows (`simplified-workflow.spec.ts`)
-    - Fixed navigation issues between test contexts
-    - Improved project selection strategies
-    - Enhanced media detection and verification
-- ✅ Documentation Organization and Consolidation
-  - Consolidated duplicate documentation files (progress.md, playwrighttest.md)
-  - Created symbolic links for important files in root directory
-  - Established docs/ directory as single source of truth
-  - Structured testing documentation with clear naming conventions
-  - Added Documentation Organization guide to README.md
-  - Removed redundant R2 setup documentation files
-  - Updated file references in documentation
-- ✅ Playwright Testing Framework Reorganization (100%)
-  - Created domain-specific test files for improved organization
-  - Built comprehensive helper utility library
-  - Implemented centralized selectors and improved fallback strategies
-  - Created standardized test patterns and documentation
-  - Split all tests into appropriate domain files
-  - Removed redundant `core-functionality.spec.ts` file
-  - Verified all tests passing after reorganization (10/10)
-  - Updated documentation to reflect current test structure and best practices
-  - Added "Test Frequently" guide with practical testing strategies
-- ✅ Testing Environment Documentation and Configuration
-  - Created comprehensive testing environment documentation
-  - Identified and resolved Docker container networking issues for testing
-  - Documented proper approach to run tests from host machine
-  - Set up standardized environment variables for testing
-  - Fixed test failures caused by container networking limitations
-  - Created clear instructions for mock vs. real API testing
-  - Added warning information about API credit usage
-- [x] Fixed audio test errors and improved mock audio implementation
-- [x] Enhanced API connectivity for social media content
-- [x] Implemented MongoDB Atlas integration
-- [x] Created core UI components (Navbar, Footer, Hero section)
-- [x] Set up authentication system
-- [x] Implemented project management functionality
-- [x] Added drag and drop for scene reordering
-- [x] Enhanced error handling throughout the application
-- [x] Established media storage using Cloudflare R2
-- [x] Deployed frontend to Vercel and backend to Google Cloud Run
-- [x] Added domain-specific test helpers for Playwright tests
-  - Migrated `closeVoiceSettingsIfOpen` to `audio-utils.ts`
-  - Created `layout-utils.ts` for layout verification functions
-  - Created `wait-utils.ts` for waiting and polling functions
-  - Reorganized test utilities for better maintainability
-- [x] Documented testing procedures and added comprehensive test coverage
-- Created utility modules for test helpers:
-  - ✅ Created layout-utils.ts for layout testing helpers
-  - ✅ Created navigation-utils.ts for navigation testing helpers 
-  - ✅ Created wait-utils.ts for waiting and polling utilities
-  - ✅ Implemented test artifact management system with cleanup script and npm integration
-  - ✅ Migrated closeVoiceSettingsIfOpen to audio-utils.ts
-  - ✅ Updated .gitignore to prevent test artifacts from being committed
-- ✅ Enhanced media display in ScenePreviewPlayer with smart aspect ratio detection
-- ✅ Added view mode toggle for compact and expanded scene displays
-- ✅ Implemented collapsible info section with improved space utilization
-- ✅ Fixed audio element detection in test environment for more reliable testing
-- ✅ Added multiple detection methods for audio generation verification
-- ✅ Created compact info display with direct source attribution
-- ✅ Scene Component Refactoring (100% Complete):
-  - ✅ Created detailed refactoring plan based on lessons learned
-  - ✅ Implemented "Code Splitting Without Component Extraction" approach:
-    - Kept the component intact while organizing code into logical modules
-    - Extracted functions to separate files but preserved DOM structure and event flow
-    - Ensured zero visual impact by maintaining component boundaries
-    - Created organized directory structure for extracted functions
-  - ✅ Successfully applied the refactoring strategy after multiple attempts
-  - ✅ Maintained full component functionality with better code organization
-  - ✅ All tests passing with no behavioral changes
-  - ✅ Improved code maintainability and readability
-  - ✅ Preserved exact DOM structure and styling
-  - ✅ Documented the refactoring process for future reference
-- ✅ VideoContext Integration (Phase 1 - Core Implementation):
-  - ✅ Created VideoContextManager utility for managing VideoContext instance
-  - ✅ Implemented VideoContextProvider for shared context state
-  - ✅ Added VideoContextEditor for timeline and preview components
-  - ✅ Fixed server-side rendering issues with dynamic imports
-  - ✅ Created type definitions for VideoContext library
-  - ✅ Added demo page for testing VideoContext editor
-- ✅ VideoContext Integration (Phase 2 - Scene Player Integration):
-  - ✅ Created VideoContextScenePreviewPlayer component to replace ScenePreviewPlayer
-  - ✅ Implemented timeline scrubbing with native range inputs
-  - ✅ Added trim controls for setting media start/end points
-  - ✅ Fixed browser drag-and-drop conflicts with scene cards
-  - ✅ Optimized for vertical (9:16) media format for short-form content
-  - ✅ Implemented better aspect ratio handling for different media types
-  - ✅ Enhanced visual feedback for trim ranges
-  - ✅ Improved play/pause controls visibility
-  - ✅ Integrated properly with existing SceneMediaPlayer component
-  - ✅ Cleaned up timeline UI with reduced control sizes for better mobile usability
-- ✅ Adaptive Scene-Based Aspect Ratio Implementation
-  - ✅ Implemented robust detection of original media aspect ratios
-  - ✅ Added aspect ratio and dimension storage in Scene model
-  - ✅ Enhanced VideoContextScenePreviewPlayer with letterboxing/pillarboxing
-  - ✅ Created media analysis utilities for accurate dimension detection
-  - ✅ Implemented adaptive canvas sizing based on media properties
-  - ✅ Added container styling for proper media presentation
-  - ✅ Integrated aspect ratio preservation throughout the application
-  - ✅ Added comprehensive testing for various media types and ratios
-- ✅ R2 Storage Lifecycle Management (Phase 1)
-  - ✅ Enhanced R2Storage class with list_directory and delete_directory methods
-  - ✅ Modified project deletion endpoint to clean up R2 storage
-  - ✅ Added background task for storage cleanup to avoid blocking the API response
-  - ✅ Created manual cleanup utility for orphaned files
-  - ✅ Added unit tests for R2 storage operations
-  - ✅ Created comprehensive documentation for R2 operations and costs
-- ✅ Enhanced R2 Storage Cleanup Functionality
-  - Fixed file deletion issue with double "proj_" prefix
-  - Implemented direct file listing approach for more reliable deletion
-  - Added comprehensive pattern matching for all historical file naming patterns
-  - Implemented a dry run mode for safe testing
-  - Created detailed debugging endpoint for cleanup validation
-  - Added ability to match files by project ID regardless of path structure
-  - Enhanced error handling and robust batch processing
-  - Created R2 storage patterns documentation
-  - Implemented better cleanup summary reporting
-  - Added safeguards to ensure both legacy and current storage patterns are properly cleaned
-- ✅ Cloudflare R2 Storage Improvements with Wrangler (100%)
-  - Implemented Wrangler CLI integration with Python for more reliable R2 operations
-  - Fixed `--remote` flag requirement for actual R2 operations
-  - Corrected command syntax for object operations (using bucket-name/object-key format)
-  - Enhanced cleanup_project_storage function to handle legacy file patterns
-  - Created comprehensive test scripts for validating R2 storage operations
-  - Developed hybrid approach using S3 API for listing and Wrangler for operations
-  - Fixed 401 Unauthorized errors by properly configuring Wrangler authentication
-  - Added robust error handling for both S3 API and Wrangler operations
-  - Created fallback mechanisms when S3 API authentication fails
-  - Built diagnostic scripts for identifying specific R2 connection issues
-  - Successfully implemented reliable project cleanup functionality
-  - Documented multiple path formats for legacy compatibility
-  - Added script documentation with detailed usage instructions
-  - Implemented file deletion verification with improved logging
-- ✅ Cloudflare R2 Storage Cleanup Implementation (June 2025)
-  - Added Wrangler CLI to Docker container for native R2 operations
-  - Fixed double prefix issue in R2 object keys (proj_proj_ vs proj_)
-  - Implemented reliable cleanup mechanism for deleted projects
-  - Created diagnostic endpoints to verify execution environment
-  - Added comprehensive pattern matching for historical file formats
-  - Documented solution in Cloudflare-R2-Reconfig-Part-3.md
-  - Created DOCKER_SETUP.md guide for Docker and Wrangler configuration
-  - Added proper environment variable handling for Cloudflare credentials
-  - Enhanced existing debug endpoints for R2 operation testing
-  - Implemented fallback mechanism using S3 API for environments without Wrangler
-  - Updated all documentation to reflect the solution
-- **Investigate `video-player.spec.ts` Failures (2025-04-09):**
-  - Confirmed test fails to find the media container element (`[data-testid="video-context-preview"]`) for both video *and* image scenes.
-  - Verified image path uses `<img>` and bypasses `VideoContext`, proving the issue isn't specific to video rendering.
-  - **Narrowed root cause:** Delayed or conditional rendering of the `<MediaContainer>` component within the scene card structure is preventing the test from finding it promptly.
-  - Added explicit `data-media-status` attribute to `MediaContainer` (kept for future testability).
-  - Updated `docs/video-context-scene-preview-player-refactor-guide.md` with detailed findings.
-  - Temporarily commented out failing interaction steps in `video-player.spec.ts` pending component investigation.
-
-## Recent Progress (Updated June 2025)
-
-### Improved R2 File Deletion
-- ✅ Identified issues with Wrangler-based deletion approach
-- ✅ Implemented MongoDB file path tracking for reliable cleanup
-- ✅ Created Cloudflare Worker-based solution for R2 file deletion
-- ✅ Developed Python client for Worker interaction
-- ✅ Added multiple fallback layers for robust operation
-- ✅ Created comprehensive testing endpoints
-- ⏳ Final deployment and testing of Worker approach
-
-### Implementation Tasks Completed
-- Worker code created and configured
-- Backend integration with fallback mechanisms
-- Configuration settings and environment variables
-- Comprehensive documentation
-
-### Next Steps
-1. Deploy Worker to Cloudflare
-2. Configure Worker binding in Cloudflare dashboard 
-3. Create API token with correct permissions
-4. Update environment variables
-5. Test thoroughly with debug endpoints
-6. Enable for production use
+      - `audio-generation.spec.ts`
+      - `content-creation.spec.ts`
+      - `media-handling.spec.ts`
+      - `project-management.spec.ts`
+    - Ensured all tests are logically grouped and passing
+    - Removed the old `core-functionality.spec.ts` file
+- ✅ Consolidated Project Overview Documentation
+  - Merged relevant sections from various docs into PROJECT_OVERVIEW.md
+  - Defined clear project goals, features, and tech stack
+  - Outlined target user and monetization strategy
+  - Documented core architectural decisions and technology choices
+  - Added current status summary and roadmap
+  - Cleaned up redundant documentation files
 
 ### In Progress
 
-- 🔄 API Refactoring (Phase 2) - Content API Modularization (40% complete)
+*   **Define Video Editor Architecture:** Finalizing the decision to use `video-context` for UI/Preview and a separate rendering engine (like server-side FFmpeg) for export, driven by a JSON EDL.
 
-- 🔄 Scene Component Refactoring (Phase 1 - 85% Complete):
-  - ✅ Created initial component structure plan
-  - ✅ Extracted utility functions to scene-utils.ts
-  - ✅ Extracted event handlers to dedicated files
-  - ✅ Created custom hooks for media, audio, and API interactions
-  - ✅ Implemented core UI components:
-    - SceneHeader
-    - SceneTextContent
-    - SceneMediaPlayer
-    - SceneAudioControls
-    - SceneVoiceSettings
-    - SceneActions
-  - ✅ Implemented SceneContainer with:
-    - View mode management (compact/expanded)
-    - Info section visibility
-    - Text editing capabilities
-    - Voice generation and settings
-    - Scene removal with confirmation
-    - Drag and drop reordering
-  - ✅ Type safety improvements:
-    - Fixed proper typing in handleGenerateVoice function
-    - Removed 'as any' type assertions
-    - Fixed component prop interfaces
-    - Implemented proper API response handling
-  - ✅ Performance optimizations:
-    - Implemented React.memo for SceneTextContent with custom comparison function
-    - Implemented React.memo for SceneMediaPlayer with custom comparison function
-    - Implemented React.memo for SceneVoiceSettings with custom comparison function
-    - Verified optimizations with full test suite (all tests passing)
-  - 🔄 Currently implementing:
-    - Final integration with SceneComponent
-    - Last documentation updates
-  - Next steps:
-    - Update main SceneComponent to use SceneContainer
-    - Final cleanup and performance verification
-    - Prepare for production release
+### Next Steps (Immediate Focus)
 
-- 🔄 Revised Video Editing Implementation (VideoContext Integration):
-  - ✅ Evaluated challenges with custom video player implementation
-  - ✅ Researched professional-grade video editing libraries
-  - ✅ Selected BBC's VideoContext as the optimal solution
-  - ✅ Created detailed implementation plan in Video-Integration-Part2.md
-  - 🔄 Setting up development environment for VideoContext
-  - 🔄 Creating proof of concept for timeline scrubbing
-  - 🔄 Developing core player component
-  - 🔄 Implementing backend FFmpeg integration for EDL processing
-  
-  Detailed VideoContext Integration Plan (3 phases):
-  1. **VideoContext Integration** (1-2 weeks)
-     - Create proof of concept with vertical video compatibility
-     - Develop `VideoContextPlayer` component
-     - Implement timeline with scrubbing functionality
-     - Test audio synchronization
-  
-  2. **Feature Integration** (2-3 weeks)
-     - Implement trim controls
-     - Connect to scene cards
-     - Maintain view modes
-     - Integrate with ElevenLabs audio
-  
-  3. **Advanced Features** (2-3 weeks)
-     - Add transitions between scenes
-     - Implement text overlays and animations
-     - Create export pipeline with EDL generation
-     - Connect to backend FFmpeg processing
+1.  **Persistent Video Trimming:**
+    *   Save `startTime` and `endTime` from VideoContext trim controls to MongoDB for each scene.
+    *   Load these values when the editor initializes to restore trim state.
+2.  **Basic Sequential Playback Preview:**
+    *   Implement a "Play All" feature using VideoContext to play scenes sequentially based on their saved trim times.
+    *   Focus on basic back-to-back playback, not perfect transitions yet.
+3.  **Original Video Audio Integration:**
+    *   Ensure VideoContext loads and plays audio from source videos during preview.
+    *   (Optional) Add a volume control for original video audio per scene and save the setting.
 
-- 🔄 Implementing end-to-end video processing pipeline:
-  - Setting up backend FFMPEG integration for video segment creation
-  - Developing scene-to-video segment conversion process
-  - Creating video assembly with transition effects
-  - Building API endpoints for video processing status updates
-  
-  Detailed Video Integration Plan (7 phases):
-  1. **Component Assessment** (1-2 days)
-     - Examine ScenePreviewPlayer and TrimControls implementations
-     - Identify connection points between media and audio components
-     - Evaluate existing FFmpeg scripts
-  
-  2. **Scene Player Integration** (2-3 days)
-     - Replace media display with ScenePreviewPlayer in Scene cards
-     - Connect player to R2-stored media files
-     - Implement audio-video synchronization
-     - Add unified media playback controls
-  
-  3. **Timeline & Trimming Implementation** (2-3 days)
-     - Build timeline scrubber UI with visual indicators
-     - Connect TrimControls to Scene player
-     - Create trim settings persistence API
-     - Store trim data in project metadata
-  
-  4. **Scene Duration Logic** (1-2 days)
-     - Implement type-specific duration handling
-     - Add visual duration indicators
-     - Create duration adjustment UI
-  
-  5. **Sequential Playback** (2-3 days)
-     - Develop ProjectPreviewPlayer for multi-scene playback
-     - Implement scene transitions and playlist functionality
-     - Add project-level playback controls
-  
-  6. **FFmpeg Integration** (3-4 days)
-     - Create backend endpoints for video processing
-     - Implement media-audio merging
-     - Add progress tracking and error handling
-  
-  7. **Testing & Refinement** (1-2 days)
-     - Test all aspects of media playback and processing
-     - Verify cross-media type functionality
-     - Ensure settings persistence and recovery
-- 🔄 Enhancing project workspace UI:
-  - Adding text editing capabilities for scene content
-  - Implementing media trimming and cropping controls
-  - Creating more visual feedback during drag operations
-  - Adding thumbnail previews to projects list
+### Future Considerations (Post-Immediate Focus)
 
-- 🔄 Enhancing Testing Documentation and Practices:
-  - Adding JSDoc comments to all helper functions
-  - Creating better examples of helper usage
-  - Setting up visual regression testing for key UI components
-  - Completing data-testid attributes implementation (10% remaining)
-  
-- 🔄 API Refactoring (Phase 2 - Video API Implementation):
-  - ✅ Fixed critical audio persistence issue (voice/save vs voice/persist endpoint mismatch)
-  - ✅ Completed Voice API module with comprehensive error handling (90%)
-  - ✅ Implemented feature flag management system for controlled rollout
-  - ✅ Added robust timeout calculations based on content length
-  - ✅ Enhanced input validation with comprehensive error messages
-  - 🔄 Building Video API module with robust error handling (40%)
-  - 🔄 Implementing video processing status tracking
-  - 🔄 Developing video segmentation and assembly endpoints
-  - 🔄 Adding video generation progress monitoring
+*   **Robust Export Pipeline:**
+    *   Develop backend functionality (FastAPI + FFmpeg) to render videos based on the saved JSON EDL (trim times, scene order, audio settings).
+    *   Implement frontend logic to trigger export and handle download.
+*   **Advanced Audio Mixing:**
+    *   Implement controls for balancing original audio and voiceover levels.
+    *   Ensure FFmpeg correctly mixes audio tracks during export.
+*   **Transitions & Effects:**
+    *   Decide on mechanism (VideoContext shaders for preview, FFmpeg filters for export, or dedicated library).
+    *   Implement basic transitions (e.g., cross-fade) in the export process first.
+*   **Cloudflare R2 Organization:**
+    *   Define and implement a structured folder system within R2 buckets for projects, scenes, media, and audio files.
+    *   Update backend upload/fetch logic accordingly.
+*   **Timeline UI Enhancements:**
+    *   Implement drag-and-drop reordering for scenes directly on the `VideoContextTimeline`.
+    *   Add more visual cues for trims, audio waveforms, etc.
 
-- 🔄 Video Preview Playback Feature Implementation:
-  - ✅ Implementing media content persistence to R2 storage
-  - ✅ Creating scene preview player with media-audio synchronization
-  - 🔄 Building trimming controls for adjusting media duration
-  - 🔄 Developing sequential playback for all scenes in a project
-  - 🔄 Setting up default duration logic based on content type
-  - Detailed implementation plan available in docs/Video-Integration-Implementation.md
+## Implementation Status (%)
 
-- 🔄 R2 Storage Structure Enhancements (Phase 1 - 20%)
-  - Attempted implementation of hierarchical storage structure for R2
-  - Created improved storage path format: `users/{user_id}/projects/{project_id}/scenes/{scene_id}/{file_type}/{filename}`
-  - Identified implementation challenges with interconnected components
-  - Reverted to stable version after resolving import conflicts
-  - Created detailed incremental plan for safe implementation
-  - Documented lessons learned in R2_STORAGE_STRUCTURE.md
-  - Planning to take an incremental approach with component-by-component updates
-  - Ensuring backward compatibility for existing content
+*   **Core Project Setup:** 100%
+*   **Content Extraction:** 95% (Reddit handling improved, ongoing robustness checks)
+*   **Project Management:** 95% (Core CRUD, needs R2 cleanup refinements)
+*   **Scene Management:** 90% (Media display, aspect ratios handled, needs persistent editing)
+*   **Audio Generation (ElevenLabs):** 90% (Generation, controls, context management done, needs final mix/export)
+*   **Video Editing Core (VideoContext):** 40% (Player/Trim UI exists, needs persistence, sequencing, audio integration)
+*   **Video Export:** 0%
+*   **Testing (E2E):** 90% (Good coverage, needs tests for new editing features)
+*   **API Development:** 85% (Core endpoints exist, needs export endpoint, R2 structure integration)
+*   **Documentation:** 80% (Good coverage, needs updates for export pipeline and R2 structure)
+*   **Docker Environment:** 95% (All services running, stable)
 
-## Component Implementation Status
+## Key Architectural Decisions
 
-### Frontend Components
+*   **Frontend:** Next.js (React), Tailwind CSS, TypeScript
+*   **Backend:** FastAPI (Python), Async
+*   **Database:** MongoDB Atlas
+*   **File Storage:** Cloudflare R2
+*   **Video Preview/Trim UI:** `video-context` library
+*   **Video Export Rendering:** Server-side FFmpeg (via FastAPI backend) driven by JSON EDL
+*   **State Management:** React Context API (ProjectContext, AudioContext, VoiceContext, VideoContextProvider)
+*   **Deployment:** Vercel (Frontend), Google Cloud Run (Backend)
+*   **Testing:** Playwright (E2E), Pytest (Backend Units)
+
+## Potential Risks & Challenges
+
+- Reddit content extraction occasionally fails with certain URL formats
+- Project state management in ProjectProvider is overly complex and could be refactored
+- Large projects with many scenes experience performance slowdowns
+- No offline capability when MongoDB connection fails
+- Video processing lacks proper error handling and retry mechanisms
+
+# Progress Tracking
+
+## Completed Tasks (100%)
+- Initial project setup and configuration
+- Frontend and backend communication
+- Content extraction from Reddit
+- Project workspace implementation
+- Scene management and reordering
+- Local storage integration
+- Error handling and validation
+- Code organization and cleanup
+  - Created dedicated utility files
+  - Separated form validation logic
+  - Centralized type definitions
+  - Removed duplicate code
+- E2E test suite implementation and reliability
+  - All tests passing (6/6 successful)
+  - Resilient selectors and fallback strategies
+  - Comprehensive test coverage
+- Server infrastructure
+  - Docker containerization for development ✅
+  - Server management script enhanced ✅
+  - Backend server configuration fixed ✅
+  - Browser tools server integration ✅
+  - MongoDB connection issues resolved ✅
+- Documentation Organization and Consolidation ✅
+  - Consolidated duplicate documentation files
+  - Created symbolic links for important files
+  - Established docs/ directory as source of truth
+  - Structured testing documentation with clear naming
+  - Added Documentation Organization guide to README
+  - Removed redundant R2 setup documentation
+  - Ensured single source of truth for all documentation
+
+## In Progress (50-90%)
+- Console error fixes (95%)
+  - Message channel closure ✅
+  - Async operation cleanup ✅
+  - Error boundaries ✅
+  - Error logging improvements ✅
+- Code Cleanup (60%)
+  - Redundant file identification 🔄
+  - Consolidate configurations 🔄
+  - Remove unused code 🔄
+
+## Next Steps (0-30%)
+- Video processing pipeline (30%)
+  - FFMPEG integration (20%)
+  - Scene-to-video conversion (10%)
+  - Content editing features (0%)
+  - Video assembly with transitions (0%)
+  - User authentication (0%)
+
+## Implementation Status
+
+Current progress by component area:
+
+### Frontend
 - `ProjectWorkspace`: Grid-based container for scenes - COMPLETED
 - `SceneComponent`: Media and text display with source info - COMPLETED
 - `ProjectProvider`: Context for project state management - COMPLETED AND OPTIMIZED

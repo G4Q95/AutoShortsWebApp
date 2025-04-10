@@ -617,3 +617,98 @@ To commit these changes:
     - Performance optimizations
     - Enhanced error handling
     - Loading state improvements 
+
+### 5. Add Authentication (Later Phase)
+- Choose an authentication method (e.g., NextAuth.js, Clerk)
+- Implement user registration and login
+- Secure API endpoints
+
+### Current Implementation Tasks (Immediate Focus)
+
+1.  **Implement Persistent Video Trimming:**
+    *   Modify frontend (`VideoContextScenePreviewPlayer`, `VideoContextProvider`) to interact with the backend API.
+    *   Create a backend API endpoint (`PUT /api/v1/projects/{project_id}/scenes/{scene_id}/trim`) to update `startTime` and `endTime` for a specific scene in MongoDB.
+    *   Ensure the scene data model in `ProjectContext` and the database schema support `startTime` and `endTime` fields.
+    *   Load saved trim values when the project/editor loads.
+
+2.  **Implement Basic Sequential Playback Preview:**
+    *   Add a "Play All" button to the editor UI.
+    *   In the frontend, create logic within `VideoContextProvider` or a dedicated hook (`useSequencePlayer`) to manage sequential playback:
+        *   Get the ordered list of scenes from `ProjectContext`.
+        *   Use `videoContext.play()` and `videoContext.seek()` along with the saved `startTime` and `endTime` for each scene.
+        *   Monitor `videoContext.currentTime` and potentially use `setTimeout` or `requestAnimationFrame` to transition to the next scene when the current one's trimmed duration is reached.
+
+3.  **Integrate Original Video Audio:**
+    *   Verify that `video-context` is loading and playing audio tracks from source videos by default. Check the `addSource` implementation in `VideoContextManager` and ensure audio isn't explicitly disabled.
+    *   (Optional) Add a UI element (e.g., simple slider) to control the volume of the *original* video source within the `VideoContextScenePreviewPlayer` or `Scene` component.
+    *   (Optional) Add a `sourceVolume` field to the scene data model and save/load this value alongside trim times.
+    *   (Optional) Use `videoContext` methods to set the volume for the specific video node if the API supports it (check `video-context` documentation or implementation). If not directly supported on the node, this might need to be handled during FFmpeg export.
+
+### Future Implementation Tasks (Post-Immediate Focus)
+
+*   Implement backend export endpoint (`POST /api/v1/projects/{project_id}/export`).
+*   Integrate FFmpeg into the backend service (likely within the Docker container).
+*   Develop FFmpeg command generation logic based on JSON EDL.
+*   Implement frontend download triggering and handling.
+*   Add audio mixing controls and update FFmpeg logic.
+*   Implement transitions/effects (mechanism TBD).
+*   Define and implement R2 folder structure.
+*   Enhance timeline UI (drag-and-drop reorder, waveforms).
+
+## Style Guide
+
+### Frontend (Next.js)
+- **ESLint**: For catching JavaScript/React errors and enforcing best practices
+  - Configuration: `.eslintrc.json`
+  - Running: `npm run lint` or `npm run lint:fix` (to automatically fix issues)
+- **Prettier**: For consistent code formatting
+  - Configuration: `.prettierrc`
+  - Running: `npm run format` (to format code) or `npm run format:check` (to check for issues)
+
+### Backend (FastAPI/Python)
+- **Flake8**: For catching Python errors and code style issues
+  - Configuration: `setup.cfg`
+  - Running: `flake8 .`
+- **Black**: For consistent Python code formatting
+  - Configuration: `pyproject.toml`
+  - Running: `black .`
+- **isort**: For sorting Python imports consistently
+  - Configuration: `setup.cfg`
+  - Running: `isort .`
+- **mypy**: For Python type checking
+  - Configuration: `setup.cfg`
+  - Running: `mypy app/`
+
+### Whole Project
+- **EditorConfig**: For consistent editor settings across IDEs
+  - Configuration: `.editorconfig` at the root
+- **Format Script**: For formatting the entire codebase
+  - Script: `format_codebase.sh` at the root
+  - Running: `./format_codebase.sh`
+- **GitHub Actions**: For CI/CD linting checks
+  - Configuration: `.github/workflows/lint.yml`
+
+### Scene Component Refactoring
+- ✅ Phase 1: Core Component Structure (70% Complete)
+  - ✅ Component Architecture
+    - Created modular component structure
+    - Implemented proper TypeScript interfaces
+    - Set up component communication patterns
+  - ✅ UI Components
+    - SceneHeader: Scene numbering and controls
+    - SceneMediaPlayer: Media display and controls
+    - SceneTextContent: Text editing and display
+    - SceneVoiceSettings: Voice configuration
+    - SceneAudioControls: Audio playback
+    - SceneActions: Scene management actions
+  - ✅ State Management
+    - View mode (compact/expanded)
+    - Info section visibility
+    - Text editing capabilities
+    - Voice generation and settings
+    - Scene removal with confirmation
+  - 🔄 In Progress
+    - Media trim controls integration
+    - Performance optimizations
+    - Enhanced error handling
+    - Loading state improvements 
