@@ -204,7 +204,7 @@ export const TimelineControl: React.FC<TimelineControlProps> = React.memo(({
               height: '16px', // Match container height
               width: '12px',
               zIndex: 53,
-              pointerEvents: 'auto',
+              pointerEvents: trimActive ? 'auto' : 'none',
               opacity: 1,
               transition: 'opacity 0.2s ease'
             }}
@@ -266,7 +266,7 @@ export const TimelineControl: React.FC<TimelineControlProps> = React.memo(({
               height: '16px', // Match container height
               width: '12px',
               zIndex: 53,
-              pointerEvents: 'auto',
+              pointerEvents: trimActive ? 'auto' : 'none',
               opacity: 1,
               transition: 'opacity 0.2s ease'
             }}
