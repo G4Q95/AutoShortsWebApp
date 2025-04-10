@@ -510,27 +510,14 @@ These standards ensure we maintain high code quality while delivering features e
 - ✅ Voice testing interface at `/voice-test`
 
 ### Video Processing
-// ... existing code ...
+- ✅ Scene Management: Add scenes from URLs (initially Reddit), edit text, manage media.
+- ✅ Media Handling: Displays images and videos, generates audio voiceovers (ElevenLabs), stores media in Cloudflare R2.
+- ✅ Video Trimming: Adjust start and end points for scene media, with changes saved automatically.
+- ✅ Persistence: Projects saved locally using browser `localStorage`.
+- ✅ Backend API: FastAPI server handles content extraction, media storage, and voice generation.
 
 ## Quick Start
 
 1. Clone the repository
 2. Install Docker and Docker Compose
-3. Copy `.env.example` to `.env` and configure your environment variables:
-   ```
-   ELEVENLABS_API_KEY=your_api_key_here
-   MONGODB_URI=your_mongodb_uri
-   ```
-4. Start the development environment:
-   ```bash
-   docker-compose up -d
-   ```
-5. Access the application:
-   - Main application: http://localhost:3000
-   - Voice testing interface: http://localhost:3000/voice-test
-   - Backend API: http://localhost:8000
-   - API documentation: http://localhost:8000/docs
-
-## Testing
-
-// ... existing code ... 
+3. Copy `.env.example`

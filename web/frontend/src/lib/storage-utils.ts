@@ -295,6 +295,23 @@ export function migrateProjectData(project: Project): Project {
       
       // Ensure media has required fields
       if (migratedScene.media) {
+        // Ensure trim object exists within media
+        if (!migratedScene.media.trim) {
+          migratedScene.media.trim = { start: 0, end: 0 };
+          console.log(`[storage-utils] Added missing media.trim object for scene ${migratedScene.id}`);
+        } else {
+          // Ensure start and end exist within trim
+          if (migratedScene.media.trim.start === undefined || migratedScene.media.trim.start === null) {
+            migratedScene.media.trim.start = 0;
+            console.log(`[storage-utils] Added missing media.trim.start for scene ${migratedScene.id}`);
+          }
+          if (migratedScene.media.trim.end === undefined || migratedScene.media.trim.end === null) {
+            // Default end to duration if available, otherwise 0 (or maybe Infinity? Let's stick to 0 for now)
+            migratedScene.media.trim.end = migratedScene.media.duration || 0;
+            console.log(`[storage-utils] Added missing media.trim.end for scene ${migratedScene.id}, defaulting to ${migratedScene.media.trim.end}`);
+          }
+        }
+        
         // Set mediaAspectRatio if it doesn't exist but we have width and height
         if (!migratedScene.media.mediaAspectRatio && 
             migratedScene.media.width && 
