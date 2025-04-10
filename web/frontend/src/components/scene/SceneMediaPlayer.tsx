@@ -5,7 +5,6 @@
  */
 import React, { useEffect } from 'react';
 import { transformRedditVideoUrl } from '@/lib/media-utils';
-import { Maximize, Minimize } from 'lucide-react';
 
 // Import both player implementations
 import ScenePreviewPlayer from '@/components/preview/ScenePreviewPlayer';
@@ -168,6 +167,7 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
             projectAspectRatio={projectAspectRatio || '9:16'}
             showLetterboxing={showLetterboxing || true}
             isMediumView={!isCompactView}
+            onToggleViewMode={onToggleViewMode}
           />
         ) : (
           <ScenePreviewPlayer
@@ -183,26 +183,6 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
           />
         )}
       </div>
-      
-      {/* View mode toggle button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation(); // Prevent click from bubbling up
-          onToggleViewMode();
-        }}
-        className="absolute top-9 right-2 bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-opacity"
-        style={{
-          zIndex: 100, // Use a very high z-index to ensure it's above all other elements
-          pointerEvents: 'auto' // Explicitly ensure it captures pointer events
-        }}
-        data-testid="view-mode-toggle"
-      >
-        {isCompactView ? (
-          <Maximize className="h-4 w-4" />
-        ) : (
-          <Minimize className="h-4 w-4" />
-        )}
-      </button>
     </div>
   );
 };
@@ -251,4 +231,4 @@ function arePropsEqual(prevProps: SceneMediaPlayerProps, nextProps: SceneMediaPl
 /**
  * Memoized version of SceneMediaPlayer to prevent unnecessary re-renders
  */
-export const SceneMediaPlayer = SceneMediaPlayerComponent; 
+export const SceneMediaPlayer = React.memo(SceneMediaPlayerComponent, arePropsEqual); 

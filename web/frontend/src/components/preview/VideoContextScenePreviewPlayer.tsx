@@ -31,6 +31,7 @@ import { useAnimationFrameLoop } from '@/hooks/useAnimationFrameLoop';
 import { useMediaEventHandlers } from '@/hooks/useMediaEventHandlers';
 import MediaErrorBoundary from './media/MediaErrorBoundary';
 import { useVideoContextBridge } from '@/hooks/useVideoContextBridge';
+import { ViewModeToggleButton } from './ViewModeToggleButton';
 
 // Constants for timings and adjustments
 const FRAME_DURATION_SECONDS = 1 / 30; // Assuming 30fps for tolerance
@@ -136,6 +137,7 @@ interface VideoContextScenePreviewPlayerProps {
   projectAspectRatio?: '9:16' | '16:9' | '1:1' | '4:5'; // Project-wide setting
   showLetterboxing?: boolean;          // Whether to show letterboxing/pillarboxing
   isMediumView?: boolean;
+  onToggleViewMode?: () => void;       // Handler for view mode toggle
 }
 
 // Add type guard functions back inside the component scope
@@ -166,6 +168,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
   projectAspectRatio = '9:16',
   showLetterboxing = true,
   isMediumView,
+  onToggleViewMode,
 }) => {
   // Simple log for essential debugging
   console.log(`[VCSPP] Render with isMediumView=${isMediumView}`);
@@ -1101,6 +1104,14 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
         showAspectRatio={showAspectRatio || showTemporaryAspectRatio}
         calculatedAspectRatio={calculatedAspectRatio}
         isMediaReady={bridge.isReady}
+        
+        // Toggle Button
+        toggleButton={onToggleViewMode ? (
+          <ViewModeToggleButton
+            isCompactView={isCompactView}
+            onToggleViewMode={onToggleViewMode}
+          />
+        ) : null}
       >
         {/* Controls Overlay - Play/Pause, Scrubber, Time Display, Info Button */}
             {(() => {

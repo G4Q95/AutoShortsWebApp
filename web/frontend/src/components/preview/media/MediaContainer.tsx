@@ -88,6 +88,9 @@ interface MediaContainerProps {
   
   // NEW PROP
   isMediaReady: boolean;
+  
+  // View mode toggle button
+  toggleButton?: ReactNode;
 }
 
 /**
@@ -145,7 +148,10 @@ function _MediaContainer({
   children,
 
   // NEW PROP
-  isMediaReady // Passed down from parent based on bridge.isReady
+  isMediaReady, // Passed down from parent based on bridge.isReady
+  
+  // View mode toggle button
+  toggleButton
 }: MediaContainerProps) {
   
   // Determine which media element to render based on type
@@ -258,6 +264,9 @@ function _MediaContainer({
           onToggle={onFullscreenToggle ? () => onFullscreenToggle(!isFullscreen) : () => {}}
         />
       </div>
+      
+      {/* View mode toggle button - render if provided */}
+      {toggleButton}
       
       {/* Render children (PlayerControls) */}
       {children}
