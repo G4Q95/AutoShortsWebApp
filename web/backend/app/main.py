@@ -20,6 +20,7 @@ from app.core.database import init_db, close_db, db, MongoJSONResponse
 from app.core.errors import create_error_response, ErrorCodes
 from app.core.json_encoder import MongoJSONEncoder
 from app.core.middleware import ApiResponseMiddleware
+from app.api.endpoints.project_operations import project_router
 
 # Configure logging
 logging.basicConfig(
@@ -241,10 +242,12 @@ from app.api.voice import router as voice_router
 from app.api.test import router as test_router
 from app.api.media import router as media_router
 from app.api.debug import router as debug_router  # Add import for debug router
+from app.api.endpoints.project_operations import project_router as project_operations_router
 
 # Include routers
 app.include_router(content_router, prefix="/api/v1/content")
 app.include_router(projects_router, prefix="/api/v1/projects")
+app.include_router(project_operations_router, prefix="/api/v1/projects-ops")
 app.include_router(voice_router, prefix="/api/v1/voice")
 app.include_router(test_router, prefix="/api/v1")
 app.include_router(media.router, prefix="/api/v1")  # Media router with correct name
@@ -254,6 +257,7 @@ app.include_router(debug_router, prefix="/api/v1")  # Add debug router
 app.include_router(test_router, prefix="/api/test")
 app.include_router(content_router, prefix="/api/content")
 app.include_router(projects_router, prefix="/api/projects")
+app.include_router(project_operations_router, prefix="/api/projects-ops")
 app.include_router(videos.router, prefix="/api/videos")
 app.include_router(voice_router, prefix="/api/voice")
 app.include_router(media.router, prefix="/api")  # Media router with correct name

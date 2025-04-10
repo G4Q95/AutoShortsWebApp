@@ -77,6 +77,19 @@ class ProjectCreate(ProjectBase):
     scenes: Optional[List[SceneBase]] = []
 
 
+class ProjectUpdate(ProjectBase):
+    title: Optional[str] = None
+    scenes: Optional[List[Scene]] = None
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str, datetime: lambda dt: dt.isoformat()},
+        extra="allow",
+    )
+
+
 class Project(ProjectBase):
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
     scenes: List[Scene] = []
