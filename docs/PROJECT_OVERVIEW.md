@@ -331,4 +331,16 @@ Next steps include:
   - Contextual editing allowing text changes and immediate audio generation
   - Save audio functionality to create checkpoints for approved audio
   - Individual scene voice settings with studio-quality controls
-  - Character count indicators to prevent exceeding API limits 
+  - Character count indicators to prevent exceeding API limits
+
+### Technical Decisions & Rationale
+
+*   **Frontend Framework**: Next.js with React chosen for its robust ecosystem, SSR/SSG capabilities, and component-based architecture suitable for complex UIs.
+*   **Backend Framework**: FastAPI (Python) selected for its high performance, async capabilities (crucial for I/O-bound tasks like external API calls and media processing), and automatic OpenAPI documentation.
+*   **Styling**: Tailwind CSS for utility-first styling, enabling rapid UI development and consistency.
+*   **Database**: MongoDB Atlas (NoSQL) for flexible data schemas, scalability, and cloud hosting convenience.
+*   **Media Storage**: Cloudflare R2 for S3-compatible object storage, offering potentially lower egress costs.
+*   **Video Preview Engine**: `video-context` library chosen initially for its WebGL-based timeline compositing features. **Update (July 2024):** Adopting a hybrid approach where `video-context` handles core playback/timing, while complex UI elements like captions are rendered using synchronized HTML/CSS overlays managed by React. This leverages the strengths of both technologies.
+*   **Video Export Processing**: FFmpeg (executed on the backend) chosen as the industry standard for robust video manipulation, trimming, effect application, and final encoding.
+*   **Containerization**: Docker and Docker Compose for consistent development, testing, and deployment environments.
+*   **Deployment**: Google Cloud Run (backend) and Vercel (frontend) for scalable, managed hosting solutions. 

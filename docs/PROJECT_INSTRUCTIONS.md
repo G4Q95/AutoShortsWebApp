@@ -513,6 +513,50 @@ To commit these changes:
 - ⏳ Export Pipeline
 - ⏳ Subscription Management
 
+## Video Preview and Editing Strategy
+
+Based on analysis of project requirements, particularly the need for complex, styled captions, and the capabilities of available libraries, the following **Hybrid Approach** has been adopted for the video editor preview and rendering:
+
+### 1. Core Engine: `video-context`
+- **Role**: `video-context` will serve as the foundational engine for the interactive preview.
+- **Responsibilities**:
+    - Loading and managing base video/audio sources.
+    - Handling timeline sequencing of media clips.
+    - Providing precise playback timing (`currentTime`) for synchronization.
+    - Implementing core trimming functionality.
+    - Applying basic, shader-based visual effects or transitions using its built-in `DEFINITIONS` or simple custom shaders, *if needed later*.
+
+### 2. Captions and UI Overlays: HTML/CSS/JavaScript (React)
+- **Implementation**: Captions, interactive elements (like handles for trimming), and potentially other UI overlays will be implemented as standard React components rendering HTML elements.
+- **Styling & Animation**: Rich text styling and complex animations (word-by-word reveals, dynamic backgrounds, kinetic typography) will be achieved using CSS and potentially JavaScript animation libraries (e.g., Framer Motion). This leverages the strengths and flexibility of standard web technologies for UI rendering.
+- **Synchronization**: React components responsible for overlays (especially captions) will listen to `currentTime` updates from `video-context` and dynamically update their state (visibility, animation progress) to remain perfectly synchronized with the video playback.
+
+### 3. Complex Visual Effects: Deferred / Future Consideration
+- **Current Status**: Implementation of complex, custom visual effects (beyond basic fades, wipes, color correction provided by `video-context`) is **deferred** to prioritize core editing and caption functionality.
+- **Future Option**: If required later, complex visual effects could potentially be implemented using a separate WebGL overlay canvas managed by a library like **Babylon.js**. This overlay would also need to be synchronized with `video-context`'s `currentTime`. This adds significant synchronization complexity and is not part of the initial implementation plan.
+
+### 4. Export Process: Backend FFmpeg + EDL
+- **Mechanism**: Final video rendering will be handled by a backend process using **FFmpeg**.
+- **Frontend Role**: The frontend editor will generate a detailed **Edit Decision List (EDL)**, likely in JSON format. This EDL will encapsulate the entire edit state:
+    - Sequence of video/audio clips (source URLs, trim in/out points).
+    - All caption data (text content, start/end times, styling information translatable to subtitles).
+    - Any effects/transitions applied via `video-context` definitions.
+- **Backend Role**: The backend service will:
+    - Receive the EDL.
+    - Fetch the original media sources.
+    - Use FFmpeg commands to:
+        - Trim and concatenate media according to the EDL.
+        - Apply FFmpeg filter equivalents for any basic effects/transitions specified.
+        - **Generate a styled subtitle file (e.g., ASS format for maximum styling fidelity) from the caption data in the EDL.**
+        - **Use FFmpeg's subtitle filter to burn the generated captions directly into the output video frames.**
+        - Encode the final MP4 video file.
+
+### 5. Rationale
+- This hybrid approach leverages `video-context` for its specialized media sequencing and timing capabilities, avoiding the high complexity of building a custom, low-level media playback engine from scratch.
+- It utilizes the most appropriate and powerful tools (HTML/CSS/JS) for the essential requirement of complex caption rendering and animation.
+- It provides a clear and robust path for high-fidelity export using the industry-standard FFmpeg, including styled captions.
+- It pragmatically defers the complexity of advanced visual effects until core functionality is stable.
+
 ## Implementation Guidelines
 
 ### Code Documentation Standards
