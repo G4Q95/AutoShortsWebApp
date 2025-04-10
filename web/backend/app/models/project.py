@@ -43,6 +43,8 @@ class SceneBase(BaseModel):
     media_url: Optional[str] = None
     media_type: Optional[str] = None  # image, video, gallery
     author: Optional[str] = None
+    trim_start: Optional[float] = Field(0.0, description="Start time for trim in seconds")
+    trim_end: Optional[float] = Field(None, description="End time for trim in seconds")
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 

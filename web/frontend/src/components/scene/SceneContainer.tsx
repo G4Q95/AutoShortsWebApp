@@ -11,6 +11,7 @@ import { GripVertical } from 'lucide-react';
 import { SceneActions } from './SceneActions';
 import { SceneVoiceSettings } from './SceneVoiceSettings';
 import { generateVoice, persistVoiceAudio } from '@/lib/api-client';
+import { updateSceneTrim } from '@/lib/api/projects';
 import { Voice, VoiceSettings, GenerateVoiceResponse, SaveAudioRequest, SaveAudioResponse } from '@/lib/api-types';
 import { useAudioContext } from '@/contexts/AudioContext';
 import { fetchStoredAudio, cleanupAudioUrl } from '@/utils/scene/audio-utils';
@@ -377,14 +378,37 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
   };
 
   // Handle media trim change
-  const handleTrimChange = (start: number, end: number) => {
-    if (scene.media) {
-      // Update local state if needed (for UI feedback)
-      // Later we'll add the actual media update to the backend
-      console.log(`Trim changed for scene ${scene.id}: ${start} - ${end}`);
+  const handleTrimChange = async (start: number, end: number) => {
+    console.log(`[DEBUG] handleTrimChange called with start=${start}, end=${end}`);
+    
+    if (!scene.media || !currentProject?.id) {
+      console.log(`[DEBUG] Skipping trim update: media=${!!scene.media}, currentProject.id=${currentProject?.id}`);
+      return;
+    }
+    
+    // Update local state if needed (for UI feedback)
+    console.log(`Trim changed for scene ${scene.id}: ${start} - ${end}`);
+    
+    try {
+      // Persist the trim change to the backend
+      console.log(`[DEBUG] Calling updateSceneTrim for project=${currentProject.id}, scene=${scene.id}`);
       
-      // TODO: Implement proper media update handling
-      // This would update the scene.media.trim property in the project context
+      const response = await updateSceneTrim(
+        currentProject.id, 
+        scene.id, 
+        start, 
+        end === Infinity ? null : end
+      );
+      
+      console.log(`[DEBUG] API response received:`, response);
+      
+      if (response && response.data) {
+        console.log(`Successfully updated trim for scene ${scene.id}`);
+      } else {
+        console.error(`Failed to update trim for scene ${scene.id}:`, response);
+      }
+    } catch (error) {
+      console.error(`Error updating trim for scene ${scene.id}:`, error);
     }
   };
 
@@ -448,17 +472,17 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
         const updateAudioWrapper = (
           sceneId: string, 
           audio: NonNullable<Scene['audio']>, 
-          voiceSettings: VoiceSettings
+          voiceSettings: VoiceSettings | undefined
         ) => {
           // Create a new object that matches the Scene['voice_settings'] structure
-          const adaptedVoiceSettings = {
+          const adaptedVoiceSettings = voiceSettings ? {
             voice_id: voiceId, // Use the current voiceId from component state
             stability: voiceSettings.stability,
             similarity_boost: voiceSettings.similarity_boost,
             style: voiceSettings.style ?? 0,
             speaker_boost: voiceSettings.use_speaker_boost ?? false, 
             speed: voiceSettings.speed ?? 1.0
-          };
+          } : undefined;
           
           updateSceneAudio(sceneId, audio, adaptedVoiceSettings);
         };
@@ -514,6 +538,7 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
             media={mediaProps}
             isCompactView={isCompactView}
             onToggleViewMode={handleViewModeToggle}
+            onTrimChange={handleTrimChange}
           />
         </div>
 

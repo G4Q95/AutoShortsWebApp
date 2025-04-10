@@ -13,7 +13,8 @@ import { Project, Scene } from '../../components/project/ProjectTypes';
 import { 
   CreateProjectRequest, 
   UpdateProjectRequest,
-  ReorderScenesRequest
+  ReorderScenesRequest,
+  SceneTrimUpdateResponse
 } from './types';
 
 /**
@@ -131,6 +132,30 @@ export async function updateScene(
   return fetchAPI<Project>(`/projects/${projectId}/scenes/${sceneId}`, {
     method: 'PUT',
     body: JSON.stringify(scene),
+  });
+}
+
+/**
+ * Update a scene's trim values
+ * 
+ * @param {string} projectId - ID of the project containing the scene
+ * @param {string} sceneId - ID of the scene to update
+ * @param {number} trimStart - Start time for trim in seconds
+ * @param {number | null} trimEnd - End time for trim in seconds
+ * @returns {Promise<ApiResponse<SceneTrimUpdateResponse>>} Promise with updated trim data
+ */
+export async function updateSceneTrim(
+  projectId: string,
+  sceneId: string,
+  trimStart: number,
+  trimEnd: number | null
+): Promise<ApiResponse<SceneTrimUpdateResponse>> {
+  return fetchAPI<SceneTrimUpdateResponse>(`/projects/${projectId}/scenes/${sceneId}/trim`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      trim_start: trimStart,
+      trim_end: trimEnd,
+    }),
   });
 }
 

@@ -102,4 +102,20 @@ export interface VideoStatusResponse {
   error?: string;
   /** Estimated time remaining in seconds */
   estimated_time_remaining?: number;
+}
+
+/**
+ * Response for updating scene trim values
+ */
+export interface SceneTrimUpdateResponse {
+  /** Scene ID that was updated */
+  scene_id: string;
+  /** Updated trim start value in seconds */
+  trim_start: number;
+  /** Updated trim end value in seconds */
+  trim_end: number | null;
+  /** Project ID containing the scene */
+  project_id: string;
+  /** Operation success status */
+  success: boolean;
 } 
