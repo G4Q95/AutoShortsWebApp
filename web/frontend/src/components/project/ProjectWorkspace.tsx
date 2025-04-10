@@ -683,61 +683,10 @@ export default function ProjectWorkspace({
     <div className="bg-white" data-testid="project-workspace">
       <div className="bg-white p-6 rounded-lg shadow">
         <div>
+          {/* Project Header Section Removed - Now in layout/Header.tsx */}
+          {/* Apply max-width and centering to Add URL form section */}
           <div className="max-w-3xl mx-auto">
-            {/* Project header */}
-            <div className="mb-6 flex justify-between items-center">
-              <div className="flex items-center">
-                <input
-                  type="text"
-                  value={effectiveProject.title}
-                  onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
-                  className="text-3xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800"
-                  aria-label="Project title"
-                  data-testid="project-title"
-                />
-                
-                {/* Aspect Ratio Dropdown - moved next to title */}
-                <AspectRatioDropdown
-                  currentRatio={effectiveProject?.aspectRatio || '9:16'}
-                  onChange={handleAspectRatioChange}
-                  showLetterboxing={effectiveProject?.showLetterboxing || true}
-                  onToggleLetterboxing={(show) => handleToggleLetterboxing(show)}
-                  className="ml-4"
-                />
-              </div>
-              
-              <div className="flex flex-col items-end">
-                <button
-                  onClick={handleManualSave}
-                  className="flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm"
-                  disabled={isSaving}
-                  data-testid="save-project-button"
-                >
-                  <SaveIcon className="h-4 w-4 mr-1" />
-                  Save
-                </button>
-                <SaveStatusIndicator isSaving={isSaving} lastSaved={lastSaved} />
-              </div>
-            </div>
-
-            {/* API status warning */}
-            {apiStatus.isChecked && !apiStatus.isAvailable && (
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-                <div className="flex">
-                  <AlertIcon className="h-5 w-5 text-yellow-400 mr-2 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-yellow-700">
-                      The Auto Shorts API is currently unavailable. You can still create and edit
-                      projects, but you won&apos;t be able to process videos until the API is back
-                      online.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Apply max-width and centering to Add URL form section */}
-            <div className="mb-8 bg-white p-6 rounded-lg shadow max-w-3xl mx-auto">
+            <div className="mb-8 bg-white p-6 rounded-lg shadow">
               <h2 className="text-xl font-semibold mb-4">Add Content</h2>
 
               <div className="mb-4">

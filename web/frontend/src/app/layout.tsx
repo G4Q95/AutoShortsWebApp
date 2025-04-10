@@ -8,6 +8,7 @@ import { AudioProvider } from '@/contexts/AudioContext';
 import { VoiceProvider } from '@/contexts/VoiceContext';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import MediaDownloadProvider from '@/contexts/MediaDownloadProvider';
+import { ProjectProvider } from '@/components/project/ProjectProvider';
 // import dynamic from 'next/dynamic';
 
 // No need for dynamic import with our simplified ErrorBoundary
@@ -35,10 +36,12 @@ export default function RootLayout({
           <AudioProvider>
             <VoiceProvider>
               <MediaDownloadProvider>
-                <Header />
-                <main className="flex-grow px-4 py-8">{children}</main>
-                <Footer />
-                <EnvironmentValidator />
+                <ProjectProvider>
+                  <Header />
+                  <main className="flex-grow px-4 py-8">{children}</main>
+                  <Footer />
+                  <EnvironmentValidator />
+                </ProjectProvider>
               </MediaDownloadProvider>
             </VoiceProvider>
           </AudioProvider>

@@ -173,9 +173,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   return (
     <div key={`project-${project.id}`}>
       <ErrorBoundary>
-        <ProjectProvider>
-          <ProjectWorkspace projectId={project.id} preloadedProject={project} />
-        </ProjectProvider>
+        <ProjectWorkspace projectId={project.id} preloadedProject={project} />
       </ErrorBoundary>
     </div>
   );
