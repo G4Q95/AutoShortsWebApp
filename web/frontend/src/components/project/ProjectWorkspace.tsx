@@ -238,46 +238,53 @@ export default function ProjectWorkspace({
     setMode
   ]);
 
-  // Use either preloaded project, local state, or context project
   const effectiveProject = localProject || currentProject;
 
   /**
-   * Effect: Project Synchronization
-   * Ensures the effective project (local or preloaded) is synchronized with the current project in context.
-   * - Syncs project state between local and context
-   * - Handles project loading when needed
-   * - Manages project ID consistency
-   * 
-   * Dependencies: [effectiveProject, currentProject, setCurrentProject, projectId, loadProject]
+   * Effect: Project Synchronization (Revised for Stability)
+   * Ensures the correct project is loaded into context primarily based on projectId prop.
+   * Runs mainly on initial mount or if the targeted projectId changes.
+   *
+   * Dependencies: [projectId, currentProject, loadProject, setCurrentProject]
    */
   useEffect(() => {
-    if (effectiveProject && setCurrentProject && 
-        (!currentProject || currentProject.id !== effectiveProject.id)) {
-      console.log(`Synchronizing effectiveProject as currentProject: ${effectiveProject.id}`);
-      
-      // If we're setting a project that doesn't exist in context yet, we may need to load it
-      if (projectId && loadProject && 
-          (!currentProject || currentProject.id !== projectId)) {
-        console.log(`Project ${projectId} needs to be loaded before setting as current`);
-        loadProject(projectId)
-          .then(() => {
-            console.log(`Successfully loaded project ${projectId} during sync`);
-          })
-          .catch(err => {
-            console.error(`Error loading project during sync: ${err}`);
-          });
-        return;
+    // If we have a target projectId and it's not the current one in context,
+    // attempt to load/set it.
+    if (projectId && (!currentProject || currentProject.id !== projectId) && loadProject && setCurrentProject) {
+      // Check if the project exists in local state first to avoid unnecessary loading
+      if (localProject && localProject.id === projectId) {
+          console.log(`[Sync Effect] Project ${projectId} found in local state, setting as current.`);
+          setCurrentProject(projectId);
+      } else {
+         // Not in local state, attempt to load from storage
+         console.log(`[Sync Effect] Project ${projectId} not current/local, attempting load.`);
+         // Add guard against re-triggering load if already loading
+         if (!projectLoadingRef.current) {
+            projectLoadingRef.current = true;
+            loadProject(projectId)
+              .then(() => {
+                console.log(`[Sync Effect] Successfully loaded ${projectId}`);
+                // loadProject should dispatch SET_CURRENT_PROJECT
+              })
+              .catch(err => {
+                console.error(`[Sync Effect] Error loading project ${projectId}: ${err}`);
+                setError(`Failed sync load: ${err instanceof Error ? err.message : 'Unknown error'}`)
+              })
+              .finally(() => {
+                   projectLoadingRef.current = false;
+              });
+         }
       }
-      
-      setCurrentProject(effectiveProject.id);
     }
-  }, [effectiveProject, currentProject, setCurrentProject, projectId, loadProject]);
+    // This effect should primarily react to the projectId prop changing,
+    // or the context's currentProject initially not matching the desired projectId.
+  }, [projectId, currentProject, loadProject, setCurrentProject, localProject, setError]); // Keep localProject here to potentially set from it
 
   /**
    * Effect: Local Project State Update
    * Updates the local project state whenever the current project in context changes.
    * Ensures local state reflects the latest project data.
-   * 
+   *
    * Dependencies: [currentProject]
    */
   useEffect(() => {
