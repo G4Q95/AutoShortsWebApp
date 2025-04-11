@@ -15,6 +15,7 @@ from pydantic import ValidationError as PydanticValidationError
 from typing import Dict, Any, List, Union
 
 from app.api import ai, content, projects, users, video_creation, videos, voice, media
+from app.api.endpoints.project_operations import project_router
 from app.core.config import settings
 from app.core.database import init_db, close_db, db, MongoJSONResponse
 from app.core.errors import create_error_response, ErrorCodes
@@ -231,7 +232,7 @@ app.include_router(videos.router, prefix=settings.API_V1_STR)
 app.include_router(content.router, prefix=settings.API_V1_STR)
 app.include_router(ai.router, prefix=settings.API_V1_STR)
 app.include_router(video_creation.router, prefix=settings.API_V1_STR)
-app.include_router(projects.router, prefix=settings.API_V1_STR)
+app.include_router(project_router, prefix=settings.API_V1_STR)
 app.include_router(voice.router, prefix=settings.API_V1_STR)
 
 # Import API routers
