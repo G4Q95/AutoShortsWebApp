@@ -169,3 +169,38 @@ We will move endpoints *one by one*, performing rigorous testing after each step
 
 ## Progress Tracking
 Update checkboxes `[ ]` to `[x]` as steps are completed.
+
+## Failed Refactoring Approaches - Documentation
+
+To avoid repeating the same mistakes, here's a record of approaches that did not work:
+
+### Attempt 1: Direct Router Migration
+- **Approach**: Moved scene_operations.py with its own router, registered in main.py with API_V1_STR prefix.
+- **Issue**: Path prefixes didn't match frontend expectations. Scene operations weren't accessible at the expected paths.
+- **Lesson**: Router prefixes are critical. The scene router needs to be registered with `/api/v1/projects` prefix, not just `/api/v1`.
+
+### Attempt 2: URL Path Restructuring
+- **Approach**: Created scene_operations.py routes with paths like `/{project_id}/scenes/{scene_id}` and registered with `/api/v1/projects` prefix.
+- **Issue**: Scene retrieval wasn't working properly. The frontend couldn't display scenes beyond the first one.
+- **Lesson**: Endpoint paths must exactly match what the frontend expects, including how parameters are defined and extracted.
+
+### Attempt 3: Scene Retrieval Focus
+- **Approach**: Added a specific GET endpoint for scene retrieval, implemented onClick handlers in SceneComponent to fetch scene data.
+- **Issue**: Scene data was fetched but not properly integrated into the UI state management system.
+- **Lesson**: The way scene data is managed in the frontend is complex - simply fetching the data isn't enough. The project context and scene display need careful coordination.
+
+### Key Takeaways for Future Refactoring
+1. **Endpoint Paths**: Must match exactly what frontend expects - prefixes, parameters, structure
+2. **Router Registration**: Scene router must use `/api/v1/projects` prefix to maintain compatibility
+3. **State Management**: Frontend state handling for scenes requires careful coordination with API responses
+4. **Test Every Step**: After each small change, test multiple scene operations (create, view different scenes, update, delete)
+5. **Incremental Approach**: Move only one endpoint at a time, test fully before proceeding
+6. **Service Layer**: Leverage the service layer (ProjectsService) wherever possible rather than reimplementing logic
+7. **Error Handling**: Maintain consistent error response patterns between original and refactored code
+
+## Revised Approach Recommendation
+For the next attempt, consider creating a new branch and making the changes using a true strangler pattern:
+1. Leave existing endpoints in place in projects.py
+2. Create new endpoints in scene_operations.py that call the same service methods
+3. Add a feature flag or A/B testing mechanism to gradually shift traffic to new endpoints
+4. Only remove original endpoints after new ones are fully validated in production
