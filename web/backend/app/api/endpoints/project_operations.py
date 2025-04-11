@@ -596,4 +596,82 @@ async def delete_project(project_id: str, background_tasks: BackgroundTasks):
         
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+# --- Endpoint 2.4: GET /projects ---
+@project_router.get("/projects", response_model=ApiResponse[List[ProjectResponse]])
+async def get_projects():
+    """
+    Retrieve all projects.
+    Returns a standardized response with the list of projects.
+    """
+    try:
+        logger.debug("Retrieving all projects...")
+        if not db.is_mock:
+            try:
+                # Get database reference
+                mongo_db = db.get_db()
+                logger.debug(f"Using database: {db.db_name}")
+
+                # Get projects
+                cursor = mongo_db.projects.find()
+                projects_list = await cursor.to_list(length=100)
+
+                logger.debug(f"Found {len(projects_list)} projects")
+
+                # Process the projects for the response
+                formatted_projects = []
+                for project in projects_list:
+                    # Create a clean project dictionary
+                    processed_project = {
+                        "id": str(project.get("_id")),
+                        "title": project.get("title", ""),
+                        "description": project.get("description"),
+                        "user_id": project.get("user_id"),
+                        "scenes": project.get("scenes", []),
+                        "created_at": project.get("created_at") or project.get("createdAt"),
+                        "updated_at": project.get("updated_at") or project.get("created_at"),
+                    }
+                    formatted_projects.append(processed_project)
+
+                logger.debug("Returning projects list")
+                return ApiResponse(
+                    success=True,
+                    message="Projects retrieved successfully",
+                    data=formatted_projects
+                )
+            except Exception as e:
+                logger.error(f"Database error: {str(e)}")
+                logger.exception("Full traceback:")
+                error_response = create_error_response(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    message=f"Database error: {str(e)}",
+                    error_code=ErrorCodes.DATABASE_ERROR
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=error_response
+                )
+        else:
+            # Mock database response
+            return ApiResponse(
+                success=True,
+                message="Using mock database",
+                data=[]
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_response = create_error_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Unexpected error: {str(e)}",
+            error_code=ErrorCodes.INTERNAL_SERVER_ERROR
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response
+        )
+
+# --- Placeholder for next endpoint --- 
 # Other project endpoints will be added here 
+
+
+# --- End of File --- 

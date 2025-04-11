@@ -67,12 +67,12 @@ We will move endpoints *one by one*, performing rigorous testing after each step
     - [ ] **Test:** Restart backend. Perform Manual Browser Sanity Check (may require manually editing a title via UI if possible). Run Mock Playwright Tests. **After tests pass, comment out the original `update_project` function in `api/projects.py`**.
 
 *   **Endpoint 2.3: `DELETE /projects/{project_id}`**
-    - [ ] **Action:** Move the `delete_project` function logic. Decorate with `@project_router.delete("/projects/{project_id}", ...)`.
-    - [ ] **Test:** Restart backend. Perform Manual Browser Sanity Check (delete a test project). Run Mock Playwright Tests. **After tests pass, comment out the original `delete_project` function in `api/projects.py`**.
+    - [x] **Action:** Move the `delete_project` function logic. Decorate with `@project_router.delete("/projects/{project_id}", ...)`.
+    - [x] **Test:** Restart backend. Perform Manual Browser Sanity Check (delete a test project). Run Mock Playwright Tests. **After tests pass, comment out the original `delete_project` function in `api/projects.py`**.
 
 *   **Endpoint 2.4: `GET /projects`**
-    - [ ] **Action:** Move the `get_projects` function logic. Decorate with `@project_router.get("/projects", ...)`.
-    - [ ] **Test:** Restart backend. Perform Manual Browser Sanity Check (verify My Projects page loads). Run Mock Playwright Tests. **After tests pass, comment out the original `get_projects` function in `api/projects.py`**.
+    - [x] **Action:** Move the `get_projects` function logic. Decorate with `@project_router.get("/projects", ...)`.
+    - [x] **Test:** Restart backend. Perform Manual Browser Sanity Check (verify My Projects page loads). Run Mock Playwright Tests. **After tests pass, comment out the original `get_projects` function in `api/projects.py`**.
 
 *   **Endpoint 2.5: `POST /projects`**
     - [ ] **Action:** Move the `create_project` function logic. Decorate with `@project_router.post("/projects", ...)`.
