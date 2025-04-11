@@ -12,6 +12,7 @@ This guide outlines the standards and best practices for documenting the Auto Sh
 6. [Example Best Practices](#example-best-practices)
 7. [Maintaining Documentation](#maintaining-documentation)
 8. [Testing Documentation](#testing-documentation)
+9. [API Organization](#api-organization)
 
 ## API Documentation Overview
 
@@ -329,6 +330,98 @@ Before merging API changes:
 2. Verify all endpoints are properly documented
 3. Test example requests in the Swagger UI
 4. Check that response examples match actual responses
+
+## API Organization
+
+### Endpoint File Structure
+
+The Auto Shorts Web App API is organized using a modular structure to improve maintainability and separation of concerns:
+
+1. **Project Operations**: `web/backend/app/api/endpoints/project_operations.py`
+   - Handles project CRUD operations (create, read, update, delete)
+   - Includes project properties management
+   - Router prefix: `/projects`
+
+2. **Scene Operations**: `web/backend/app/api/endpoints/scene_operations.py`
+   - Manages scene-related operations (add, update, delete, reorder)
+   - Handles scene media and text content
+   - Includes scene trim functionality
+   - Router prefix: `/projects/{project_id}/scenes`
+
+3. **Media Operations**: `web/backend/app/api/endpoints/media_operations.py`
+   - Handles media storage, retrieval, and processing
+   - Manages media uploads and formats
+   - Router prefix: `/media`
+
+4. **Generation Operations**: `web/backend/app/api/endpoints/generation_operations.py`
+   - Controls video generation processes
+   - Manages processing tasks and status updates
+   - Router prefix: `/projects/{project_id}/process`
+
+5. **Core API Configuration**: `web/backend/app/api/projects.py`
+   - Contains shared models and background tasks
+   - Houses process monitoring functions
+   - Includes any debug endpoints
+
+### Implementing New Endpoints
+
+When creating new endpoints:
+
+1. **Identify the Appropriate Module**:
+   - Determine which endpoint file the new endpoint belongs in based on its functionality
+   - Follow the existing patterns for route prefixes
+
+2. **Route Declaration**:
+   - Use the appropriate router instance for the module
+   - Maintain consistent path structures (e.g., `/projects/{project_id}/scenes/{scene_id}`)
+
+3. **Function Organization**:
+   - Group related functions within the same file
+   - Consider moving shared utilities to appropriate service modules
+
+4. **Documentation Requirements**:
+   - Document the endpoint following the guidelines in this document
+   - Add examples that match the real implementation
+   - Include all possible response codes
+
+Example of a properly structured endpoint in a module file:
+
+```python
+# In web/backend/app/api/endpoints/project_operations.py
+
+@project_router.get(
+    "/projects/{project_id}",
+    response_model=ApiResponse[ProjectResponse],
+    summary="Get project details",
+    description="Retrieves the details of a specific project by ID.",
+    responses={
+        200: {"description": "Project details retrieved successfully"},
+        404: {"description": "Project not found"}
+    },
+    tags=["Projects"]
+)
+async def get_project(
+    project_id: str,
+    current_user: User = Depends(get_current_user)
+) -> ApiResponse[ProjectResponse]:
+    """
+    Get details of a specific project.
+    
+    Retrieves the complete project information including all scenes
+    and their associated media.
+    
+    Args:
+        project_id: The ID of the project to retrieve
+        current_user: The authenticated user making the request
+        
+    Returns:
+        Project details with scenes and media
+        
+    Raises:
+        HTTPException 404: If the project is not found
+    """
+    # Implementation...
+```
 
 ## Common Issues and Solutions
 

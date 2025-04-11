@@ -11,6 +11,32 @@ This document provides an overview of the main API endpoints available in the Au
 
 All endpoints use the prefix `/api/v1/` to support future API versioning.
 
+## API Code Organization
+
+The API code has been organized into modular components for better maintainability:
+
+1. **Project Operations** (`web/backend/app/api/endpoints/project_operations.py`)
+   - Contains CRUD operations for projects
+   - Endpoints: `/api/v1/projects`
+
+2. **Scene Operations** (`web/backend/app/api/endpoints/scene_operations.py`)
+   - Manages scene-related functionality
+   - Endpoints: `/api/v1/projects/{project_id}/scenes`
+
+3. **Media Operations** (`web/backend/app/api/endpoints/media_operations.py`)
+   - Handles media uploads and processing
+   - Endpoints: `/api/v1/media`
+
+4. **Generation Operations** (`web/backend/app/api/endpoints/generation_operations.py`)
+   - Controls video generation processes
+   - Endpoints: `/api/v1/projects/{project_id}/process`
+
+5. **Core Configuration** (`web/backend/app/api/projects.py`)
+   - Contains shared models and background tasks
+   - Includes debug endpoints
+
+This organization improves code maintainability while maintaining the same API surface for clients.
+
 ## Health Checks
 
 ### Get API Health
@@ -323,188 +349,75 @@ All endpoints use the prefix `/api/v1/` to support future API versioning.
 
 ### Delete Scene
 - **DELETE** `/api/v1/projects/{project_id}/scenes/{scene_id}`
-- Deletes a scene from a project
-- Example success response:
-  ```json
-  {
-    "success": true,
-    "message": "Scene deleted successfully",
-    "data": null,
-    "timestamp": "2023-03-12T11:50:45.123Z"
-  }
-  ```
-- Possible error codes:
-  - `resource_not_found` (404) - Project or scene not found
 
-### Reorder Scenes
-- **PUT** `/api/v1/projects/{project_id}/scenes/reorder`
-- Reorders the scenes in a project
-- Request body:
-  ```json
-  {
-    "scene_ids": [
-      "60f8b1a9c1d9a51234567893",
-      "60f8b1a9c1d9a51234567892",
-      "60f8b1a9c1d9a51234567894"
-    ]
-  }
-  ```
-- Example success response:
-  ```json
-  {
-    "success": true,
-    "message": "Scenes reordered successfully",
-    "data": {
-      "scenes": [
-        {
-          "scene_id": "60f8b1a9c1d9a51234567893",
-          "position": 0
-        },
-        {
-          "scene_id": "60f8b1a9c1d9a51234567892",
-          "position": 1
-        },
-        {
-          "scene_id": "60f8b1a9c1d9a51234567894",
-          "position": 2
-        }
-      ]
-    },
-    "timestamp": "2023-03-12T11:55:45.123Z"
-  }
-  ```
-- Possible error codes:
-  - `resource_not_found` (404) - Project or one of the scenes not found
-  - `validation_error` (422) - Invalid scene order or missing scenes
+## Error Responses
 
-## Video Processing
+All error responses follow this format:
 
-### Create Video from Project
-- **POST** `/api/v1/videos/create`
-- Creates a video from a project
-- Request body:
-  ```json
-  {
-    "project_id": "60f8b1a9c1d9a51234567890",
-    "title": "My Video",
-    "settings": {
-      "voice_id": "default",
-      "text_style": "engaging",
-      "transition_style": "fade",
-      "music_enabled": true
-    }
-  }
-  ```
-- Example success response:
-  ```json
-  {
-    "success": true,
-    "message": "Video creation started",
-    "data": {
-      "video_id": "60f8b1a9c1d9a51234567895",
-      "task_id": "60f8b1a9c1d9a51234567896",
-      "status": "processing",
-      "project_id": "60f8b1a9c1d9a51234567890",
-      "estimated_completion_time": "2023-03-12T12:30:45.123Z"
-    },
-    "timestamp": "2023-03-12T12:00:45.123Z"
-  }
-  ```
-- Possible error codes:
-  - `resource_not_found` (404) - Project not found
-  - `validation_error` (422) - Invalid settings
-  - `action_limit_reached` (429) - Video creation limit reached
+```json
+{
+  "success": false,
+  "message": "Error message explaining what went wrong",
+  "error": {
+    "code": "error_code",
+    "details": {}
+  },
+  "timestamp": "2023-03-12T13:10:45.123Z"
+}
+```
 
-### Get Video Status
-- **GET** `/api/v1/videos/{video_id}/status`
-- Gets the status of a video processing task
-- Example success response:
-  ```json
-  {
-    "success": true,
-    "message": "Video status retrieved successfully",
-    "data": {
-      "video_id": "60f8b1a9c1d9a51234567895",
-      "status": "processing",
-      "progress": 65,
-      "task_id": "60f8b1a9c1d9a51234567896",
-      "current_stage": "processing_scenes",
-      "stages_completed": ["extraction", "text_processing"],
-      "estimated_completion_time": "2023-03-12T12:30:45.123Z"
-    },
-    "timestamp": "2023-03-12T12:15:45.123Z"
-  }
-  ```
-- Possible error codes:
-  - `resource_not_found` (404) - Video not found
+Common error codes are:
+- `validation_error` (422) - Invalid input data
+- `authentication_required` (401) - User is not authenticated
+- `permission_denied` (403) - User does not have permission
+- `resource_not_found` (404) - Requested resource not found
+- `method_not_allowed` (405) - HTTP method not allowed for endpoint
+- `action_limit_reached` (429) - Rate limit or quota exceeded
+- `internal_server_error` (500) - Unexpected server error
 
-### Get Completed Video
-- **GET** `/api/v1/videos/{video_id}`
-- Gets information about a completed video
-- Example success response:
-  ```json
-  {
-    "success": true,
-    "message": "Video retrieved successfully",
-    "data": {
-      "video_id": "60f8b1a9c1d9a51234567895",
-      "title": "My Video",
-      "status": "completed",
-      "url": "https://example.com/videos/my-video.mp4",
-      "thumbnail_url": "https://example.com/thumbnails/my-video.jpg",
-      "duration": 45.5,
-      "resolution": "720p",
-      "file_size": 12500000,
-      "created_at": "2023-03-12T12:00:45.123Z",
-      "completed_at": "2023-03-12T12:30:45.123Z"
-    },
-    "timestamp": "2023-03-12T12:35:45.123Z"
-  }
-  ```
-- Possible error codes:
-  - `resource_not_found` (404) - Video not found
-  - `content_not_found` (404) - Video processing not completed yet
+## API Implementation Reference
 
-## Media Proxy
+This section provides a reference for developers who need to locate or modify specific API endpoints in the codebase.
 
-### Proxy Media Content
-- **GET** `/api/v1/proxy/{media_type}/{encoded_url}`
-- Proxies media content to avoid CORS issues
-- URL parameters:
-  - `media_type`: Type of media (image, video, gif)
-  - `encoded_url`: Base64-encoded URL of the media
-- Response: The media content with appropriate content type header
-- Possible error codes:
-  - `validation_error` (422) - Invalid media type or URL
-  - `content_not_found` (404) - Media not found
-  - `external_service_error` (500) - Error fetching media
+### Project Operations
+- **File**: `web/backend/app/api/endpoints/project_operations.py`
+- **Router**: `project_router`
+- **Endpoints**:
+  - `GET /api/v1/projects` - List all projects
+  - `POST /api/v1/projects` - Create new project
+  - `GET /api/v1/projects/{project_id}` - Get project details
+  - `PUT /api/v1/projects/{project_id}` - Update project
+  - `DELETE /api/v1/projects/{project_id}` - Delete project
 
-## Users and Authentication
+### Scene Operations
+- **File**: `web/backend/app/api/endpoints/scene_operations.py`
+- **Router**: `scene_router`
+- **Endpoints**:
+  - `POST /api/v1/projects/{project_id}/scenes` - Add scene
+  - `PUT /api/v1/projects/{project_id}/scenes/{scene_id}` - Update scene
+  - `DELETE /api/v1/projects/{project_id}/scenes/{scene_id}` - Delete scene
+  - `PUT /api/v1/projects/{project_id}/scenes/reorder` - Reorder scenes
+  - `PUT /api/v1/projects/{project_id}/scenes/{scene_id}/trim` - Update scene trim
 
-### Get Current User
-- **GET** `/api/v1/users/me`
-- Returns information about the currently authenticated user
-- Requires authentication
-- Example success response:
-  ```json
-  {
-    "success": true,
-    "message": "User retrieved successfully",
-    "data": {
-      "user_id": "60f8b1a9c1d9a51234567897",
-      "username": "exampleuser",
-      "email": "user@example.com",
-      "created_at": "2023-03-01T10:30:45.123Z",
-      "plan": "free",
-      "usage": {
-        "videos_created": 3,
-        "videos_limit": 5,
-        "storage_used": 45000000,
-        "storage_limit": 100000000
-      }
-    },
-    "timestamp": "2023-03-12T13:00:45.123Z"
-  }
-  ```
-- Possible error codes:
-  - `authentication_required` (401) - User is not authenticated 
+### Media Operations
+- **File**: `web/backend/app/api/endpoints/media_operations.py`
+- **Router**: `media_router`
+- **Endpoints**:
+  - `POST /api/v1/media/store` - Store media file
+  - `GET /api/v1/media/{media_id}` - Get media file
+  - `GET /api/v1/proxy/{media_type}/{encoded_url}` - Proxy media content
+
+### Generation Operations
+- **File**: `web/backend/app/api/endpoints/generation_operations.py`
+- **Router**: `generation_router`
+- **Endpoints**:
+  - `POST /api/v1/projects/{project_id}/process` - Start project processing
+  - `GET /api/v1/projects/{project_id}/process/{task_id}` - Get processing status
+
+### Core Configuration and Background Tasks
+- **File**: `web/backend/app/api/projects.py`
+- **Contains**:
+  - Background task processing function
+  - Debug endpoint for storage cleanup
+  - Shared models and task storage
+  - Custom JSON response handlers for MongoDB
