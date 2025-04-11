@@ -222,117 +222,119 @@ async def get_projects():
         )
 
 
-@router.get("/{project_id}", response_model=ApiResponse[ProjectResponse])
-async def get_project(project_id: str):
-    """
-    Retrieve a specific project by ID.
-    Returns a standardized response with the project data.
-    """
-    try:
-        if not db.is_mock:
-            mongo_db = db.get_db()
-            project = await mongo_db.projects.find_one({"_id": project_id})
-            
-            if not project:
-                error_response = create_error_response(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Project {project_id} not found",
-                    error_code=ErrorCodes.RESOURCE_NOT_FOUND
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_response
-                )
-            
-            # Format project for response
-            formatted_project = {
-                "id": str(project.get("_id")),
-                "title": project.get("title", ""),
-                "description": project.get("description"),
-                "user_id": project.get("user_id"),
-                "scenes": project.get("scenes", []),
-                "created_at": project.get("created_at") or project.get("createdAt"),
-                "updated_at": project.get("updated_at") or project.get("created_at"),
-            }
-            
-            return ApiResponse(
-                success=True,
-                message="Project retrieved successfully",
-                data=formatted_project
-            )
-        else:
-            # Mock response
-            return ApiResponse(
-                success=True,
-                message="Using mock database",
-                data={
-                    "id": project_id,
-                    "title": "Mock Project",
-                    "scenes": []
-                }
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_response = create_error_response(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            message=f"Failed to retrieve project: {str(e)}",
-            error_code=ErrorCodes.DATABASE_ERROR
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response
-        )
+# @router.get("/{project_id}", response_model=ApiResponse[ProjectResponse])
+# async def get_project(project_id: str):
+#     """
+#     Retrieve a specific project by ID.
+#     Returns a standardized response with the project data.
+#     """
+#     try:
+#         if not db.is_mock:
+#             mongo_db = db.get_db()
+#             project = await mongo_db.projects.find_one({"_id": project_id})
+#             
+#             if not project:
+#                 error_response = create_error_response(
+#                     status_code=status.HTTP_404_NOT_FOUND,
+#                     message=f"Project {project_id} not found",
+#                     error_code=ErrorCodes.RESOURCE_NOT_FOUND
+#                 )
+#                 raise HTTPException(
+#                     status_code=status.HTTP_404_NOT_FOUND,
+#                     detail=error_response
+#                 )
+#             
+#             # Format project for response
+#             formatted_project = {
+#                 "id": str(project.get("_id")),
+#                 "title": project.get("title", ""),
+#                 "description": project.get("description"),
+#                 "user_id": project.get("user_id"),
+#                 "scenes": project.get("scenes", []),
+#                 "created_at": project.get("created_at") or project.get("createdAt"),
+#                 "updated_at": project.get("updated_at") or project.get("created_at"),
+#             }
+#             
+#             return ApiResponse(
+#                 success=True,
+#                 message="Project retrieved successfully",
+#                 data=formatted_project
+#             )
+#         else:
+#             # Mock response
+#             return ApiResponse(
+#                 success=True,
+#                 message="Using mock database",
+#                 data={
+#                     "id": project_id,
+#                     "title": "Mock Project",
+#                     "scenes": []
+#                 }
+#             )
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         error_response = create_error_response(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             message=f"Failed to retrieve project: {str(e)}",
+#             error_code=ErrorCodes.DATABASE_ERROR
+#         )
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=error_response
+#         )
+# # TODO: Remove after verification
 
 
-@router.put("/{project_id}", response_model=ProjectResponse)
-async def update_project(project_id: str, project_update: ProjectCreate = Body(...)):
-    """
-    Update a project by ID.
-    """
-    try:
-        obj_id = ObjectId(project_id)
-    except InvalidId:
-        raise HTTPException(status_code=400, detail="Invalid project ID format")
-
-    update_data = project_update.model_dump(exclude_unset=True)
-    update_data["updated_at"] = datetime.utcnow()
-
-    if not db.is_mock:
-        result = await db.client[db.db_name].projects.update_one(
-            {"_id": obj_id}, {"$set": update_data}
-        )
-
-        if result.modified_count == 0:
-            raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
-
-        # Retrieve updated project
-        updated_project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
-        if updated_project:
-            updated_project["id"] = str(updated_project["_id"])
-
-            # Handle different field names for timestamps
-            if "createdAt" in updated_project and "created_at" not in updated_project:
-                updated_project["created_at"] = updated_project["createdAt"]
-
-            # Ensure all required fields exist
-            if "description" not in updated_project:
-                updated_project["description"] = None
-            if "user_id" not in updated_project:
-                updated_project["user_id"] = None
-            if "scenes" not in updated_project:
-                updated_project["scenes"] = []
-
-            return updated_project
-        raise HTTPException(status_code=404, detail=f"Project {project_id} not found after update")
-    else:
-        # Return mock data
-        return {
-            "id": project_id,
-            **update_data,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        }
+# @router.put("/{project_id}", response_model=ProjectResponse)
+# async def update_project(project_id: str, project_update: ProjectCreate = Body(...)):
+#     """
+#     Update a project by ID.
+#     """
+#     try:
+#         obj_id = ObjectId(project_id)
+#     except InvalidId:
+#         raise HTTPException(status_code=400, detail="Invalid project ID format")
+# 
+#     update_data = project_update.model_dump(exclude_unset=True)
+#     update_data["updated_at"] = datetime.utcnow()
+# 
+#     if not db.is_mock:
+#         result = await db.client[db.db_name].projects.update_one(
+#             {"_id": obj_id}, {"$set": update_data}
+#         )
+# 
+#         if result.modified_count == 0:
+#             raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+# 
+#         # Retrieve updated project
+#         updated_project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
+#         if updated_project:
+#             updated_project["id"] = str(updated_project["_id"])
+# 
+#             # Handle different field names for timestamps
+#             if "createdAt" in updated_project and "created_at" not in updated_project:
+#                 updated_project["created_at"] = updated_project["createdAt"]
+# 
+#             # Ensure all required fields exist
+#             if "description" not in updated_project:
+#                 updated_project["description"] = None
+#             if "user_id" not in updated_project:
+#                 updated_project["user_id"] = None
+#             if "scenes" not in updated_project:
+#                 updated_project["scenes"] = []
+# 
+#             return updated_project
+#         raise HTTPException(status_code=404, detail=f"Project {project_id} not found after update")
+#     else:
+#         # Return mock data
+#         return {
+#             "id": project_id,
+#             **update_data,
+#             "created_at": datetime.utcnow(),
+#             "updated_at": datetime.utcnow(),
+#         }
+# # TODO: Remove after verification
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
