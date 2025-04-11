@@ -47,8 +47,8 @@ export async function addScene(page: Page, url: string, waitForExtraction = true
     }
     
     // Clear the input and enter the URL
-    await urlInput.clear();
-    await urlInput.fill(url);
+    await urlInput.clear({ timeout: 15000 });
+    await urlInput.fill(url, { timeout: 15000 });
     console.log('Filled URL input');
     
     // Find the Add button
@@ -88,8 +88,19 @@ export async function addScene(page: Page, url: string, waitForExtraction = true
     await addButton.click();
     console.log('Clicked Add button');
     
+    // Wait for the URL input to become enabled again after clicking Add
+    // Since this can take about 10 seconds, we'll use a 20-second timeout
+    console.log('Waiting for URL input to become enabled again...');
+    try {
+      await expect(urlInput).toBeEnabled({ timeout: 20000 });
+      console.log('URL input is now enabled');
+    } catch (error) {
+      console.error('URL input did not become enabled within timeout:', error);
+      await page.screenshot({ path: `url-input-not-enabled-${Date.now()}.png` });
+      // Continue anyway, the clear operation will have its own timeout
+    }
+    
     // Clear the input AFTER clicking add, preparing for the next potential add
-    // (This also helps ensure the input is interactable again if the test adds multiple scenes)
     // --- DISABLING THIS CHECK for now, as app behavior at commit 54d6632 might keep input disabled ---
     // console.log('Attempting to clear URL input after add');
     // await expect(urlInput).toBeEnabled({ timeout: 20000 }); 

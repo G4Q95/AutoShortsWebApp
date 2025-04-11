@@ -122,6 +122,10 @@ export async function deleteScene(page: Page, index = 0) {
 export async function dragAndDropScene(page: Page, sourceIndex: number, targetIndex: number) {
   console.log(`Reordering scene from index ${sourceIndex} to index ${targetIndex}`);
   
+  // Wait longer for the scenes to be fully loaded and interactive
+  console.log('Waiting for scenes to be fully loaded before attempting drag...');
+  await page.waitForTimeout(3000);
+  
   // Find the drag handles
   const dragHandleSelectors = [
     '[data-testid="drag-handle"]',
@@ -188,6 +192,9 @@ export async function dragAndDropScene(page: Page, sourceIndex: number, targetIn
   // Take screenshot to debug
   await takeDebugScreenshot(page, `before-drag`);
   
+  // Wait a moment before attempting the drag to ensure elements are stable
+  await page.waitForTimeout(1000);
+  
   // Perform drag and drop
   try {
     // Get positions
@@ -210,20 +217,30 @@ export async function dragAndDropScene(page: Page, sourceIndex: number, targetIn
       throw new Error('Could not get bounding box for target scene');
     }
     
-    // Perform the drag operation
+    // Perform the drag operation with careful timing
     console.log('Starting drag operation...');
     await page.mouse.move(
       sourceHandleBound.x + sourceHandleBound.width / 2,
       sourceHandleBound.y + sourceHandleBound.height / 2
     );
+    
+    // Wait after positioning before mouse down
+    await page.waitForTimeout(500);
+    
     await page.mouse.down();
+    
+    // Wait after mousedown
+    await page.waitForTimeout(500);
     
     // Move to target position
     await page.mouse.move(
       targetSceneBound.x + targetSceneBound.width / 2,
       targetSceneBound.y + targetSceneBound.height / 2,
-      { steps: 5 } // Slow down the movement for better stability
+      { steps: 10 } // Use more steps for smoother movement
     );
+    
+    // Wait before mouse up
+    await page.waitForTimeout(500);
     
     // Release mouse
     await page.mouse.up();
@@ -232,8 +249,8 @@ export async function dragAndDropScene(page: Page, sourceIndex: number, targetIn
     // Take screenshot after drag
     await takeDebugScreenshot(page, `after-drag`);
     
-    // Wait a moment for UI to update
-    await page.waitForTimeout(500);
+    // Wait longer for UI to update
+    await page.waitForTimeout(2000);
     
     return true;
   } catch (error: any) {

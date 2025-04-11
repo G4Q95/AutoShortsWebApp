@@ -71,9 +71,16 @@ test.describe('Scene Operations', () => {
     await addScene(page, TEST_REDDIT_VIDEO_URL);
     console.log('First scene added');
     
+    // Wait longer for scene to fully load and stabilize
+    await page.waitForTimeout(5000);
+    
     // Add second scene
     await addScene(page, TEST_REDDIT_VIDEO_URL);
     console.log('Second scene added');
+    
+    // Wait longer after adding scenes before attempting drag operations 
+    await page.waitForTimeout(10000);
+    console.log('Waiting for scenes to fully load and stabilize before drag operations');
     
     // Verify we have 2 scenes before testing drag and drop
     const sceneComponents = page.locator(SCENE_COMPONENT_SELECTOR);

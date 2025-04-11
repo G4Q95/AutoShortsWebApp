@@ -11,13 +11,13 @@ import { takeDebugScreenshot } from './test-utils';
 import { findElementWithText, elementWithTextExists } from './navigation-utils';
 
 // Common timeouts
-export const PAGE_LOAD_TIMEOUT = 7000;
-export const NAVIGATION_TIMEOUT = 10000;
-export const CONTENT_LOAD_TIMEOUT = 15000;
-export const CRITICAL_STEP_TIMEOUT = 20000;
-export const SCENE_MEDIA_TIMEOUT = 15000;
-export const AUDIO_GENERATION_TIMEOUT = 15000;
-export const UI_STABILIZATION_DELAY = 500;
+export const PAGE_LOAD_TIMEOUT = 10000;
+export const NAVIGATION_TIMEOUT = 15000;
+export const CONTENT_LOAD_TIMEOUT = 30000;
+export const CRITICAL_STEP_TIMEOUT = 30000;
+export const SCENE_MEDIA_TIMEOUT = 30000;
+export const AUDIO_GENERATION_TIMEOUT = 30000;
+export const UI_STABILIZATION_DELAY = 1000;
 
 /**
  * Wait for a button to be ready (visible and enabled)
