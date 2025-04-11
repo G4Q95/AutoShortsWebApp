@@ -81,22 +81,21 @@ export default function Header() {
             <span className="text-xl font-bold text-gray-900" data-testid="app-title">Auto Shorts</span>
           </Link>
 
-          <div className="flex-1"></div>
-          
-          <div className="absolute left-1/2 top-1/2 transform -translate-y-1/2 -translate-x-[calc(50%+31px)]">
-            {isProjectPage && currentProject && (
+          {isProjectPage && currentProject ? (
+            <div className="ml-4 mr-4 flex-grow flex justify-center items-center">
               <input
                 type="text"
                 value={currentProject.title}
                 onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
-                className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 text-center"
+                className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 text-center max-w-[80%] md:max-w-[60%] truncate"
                 aria-label="Project title"
                 data-testid="project-title-header"
               />
-            )}
-            {!isProjectPage && <div className="w-px"></div>}
-          </div>
-
+            </div>
+          ) : (
+            <div className="flex-1"></div>
+          )}
+          
           <div className="flex items-center space-x-4 flex-shrink-0">
             {isProjectPage && currentProject && (
               <>
