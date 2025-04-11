@@ -16,6 +16,8 @@ from typing import Dict, Any, List, Union
 
 from app.api import ai, content, projects, users, video_creation, videos, voice, media
 from app.api.endpoints.project_operations import project_router
+from app.api.endpoints.scene_operations import scene_router
+from app.api.endpoints.generation_operations import generation_router
 from app.core.config import settings
 from app.core.database import init_db, close_db, db, MongoJSONResponse
 from app.core.errors import create_error_response, ErrorCodes
@@ -258,3 +260,17 @@ app.include_router(projects_router, prefix="/api/projects")
 app.include_router(videos.router, prefix="/api/videos")
 app.include_router(voice_router, prefix="/api/voice")
 app.include_router(media.router, prefix="/api")  # Media router with correct name
+
+# Include the scene router (currently just for specific scene ops like trim)
+app.include_router(scene_router, prefix="/api/v1/projects") # Prefix matches original /projects setup
+
+# Include the generation router
+app.include_router(generation_router, prefix=settings.API_V1_STR)
+
+# Include the original projects router AFTER to handle non-migrated endpoints
+# (This router is becoming less relevant as endpoints are moved)
+# app.include_router(projects_router, prefix="/api/v1/projects") # Commented out as project CRUD is moved
+
+# The routers below are redundant or legacy and conflict with the newer endpoint structure.
+# They will be removed as part of the refactoring.
+# from app.api.content import router as content_router
