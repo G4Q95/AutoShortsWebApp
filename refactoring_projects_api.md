@@ -131,12 +131,12 @@ We will move endpoints *one by one*, performing rigorous testing after each step
     - [ ] **Test:** Restart backend. Perform Manual Browser Sanity Check. Run Mock Playwright Tests.
 
 *   **Endpoint 5.1: `POST /projects/{project_id}/process` (Start Generation)**
-    - [ ] **Action:** Move the `process_project` function logic. Decorate with `@generation_router.post("/projects/{project_id}/process", ...)`.
-    - [ ] **Test:** Restart backend. Perform Manual Browser Sanity Check (click Generate Video). Run Mock Playwright Tests. **After tests pass, comment out the original `process_project` function in `api/projects.py`**.
+    - [x] **Action:** Move the `process_project` function logic. Decorate with `@generation_router.post("/projects/{project_id}/process", ...)`. (Includes moving models and task dict)
+    - [x] **Test:** Restart backend. Perform Manual Browser Sanity Check (click Generate Video). Run Mock Playwright Tests. **After tests pass, comment out the original `process_project` function in `api/projects.py`**. (Manual test passed, mock tests passed)
 
 *   **Endpoint 5.2: `GET /projects/{project_id}/process/{task_id}` (Get Status)**
-    - [ ] **Action:** Move the `get_project_processing_status` function logic. Decorate with `@generation_router.get("/projects/{project_id}/process/{task_id}", ...)`.
-    - [ ] **Test:** Restart backend. Manual check (verify status updates if possible). Run Mock Playwright Tests. **After tests pass, comment out the original `get_project_processing_status` function in `api/projects.py`**.
+    - [x] **Action:** Move the `get_project_processing_status` function logic. Decorate with `@generation_router.get("/projects/{project_id}/process/{task_id}", ...)`. Ensure it uses the shared `project_processing_tasks` dict from `generation_operations.py`.
+    - [x] **Test:** Restart backend. Manual check (verify status updates if possible). Run Mock Playwright Tests. **After tests pass, comment out the original `get_project_processing_status` function in `api/projects.py`**. (Mock tests passed)
 
 *   **(Optional) Endpoint 5.3: TTS Endpoint (If applicable)**
     - [ ] **Action:** Review `api/projects.py`. Was there a text-to-speech endpoint here? If yes, move it to `generation_operations.py`.

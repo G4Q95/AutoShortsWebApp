@@ -77,4 +77,62 @@ async def process_project(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response
+        )
+
+@generation_router.get("/projects/{project_id}/process/{task_id}", response_model=ApiResponse[Dict[str, Any]])
+async def get_project_processing_status(project_id: str, task_id: str):
+    """
+    Get the status of a project processing task.
+    Returns a standardized response with the task status.
+    """
+    try:
+        if task_id not in project_processing_tasks:
+            error_response = create_error_response(
+                status_code=status.HTTP_404_NOT_FOUND,
+                message="Task not found",
+                error_code=ErrorCodes.RESOURCE_NOT_FOUND
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_response
+            )
+
+        task_info = project_processing_tasks[task_id]
+
+        # Check if the task is for the requested project
+        if task_info["project_id"] != project_id:
+            error_response = create_error_response(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message="Task ID does not match project ID",
+                error_code=ErrorCodes.VALIDATION_ERROR
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_response
+            )
+
+        return ApiResponse(
+            success=True,
+            message="Task status retrieved successfully",
+            data={
+                "task_id": task_id,
+                "status": task_info["status"],
+                "project_id": project_id,
+                "video_id": task_info.get("video_id"),
+                "storage_url": task_info.get("storage_url"),
+                "error": task_info.get("error")
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving task status for {project_id}/{task_id}: {e}", exc_info=True)
+        error_response = create_error_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to retrieve task status: {str(e)}",
+            error_code=ErrorCodes.INTERNAL_SERVER_ERROR
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response
         ) 
