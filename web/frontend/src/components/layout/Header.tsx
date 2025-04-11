@@ -152,13 +152,13 @@ export default function Header() {
             {isProjectPage && currentProject && (
               useCenteredLayout ? (
                 // Centered absolutely in the header
-                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-[500px] px-4">
                   <input
                     ref={titleInputRef}
                     type="text"
                     value={currentProject.title}
                     onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
-                    className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 text-center truncate max-w-[400px]"
+                    className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 text-center truncate w-full max-w-[400px] sm:max-w-[300px] md:max-w-[350px] lg:max-w-[400px] xl:max-w-[500px]"
                     aria-label="Project title"
                     data-testid="project-title-header-centered"
                   />
@@ -170,7 +170,7 @@ export default function Header() {
                   type="text"
                   value={currentProject.title}
                   onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
-                  className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 mr-4 text-gray-800 truncate max-w-[200px]"
+                  className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 mr-4 text-gray-800 truncate max-w-[200px] sm:max-w-[150px] md:max-w-[180px] lg:max-w-[200px] xl:max-w-[250px]"
                   aria-label="Project title"
                   data-testid="project-title-header-flow"
                 />
