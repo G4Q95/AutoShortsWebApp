@@ -82,16 +82,31 @@ export default function Header() {
           </Link>
 
           {isProjectPage && currentProject ? (
-            <div className="ml-4 mr-4 flex-grow flex justify-center items-center">
-              <input
-                type="text"
-                value={currentProject.title}
-                onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
-                className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 text-center max-w-[80%] md:max-w-[60%] truncate"
-                aria-label="Project title"
-                data-testid="project-title-header"
-              />
-            </div>
+            <>
+              <div className="hidden lg:block absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <input
+                  type="text"
+                  value={currentProject.title}
+                  onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
+                  className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 text-center truncate max-w-[400px]"
+                  aria-label="Project title"
+                  data-testid="project-title-header-lg"
+                />
+              </div>
+              
+              <div className="lg:hidden ml-4 mr-4 flex-grow flex justify-start items-center">
+                <input
+                  type="text"
+                  value={currentProject.title}
+                  onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
+                  className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 truncate max-w-[200px]"
+                  aria-label="Project title"
+                  data-testid="project-title-header-sm"
+                />
+              </div>
+              
+              <div className="flex-1"></div>
+            </>
           ) : (
             <div className="flex-1"></div>
           )}
