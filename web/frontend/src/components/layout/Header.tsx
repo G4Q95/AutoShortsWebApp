@@ -7,6 +7,7 @@ import { useProject } from '@/components/project/ProjectProvider'; // Added impo
 import AspectRatioDropdown from '@/components/ui/AspectRatioDropdown'; // Added import
 import SaveStatusIndicator from '@/components/project/SaveStatusIndicator'; // Added import
 import { type AspectRatioOption } from '@/components/ui/AspectRatioIcon'; // Added import
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * Main application header component that provides navigation and branding.
@@ -49,8 +50,53 @@ export default function Header() {
     lastSaved,
     saveCurrentProject,
   } = useProject();
-
+  
+  // Refs for measuring element widths
+  const headerContainerRef = useRef<HTMLDivElement>(null);
+  const logoRef = useRef<HTMLAnchorElement>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const [useCenteredLayout, setUseCenteredLayout] = useState(true);
+  
   const isProjectPage = pathname?.startsWith('/projects/') && pathname.split('/').length === 3;
+
+  // Function to check available space and determine layout
+  const checkSpaceAndUpdateLayout = () => {
+    if (!isProjectPage || !headerContainerRef.current || !logoRef.current || !controlsRef.current) return;
+    
+    const headerWidth = headerContainerRef.current.offsetWidth;
+    const logoWidth = logoRef.current.offsetWidth;
+    const controlsWidth = controlsRef.current.offsetWidth;
+    
+    // Calculate the space available for the title
+    // Use a larger buffer (200px) to account for any elements that might not be properly measured
+    const availableSpace = headerWidth - logoWidth - controlsWidth - 200;
+    
+    // More aggressive threshold (400px) to switch layouts earlier
+    setUseCenteredLayout(availableSpace >= 400);
+    
+    // Force an immediate check on mount and when dimensions change
+    console.log('Header layout check:', { 
+      headerWidth, 
+      logoWidth, 
+      controlsWidth, 
+      availableSpace, 
+      useCenteredLayout: availableSpace >= 400 
+    });
+  };
+  
+  // Add resize listener
+  useEffect(() => {
+    if (!isProjectPage) return;
+    
+    checkSpaceAndUpdateLayout();
+    
+    const handleResize = () => {
+      checkSpaceAndUpdateLayout();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isProjectPage, currentProject]);
 
   const handleManualSave = () => {
     if (saveCurrentProject) {
@@ -75,35 +121,46 @@ export default function Header() {
   return (
     <header className="bg-white border-b border-gray-200" data-testid="main-header">
       <div className="px-4 py-4 relative">
-        <div className="flex items-center space-x-4">
-          <Link href="/" className="flex items-center space-x-2 flex-shrink-0" data-testid="home-link">
+        <div className="flex items-center space-x-4" ref={headerContainerRef}>
+          <Link 
+            href="/" 
+            className="flex items-center space-x-2 flex-shrink-0" 
+            data-testid="home-link"
+            ref={logoRef}
+          >
             <VideoIcon className="h-8 w-8 text-blue-600" data-testid="app-logo" />
             <span className="text-xl font-bold text-gray-900" data-testid="app-title">Auto Shorts</span>
           </Link>
 
           {isProjectPage && currentProject ? (
             <>
-              <div className="hidden lg:block absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <input
-                  type="text"
-                  value={currentProject.title}
-                  onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
-                  className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 text-center truncate max-w-[400px]"
-                  aria-label="Project title"
-                  data-testid="project-title-header-lg"
-                />
-              </div>
+              {/* Centered title for larger screens with sufficient space */}
+              {useCenteredLayout && (
+                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                  <input
+                    type="text"
+                    value={currentProject.title}
+                    onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
+                    className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 text-center truncate max-w-[400px]"
+                    aria-label="Project title"
+                    data-testid="project-title-header-centered"
+                  />
+                </div>
+              )}
               
-              <div className="lg:hidden ml-4 mr-4 flex-grow flex justify-start items-center">
-                <input
-                  type="text"
-                  value={currentProject.title}
-                  onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
-                  className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 truncate max-w-[200px]"
-                  aria-label="Project title"
-                  data-testid="project-title-header-sm"
-                />
-              </div>
+              {/* Left-aligned title for smaller screens or when space is limited */}
+              {!useCenteredLayout && (
+                <div className="ml-4 mr-4 flex-grow flex justify-start items-center">
+                  <input
+                    type="text"
+                    value={currentProject.title}
+                    onChange={(e) => setProjectTitle && setProjectTitle(e.target.value)}
+                    className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-gray-800 truncate max-w-[200px]"
+                    aria-label="Project title"
+                    data-testid="project-title-header-responsive"
+                  />
+                </div>
+              )}
               
               <div className="flex-1"></div>
             </>
@@ -111,7 +168,7 @@ export default function Header() {
             <div className="flex-1"></div>
           )}
           
-          <div className="flex items-center space-x-4 flex-shrink-0">
+          <div className="flex items-center space-x-4 flex-shrink-0" ref={controlsRef}>
             {isProjectPage && currentProject && (
               <>
                 <AspectRatioDropdown
