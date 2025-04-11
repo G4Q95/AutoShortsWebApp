@@ -858,114 +858,60 @@ project_processing_tasks = {}
 #         return results
 
 
-@router.post("/{project_id}/process", response_model=ApiResponse[Dict[str, Any]])
-async def process_project(
-    project_id: str,
-    request: ProcessProjectRequest,
-    background_tasks: BackgroundTasks
-):
-    """
-    Start processing a project into a video.
-    Returns a standardized response with the processing task details.
-    """
-    try:
-        # Generate a task ID
-        task_id = str(uuid.uuid4())
-        
-        # Initialize task info
-        project_processing_tasks[task_id] = {
-            "project_id": project_id,
-            "status": "queued",
-            "mode": request.mode
-        }
-        
-        # Add processing task to background tasks
-        background_tasks.add_task(
-            process_project_video,
-            project_id,
-            task_id,
-            project_processing_tasks,
-            mode=request.mode
-        )
-        
-        return ApiResponse(
-            success=True,
-            message="Project processing started",
-            data={
-                "task_id": task_id,
-                "status": "queued",
-                "project_id": project_id
-            }
-        )
-    except Exception as e:
-        error_response = create_error_response(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            message=f"Failed to start project processing: {str(e)}",
-            error_code=ErrorCodes.ACTION_FAILED
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response
-        )
-
-
-# TODO: Remove after verification
-# @router.get("/{project_id}/process/{task_id}", response_model=ApiResponse[Dict[str, Any]])
-# async def get_project_processing_status(project_id: str, task_id: str):
+# @router.post("/{project_id}/process", response_model=ApiResponse[Dict[str, Any]])
+# async def process_project(
+#     project_id: str,
+#     request: ProcessProjectRequest,
+#     background_tasks: BackgroundTasks
+# ):
 #     """
-#     Get the status of a project processing task.
-#     Returns a standardized response with the task status.
+#     Start processing a project into a video.
+#     Returns a standardized response with the processing task details.
 #     """
 #     try:
-#         if task_id not in project_processing_tasks:
-#             error_response = create_error_response(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 message="Task not found",
-#                 error_code=ErrorCodes.RESOURCE_NOT_FOUND
-#             )
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail=error_response
-#             )
-# 
-#         task_info = project_processing_tasks[task_id]
-# 
-#         # Check if the task is for the requested project
-#         if task_info["project_id"] != project_id:
-#             error_response = create_error_response(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 message="Task ID does not match project ID",
-#                 error_code=ErrorCodes.VALIDATION_ERROR
-#             )
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail=error_response
-#             )
-# 
+#         # Generate a task ID
+#         task_id = str(uuid.uuid4())
+#         
+#         # Initialize task info
+#         project_processing_tasks[task_id] = {
+#             "project_id": project_id,
+#             "status": "queued",
+#             "mode": request.mode
+#         }
+#         
+#         # Add processing task to background tasks
+#         background_tasks.add_task(
+#             process_project_video,
+#             project_id,
+#             task_id,
+#             project_processing_tasks,
+#             mode=request.mode
+#         )
+#         
 #         return ApiResponse(
 #             success=True,
-#             message="Task status retrieved successfully",
+#             message="Project processing started",
 #             data={
 #                 "task_id": task_id,
-#                 "status": task_info["status"],
-#                 "project_id": project_id,
-#                 "video_id": task_info.get("video_id"),
-#                 "storage_url": task_info.get("storage_url"),
-#                 "error": task_info.get("error")
+#                 "status": "queued",
+#                 "project_id": project_id
 #             }
 #         )
-#     except HTTPException:
-#         raise
 #     except Exception as e:
 #         error_response = create_error_response(
 #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             message=f"Failed to retrieve task status: {str(e)}",
-#             error_code=ErrorCodes.INTERNAL_SERVER_ERROR
+#             message=f"Failed to start project processing: {str(e)}",
+#             error_code=ErrorCodes.ACTION_FAILED
 #         )
 #         raise HTTPException(
 #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
 #             detail=error_response
 #         )
+# # TODO: Remove after verification
+
+
+# TODO: Remove after verification
+# @router.get("/{project_id}/process/{task_id}", response_model=ApiResponse[Dict[str, Any]])
 
 
 async def process_project_background(task_id: str, project_id: str, mode: str):
