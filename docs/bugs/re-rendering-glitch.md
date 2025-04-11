@@ -66,9 +66,21 @@
 10. **Side Investigation (Reverted):** An attempt was made to simplify state management in `ProjectWorkspace.tsx` by removing `localProject` state. This inadvertently broke scene persistence and was reverted.
 
 ## Current Status
-- The specific project exhibiting the bug was deleted.
-- The potentially corrected `useSceneMedia.ts` hook remains in the codebase.
-- Monitoring needed to see if the issue reappears with other projects.
+- **Resolved**
+
+## Solution
+- The infinite loop was identified within the `ProjectWorkspace.tsx` component's state synchronization logic.
+- The initial `useEffect` hook responsible for ensuring the correct project was loaded into context was overly sensitive to state changes.
+- Every time the `currentProject` was updated in the context, it triggered an update to the `localProject` state, which in turn changed the `effectiveProject` variable used in the synchronization effect's dependencies.
+- This caused the synchronization effect to run again unnecessarily, leading to repeated calls to `loadProject` or `setCurrentProject` and creating an infinite re-render loop.
+
+- **Fix Applied:**
+  - The primary synchronization `useEffect` hook in `ProjectWorkspace.tsx` was modified:
+    - Conditions were changed to focus primarily on the `projectId` prop and whether the `currentProject` in context matches it.
+    - It now checks `localProject` state first before attempting to load from the context/API, preventing unnecessary loads.
+    - Added a ref (`projectLoadingRef`) to prevent concurrent `loadProject` calls.
+    - The dependency array was adjusted to be less sensitive to the rapidly changing `effectiveProject` reference.
+  - This change prevents the effect from triggering itself repeatedly, breaking the loop.
 
 ## Notes
 - This issue has been observed multiple times recently, potentially introduced during the backend refactoring or slightly earlier. 
