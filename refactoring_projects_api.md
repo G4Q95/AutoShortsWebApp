@@ -42,28 +42,27 @@ We'll split the existing monolithic file into multiple smaller files, each with 
 - [x] Ensure both legacy and versioned endpoints are supported
 
 ### Step 5: Extract Scene Operations
-- [ ] Move the following endpoints to `scene_operations.py`:
-  - [ ] POST /projects/{project_id}/scenes - Add a scene
-  - [ ] PUT /projects/{project_id}/scenes/{scene_id} - Update a scene
-  - [ ] DELETE /projects/{project_id}/scenes/{scene_id} - Delete a scene
-  - [ ] PUT /projects/{project_id}/scenes/reorder - Reorder scenes
+- [x] Move the following endpoints to `scene_operations.py`:
+  - [x] POST /projects/{project_id}/scenes - Add a scene
+  - [x] PUT /projects/{project_id}/scenes/{scene_id} - Update a scene
+  - [x] DELETE /projects/{project_id}/scenes/{scene_id} - Delete a scene
+  - [x] PUT /projects/{project_id}/scenes/reorder - Reorder scenes
 
 ### Step 6: Extract Media Operations
-- [ ] Move the following endpoints to `media_operations.py`:
-  - [ ] POST /projects/upload - Upload media
-  - [ ] GET /projects/media/{media_id} - Get media
-  - [ ] DELETE /projects/media/{media_id} - Delete media
+- [x] Create the following endpoints in `media_operations.py`:
+  - [x] POST /media/upload - Upload media
+  - [x] GET /media/{storage_key} - Get media
+  - [x] DELETE /media/{storage_key} - Delete media
 
 ### Step 7: Extract Generation Operations
-- [ ] Move the following endpoints to `generation_operations.py`:
-  - [ ] POST /projects/{project_id}/generate - Generate video
-  - [ ] GET /projects/{project_id}/generations/{generation_id} - Get generation
-  - [ ] POST /projects/{project_id}/scenes/{scene_id}/tts - Text-to-speech
+- [x] Move the following endpoints to `generation_operations.py`:
+  - [x] POST /generation/{project_id} - Generate video
+  - [x] GET /generation/{project_id}/{task_id} - Get generation status
 
 ### Step 8: Update Main Router
-- [ ] Update main.py to include all new routers
-- [ ] Ensure proper prefixes and dependencies are maintained
-- [ ] Consider removing or deprecating the original projects router
+- [x] Update main.py to include all new routers
+- [x] Ensure proper prefixes and dependencies are maintained
+- [x] Consider removing or deprecating the original projects router
 
 ### Step 9: Testing and Verification
 - [ ] Verify all endpoints work as expected

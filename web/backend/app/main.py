@@ -21,6 +21,9 @@ from app.core.errors import create_error_response, ErrorCodes
 from app.core.json_encoder import MongoJSONEncoder
 from app.core.middleware import ApiResponseMiddleware
 from app.api.endpoints.project_operations import project_router
+from app.api.endpoints.scene_operations import scene_router
+from app.api.endpoints.generation_operations import generation_router
+from app.api.endpoints.media_operations import media_router
 
 # Configure logging
 logging.basicConfig(
@@ -244,15 +247,19 @@ from app.api.media import router as media_router
 from app.api.debug import router as debug_router  # Add import for debug router
 from app.api.endpoints.project_operations import project_router as project_operations_router
 from app.api.endpoints.scene_operations import scene_router as scene_operations_router
+from app.api.endpoints.generation_operations import generation_router as generation_operations_router
+from app.api.endpoints.media_operations import media_router as media_operations_router
 
 # Include routers
 app.include_router(content_router, prefix="/api/v1/content")
 app.include_router(projects_router, prefix="/api/v1/projects")
 app.include_router(project_operations_router, prefix="/api/v1/projects-ops")
 app.include_router(scene_operations_router, prefix="/api/v1/scenes")
+app.include_router(generation_operations_router, prefix="/api/v1/generation")
+app.include_router(media_operations_router, prefix="/api/v1/media")
 app.include_router(voice_router, prefix="/api/v1/voice")
 app.include_router(test_router, prefix="/api/v1")
-app.include_router(media.router, prefix="/api/v1")  # Media router with correct name
+app.include_router(media.router, prefix="/api/v1")  # Legacy media router
 app.include_router(debug_router, prefix="/api/v1")  # Add debug router
 
 # Register API routers for legacy endpoints (deprecated, to be removed)
@@ -260,6 +267,8 @@ app.include_router(test_router, prefix="/api/test")
 app.include_router(content_router, prefix="/api/content")
 app.include_router(projects_router, prefix="/api/projects")
 app.include_router(project_operations_router, prefix="/api/projects-ops")
+app.include_router(generation_operations_router, prefix="/api/generation")
+app.include_router(media_operations_router, prefix="/api/media")
 app.include_router(videos.router, prefix="/api/videos")
 app.include_router(voice_router, prefix="/api/voice")
-app.include_router(media.router, prefix="/api")  # Media router with correct name
+app.include_router(media.router, prefix="/api")  # Legacy media router
