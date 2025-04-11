@@ -40,5 +40,35 @@
 - [ ] Investigate state management updates related to project/scene loading.
 - [ ] Compare the data of the affected project with a working project.
 
+## Investigation History (Session: YYYY-MM-DD)
+
+1.  **Initial Observation:** User reported extreme UI flickering, high CPU usage, and browser unresponsiveness when loading specific projects. Console logs showed thousands of messages/errors per second.
+2.  **Console Error Analysis:** Key errors identified:
+    *   `AbortError: signal is aborted without reason` in `api-client.ts`.
+    *   `SceneComponent ...: Error fetching stored audio: { ... status_code: 408, message: "Request timed out..."}`.
+3.  **Backend Check:** Initially suspected backend might not be running correctly. Confirmed backend container was started and running via Docker.
+4.  **Backend Log Analysis:** Checked `docker-compose logs backend`. Logs revealed the frontend was making **repeated** `GET /api/v1/voice/audio/{proj_id}/{scene_id}` requests in a loop. The backend consistently found no audio files in R2 for the requested scene but returned `200 OK`.
+5.  **Frontend Trace:** Searched frontend code for the `/api/v1/voice/audio/` call.
+    *   Identified the `getStoredAudio` function in `lib/api/voice.ts` (using `api-client.ts`).
+    *   Traced usages of `getStoredAudio`.
+    *   Focused on `hooks/scene/useSceneMedia.ts` as the most likely place for this logic within a `useEffect`.
+6.  **`useSceneMedia` Analysis:** Found a `useEffect` hook intended to check for stored media, but:
+    *   It was **missing the actual call** to `getStoredAudio`.
+    *   Its initial check and dependency array (`[mediaUrl, aspectRatio, ...]`) were potentially causing it to run unnecessarily or repeatedly.
+7.  **Hypothesis Refined:** The loop was likely an **implicit browser loop**. Unstable state/prop references (possibly originating from `localStorage` data for the specific project) caused the `audioSource` prop passed to the `<audio>` tag (likely within `SceneAudioControls`) to change reference constantly. The browser repeatedly cancelled the implicit fetch for the `<audio src>` (`AbortError`) and started anew. The flawed `useEffect` in `useSceneMedia` failed to correctly fetch the *actual* audio status from the backend to stabilize the state.
+8.  **Attempted Fix:** Modified the `useEffect` in `useSceneMedia.ts` to:
+    *   Correctly call `await getStoredAudio(currentProjectId, scene.id)`.
+    *   Handle the API response (checking `response.data.exists`, `response.data.url`).
+    *   Store the verified URL (or null) in local state (`audioUrlFromApi`).
+    *   Use a more stable dependency array (`[currentProjectId, scene.id, ...]`).
+    *   Return the verified URL (`finalMediaUrl`) from the hook.
+9.  **Outcome:** The problematic project data was deleted before the effectiveness of this fix could be fully confirmed.
+10. **Side Investigation (Reverted):** An attempt was made to simplify state management in `ProjectWorkspace.tsx` by removing `localProject` state. This inadvertently broke scene persistence and was reverted.
+
+## Current Status
+- The specific project exhibiting the bug was deleted.
+- The potentially corrected `useSceneMedia.ts` hook remains in the codebase.
+- Monitoring needed to see if the issue reappears with other projects.
+
 ## Notes
 - This issue has been observed multiple times recently, potentially introduced during the backend refactoring or slightly earlier. 
