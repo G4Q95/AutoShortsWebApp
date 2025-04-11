@@ -174,22 +174,19 @@ Update checkboxes `[ ]` to `[x]` as steps are completed.
 
 To avoid repeating the same mistakes, here's a record of approaches that did not work:
 
-### Attempt 1: Direct Router Migration
-- **Approach**: Moved scene_operations.py with its own router, registered in main.py with API_V1_STR prefix.
-- **Issue**: Path prefixes didn't match frontend expectations. Scene operations weren't accessible at the expected paths.
-- **Lesson**: Router prefixes are critical. The scene router needs to be registered with `/api/v1/projects` prefix, not just `/api/v1`.
+### All Previous Scene Refactoring Attempts Have Completely Failed
+- **Consistent Symptom**: After refactoring scene endpoints, the UI shows only empty white squares with scene numbers.
+- **Severity**: No scene content loads at all - not even a single scene renders properly.
+- **Consistency**: This same exact failure has occurred with every refactoring attempt.
 
-### Attempt 2: URL Path Restructuring
-- **Approach**: Created scene_operations.py routes with paths like `/{project_id}/scenes/{scene_id}` and registered with `/api/v1/projects` prefix.
-- **Issue**: Scene retrieval wasn't working properly. The frontend couldn't display scenes beyond the first one.
-- **Lesson**: Endpoint paths must exactly match what the frontend expects, including how parameters are defined and extracted.
+Initial approaches included:
+1. Direct Router Migration with `/api/v1` prefix
+2. URL Path Restructuring with `/api/v1/projects` prefix
+3. Scene Retrieval Focus with custom handlers
 
-### Attempt 3: Scene Retrieval Focus
-- **Approach**: Added a specific GET endpoint for scene retrieval, implemented onClick handlers in SceneComponent to fetch scene data.
-- **Issue**: Scene data was fetched but not properly integrated into the UI state management system.
-- **Lesson**: The way scene data is managed in the frontend is complex - simply fetching the data isn't enough. The project context and scene display need careful coordination.
+None of these approaches resulted in any scenes loading in the UI. In every case, the scene containers were empty white squares showing only the scene number.
 
-### Key Takeaways for Future Refactoring
+### Key Takeaways from Failed Attempts
 1. **Endpoint Paths**: Must match exactly what frontend expects - prefixes, parameters, structure
 2. **Router Registration**: Scene router must use `/api/v1/projects` prefix to maintain compatibility
 3. **State Management**: Frontend state handling for scenes requires careful coordination with API responses
@@ -197,6 +194,38 @@ To avoid repeating the same mistakes, here's a record of approaches that did not
 5. **Incremental Approach**: Move only one endpoint at a time, test fully before proceeding
 6. **Service Layer**: Leverage the service layer (ProjectsService) wherever possible rather than reimplementing logic
 7. **Error Handling**: Maintain consistent error response patterns between original and refactored code
+
+## Ultra-Incremental Approach for Scene Operations
+
+Due to the consistent failure of all previous attempts, we will adopt an ultra-incremental approach for scene operations:
+
+### 1. Diagnostic Phase
+- Add extensive logging to both frontend and backend to trace exactly how scene data flows
+- Create a "shadow implementation" that runs in parallel with the existing code but doesn't affect it
+- Implement monitoring to compare responses between original and new implementations
+
+### 2. Scaffolding Phase
+- Create the scene_router but don't register it yet
+- Add a feature flag system to control which implementation is used
+- Create exact mirror endpoints that just call through to the original implementation
+
+### 3. Ultra-Incremental Migration
+- Start with the least complex/critical scene endpoint 
+- Move just the route declaration but have it call the original function
+- Test extensively, then gradually replace the implementation
+- Use feature flags so we can instantly revert to original code
+
+### 4. Deep Inspection of Frontend State
+- Add detailed console logging in the frontend scene components
+- Track exactly how scene data is loaded and processed
+- Compare network requests between working and non-working implementations
+
+### 5. Testing Strategy
+- Create specific test cases that verify each scene operation separately
+- Document exact steps to reproduce and verify each test case
+- Establish clear success criteria for each test
+
+This approach prioritizes understanding exactly what's happening in the existing code before making changes, and provides multiple safety mechanisms to revert immediately if issues arise.
 
 ## Revised Approach Recommendation
 For the next attempt, consider creating a new branch and making the changes using a true strangler pattern:
