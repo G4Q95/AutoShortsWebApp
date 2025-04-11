@@ -150,6 +150,11 @@ We will move endpoints *one by one*, performing rigorous testing after each step
 - [ ] **Action:** Review `main.py` - ensure all routers (`project_router`, `scene_router`, `media_router` (if used), `generation_router`) are included with the correct `/api/v1` prefix.
 - [ ] **Action:** Review `api/projects.py` - all endpoint logic should now be moved and commented out (with `# TODO: Remove after verification` comments).
 - [ ] **Test:** Run Mock Playwright Tests.
+
+**-- PAUSED --**
+*   **Reason:** Addressing critical frontend re-rendering bug. See `docs/bugs/re-rendering-glitch.md`.
+*   **Next Step (Backend):** Resume Phase 6 testing (Full API tests, Manual checks) after frontend bug is resolved.
+
 - [ ] **Test:** Run Full API Playwright Tests.
 - [ ] **Test:** Perform comprehensive Manual Browser Sanity Checks covering all moved functionality.
 
