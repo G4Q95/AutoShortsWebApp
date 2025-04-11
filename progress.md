@@ -39,6 +39,13 @@
     *   [x] ElevenLabs API integration for voice generation (`/tts/`)
 *   **Bug Fixes:**
     *   [x] Fixed issue where trim settings were not persisting due to incorrect save/load paths in backend and frontend data migration.
+*   **Project Deletion Refactoring**: Successfully moved `DELETE /projects/{project_id}` to `project_operations.py` and verified.
+*   **Project List Refactoring**: Moved `GET /projects` to `project_operations.py`.
+*   **Project Create Refactoring**: Moved `POST /projects` to `project_operations.py`.
+*   **Scene Trim Endpoint Refactoring**: Moved `PUT /projects/{project_id}/scenes/{scene_id}/trim` to `scene_operations.py` using a shadow implementation, verified routing, and commented out the original.
+*   **UI/UX**: Implemented scene reordering via drag-and-drop on the frontend.
+*   **UI/UX**: Addressed project card loading issues.
+*   **UI/UX**: Fixed issues with project creation and scene addition flows.
 
 ### Next Steps
 

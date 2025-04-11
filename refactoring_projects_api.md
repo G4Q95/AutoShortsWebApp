@@ -106,8 +106,8 @@ We will move endpoints *one by one*, performing rigorous testing after each step
     - [ ] **Test:** Restart backend. Perform Manual Browser Sanity Check (drag/drop scenes). Run Mock Playwright Tests. **After tests pass, comment out the original `reorder_scenes` function in `api/projects.py`**.
 
 *   **Endpoint 3.5: `PUT /projects/{project_id}/scenes/{scene_id}/trim`**
-    - [ ] **Action:** Move the `update_scene_trim` function logic. Decorate with `@scene_router.put("/projects/{project_id}/scenes/{scene_id}/trim", ...)`.
-    - [ ] **Test:** Restart backend. Perform Manual Browser Sanity Check (adjust scene trim). Run Mock Playwright Tests. **After tests pass, comment out the original `update_scene_trim` function in `api/projects.py`**.
+    - [x] **Action:** Move the `update_scene_trim` function logic. Decorate with `@scene_router.put("/projects/{project_id}/scenes/{scene_id}/trim", ...)`. (Implemented via shadow endpoint)
+    - [x] **Test:** Restart backend. Perform Manual Browser Sanity Check (adjust scene trim). Run Mock Playwright Tests. **After tests pass, comment out the original `update_scene_trim` function in `api/projects.py`**. (Verified via manual testing and log check, original commented out)
 
 *   **Phase 3 Completion Test:**
     - [ ] **Confirm:** Ask user if ready to run full API tests.

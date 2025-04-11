@@ -1175,203 +1175,204 @@ class SceneTrimUpdateResponse(BaseModel):
     success: bool
 
 
-@router.put("/{project_id}/scenes/{scene_id}/trim", response_model=ApiResponse[SceneTrimUpdateResponse])
-async def update_scene_trim(
-    project_id: str,
-    scene_id: str,
-    trim_data: SceneTrimUpdateRequest
-):
-    """
-    Update the trim settings for a scene within a project.
-    
-    Args:
-        project_id: The ID of the project containing the scene
-        scene_id: The ID of the scene to update
-        trim_data: The new trim settings
-        
-    Returns:
-        An API response containing the updated scene trim data
-    """
-    logger.info(f"Updating trim for scene {scene_id} in project {project_id}: start={trim_data.trim_start}, end={trim_data.trim_end}")
-    
-    try:
-        if not db.is_mock:
-            mongo_db = db.get_db()
-            
-            # Validate input
-            try:
-                # Convert string IDs to ObjectId if they're in the correct format
-                if ObjectId.is_valid(project_id):
-                    project_obj_id = ObjectId(project_id)
-                else:
-                    # Use the string ID directly
-                    project_obj_id = project_id
-            except InvalidId:
-                project_obj_id = project_id
-            
-            # First, find the project to confirm it exists
-            project = await mongo_db.projects.find_one({"_id": project_obj_id})
-            
-            if not project:
-                error_response = create_error_response(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Project {project_id} not found",
-                    error_code=ErrorCodes.RESOURCE_NOT_FOUND
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_response
-                )
-            
-            # Find the scene in the project
-            scene_found = False
-            scene_index = None
-            
-            for i, scene in enumerate(project.get("scenes", [])):
-                if str(scene.get("_id", "")) == scene_id or str(scene.get("id", "")) == scene_id:
-                    scene_found = True
-                    scene_index = i
-                    break
-            
-            if not scene_found:
-                error_response = create_error_response(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Scene {scene_id} not found in project {project_id}",
-                    error_code=ErrorCodes.RESOURCE_NOT_FOUND
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_response
-                )
-            
-            # Update the scene trim data
-            # Construct the path for the media trim fields
-            update_fields = {
-                f"scenes.{scene_index}.media.trim.start": trim_data.trim_start,
-                f"scenes.{scene_index}.media.trim.end": trim_data.trim_end,
-                "updated_at": datetime.utcnow()
-            }
-
-            # Check if the media object exists, create if not
-            if "media" not in project["scenes"][scene_index]:
-                 project["scenes"][scene_index]["media"] = {}
-            
-            # Check if the trim object exists within media, create if not
-            if "trim" not in project["scenes"][scene_index]["media"]:
-                 project["scenes"][scene_index]["media"]["trim"] = {}
-
-            # Attempt update using arrayFilters for precise targeting (more robust than index)
-            update_result = await mongo_db.projects.update_one(
-                {"_id": project_obj_id},
-                {"$set": {
-                    "scenes.$[elem].media.trim.start": trim_data.trim_start,
-                    "scenes.$[elem].media.trim.end": trim_data.trim_end,
-                    "updated_at": datetime.utcnow()
-                }},
-                array_filters=[{"$or": [{"elem._id": scene_id}, {"elem.id": scene_id}]}]
-            )
-
-            if update_result.matched_count == 0 or update_result.modified_count == 0:
-                 # Fallback if arrayFilters fail or scene identifier is complex
-                 logger.warning(f"Could not update scene {scene_id} using arrayFilters, attempting direct array update via index.")
-                 scenes = project.get("scenes", [])
-                 if scene_index is not None and scene_index < len(scenes):
-                     # Ensure media and trim objects exist before setting values
-                     if "media" not in scenes[scene_index] or scenes[scene_index]["media"] is None:
-                         scenes[scene_index]["media"] = {}
-                     if "trim" not in scenes[scene_index]["media"] or scenes[scene_index]["media"]["trim"] is None:
-                         scenes[scene_index]["media"]["trim"] = {}
-                     
-                     scenes[scene_index]["media"]["trim"]["start"] = trim_data.trim_start
-                     scenes[scene_index]["media"]["trim"]["end"] = trim_data.trim_end
-                     
-                     # Update the whole scenes array
-                     update_result = await mongo_db.projects.update_one(
-                         {"_id": project_obj_id},
-                         {"$set": {
-                             "scenes": scenes,
-                             "updated_at": datetime.utcnow()
-                         }}
-                     )
-                 else:
-                      # Scene index not found, which shouldn't happen if initial check passed
-                      logger.error(f"Scene index {scene_index} invalid for project {project_id} during fallback update.")
-                      # Re-raise the original not found error if possible or a generic one
-                      error_response = create_error_response(
-                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                         message=f"Scene {scene_id} index error during update.",
-                         error_code=ErrorCodes.DATABASE_ERROR
-                     )
-                      raise HTTPException(
-                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                         detail=error_response
-                     )
-
-            # Get the updated project to return the current state
-            updated_project = await mongo_db.projects.find_one({"_id": project_obj_id})
-            
-            # Find the updated scene in the project
-            updated_scene = None
-            for scene in updated_project.get("scenes", []):
-                if str(scene.get("_id", "")) == scene_id or str(scene.get("id", "")) == scene_id:
-                    updated_scene = scene
-                    break
-            
-            if not updated_scene:
-                error_response = create_error_response(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    message=f"Scene {scene_id} was updated but could not be retrieved",
-                    error_code=ErrorCodes.DATABASE_ERROR
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=error_response
-                )
-
-            # Get updated trim values from the correct nested path
-            updated_trim = updated_scene.get("media", {}).get("trim", {})
-            final_trim_start = updated_trim.get("start", trim_data.trim_start)
-            final_trim_end = updated_trim.get("end", trim_data.trim_end)
-
-            # Return the response
-            return ApiResponse(
-                success=True,
-                message="Scene trim updated successfully",
-                data={
-                    "scene_id": scene_id,
-                    "trim_start": final_trim_start,
-                    "trim_end": final_trim_end,
-                    "project_id": project_id,
-                    "success": True
-                }
-            )
-        else:
-            # Mock mode response
-            # In mock mode, assume structure exists
-            mock_trim_start = trim_data.trim_start
-            mock_trim_end = trim_data.trim_end
-            return ApiResponse(
-                success=True,
-                message="Scene trim updated successfully (mock mode)",
-                data={
-                    "scene_id": scene_id,
-                    "trim_start": mock_trim_start,
-                    "trim_end": mock_trim_end,
-                    "project_id": project_id,
-                    "success": True
-                }
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating scene trim: {str(e)}")
-        logger.error(traceback.format_exc())
-        error_response = create_error_response(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            message=f"Failed to update scene trim: {str(e)}",
-            error_code=ErrorCodes.DATABASE_ERROR
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response
-        )
+# TODO: Remove after verification
+# @router.put("/{project_id}/scenes/{scene_id}/trim", response_model=ApiResponse[SceneTrimUpdateResponse])
+# async def update_scene_trim(
+#     project_id: str,
+#     scene_id: str,
+#     trim_data: SceneTrimUpdateRequest
+# ):
+#     """
+#     Update the trim settings for a scene within a project.
+#     
+#     Args:
+#         project_id: The ID of the project containing the scene
+#         scene_id: The ID of the scene to update
+#         trim_data: The new trim settings
+#         
+#     Returns:
+#         An API response containing the updated scene trim data
+#     """
+#     logger.info(f"Updating trim for scene {scene_id} in project {project_id}: start={trim_data.trim_start}, end={trim_data.trim_end}")
+#     
+#     try:
+#         if not db.is_mock:
+#             mongo_db = db.get_db()
+#             
+#             # Validate input
+#             try:
+#                 # Convert string IDs to ObjectId if they're in the correct format
+#                 if ObjectId.is_valid(project_id):
+#                     project_obj_id = ObjectId(project_id)
+#                 else:
+#                     # Use the string ID directly
+#                     project_obj_id = project_id
+#             except InvalidId:
+#                 project_obj_id = project_id
+#             
+#             # First, find the project to confirm it exists
+#             project = await mongo_db.projects.find_one({"_id": project_obj_id})
+#             
+#             if not project:
+#                 error_response = create_error_response(
+#                     status_code=status.HTTP_404_NOT_FOUND,
+#                     message=f"Project {project_id} not found",
+#                     error_code=ErrorCodes.RESOURCE_NOT_FOUND
+#                 )
+#                 raise HTTPException(
+#                     status_code=status.HTTP_404_NOT_FOUND,
+#                     detail=error_response
+#                 )
+#             
+#             # Find the scene in the project
+#             scene_found = False
+#             scene_index = None
+#             
+#             for i, scene in enumerate(project.get("scenes", [])):
+#                 if str(scene.get("_id", "")) == scene_id or str(scene.get("id", "")) == scene_id:
+#                     scene_found = True
+#                     scene_index = i
+#                     break
+#             
+#             if not scene_found:
+#                 error_response = create_error_response(
+#                     status_code=status.HTTP_404_NOT_FOUND,
+#                     message=f"Scene {scene_id} not found in project {project_id}",
+#                     error_code=ErrorCodes.RESOURCE_NOT_FOUND
+#                 )
+#                 raise HTTPException(
+#                     status_code=status.HTTP_404_NOT_FOUND,
+#                     detail=error_response
+#                 )
+#             
+#             # Update the scene trim data
+#             # Construct the path for the media trim fields
+#             update_fields = {
+#                 f"scenes.{scene_index}.media.trim.start": trim_data.trim_start,
+#                 f"scenes.{scene_index}.media.trim.end": trim_data.trim_end,
+#                 "updated_at": datetime.utcnow()
+#             }
+# 
+#             # Check if the media object exists, create if not
+#             if "media" not in project["scenes"][scene_index]:
+#                  project["scenes"][scene_index]["media"] = {}
+#             
+#             # Check if the trim object exists within media, create if not
+#             if "trim" not in project["scenes"][scene_index]["media"]:
+#                  project["scenes"][scene_index]["media"]["trim"] = {}
+# 
+#             # Attempt update using arrayFilters for precise targeting (more robust than index)
+#             update_result = await mongo_db.projects.update_one(
+#                 {"_id": project_obj_id},
+#                 {"$set": {
+#                     "scenes.$[elem].media.trim.start": trim_data.trim_start,
+#                     "scenes.$[elem].media.trim.end": trim_data.trim_end,
+#                     "updated_at": datetime.utcnow()
+#                 }},
+#                 array_filters=[{"$or": [{"elem._id": scene_id}, {"elem.id": scene_id}]}]
+#             )
+# 
+#             if update_result.matched_count == 0 or update_result.modified_count == 0:
+#                  # Fallback if arrayFilters fail or scene identifier is complex
+#                  logger.warning(f"Could not update scene {scene_id} using arrayFilters, attempting direct array update via index.")
+#                  scenes = project.get("scenes", [])
+#                  if scene_index is not None and scene_index < len(scenes):
+#                      # Ensure media and trim objects exist before setting values
+#                      if "media" not in scenes[scene_index] or scenes[scene_index]["media"] is None:
+#                          scenes[scene_index]["media"] = {}
+#                      if "trim" not in scenes[scene_index]["media"] or scenes[scene_index]["media"]["trim"] is None:
+#                          scenes[scene_index]["media"]["trim"] = {}
+#                      
+#                      scenes[scene_index]["media"]["trim"]["start"] = trim_data.trim_start
+#                      scenes[scene_index]["media"]["trim"]["end"] = trim_data.trim_end
+#                      
+#                      # Update the whole scenes array
+#                      update_result = await mongo_db.projects.update_one(
+#                          {"_id": project_obj_id},
+#                          {"$set": {
+#                              "scenes": scenes,
+#                              "updated_at": datetime.utcnow()
+#                          }}
+#                      )
+#                  else:
+#                       # Scene index not found, which shouldn't happen if initial check passed
+#                       logger.error(f"Scene index {scene_index} invalid for project {project_id} during fallback update.")
+#                       # Re-raise the original not found error if possible or a generic one
+#                       error_response = create_error_response(
+#                          status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#                          message=f"Scene {scene_id} index error during update.",
+#                          error_code=ErrorCodes.DATABASE_ERROR
+#                      )
+#                       raise HTTPException(
+#                          status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#                          detail=error_response
+#                      )
+# 
+#             # Get the updated project to return the current state
+#             updated_project = await mongo_db.projects.find_one({"_id": project_obj_id})
+#             
+#             # Find the updated scene in the project
+#             updated_scene = None
+#             for scene in updated_project.get("scenes", [])):
+#                 if str(scene.get("_id", "")) == scene_id or str(scene.get("id", "")) == scene_id:
+#                     updated_scene = scene
+#                     break
+#             
+#             if not updated_scene:
+#                 error_response = create_error_response(
+#                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#                     message=f"Scene {scene_id} was updated but could not be retrieved",
+#                     error_code=ErrorCodes.DATABASE_ERROR
+#                 )
+#                 raise HTTPException(
+#                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#                     detail=error_response
+#                 )
+# 
+#             # Get updated trim values from the correct nested path
+#             updated_trim = updated_scene.get("media", {}).get("trim", {})
+#             final_trim_start = updated_trim.get("start", trim_data.trim_start)
+#             final_trim_end = updated_trim.get("end", trim_data.trim_end)
+# 
+#             # Return the response
+#             return ApiResponse(
+#                 success=True,
+#                 message="Scene trim updated successfully",
+#                 data={
+#                     "scene_id": scene_id,
+#                     "trim_start": final_trim_start,
+#                     "trim_end": final_trim_end,
+#                     "project_id": project_id,
+#                     "success": True
+#                 }
+#             )
+#         else:
+#             # Mock mode response
+#             # In mock mode, assume structure exists
+#             mock_trim_start = trim_data.trim_start
+#             mock_trim_end = trim_data.trim_end
+#             return ApiResponse(
+#                 success=True,
+#                 message="Scene trim updated successfully (mock mode)",
+#                 data={
+#                     "scene_id": scene_id,
+#                     "trim_start": mock_trim_start,
+#                     "trim_end": mock_trim_end,
+#                     "project_id": project_id,
+#                     "success": True
+#                 }
+#             )
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error updating scene trim: {str(e)}")
+#         logger.error(traceback.format_exc())
+#         error_response = create_error_response(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             message=f"Failed to update scene trim: {str(e)}",
+#             error_code=ErrorCodes.DATABASE_ERROR
+#         )
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=error_response
+#         )
