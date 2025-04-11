@@ -670,6 +670,93 @@ async def get_projects():
             detail=error_response
         )
 
+# --- Endpoint 2.5: POST /projects ---
+@project_router.post(
+    "/projects", # Maintain the correct full path 
+    response_model=ApiResponse[ProjectResponse],
+    status_code=status.HTTP_201_CREATED,
+    # Note: Original used MongoJSONResponse, keep standard for now unless issues arise
+)
+async def create_project(project: ProjectCreate = Body(...)):
+    """
+    Create a new project.
+    Returns a standardized response with the created project.
+    """
+    try:
+        if not db.is_mock:
+            # Get database reference
+            mongo_db = db.get_db()
+
+            # Create project document
+            project_dict = project.model_dump() # Use model_dump() instead of dict()
+            project_dict["created_at"] = datetime.utcnow()
+            project_dict["updated_at"] = project_dict["created_at"]
+
+            # Insert into database
+            result = await mongo_db.projects.insert_one(project_dict)
+            project_id = result.inserted_id
+
+            # Get the created project
+            created_project = await mongo_db.projects.find_one({"_id": project_id})
+            if not created_project:
+                error_response = create_error_response(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    message="Project was created but could not be retrieved",
+                    error_code=ErrorCodes.DATABASE_ERROR
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=error_response
+                )
+
+            # Format project for response
+            formatted_project = {
+                "id": str(created_project["_id"]),
+                "title": created_project["title"],
+                "description": created_project.get("description"),
+                "user_id": created_project.get("user_id"),
+                "scenes": created_project.get("scenes", []),
+                "created_at": created_project["created_at"],
+                "updated_at": created_project["updated_at"],
+            }
+
+            return ApiResponse(
+                success=True,
+                message="Project created successfully",
+                data=formatted_project
+            )
+        else:
+            # Mock database response
+            mock_id = str(ObjectId())
+            mock_project = {
+                "id": mock_id,
+                "title": project.title,
+                "description": project.description,
+                "user_id": project.user_id,
+                "scenes": project.scenes,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+            return ApiResponse(
+                success=True,
+                message="Project created successfully (mock)",
+                data=mock_project
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating project: {str(e)}")
+        logger.exception("Full traceback:")
+        error_response = create_error_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to create project: {str(e)}",
+            error_code=ErrorCodes.DATABASE_ERROR
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response
+        )
+
 # --- Placeholder for next endpoint --- 
 # Other project endpoints will be added here 
 

@@ -75,8 +75,8 @@ We will move endpoints *one by one*, performing rigorous testing after each step
     - [x] **Test:** Restart backend. Perform Manual Browser Sanity Check (verify My Projects page loads). Run Mock Playwright Tests. **After tests pass, comment out the original `get_projects` function in `api/projects.py`**.
 
 *   **Endpoint 2.5: `POST /projects`**
-    - [ ] **Action:** Move the `create_project` function logic. Decorate with `@project_router.post("/projects", ...)`.
-    - [ ] **Test:** Restart backend. Perform Manual Browser Sanity Check (create a new project). Run Mock Playwright Tests. **After tests pass, comment out the original `create_project` function in `api/projects.py`**.
+    - [x] **Action:** Move the `create_project` function logic. Decorate with `@project_router.post("/projects", ...)`.
+    - [x] **Test:** Restart backend. Perform Manual Browser Sanity Check (create a new project). Run Mock Playwright Tests. **After tests pass, comment out the original `create_project` function in `api/projects.py`**.
 
 *   **Phase 2 Completion Test:**
     - [ ] **Confirm:** Ask user if ready to run full API tests.
