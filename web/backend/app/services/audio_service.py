@@ -283,51 +283,62 @@ class AudioService:
             
     # --- Audio Generation & Storage Methods ---
     async def _run_ffmpeg_extraction(self, input_path: str, output_path: str) -> None:
-        """Runs ffmpeg to extract audio to MP3 format."""
-        logger.info(f"Starting ffmpeg extraction: {input_path} -> {output_path}")
+        """Internal method to run ffmpeg extraction using ffmpeg-python library."""
+        logger.info(f"Starting ffmpeg extraction: input='{input_path}', output='{output_path}'")
+        if not os.path.exists(input_path):
+            logger.error(f"Input video file does not exist: {input_path}")
+            raise FfmpegError(f"Input video file not found: {input_path}")
+
         try:
-            # Basic ffmpeg command for MP3 extraction
+            logger.debug(f"Constructing ffmpeg stream for {input_path} -> {output_path}")
             # -vn: disable video recording
-            # -acodec mp3: set audio codec to mp3
-            # -ab 192k: set audio bitrate to 192 kbps
-            # -ar 44100: set audio sample rate to 44100 Hz
-            # -y: overwrite output file without asking
-            (   
-                ffmpeg
-                .input(input_path)
-                .output(output_path, vn=None, acodec='mp3', audio_bitrate='192k', ar=44100)
-                .overwrite_output()
-                .run_async(pipe_stdout=True, pipe_stderr=True) # Run async
-            )
-            # Note: ffmpeg-python's run_async might not be truly async in the sense
-            # of releasing the event loop for CPU-bound ffmpeg process. 
-            # For heavy loads, consider running ffmpeg in a separate thread or process pool.
-            # For now, this integrates cleanly.
-            # await process.wait() # If we needed to wait, but run_async seems synchronous here
+            # -acodec libmp3lame: specify mp3 codec
+            # -ab 192k: set audio bitrate to 192kbps
+            # -ar 44100: set audio sample rate to 44.1kHz
+            stream = ffmpeg.input(input_path)
+            # Use **{} to provide keyword arguments for specific codecs/formats if needed
+            # Example: stream = ffmpeg.output(stream, output_path, acodec='libmp3lame', ab='192k', ar='44100', vn=None)
+            # Simpler approach assuming output extension dictates format:
+            stream = ffmpeg.output(stream, output_path, vn=None, acodec='mp3', audio_bitrate='192k', ar=44100)
             
-            # Check if output file exists and has size
-            if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-                # Attempt to read stderr if process object was available and captured
-                # stderr_data = await process.stderr.read() if process.stderr else b''
-                # logger.error(f"ffmpeg output file missing or empty. Stderr: {stderr_data.decode()}")
-                raise RuntimeError("ffmpeg output file missing or empty after execution.")
+            logger.info(f"Running ffmpeg command via ffmpeg-python...")
+            # Execute the ffmpeg command, capture stdout and stderr
+            # overwrite_output=True is important to avoid errors if the file exists
+            stdout, stderr = ffmpeg.run(stream, capture_stdout=True, capture_stderr=True, overwrite_output=True)
+            
+            # Log ffmpeg output
+            stdout_decoded = stdout.decode().strip() if stdout else 'None'
+            stderr_decoded = stderr.decode().strip() if stderr else 'None'
+            logger.info(f"ffmpeg stdout:\n{stdout_decoded}")
+            if stderr_decoded and stderr_decoded != 'None': # Don't log empty stderr
+                # ffmpeg often prints info messages to stderr, log as warning
+                logger.warning(f"ffmpeg stderr:\n{stderr_decoded}")
+            else:
+                logger.info("ffmpeg stderr: None or empty")
+
+            # Verify output file exists
+            if not os.path.exists(output_path):
+                logger.error(f"FFmpeg ran but output file was not created: {output_path}")
+                # Include stderr in the error if available, as it might contain the reason
+                raise FfmpegError(f"FFmpeg output file not created. Stderr: {stderr_decoded}")
                 
-            logger.info(f"ffmpeg extraction completed successfully for: {output_path}")
+            logger.info(f"FFmpeg extraction successful for: {output_path}")
             
         except ffmpeg.Error as e:
-            logger.error(f"ffmpeg error during extraction: {e.stderr.decode() if e.stderr else 'No stderr'}")
-            # Clean up potentially empty/corrupt output file
-            if os.path.exists(output_path):
-                try: os.unlink(output_path) 
-                except: pass
-            raise RuntimeError(f"ffmpeg extraction failed: {e.stderr.decode() if e.stderr else 'Unknown ffmpeg error'}") from e
+            # This catches errors specifically from the ffmpeg execution
+            stderr_output = e.stderr.decode().strip() if e.stderr else "No stderr captured"
+            logger.error(f"ffmpeg.Error during extraction for '{input_path}':")
+            logger.error(f"ffmpeg stderr: {stderr_output}")
+            logger.exception("ffmpeg.Error details:") # Logs the full traceback
+            # Re-raise as our custom type, including the stderr
+            raise FfmpegError(f"FFmpeg execution failed. Stderr: {stderr_output}") from e
         except Exception as e:
-            logger.error(f"Unexpected error during ffmpeg extraction: {str(e)}")
-            if os.path.exists(output_path):
-                try: os.unlink(output_path)
-                except: pass
-            raise
-            
+            # Catch any other unexpected errors during the setup or execution
+            logger.error(f"Unexpected error during ffmpeg extraction for '{input_path}'")
+            logger.exception("Unexpected error details:")
+            # Re-raise as our custom type
+            raise FfmpegError(f"Unexpected extraction error: {str(e)}") from e
+
     async def generate_audio(
         self, 
         text: str,
@@ -434,43 +445,59 @@ class AudioService:
         scene_id: str
     ) -> str:
         """
-        Extract audio from a video file and store it in R2.
-        Returns the URL of the stored audio file.
+        Extracts original audio from a video file using ffmpeg, converts to MP3, 
+        stores it in R2, and returns the URL.
+        Assumes video_path is accessible locally to the backend service.
         """
-        try:
-            # Create a temporary file for the extracted audio
-            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
-                temp_file_path = temp_file.name
-            
-            try:
-                # Extract audio using ffmpeg
-                await self._run_ffmpeg_extraction(video_path, temp_file_path)
-                
-                # Upload to R2 with proper object naming
-                object_name = f"original_audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
-                success, result = await self.storage.upload_file(
-                    file_path=temp_file_path,
-                    object_name=object_name,
-                    project_id=project_id,
-                    scene_id=scene_id,
-                    file_type="audio/mpeg"
-                )
-                
-                if not success:
-                    raise Exception(f"Failed to upload audio to R2: {result}")
-                
-                # Return the R2 URL
-                return result
-            
-            finally:
-                # Clean up the temporary file
-                if os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
-                    logger.debug(f"Cleaned up temporary file: {temp_file_path}")
+        logger.info(f"Starting original audio extraction for video: {video_path}, Project: {project_id}, Scene: {scene_id}")
         
+        # Define a temporary path for the extracted audio
+        # Use NamedTemporaryFile to ensure cleanup even if errors occur
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_audio_file:
+            temp_audio_path = temp_audio_file.name
+        
+        logger.debug(f"Temporary audio file path: {temp_audio_path}")
+
+        try:
+            # 1. Run ffmpeg extraction
+            await self._run_ffmpeg_extraction(video_path, temp_audio_path)
+            logger.info(f"Successfully extracted audio to temporary file: {temp_audio_path}")
+
+            # 2. Define storage path in R2
+            # Use a structure like: projects/{project_id}/scenes/{scene_id}/original_audio.mp3
+            storage_key = f"projects/{project_id}/scenes/{scene_id}/original_audio.mp3"
+            logger.info(f"Preparing to upload extracted audio to R2 with key: {storage_key}")
+
+            # 3. Upload the extracted audio file using the storage service
+            audio_url = await self.storage.upload_file(
+                local_path=temp_audio_path,
+                object_name=storage_key,
+                content_type="audio/mpeg" # Specify content type for MP3
+            )
+            logger.info(f"Successfully uploaded original audio to R2: {audio_url}")
+            return audio_url
+
+        except FfmpegError as e:
+            logger.error(f"Failed to extract audio from {video_path}: {e}")
+            # Re-raise maybe? Or return None/empty string?
+            # Depending on how the calling code handles errors.
+            # For now, re-raising might be best to signal failure clearly.
+            raise 
         except Exception as e:
-            logger.error(f"Error in extract_and_store_original_audio: {str(e)}")
+            logger.error(f"An unexpected error occurred during audio extraction/upload for {video_path}: {e}")
+            logger.exception("Unexpected error details:")
+            # Re-raise to signal failure
             raise
+        finally:
+            # 4. Clean up the temporary audio file
+            if os.path.exists(temp_audio_path):
+                try:
+                    os.remove(temp_audio_path)
+                    logger.info(f"Successfully removed temporary audio file: {temp_audio_path}")
+                except OSError as e:
+                    logger.error(f"Error removing temporary audio file {temp_audio_path}: {e}")
+            else:
+                 logger.warning(f"Temporary audio file did not exist for cleanup: {temp_audio_path}")
 
     # NEW METHOD
     async def get_latest_audio_url(

@@ -275,7 +275,10 @@ async def store_media_content(
 
         # Get storage instance
         storage = get_storage()
-        
+        # Remove Audio Service instantiation
+        # audio_service = AudioService()
+        # original_audio_url: Optional[str] = None # Variable to store extracted audio URL
+
         # Generate filename
         now = datetime.now().strftime("%Y%m%d%H%M%S")
         filename = f"{now}{metadata.get('extension', '.tmp')}"
@@ -316,6 +319,36 @@ async def store_media_content(
         # The object_name used for the upload is the storage_key
         storage_key = filename
 
+        # --- REMOVE AUDIO EXTRACTION BLOCK ---
+        # if media_type == MediaType.VIDEO and os.path.exists(temp_file_path):
+        #     logger.info(f"Media type is video. Attempting to extract original audio from {temp_file_path}")
+        #     try:
+        #         # Temporarily comment out the actual call for debugging
+        #         # original_audio_url = await audio_service.extract_and_store_original_audio(
+        #         #     video_path=temp_file_path,
+        #         #     project_id=project_id,
+        #         #     scene_id=scene_id
+        #         # )
+        #         logger.info("Audio extraction call is currently commented out for debugging.") # Add log message
+        #         original_audio_url = None # Ensure variable exists
+        #
+        #         # Keep the rest of the original logic in case it needs to be uncommented later
+        #         # if original_audio_url:
+        #         #     logger.info(f"Successfully extracted and stored original audio: {original_audio_url}")
+        #         # else:
+        #         #     # This case might occur if the function internally handles errors and returns None
+        #         #     logger.warning("extract_and_store_original_audio completed but returned no URL.")
+        #     except FfmpegError as ffmpeg_err:
+        #         # Log ffmpeg-specific errors but don't stop the overall process
+        #         logger.error(f"FFmpeg error during original audio extraction: {ffmpeg_err}")
+        #     except Exception as audio_err:
+        #         # Log other errors during audio extraction but don't stop the overall process
+        #         logger.error(f"Unexpected error during original audio extraction: {audio_err}")
+        #         logger.error(traceback.format_exc()) # Log full traceback for unexpected errors
+        # elif media_type == MediaType.VIDEO and not os.path.exists(temp_file_path):
+        #      logger.warning(f"Cannot extract audio: media type is video but temp file path does not exist: {temp_file_path}")
+        # --- END AUDIO EXTRACTION BLOCK ---
+
         # Clean up temporary file
         cleanup_start_time = time.time()
         try:
@@ -351,6 +384,7 @@ async def store_media_content(
                 "total_duration": overall_duration,
                 "temp_file_path": temp_file_path,
                 "r2_object_key": storage_key,
+                # "original_audio_url": original_audio_url # Remove this line
             },
         }
         
