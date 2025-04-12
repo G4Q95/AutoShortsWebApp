@@ -76,19 +76,29 @@ export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       const response = await getAvailableVoices();
       
+      // Check for API-level errors first
       if (response.error) {
         setError(`Error fetching voices: ${response.error.message}`);
-      } else if (response.data && response.data.voices) {
-        setVoices(response.data.voices);
+        setVoices([]); // Clear voices on error
+      // Check if response.data is an array (the expected format now)
+      } else if (Array.isArray(response.data)) {
+        const fetchedVoices = response.data as VoiceOption[]; // Type assertion
+        setVoices(fetchedVoices);
         setLastFetchTime(Date.now());
         
-        // Set default voice if none selected
-        if (response.data.voices.length > 0 && !selectedVoiceId) {
-          setSelectedVoiceId(response.data.voices[0].voice_id);
+        // Set default voice if none selected and voices were fetched
+        if (fetchedVoices.length > 0 && !selectedVoiceId) {
+          setSelectedVoiceId(fetchedVoices[0].voice_id);
         }
+      } else {
+        // Handle unexpected response format
+        setError("Unexpected response format when fetching voices.");
+        setVoices([]); // Clear voices on unexpected format
+        console.warn("Unexpected voice response format:", response);
       }
     } catch (err) {
       setError(`Error fetching voices: ${err instanceof Error ? err.message : String(err)}`);
+      setVoices([]); // Clear voices on general exception
     } finally {
       setIsLoading(false);
     }

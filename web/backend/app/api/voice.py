@@ -109,35 +109,20 @@ class RateLimiter:
 rate_limiter = RateLimiter(max_requests_per_minute=10)
 
 
-@router.get("/voices", response_model=VoiceListResponse)
-async def list_voices():
+@router.get("/voices", response_model=List[Voice])
+async def get_voices():
     """Get available voices from ElevenLabs."""
     try:
-        client = get_elevenlabs_client()
-        voices = await client.get_available_voices()
-        
-        return {
-            "voices": [
-                {
-                    "voice_id": voice.voice_id,
-                    "name": voice.name,
-                    "category": voice.category,
-                    "description": voice.description,
-                    "preview_url": voice.preview_url,
-                    "labels": voice.labels
-                }
-                for voice in voices
-            ],
-            "count": len(voices)
-        }
+        voices = await audio_service.get_voices()
+        return voices
     except ElevenLabsError as e:
         logger.error(f"Error getting voices: {str(e)}")
         raise HTTPException(
             status_code=e.status_code or 500,
-            detail={"message": str(e), "code": "voice_retrieval_error"}
+            detail={"message": str(e), "code": "voice_list_error"}
         )
     except Exception as e:
-        logger.error(f"Unexpected error getting voices: {str(e)}")
+        logger.error(f"Error getting voices: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={"message": f"Error getting voices: {str(e)}", "code": "internal_server_error"}
@@ -148,8 +133,7 @@ async def list_voices():
 async def get_voice(voice_id: str):
     """Get details of a specific voice."""
     try:
-        client = get_elevenlabs_client()
-        voice = await client.get_voice_by_id(voice_id)
+        voice = await audio_service.get_voice_by_id(voice_id)
         
         if not voice:
             raise HTTPException(
@@ -198,7 +182,6 @@ async def generate_voice_audio(request: GenerateVoiceRequest):
                 status_code=400,
                 detail={
                     "message": f"Text exceeds maximum character limit of {settings.VOICE_GEN_MAX_CHARS_PER_SCENE}",
-                    "code": "character_limit_exceeded"
                 }
             )
         
@@ -206,8 +189,7 @@ async def generate_voice_audio(request: GenerateVoiceRequest):
         start_time = datetime.now()
         
         # Generate audio
-        client = get_elevenlabs_client()
-        audio_data, content_type = await client.generate_audio(
+        audio_data, content_type = await audio_service.generate_audio(
             text=request.text,
             voice_id=request.voice_id,
             stability=request.stability,
@@ -248,17 +230,25 @@ async def generate_voice_audio(request: GenerateVoiceRequest):
 # New endpoint for persisting audio to R2 storage
 class SaveAudioRequest(BaseModel):
     """Request model for saving audio to R2 storage."""
-    audio_base64: str
-    content_type: str = "audio/mp3"
+    text: str
+    voice_id: str
     project_id: str
     scene_id: str
-    voice_id: str
+    stability: float = Field(settings.VOICE_GEN_DEFAULT_STABILITY, ge=0.0, le=1.0, description="Voice stability (0.0-1.0)")
+    similarity_boost: float = Field(settings.VOICE_GEN_DEFAULT_SIMILARITY, ge=0.0, le=1.0, description="Voice similarity boost (0.0-1.0)")
+    style: Optional[float] = Field(None, ge=0.0, le=1.0, description="Optional style value (0.0-1.0)")
+    use_speaker_boost: Optional[bool] = Field(True, description="Whether to enhance vocal clarity")
+
+    @validator("text")
+    def validate_text_length(cls, v):
+        if len(v) > settings.VOICE_GEN_MAX_CHARS_PER_SCENE:
+            raise ValueError(f"Text exceeds maximum character limit of {settings.VOICE_GEN_MAX_CHARS_PER_SCENE} for saving")
+        return v
 
 class SaveAudioResponse(BaseModel):
     """Response model for audio saved to R2 storage."""
     success: bool
     url: str
-    storage_key: str
 
 class GetAudioResponse(BaseModel):
     """Response model for retrieving audio from storage."""
@@ -268,221 +258,89 @@ class GetAudioResponse(BaseModel):
     exists: bool = False
 
 @router.get("/audio/{project_id}/{scene_id}", response_model=GetAudioResponse)
-async def get_voice_audio(project_id: str, scene_id: str):
-    """Retrieve voice audio from storage by project ID and scene ID."""
-    from app.services.storage import get_storage
+async def get_voice_audio(
+    project_id: str, 
+    scene_id: str, 
+    audio_type: str = Query("voiceover", description="Type of audio to retrieve: 'voiceover' or 'original'")
+):
+    """Retrieve the URL of the latest voice audio from storage by project ID, scene ID, and type."""
+    # Removed direct storage interaction
     
-    storage = get_storage()
-    
+    if audio_type not in ["voiceover", "original"]:
+        raise HTTPException(status_code=400, detail="Invalid audio_type. Must be 'voiceover' or 'original'.")
+        
     try:
-        logger.info(f"Retrieving audio for project {project_id}, scene {scene_id}")
+        logger.info(f"Attempting to retrieve latest '{audio_type}' audio for project {project_id}, scene {scene_id}")
         
-        # For mock storage, we need to list files with the pattern
-        if hasattr(storage, 'storage_dir'):  # It's MockStorage
-            logger.info("Using MockStorage to retrieve audio")
-            
-            # Try different patterns based on naming conventions
-            patterns = [
-                f"audio/{project_id}/{scene_id}/",
-                f"audio/{project_id}_{scene_id}/",
-                f"audio/{project_id}/{scene_id}_"
-            ]
-            
-            for pattern in patterns:
-                logger.info(f"Checking pattern: {pattern}")
-                matching_files = await storage.check_files_exist(pattern)
-                
-                if matching_files and hasattr(matching_files, 'contents') and matching_files.contents:
-                    # Get most recent file
-                    latest_file = sorted(matching_files.contents, key=lambda x: x.last_modified, reverse=True)[0]
-                    file_key = latest_file.key
-                    logger.info(f"Found audio file: {file_key}")
-                    
-                    # Get URL
-                    url = await storage.get_file_url(file_key)
-                    if url:
-                        return {
-                            "success": True,
-                            "url": url,
-                            "storage_key": file_key,
-                            "exists": True
-                        }
-            
-            logger.info("No audio files found in mock storage")
-            return {
-                "success": True,
-                "exists": False
-            }
-        
-        # For R2 storage (not mock), we need a different approach
-        else:
-            logger.info("Using R2Storage to retrieve audio")
-            
-            # Check if any files exist with the base pattern
-            storage_prefix = f"audio/{project_id}/{scene_id}/"
-            logger.info(f"Checking for files with prefix: {storage_prefix}")
-            
-            has_files = await storage.check_files_exist(storage_prefix)
-            
-            # Debug logging for R2 response
-            logger.info(f"R2 response type: {type(has_files)}")
-            if has_files:
-                logger.info(f"R2 response keys: {list(has_files.keys()) if hasattr(has_files, 'keys') else 'No keys method'}")
-                
-                if 'Contents' in has_files and has_files['Contents']:
-                    logger.info(f"Found {len(has_files['Contents'])} files with prefix {storage_prefix}")
-                    
-                    # Sort by last modified date and get the most recent
-                    contents = sorted(has_files['Contents'], key=lambda x: x.get('LastModified', 0), reverse=True)
-                    storage_key = contents[0].get('Key')
-                    
-                    logger.info(f"Selected most recent file: {storage_key}")
-                    
-                    # Get URL for the file
-                    url = await storage.get_file_url(storage_key)
-                    
-                    if url:
-                        logger.info(f"Generated URL for file: {url[:50]}...")
-                        return {
-                            "success": True,
-                            "url": url,
-                            "storage_key": storage_key,
-                            "exists": True
-                        }
-                    else:
-                        logger.error("Failed to generate URL for file")
-                else:
-                    logger.info(f"No files found with prefix {storage_prefix}")
-            
-            logger.info("No audio files found in R2 storage")
-            return {
-                "success": True,
-                "exists": False
-            }
-    
-    except Exception as e:
-        logger.error(f"Error retrieving audio from storage: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return {
-            "success": False,
-            "exists": False
-        }
-
-@router.post("/persist", response_model=SaveAudioResponse)
-async def persist_voice_audio(request: SaveAudioRequest):
-    """Save generated voice audio to persistent R2 storage."""
-    import tempfile
-    import base64
-    import os
-    import aiofiles
-    
-    try:
-        # Decode base64 audio
-        try:
-            audio_data = base64.b64decode(request.audio_base64)
-            logger.info(f"Decoded audio data, size: {len(audio_data)} bytes")
-        except Exception as e:
-            logger.error(f"Error decoding base64 audio: {str(e)}")
-            raise HTTPException(
-                status_code=400,
-                detail={"message": "Invalid base64 audio data", "code": "invalid_audio_data"}
-            )
-        
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-            temp_path = temp_file.name
-        
-        logger.info(f"Created temporary file at: {temp_path}")
-        
-        # Write audio data to temp file
-        try:
-            async with aiofiles.open(temp_path, "wb") as f:
-                await f.write(audio_data)
-                
-            # Verify the file was written correctly
-            file_size = os.path.getsize(temp_path)
-            logger.info(f"Written {file_size} bytes to temporary file")
-            
-            if file_size == 0:
-                raise ValueError("Written file is empty")
-                
-        except Exception as e:
-            logger.error(f"Error writing audio data to file: {str(e)}")
-            try:
-                os.unlink(temp_path)
-            except:
-                pass
-            raise HTTPException(
-                status_code=500,
-                detail={"message": f"Failed to write audio data to file: {str(e)}", "code": "file_write_error"}
-            )
-        
-        # Generate a unique filename with timestamp
-        filename_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"{filename_timestamp}_{request.voice_id}.mp3"
-        logger.info(f"Generated filename: {filename}")
-        
-        # Get storage service
-        from app.services.storage import get_storage
-        storage = get_storage()
-        
-        # User ID is set to "default" for now - all users share the same content
-        user_id = "default"
-        
-        # Upload to R2 using structured path generation
-        logger.info(f"Uploading audio to storage with structured path")
-        success, url = await storage.upload_file(
-            file_path=temp_path,
-            object_name=filename,
-            user_id=user_id,
-            project_id=request.project_id,
-            scene_id=request.scene_id,
-            file_type="audio"
+        # Use the audio service to get the URL
+        url = await audio_service.get_latest_audio_url(
+            project_id=project_id, 
+            scene_id=scene_id,
+            audio_type=audio_type
         )
         
-        # Get the actual storage key used
-        try:
-            storage_key = url.split('/')[-1].split('?')[0]
-            logger.info(f"Extracted storage key from URL: {storage_key}")
-        except Exception as e:
-            logger.warning(f"Could not extract storage key from URL: {str(e)}")
-            storage_key = f"proj_{request.project_id}_{request.scene_id}_audio_{filename}"
-            logger.info(f"Using constructed storage key: {storage_key}")
+        if url:
+            logger.info(f"Found latest '{audio_type}' audio URL: {url[:50]}...")
+            # Assuming storage_key is not needed by the client if URL is present
+            return GetAudioResponse(success=True, url=url, exists=True)
+        else:
+            logger.info(f"No '{audio_type}' audio found for project {project_id}, scene {scene_id}")
+            return GetAudioResponse(success=True, exists=False)
             
-        # Clean up temporary file
-        try:
-            os.unlink(temp_path)
-            logger.info(f"Removed temporary file: {temp_path}")
-        except Exception as e:
-            logger.warning(f"Error removing temporary file {temp_path}: {str(e)}")
+    except Exception as e:
+        # Catch potential exceptions from the service layer or unforeseen issues
+        logger.error(f"Error retrieving audio URL via service: {str(e)}\n{traceback.format_exc()}")
+        # Return a generic failure response
+        # Consider more specific error handling based on potential service exceptions if needed
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Failed to retrieve audio information: {str(e)}", "code": "audio_retrieval_error"}
+        )
+
+@router.post("/save", response_model=SaveAudioResponse)
+async def persist_voice_audio(request: SaveAudioRequest):
+    """Generate voice audio and save directly to persistent storage."""
+    try:
+        # Generate and store voiceover using the service
+        # Pass parameters directly from the validated request model
+        url = await audio_service.generate_and_store_voiceover(
+            text=request.text,
+            voice_id=request.voice_id,
+            project_id=request.project_id,
+            scene_id=request.scene_id,
+            stability=request.stability,
+            similarity_boost=request.similarity_boost,
+            style=request.style,
+            use_speaker_boost=request.use_speaker_boost
+            # Using default model_id and output_format from AudioService
+        )
         
-        if not success:
-            logger.error(f"Failed to upload audio to storage: {url}")
-            raise HTTPException(
-                status_code=500,
-                detail={"message": f"Failed to upload audio to storage: {url}", "code": "storage_upload_failed"}
-            )
-        
-        logger.info(f"Successfully saved audio to storage with URL: {url[:50]}...")
-        return {
-            "success": True,
-            "url": url,
-            "storage_key": storage_key
-        }
-        
-    except HTTPException:
+        return SaveAudioResponse(success=True, url=url)
+
+    except ElevenLabsError as e:
+        logger.error(f"Error generating/saving voice: {str(e)}")
+        raise HTTPException(
+            status_code=e.status_code or 500,
+            detail={"message": str(e), "code": "voice_generation_storage_error"}
+        )
+    except ValueError as ve: # Catch validation errors
+        logger.warning(f"Validation error in /save endpoint: {str(ve)}")
+        raise HTTPException(
+            status_code=400, # Bad Request
+            detail={"message": str(ve), "code": "validation_error"}
+        )
+    except HTTPException: # Re-raise existing HTTP exceptions
         raise
     except Exception as e:
-        logger.error(f"Error persisting audio to storage: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Unexpected error saving audio: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(
-            status_code=500, 
-            detail={"message": f"Error saving audio: {str(e)}", "code": "audio_persistence_error"}
+            status_code=500,
+            detail={"message": f"Unexpected error saving audio: {str(e)}", "code": "internal_server_error"}
         )
 
 
 @router.post("/generate-file")
-async def generate_voice_audio_file(request: GenerateVoiceRequest):
+async def generate_voice_audio_file(request: GenerateVoiceRequest, background_tasks: BackgroundTasks):
     """Generate voice audio from text and return as file."""
     # Apply rate limiting
     if not rate_limiter.allow_request():
@@ -491,20 +349,12 @@ async def generate_voice_audio_file(request: GenerateVoiceRequest):
             detail={"message": "Rate limit exceeded. Please try again later.", "code": "rate_limit_exceeded"}
         )
     
+    temp_file_path = None
     try:
-        # Check character limit
-        if len(request.text) > settings.VOICE_GEN_MAX_CHARS_PER_SCENE:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "message": f"Text exceeds maximum character limit of {settings.VOICE_GEN_MAX_CHARS_PER_SCENE}",
-                    "code": "character_limit_exceeded"
-                }
-            )
+        # Check character limit (using validator on request model is sufficient)
         
-        # Generate audio and save to file
-        client = get_elevenlabs_client()
-        file_path = await client.save_audio_to_file(
+        # Generate audio using the audio_service
+        audio_data, content_type = await audio_service.generate_audio(
             text=request.text,
             voice_id=request.voice_id,
             stability=request.stability,
@@ -512,29 +362,60 @@ async def generate_voice_audio_file(request: GenerateVoiceRequest):
             style=request.style,
             output_format=request.output_format,
             use_speaker_boost=request.use_speaker_boost
+            # Using default model_id from AudioService
         )
         
+        # Create a temporary file to store the audio
+        # Infer suffix from content_type or default to .mp3
+        suffix = ".mp3" if "mpeg" in content_type else f".{request.output_format.split('_')[0]}"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
+            temp_file.write(audio_data)
+            temp_file_path = temp_file.name
+        
+        # Add cleanup task to run after response is sent
+        background_tasks.add_task(os.unlink, temp_file_path)
+        
         # Set up response headers
+        filename = f"voice-{request.voice_id[:8]}-{datetime.now().strftime('%Y%m%d%H%M%S')}{suffix}"
         headers = {
-            "Content-Disposition": f"attachment; filename=voice-{request.voice_id[:8]}.{request.output_format}"
+            "Content-Disposition": f"attachment; filename={filename}"
         }
         
         # Return file
         return FileResponse(
-            file_path, 
+            temp_file_path, 
             headers=headers,
-            media_type=f"audio/{request.output_format}"
+            media_type=content_type # Use actual content_type from generation
         )
+
     except ElevenLabsError as e:
         logger.error(f"Error generating voice file: {str(e)}")
+        # Clean up temp file if created before error
+        if temp_file_path and os.path.exists(temp_file_path):
+            try: os.unlink(temp_file_path)
+            except Exception: pass
         raise HTTPException(
             status_code=e.status_code or 500,
             detail={"message": str(e), "code": "voice_generation_error"}
         )
+    except ValueError as ve: # Catch validation errors
+        logger.warning(f"Validation error in /generate-file endpoint: {str(ve)}")
+        raise HTTPException(
+            status_code=400, # Bad Request
+            detail={"message": str(ve), "code": "validation_error"}
+        )
     except HTTPException:
+        # Clean up temp file if created before error
+        if temp_file_path and os.path.exists(temp_file_path):
+            try: os.unlink(temp_file_path)
+            except Exception: pass
         raise
     except Exception as e:
-        logger.error(f"Unexpected error generating voice file: {str(e)}")
+        logger.error(f"Unexpected error generating voice file: {str(e)}\n{traceback.format_exc()}")
+        # Clean up temp file if created before error
+        if temp_file_path and os.path.exists(temp_file_path):
+            try: os.unlink(temp_file_path)
+            except Exception: pass
         raise HTTPException(
             status_code=500,
             detail={"message": f"Error generating voice file: {str(e)}", "code": "internal_server_error"}
