@@ -5,57 +5,67 @@
 **Project:** Auto Shorts Web App
 **Goal:** Enhance the video editor with integrated audio editing capabilities, allowing users to manage original video audio and add/manipulate voiceovers.
 
-## 2. Core Features
+## 2. Implementation Phases
 
-### 2.1. Backend Audio Extraction and Storage
-- **Requirement:** When videos are downloaded (e.g., from Reddit), automatically extract the original audio track.
+### Phase 1: Refactor Backend Audio Processing (Foundation)
+- **Requirement:** Create a centralized and consistent backend mechanism for handling all audio processing (voice generation and original audio extraction) and storage.
+- **Goal:** Simplify the overall audio workflow, eliminate redundancy, and prepare for new features.
 - **Implementation:**
-    - Use `ffmpeg` within the backend (FastAPI/Python) service.
-    - Extract audio into a standard format (e.g., AAC or MP3).
-    - Upload both the original video (or video without audio) and the extracted audio file to Cloudflare R2.
-    - Use a consistent naming convention (e.g., `video_id.mp4`, `video_id_audio.aac`).
-    - Update the database model for media clips to include a reference (URL/key) to the associated audio file.
+    - Create a central `audio_service.py` module in the backend.
+    - Relocate/refactor existing ElevenLabs API client logic into this service.
+    - Add new functionality to `audio_service.py` to use `ffmpeg` for extracting original audio from video files into MP3 format.
+    - Ensure `audio_service.py` utilizes the *existing* R2 upload functionality (e.g., from `storage.py`) for storing *both* generated voiceovers and extracted original audio.
+    - Modify existing API endpoints (e.g., for voice generation) to use `audio_service.py` and return the final R2 URL directly to the frontend (eliminating the Base64 round-trip and the `/voice/persist` endpoint).
+    - Modify the video download/processing endpoint to call `audio_service.py` to extract and store original audio.
+    - Update relevant database models (e.g., Scene) to store necessary audio URLs (e.g., `original_audio_url`, `voiceover_audio_url`).
 
-### 2.2. Frontend Audio Playback Synchronization
-- **Requirement:** Play the extracted original audio track synchronized with the video frames displayed in the `video-context` timeline.
+### Phase 2: Core Audio Features (Post-Refactor)
+
+#### 2.1. Backend Audio Extraction and Storage (Triggering)
+- **Requirement:** When videos are downloaded (e.g., from Reddit), automatically trigger the extraction of the original audio track using the refactored backend service.
+- **Implementation:** The backend service responsible for video downloads calls the new `audio_service.py` function.
+
+#### 2.2. Frontend Audio Playback Synchronization
+- **Requirement:** Play the extracted original audio track and any voiceover tracks synchronized with the video frames displayed in the `video-context` timeline, loading audio into memory for precise control.
 - **Implementation:**
     - Utilize the browser's Web Audio API.
-    - Create a reusable React hook (`useAudioSync`) to manage `AudioContext`, load audio buffers from R2 URLs, create/manage `AudioBufferSourceNode`s, and handle playback logic.
-    - The hook must accept the current playback time from `video-context` and start/stop/seek audio accurately based on that time.
+    - Create reusable React hooks (following a highly granular approach, e.g., `useWebAudioLoader`, `useAudioPlaybackSync`, `useAudioTrackManager`) to manage `AudioContext`, fetch R2 URLs, **load full audio data into `AudioBuffer`s in browser memory**, create/manage `AudioBufferSourceNode`s and `GainNode`s per track, and handle playback logic.
+    - The hooks must accept the current playback time from `video-context` and start/stop/seek audio accurately based on that time using the in-memory buffers.
 
-### 2.3. Original Audio Volume Control
-- **Requirement:** Allow users to adjust the volume of the original video audio.
+#### 2.3. Unified Audio Volume Control
+- **Requirement:** Allow users to adjust the volume of the currently selected audio track (original or voiceover).
 - **Implementation:**
-    - Add a volume slider UI element to the main editor interface, likely near the timeline controls (e.g., next to the info button).
-    - Use a `GainNode` within the Web Audio API context, controlled by the `useAudioSync` hook and the UI slider.
+    - Implement an **Audio Track Toggle Button** in the UI (likely near timeline controls). This button cycles through available tracks (e.g., "Original Audio", "Voiceover 1").
+    - Implement a **Single Volume Slider** UI element (displaying 1-100, draggable). This slider controls the volume of the track currently selected via the toggle button.
+    - Use `GainNode`s within the Web Audio API context for each track. The `useAudioTrackManager` hook will manage which track's `GainNode` is affected by the UI slider based on the toggle state.
 
-### 2.4. Waveform Visualization
+#### 2.4. Waveform Visualization
 - **Requirement:** Provide visual feedback of audio content on the timeline.
 - **Implementation:**
     - **Default Timeline View:** Display a subtle, semi-transparent waveform for the *original video audio* in the background of the timeline scrubber area.
-    - **Expanded Timeline View:** Display layered, colored, semi-transparent waveforms for *all* active audio tracks (original, voiceovers). Use distinct colors (e.g., blue for original, red for voiceover).
-    - Waveform data should be generated asynchronously from the audio buffers using the Web Audio API (`getChannelData`) and rendered onto a `<canvas>` element.
+    - **Expanded Timeline View:** Display layered, colored, semi-transparent waveforms for *all* active audio tracks (original, voiceovers). Use distinct colors (e.g., blue for original, red for voiceover). The waveform corresponding to the *currently selected track* (via the toggle) should have slightly higher opacity or visual emphasis.
+    - Waveform data should be generated asynchronously from the in-memory `AudioBuffer`s using the Web Audio API (`getChannelData`) and rendered onto a `<canvas>` element (e.g., `WaveformCanvas.tsx` component).
 
-### 2.5. ElevenLabs Voiceover Integration
-- **Requirement:** Integrate generated ElevenLabs voiceovers as distinct, manipulatable audio tracks.
+#### 2.5. ElevenLabs Voiceover Integration
+- **Requirement:** Integrate generated ElevenLabs voiceovers as distinct, manipulatable audio tracks using the new audio engine.
 - **Implementation:**
-    - Treat the voiceover audio file URL as another source for the `useAudioSync` hook.
-    - Display its waveform (e.g., semi-transparent red) in the expanded timeline view.
-    - Implement drag-and-drop functionality for the voiceover waveform in the expanded view, allowing users to change its start time offset relative to the main timeline. Store this offset.
-    - Provide a separate volume control for the voiceover track, likely accessible in the expanded view or via track selection.
+    - Treat the voiceover audio file URL (obtained via the refactored backend flow) as another source managed by the audio hooks (`useWebAudioLoader`, etc.).
+    - Display its waveform (e.g., semi-transparent red) in the expanded timeline view, managed by `WaveformCanvas.tsx`.
+    - Implement drag-and-drop functionality (e.g., `DraggableAudioTrack.tsx`) for the voiceover waveform in the expanded view, allowing users to change its start time offset relative to the main timeline. Store this offset via `useAudioTrackManager`.
+    - Volume is controlled via the unified slider when the voiceover track is selected using the toggle button.
 
-### 2.6. UI Enhancements
-- **Requirement:** Adapt the UI to accommodate the new audio features without cluttering the primary interface.
+#### 2.6. UI Enhancements
+- **Requirement:** Adapt the UI to accommodate the new audio features using an expandable timeline.
 - **Implementation:**
-    - Create an "expanded" state for the timeline component, increasing its height to clearly show layered waveforms and provide space for interaction (like dragging). Add a toggle button to switch between default and expanded views.
-    - Add a mechanism (e.g., a toggle button, track selection UI) to visually highlight or bring focus to a specific waveform layer (original vs. voiceover) in the expanded view.
+    - Create an "expanded" state for the timeline component (`ExpandableTimeline.tsx`), increasing its height to clearly show layered waveforms and provide space for interaction (like dragging). Add a toggle button to switch between default and expanded views.
+    - The **Audio Track Toggle Button** (from 2.3) also serves to switch focus between waveform layers in the expanded view, affecting visual emphasis (as described in 2.4) and determining which track the unified volume slider controls.
 
-## 3. Future Considerations (Post-MVP)
+### Phase 3: Future Considerations (Post-MVP)
 - Support for adding and managing multiple independent voiceover tracks per scene/project.
 - Advanced audio effects (fades, etc.).
 - Audio trimming capabilities.
 
-## 4. Technology Stack Notes
+## 3. Technology Stack Notes
 - Frontend: Next.js, React, Tailwind CSS, video-context, Web Audio API
 - Backend: FastAPI, Python, ffmpeg
 - Database: MongoDB
