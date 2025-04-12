@@ -1,0 +1,62 @@
+# Product Requirements Document: Auto Shorts Web App - Audio Features
+
+## 1. Overview
+
+**Project:** Auto Shorts Web App
+**Goal:** Enhance the video editor with integrated audio editing capabilities, allowing users to manage original video audio and add/manipulate voiceovers.
+
+## 2. Core Features
+
+### 2.1. Backend Audio Extraction and Storage
+- **Requirement:** When videos are downloaded (e.g., from Reddit), automatically extract the original audio track.
+- **Implementation:**
+    - Use `ffmpeg` within the backend (FastAPI/Python) service.
+    - Extract audio into a standard format (e.g., AAC or MP3).
+    - Upload both the original video (or video without audio) and the extracted audio file to Cloudflare R2.
+    - Use a consistent naming convention (e.g., `video_id.mp4`, `video_id_audio.aac`).
+    - Update the database model for media clips to include a reference (URL/key) to the associated audio file.
+
+### 2.2. Frontend Audio Playback Synchronization
+- **Requirement:** Play the extracted original audio track synchronized with the video frames displayed in the `video-context` timeline.
+- **Implementation:**
+    - Utilize the browser's Web Audio API.
+    - Create a reusable React hook (`useAudioSync`) to manage `AudioContext`, load audio buffers from R2 URLs, create/manage `AudioBufferSourceNode`s, and handle playback logic.
+    - The hook must accept the current playback time from `video-context` and start/stop/seek audio accurately based on that time.
+
+### 2.3. Original Audio Volume Control
+- **Requirement:** Allow users to adjust the volume of the original video audio.
+- **Implementation:**
+    - Add a volume slider UI element to the main editor interface, likely near the timeline controls (e.g., next to the info button).
+    - Use a `GainNode` within the Web Audio API context, controlled by the `useAudioSync` hook and the UI slider.
+
+### 2.4. Waveform Visualization
+- **Requirement:** Provide visual feedback of audio content on the timeline.
+- **Implementation:**
+    - **Default Timeline View:** Display a subtle, semi-transparent waveform for the *original video audio* in the background of the timeline scrubber area.
+    - **Expanded Timeline View:** Display layered, colored, semi-transparent waveforms for *all* active audio tracks (original, voiceovers). Use distinct colors (e.g., blue for original, red for voiceover).
+    - Waveform data should be generated asynchronously from the audio buffers using the Web Audio API (`getChannelData`) and rendered onto a `<canvas>` element.
+
+### 2.5. ElevenLabs Voiceover Integration
+- **Requirement:** Integrate generated ElevenLabs voiceovers as distinct, manipulatable audio tracks.
+- **Implementation:**
+    - Treat the voiceover audio file URL as another source for the `useAudioSync` hook.
+    - Display its waveform (e.g., semi-transparent red) in the expanded timeline view.
+    - Implement drag-and-drop functionality for the voiceover waveform in the expanded view, allowing users to change its start time offset relative to the main timeline. Store this offset.
+    - Provide a separate volume control for the voiceover track, likely accessible in the expanded view or via track selection.
+
+### 2.6. UI Enhancements
+- **Requirement:** Adapt the UI to accommodate the new audio features without cluttering the primary interface.
+- **Implementation:**
+    - Create an "expanded" state for the timeline component, increasing its height to clearly show layered waveforms and provide space for interaction (like dragging). Add a toggle button to switch between default and expanded views.
+    - Add a mechanism (e.g., a toggle button, track selection UI) to visually highlight or bring focus to a specific waveform layer (original vs. voiceover) in the expanded view.
+
+## 3. Future Considerations (Post-MVP)
+- Support for adding and managing multiple independent voiceover tracks per scene/project.
+- Advanced audio effects (fades, etc.).
+- Audio trimming capabilities.
+
+## 4. Technology Stack Notes
+- Frontend: Next.js, React, Tailwind CSS, video-context, Web Audio API
+- Backend: FastAPI, Python, ffmpeg
+- Database: MongoDB
+- Storage: Cloudflare R2 

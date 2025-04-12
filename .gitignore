@@ -133,3 +133,21 @@ web/frontend/existing-*.png
 web/frontend/found-*.png
 web/frontend/waiting-*.png
 web/frontend/audio-*.png
+
+# Added by Claude Task Master
+logs
+dev-debug.log
+# Dependency directories
+# Environment variables
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+# Task files
+tasks.json
+tasks/ 
