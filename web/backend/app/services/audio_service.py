@@ -12,6 +12,7 @@ import time
 from typing import Dict, List, Optional, Tuple, Union, Any
 import json
 import asyncio
+from datetime import datetime
 
 import aiofiles
 import httpx
@@ -20,6 +21,8 @@ import ffmpeg
 
 # Assuming config is one level up in core
 from app.core.config import settings 
+# Import storage service getter
+from app.services.storage import get_storage, R2Storage # Import R2Storage for type hinting
 
 logger = logging.getLogger(__name__)
 
@@ -224,9 +227,9 @@ class AudioService:
     def __init__(self):
         # Instantiate the client internally
         self.elevenlabs_client = ElevenLabsClient()
-        # Initialize ffmpeg path or wrapper here later
-        # Initialize storage service client/wrapper here later
-        pass
+        # Get storage instance using the provided getter
+        self.storage: R2Storage = get_storage() 
+        logger.info(f"AudioService initialized with storage type: {type(self.storage).__name__}")
 
     async def _run_ffmpeg_extraction(self, input_path: str, output_path: str) -> None:
         """Runs ffmpeg to extract audio to MP3 format."""
@@ -274,74 +277,124 @@ class AudioService:
                 except: pass
             raise
             
-    async def generate_and_store_voiceover(self, text, voice_id, project_id, scene_id, voice_settings: Optional[VoiceSettings] = None):
-        """Generates voiceover using ElevenLabs and stores it."""
-        logger.info(f"Generating voiceover for scene {scene_id} in project {project_id}")
+    async def generate_and_store_voiceover(
+        self, text: str, voice_id: str, project_id: str, 
+        scene_id: str, voice_settings: Optional[VoiceSettings] = None
+    ) -> str:
+        """Generates voiceover using ElevenLabs, stores it in R2, returns the URL."""
+        logger.info(f"Generating and storing voiceover for scene {scene_id} in project {project_id}")
+        temp_file_path: Optional[str] = None
         try:
-            # Use the internal client instance
+            # 1. Generate audio using the internal client instance
             audio_data, content_type = await self.elevenlabs_client.generate_audio(
                 text=text,
                 voice_id=voice_id,
-                # Pass settings if provided
                 stability=voice_settings.stability if voice_settings else settings.VOICE_GEN_DEFAULT_STABILITY,
                 similarity_boost=voice_settings.similarity_boost if voice_settings else settings.VOICE_GEN_DEFAULT_SIMILARITY,
                 style=voice_settings.style if voice_settings else None,
                 use_speaker_boost=voice_settings.use_speaker_boost if voice_settings else True,
             )
+            logger.info(f"Generated {len(audio_data)} bytes of audio data.")
+
+            # 2. Save audio_data to a temporary file
+            # Determine suffix based on content_type (e.g., .mp3)
+            suffix = ".mp3" if "mpeg" in content_type else ".bin"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                async with aiofiles.open(temp_file.name, "wb") as afp:
+                    await afp.write(audio_data)
+                temp_file_path = temp_file.name
+            logger.info(f"Saved generated audio to temporary file: {temp_file_path}")
+
+            # 3. Call storage_service.upload_file
+            # Construct a filename (e.g., timestamp_voiceid.mp3)
+            filename_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            object_filename = f"{filename_timestamp}_{voice_id}{suffix}"
             
-            # --- TODO: Step 3 - Upload to R2 using storage service ---
-            # 1. Save audio_data to a temporary file
-            # 2. Call storage_service.upload_file(temp_file_path, project_id, scene_id, ...)
-            # 3. Get R2 URL
-            # 4. Clean up temp file
-            # 5. Return R2 URL
+            # Assume default_user for now, or get from context if available later
+            user_id = "default_user" 
             
-            logger.info("Voiceover generated (Upload pending)")
-            # Placeholder return
-            return "placeholder_r2_url_voiceover"
+            upload_success, url_or_error = await self.storage.upload_file(
+                file_path=temp_file_path,
+                object_name=object_filename, # Let storage handle full path construction
+                project_id=project_id,
+                scene_id=scene_id,
+                file_type="audio",
+                user_id=user_id 
+            )
+
+            # 4. Check result and return URL or raise error
+            if not upload_success:
+                logger.error(f"Failed to upload generated voiceover: {url_or_error}")
+                raise RuntimeError(f"Failed to store generated voiceover: {url_or_error}")
             
+            logger.info(f"Successfully stored generated voiceover. URL: {url_or_error}")
+            return url_or_error # This is the R2 URL
+
         except ElevenLabsError as e:
             logger.error(f"ElevenLabs error during voice generation: {e}")
-            raise # Re-raise for API endpoint to handle
+            raise RuntimeError(f"Voice generation failed: {e}") from e
         except Exception as e:
-            logger.error(f"Unexpected error during voice generation: {e}")
-            raise
+            logger.error(f"Unexpected error during voice generation/storage: {e}")
+            raise # Re-raise for API endpoint to handle
+        finally:
+            # 5. Clean up temp file regardless of success/failure after upload attempt
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.unlink(temp_file_path)
+                    logger.info(f"Cleaned up temporary voiceover file: {temp_file_path}")
+                except Exception as unlink_e:
+                    logger.warning(f"Failed to clean up temp voiceover file {temp_file_path}: {unlink_e}")
             
-    async def extract_and_store_original_audio(self, video_path, project_id, scene_id):
-        """Extracts original audio using ffmpeg and prepares it for storage."""
-        logger.info(f"Extracting original audio for scene {scene_id} in project {project_id} from {video_path}")
-        temp_audio_path = None
+    async def extract_and_store_original_audio(self, video_path: str, project_id: str, scene_id: str) -> str:
+        """Extracts original audio using ffmpeg, stores it in R2, and returns the URL."""
+        logger.info(f"Extracting and storing original audio for scene {scene_id} in project {project_id} from {video_path}")
+        temp_audio_path: Optional[str] = None
         try:
-            # Create a temporary file for the output MP3
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+            # 1. Create a temporary file path for the output MP3
+            # Use a more descriptive name if possible
+            safe_scene_id = scene_id.replace("/", "_") # Basic sanitization
+            temp_suffix = f"_original_{safe_scene_id}.mp3"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=temp_suffix) as temp_file:
                 temp_audio_path = temp_file.name
             logger.info(f"Created temporary file for extracted audio: {temp_audio_path}")
 
-            # Run ffmpeg extraction
+            # 2. Run ffmpeg extraction
             await self._run_ffmpeg_extraction(video_path, temp_audio_path)
             
-            # --- TODO: Step 2 - Upload temp_audio_path to R2 using storage service (Subtask 1.4) ---
-            # r2_url = await storage_service.upload_file(temp_audio_path, project_id, scene_id, ...)
+            # 3. Upload temp_audio_path to R2 using storage service
+            filename_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            object_filename = f"{filename_timestamp}_original{temp_suffix}"
+            # Assume default_user for now
+            user_id = "default_user"
             
-            logger.info(f"Original audio extracted successfully to {temp_audio_path} (Upload pending)")
-            # Placeholder return for now, will return R2 URL later
-            # We also need to return the temp_audio_path maybe, or handle upload here
+            upload_success, url_or_error = await self.storage.upload_file(
+                file_path=temp_audio_path,
+                object_name=object_filename, # Let storage handle full path construction
+                project_id=project_id,
+                scene_id=scene_id,
+                file_type="audio", # Maybe add subtype 'original' later if needed
+                user_id=user_id
+            )
             
-            # For now, just return the path to the temp file for potential cleanup/upload
-            # The final implementation in 1.4 will handle the upload and return the URL
-            return temp_audio_path # TEMPORARY RETURN VALUE
-            
+            # 4. Check result and return URL or raise error
+            if not upload_success:
+                 logger.error(f"Failed to upload extracted original audio: {url_or_error}")
+                 raise RuntimeError(f"Failed to store extracted audio: {url_or_error}")
+
+            logger.info(f"Successfully stored extracted original audio. URL: {url_or_error}")
+            return url_or_error # This is the R2 URL
+
         except Exception as e:
-             logger.error(f"Error during original audio extraction process: {e}")
-             # Clean up temp file if it exists and something went wrong
-             if temp_audio_path and os.path.exists(temp_audio_path):
-                 try:
-                     os.unlink(temp_audio_path)
-                     logger.info(f"Cleaned up temporary audio file: {temp_audio_path}")
-                 except Exception as unlink_e:
-                     logger.warning(f"Failed to clean up temp file {temp_audio_path}: {unlink_e}")
-             raise # Re-raise the original exception
-        # Note: Successful flow needs cleanup after upload in subtask 1.4
+             logger.error(f"Error during original audio extraction/storage process: {e}")
+             raise # Re-raise original exception
+        finally:
+            # 5. Clean up temp file regardless of success/failure after upload attempt
+            if temp_audio_path and os.path.exists(temp_audio_path):
+                try:
+                    os.unlink(temp_audio_path)
+                    logger.info(f"Cleaned up temporary extracted audio file: {temp_audio_path}")
+                except Exception as unlink_e:
+                    logger.warning(f"Failed to clean up temp extracted audio file {temp_audio_path}: {unlink_e}")
 
 # --- End of AudioService class --- 
 
