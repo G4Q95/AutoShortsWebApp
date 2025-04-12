@@ -18,19 +18,24 @@ from fastapi.responses import JSONResponse, FileResponse, Response
 from pydantic import BaseModel, Field, validator
 
 from app.core.config import settings
-from app.services.voice_generation import (
-    get_elevenlabs_client, 
+from app.services.audio_service import (
     Voice,
     VoiceSettings,
     ElevenLabsError
 )
 from app.services.storage import get_storage
+from app.services.audio_service import AudioService
 
 logger = logging.getLogger(__name__)
 
 # Update router prefix to include API version
 router = APIRouter(prefix="/voice", tags=["voice"])
 
+# Assuming a dependency injection setup for the service, or create instance
+# This depends on how services are managed in the app
+# Simple approach: instantiate here (can be refined later)
+# TODO: Consider proper dependency injection for AudioService
+audio_service = AudioService()
 
 # API Models
 class VoiceResponse(BaseModel):
