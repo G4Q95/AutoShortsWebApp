@@ -261,16 +261,24 @@ export interface VoiceResponse {
  * Request to save audio to persistent storage
  */
 export interface SaveAudioRequest {
-  /** Base64 encoded audio data */
-  audio_base64: string;
-  /** MIME type of the audio (e.g., "audio/mp3") */
-  content_type: string;
+  /** Text content to generate voiceover from */
+  text: string;
+  /** Voice ID to use for generation */
+  voice_id: string;
   /** Project ID this audio belongs to */
   project_id: string;
   /** Scene ID this audio belongs to */
   scene_id: string;
-  /** Voice ID used to generate this audio */
-  voice_id: string;
+  /** Optional voice stability setting */
+  stability?: number;
+  /** Optional voice similarity boost setting */
+  similarity_boost?: number;
+  /** Optional voice style setting */
+  style?: number;
+  /** Optional speaker boost setting */
+  use_speaker_boost?: boolean;
+  /** Optional speed setting - although backend might not use this directly for saving */
+  speed?: number;
 }
 
 /**
@@ -281,8 +289,6 @@ export interface SaveAudioResponse {
   success: boolean;
   /** URL to access the stored audio */
   url: string;
-  /** Storage key where the audio is saved */
-  storage_key: string;
 }
 
 /**

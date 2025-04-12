@@ -307,16 +307,20 @@ export function useVoiceLogic(
           console.log('Persisting audio to storage...', {
             sceneId: scene.id,
             voiceId,
-            contentType: 'audio/mp3',
-            audioLength: audio_base64.length
+            textLength: text?.length || 0,
+            projectId: currentProjectId
           });
           
           const persistResult = await persistVoiceAudio({
-            audio_base64,
-            content_type: 'audio/mp3',
+            text: text || "",
+            voice_id: voiceId,
             project_id: currentProjectId,
             scene_id: scene.id,
-            voice_id: voiceId
+            stability: stability,
+            similarity_boost: similarityBoost,
+            style: style,
+            use_speaker_boost: speakerBoost,
+            speed: speed
           });
           
           if (persistResult.error) {
@@ -325,9 +329,9 @@ export function useVoiceLogic(
           } else if (persistResult.data && persistResult.data.success) {
             // If audio was successfully saved to R2, update with the returned URL
             const audioDataWithUrl = {
-              ...audioData,
+              audio_base64,
+              content_type: 'audio/mp3',
               persistentUrl: persistResult.data.url,
-              storageKey: persistResult.data.storage_key
             };
             
             console.log('Audio successfully saved to storage with URL:', persistResult.data.url);

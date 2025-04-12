@@ -402,12 +402,12 @@ export async function generateVoiceAudio(
 export async function persistVoiceAudio(
   requestData: SaveAudioRequest
 ): Promise<ApiResponse<SaveAudioResponse>> {
-  // Validate required fields
-  if (!requestData.project_id || !requestData.scene_id || !requestData.audio_base64) {
+  // Validate NEW required fields
+  if (!requestData.project_id || !requestData.scene_id || !requestData.text || !requestData.voice_id) {
     return {
       data: null as any,
       error: {
-        message: 'Missing required fields (project_id, scene_id, or audio_base64)',
+        message: 'Missing required fields (project_id, scene_id, text, or voice_id)',
         status_code: 400,
         error_code: 'MISSING_REQUIRED_FIELDS'
       },
@@ -425,14 +425,15 @@ export async function persistVoiceAudio(
     };
   }
 
+  // Use the CORRECT endpoint: /voice/save
   return fetchAPI<SaveAudioResponse>(
-    `/voice/persist`,
+    `/voice/save`, // Corrected endpoint
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestData),
+      body: JSON.stringify(requestData), // requestData now has the correct fields
     },
     30000 // Longer timeout for saving large audio files
   );
