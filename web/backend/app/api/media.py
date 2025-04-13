@@ -3,6 +3,7 @@ Media API for handling media uploads, downloads, and transformations.
 """
 
 import logging
+import asyncio  # Add asyncio import
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, Query, BackgroundTasks
@@ -19,6 +20,16 @@ router = APIRouter(
     prefix="/media",
     tags=["media"],
 )
+
+# Background task helper function
+async def log_background_task(message: str, project_id: str):
+    """Logs a message asynchronously for a background task."""
+    try:
+        logger.info(f"Starting background task: {message} for project {project_id}")
+        await asyncio.sleep(2)  # Simulate work
+        logger.info(f"Completed background task for project {project_id}")
+    except Exception as e:
+        logger.error(f"Background task failed for project {project_id}: {str(e)}")
 
 # Media store request model
 class MediaStoreRequest(BaseModel):
@@ -42,7 +53,7 @@ class MediaStoreResponse(BaseModel):
     metadata: Optional[dict] = Field(None, description="Additional metadata for the media")
 
 @router.post("/store", response_model=MediaStoreResponse)
-async def store_media_from_url(request: MediaStoreRequest):
+async def store_media_from_url(request: MediaStoreRequest, background_tasks: BackgroundTasks):
     """
     Store media from a URL to cloud storage
     
@@ -71,6 +82,13 @@ async def store_media_from_url(request: MediaStoreRequest):
         
         logger.info(f"Media successfully stored: {result.get('storage_key')}")
         
+        # Add the background task
+        background_tasks.add_task(
+            log_background_task,
+            "Media stored, initiating post-processing",
+            request.project_id
+        )
+
         return MediaStoreResponse(
             success=True,
             url=result.get("url"),
