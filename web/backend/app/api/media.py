@@ -11,7 +11,7 @@ from pydantic import BaseModel, HttpUrl, Field
 
 from app.core.errors import create_error_response, ErrorCodes
 from app.models.api import ApiResponse
-from app.services.media_service import store_media_content, MediaType, download_media
+from app.services.media_service import store_media_content, MediaType
 from app.services.audio_service import AudioService # Import AudioService
 from app.dependencies import get_audio_service # Import dependency getter
 from app.core.config import settings
@@ -23,23 +23,6 @@ router = APIRouter(
     tags=["media"],
 )
 
-# Background task helper function
-async def log_background_task(message: str, project_id: str):
-    """Logs a message asynchronously for a background task."""
-    try:
-        logger.info(f"Starting background task: {message} for project {project_id}")
-        await asyncio.sleep(2)  # Simulate work
-        logger.info(f"Completed background task for project {project_id}")
-    except Exception as e:
-        logger.error(f"Background task failed for project {project_id}: {str(e)}")
-
-# Placeholder function for triggering audio extraction
-async def trigger_audio_extraction_placeholder(audio_service: AudioService, video_storage_key: str):
-    """Placeholder background task to log audio extraction trigger."""
-    logger.info(f"Background task: Placeholder trigger for audio extraction on {video_storage_key}")
-    logger.info(f"AudioService instance type in background task: {type(audio_service)}")
-    # In the next step, this will call audio_service.trigger_audio_extraction
-
 # Media store request model
 class MediaStoreRequest(BaseModel):
     """Request model for storing media from a URL."""
@@ -49,86 +32,63 @@ class MediaStoreRequest(BaseModel):
     media_type: Optional[str] = Field(None, description="Type of media (image, video, audio)")
     create_thumbnail: Optional[bool] = Field(False, description="Whether to create a thumbnail")
 
-# Media store response model
-class MediaStoreResponse(BaseModel):
-    """Response model for media store operation."""
-    success: bool = Field(..., description="Whether the storage was successful")
-    url: Optional[str] = Field(None, description="URL to access the stored media")
-    storage_key: Optional[str] = Field(None, description="Storage key for the media")
-    media_type: Optional[str] = Field(None, description="Type of the stored media")
-    content_type: Optional[str] = Field(None, description="Content-Type of the stored media")
-    file_size: Optional[int] = Field(None, description="Size of the file in bytes")
-    original_url: Optional[str] = Field(None, description="Original URL the media was downloaded from")
-    metadata: Optional[dict] = Field(None, description="Additional metadata for the media")
+# Media store queued response model
+class MediaStoreQueuedResponse(BaseModel):
+     """Response model indicating media storage task was queued."""
+     task_id: str = Field(..., description="The ID of the queued Celery background task.")
 
-@router.post("/store", response_model=MediaStoreResponse)
+@router.post("/store", response_model=MediaStoreQueuedResponse)
 async def store_media_from_url(
     request: MediaStoreRequest, 
-    background_tasks: BackgroundTasks,
-    audio_service: AudioService = Depends(get_audio_service) # Inject AudioService
 ):
     """
-    Store media from a URL to cloud storage
+    Queues a background task to store media from a URL.
     
     Args:
-        url: URL of the media to download and store
-        project_id: Project ID the media belongs to
-        scene_id: Scene ID the media belongs to
-        media_type: Type of media (optional, will be detected if not provided)
-        create_thumbnail: Whether to create a thumbnail (default: False)
+        request: The request body containing URL, project_id, scene_id, etc.
         
     Returns:
-        Storage result with file URL and storage key
+        Response containing the ID of the queued background task.
     """
-    logger.info(f"Media store request for URL: {request.url}")
+    logger.info(f"Media store request received for URL: {request.url}")
     logger.info(f"Project ID: {request.project_id}, Scene ID: {request.scene_id}")
-    logger.info(f"Media type: {request.media_type}")
+    # media_type and create_thumbnail are passed but handled by the Celery task
     
     try:
+        # Call the updated service function which now returns a task_id dict
         result = await store_media_content(
             url=str(request.url),
             project_id=request.project_id,
             scene_id=request.scene_id,
-            media_type=request.media_type,
-            create_thumbnail=request.create_thumbnail
+            media_type=request.media_type, # Pass along for potential future use in task
+            create_thumbnail=request.create_thumbnail # Pass along for potential future use in task
         )
         
-        logger.info(f"Media successfully stored: {result.get('storage_key')}")
+        # store_media_content now returns {"task_id": task_result.id}
+        task_id = result.get("task_id")
+
+        if not task_id:
+             # This shouldn't happen if store_media_content works correctly
+             logger.error("store_media_content did not return a task_id")
+             raise HTTPException(status_code=500, detail="Failed to queue download task: No task ID returned.")
         
-        # Get the storage key for the video
-        video_storage_key = result.get("storage_key")
+        logger.info(f"Media download/store task queued with ID: {task_id}")
 
-        if video_storage_key and result.get("media_type") == MediaType.VIDEO:
-            # Add the background task for audio extraction
-            logger.info(f"Adding background task to extract audio from {video_storage_key}")
-            background_tasks.add_task(
-                trigger_audio_extraction_placeholder, 
-                audio_service=audio_service, 
-                video_storage_key=video_storage_key
-            )
-        else:
-            logger.info("Skipping audio extraction background task: No video storage key or media is not video.")
+        # Return the new response model with the task ID
+        return MediaStoreQueuedResponse(task_id=task_id)
 
-        return MediaStoreResponse(
-            success=True,
-            url=result.get("url"),
-            storage_key=result.get("storage_key"),
-            media_type=result.get("media_type"),
-            content_type=result.get("content_type"),
-            file_size=result.get("file_size"),
-            original_url=str(request.url),
-            metadata=result.get("metadata", {})
-        )
     except HTTPException as e:
-        logger.error(f"Error storing media: {e.detail}")
+        # Log and re-raise HTTP exceptions from the service layer or validation
+        logger.error(f"HTTP error queuing media store task: {e.detail}")
         raise
     except Exception as e:
-        logger.error(f"Unexpected error storing media: {str(e)}")
-        return create_error_response(
-            message=f"Failed to store media: {str(e)}",
-            error_code=ErrorCodes.MEDIA_STORAGE_ERROR,
-            http_status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        # Catch other unexpected errors (e.g., Celery connection issues during .delay())
+        logger.error(f"Unexpected error queuing media store task: {str(e)}", exc_info=True)
+        # Return a standardized error response
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to queue media storage task: {str(e)}"
+        ) # Use standard HTTPException, middleware will format it
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_media_file(

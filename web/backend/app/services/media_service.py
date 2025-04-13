@@ -21,6 +21,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.services.storage import get_storage
+from app.tasks.media_tasks import download_media_task
 
 logger = logging.getLogger(__name__)
 
@@ -221,23 +222,24 @@ async def store_media_content(
 ) -> Dict[str, Any]:
     """
     Download and store media content in R2 storage.
+    This version queues a Celery task to perform the actual download and storage.
     
     Args:
         url: Media URL to download
         project_id: Project ID
         scene_id: Scene ID
-        media_type: Type of media
-        create_thumbnail: Whether to create a thumbnail
-        timeout: Download timeout in seconds
+        media_type: Type of media (Currently informational, task handles detection)
+        create_thumbnail: Whether to create a thumbnail (Handled by task if needed)
+        timeout: Download timeout in seconds (Handled by task)
         
     Returns:
-        Dictionary with storage details
+        Dictionary containing the Celery task ID that was queued.
         
     Raises:
-        HTTPException: If processing fails
+        HTTPException: If input validation fails or task queuing fails.
     """
-    logger.info(f"[TIMING_MEDIA_STORE] Starting media processing for {project_id}/{scene_id} from {url}")
-    overall_start_time = time.time()
+    logger.info(f"Received request to store media for {project_id}/{scene_id} from {url}")
+    # overall_start_time = time.time()
     
     try:
         # Validate input
@@ -247,162 +249,108 @@ async def store_media_content(
             raise ValueError("Project ID is required")
         if not scene_id:
             raise ValueError("Scene ID is required")
-            
-        logger.info(f"Processing media from {url} for project {project_id}, scene {scene_id}")
+
+        # --- Queue Celery Task --- 
+        logger.info(f"Queuing download_media_task for URL: {url}")
         
-        # Download the media
-        download_start_time = time.time()
-        logger.info(f"[TIMING_MEDIA_STORE] Starting download for {project_id}/{scene_id}")
-        content, content_type, metadata = await download_media(
+        task_result = download_media_task.delay(
             url=url,
-            media_type=media_type,
-            timeout=timeout
-        )
-        download_end_time = time.time()
-        download_duration = download_end_time - download_start_time
-        logger.info(f"[TIMING_MEDIA_STORE] Download finished for {project_id}/{scene_id}. Duration: {download_duration:.2f}s. Size: {len(content)} bytes.")
-        
-        # Save to temporary file
-        write_start_time = time.time()
-        logger.info(f"[TIMING_MEDIA_STORE] Writing to temp file for {project_id}/{scene_id}")
-        with tempfile.NamedTemporaryFile(delete=False, suffix=metadata.get("extension", ".tmp")) as temp_file:
-            async with aiofiles.open(temp_file.name, mode='wb') as afp:
-                await afp.write(content)
-            temp_file_path = temp_file.name
-        write_end_time = time.time()
-        write_duration = write_end_time - write_start_time
-        logger.info(f"[TIMING_MEDIA_STORE] Temp file write finished for {project_id}/{scene_id}. Duration: {write_duration:.2f}s. Path: {temp_file_path}")
-
-        # Get storage instance
-        storage = get_storage()
-        # Remove Audio Service instantiation
-        # audio_service = AudioService()
-        # original_audio_url: Optional[str] = None # Variable to store extracted audio URL
-
-        # Generate filename
-        now = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"{now}{metadata.get('extension', '.tmp')}"
-        
-        # Upload to R2
-        logger.info(f"[TIMING_MEDIA_STORE] Starting R2 upload for {project_id}/{scene_id}. Filename: {filename}")
-        upload_start_time = time.time()
-        storage_result = await storage.upload_file(
-            file_path=temp_file_path,
             project_id=project_id,
-            scene_id=scene_id,
-            file_type=media_type,
-            user_id="default_user"  # Using a default user ID
+            scene_id=scene_id
         )
-        upload_duration = time.time() - upload_start_time
-        logger.info(f"[TIMING_MEDIA_STORE] R2 upload finished for {project_id}/{scene_id}. Duration: {upload_duration:.2f}s")
+        
+        logger.info(f"Task {task_result.id} queued successfully for {project_id}/{scene_id}")
+        
+        return {"task_id": task_result.id}
 
-        # Check the result tuple: (success, url_or_error)
-        upload_success, url_or_error = storage_result
+        # --- Remove old synchronous download and storage logic --- START
+        # # Download media content
+        # download_start_time = time.time()
+        # content, content_type, metadata = await download_media(url, media_type, timeout)
+        # download_duration = time.time() - download_start_time
+        # logger.info(f"[TIMING_MEDIA_STORE] Download took {download_duration:.2f}s")
 
-        if not upload_success:
-            # Handle upload failure
-            logger.error(f"R2 upload failed for {filename}. Reason: {url_or_error}")
-            # Attempt to clean up temp file even on failure
-            try:
-                os.remove(temp_file_path)
-                logger.info(f"[TIMING_MEDIA_STORE] Cleaned up temp file after failed upload: {temp_file_path}")
-            except OSError as e:
-                logger.error(f"Error removing temporary file {temp_file_path} after failed upload: {e}")
-            # Return an error structure
-            return {
-                "success": False,
-                "error": f"Failed to upload to R2: {url_or_error}"
-            }
-
-        # If upload was successful, url_or_error contains the URL
-        media_url = url_or_error
-        # The object_name used for the upload is the storage_key
-        storage_key = filename
-
-        # --- REMOVE AUDIO EXTRACTION BLOCK ---
-        # if media_type == MediaType.VIDEO and os.path.exists(temp_file_path):
-        #     logger.info(f"Media type is video. Attempting to extract original audio from {temp_file_path}")
-        #     try:
-        #         # Temporarily comment out the actual call for debugging
-        #         # original_audio_url = await audio_service.extract_and_store_original_audio(
-        #         #     video_path=temp_file_path,
-        #         #     project_id=project_id,
-        #         #     scene_id=scene_id
-        #         # )
-        #         logger.info("Audio extraction call is currently commented out for debugging.") # Add log message
-        #         original_audio_url = None # Ensure variable exists
-        #
-        #         # Keep the rest of the original logic in case it needs to be uncommented later
-        #         # if original_audio_url:
-        #         #     logger.info(f"Successfully extracted and stored original audio: {original_audio_url}")
-        #         # else:
-        #         #     # This case might occur if the function internally handles errors and returns None
-        #         #     logger.warning("extract_and_store_original_audio completed but returned no URL.")
-        #     except FfmpegError as ffmpeg_err:
-        #         # Log ffmpeg-specific errors but don't stop the overall process
-        #         logger.error(f"FFmpeg error during original audio extraction: {ffmpeg_err}")
-        #     except Exception as audio_err:
-        #         # Log other errors during audio extraction but don't stop the overall process
-        #         logger.error(f"Unexpected error during original audio extraction: {audio_err}")
-        #         logger.error(traceback.format_exc()) # Log full traceback for unexpected errors
-        # elif media_type == MediaType.VIDEO and not os.path.exists(temp_file_path):
-        #      logger.warning(f"Cannot extract audio: media type is video but temp file path does not exist: {temp_file_path}")
-        # --- END AUDIO EXTRACTION BLOCK ---
-
-        # Clean up temporary file
-        cleanup_start_time = time.time()
-        try:
-            os.remove(temp_file_path)
-            logger.info(f"[TIMING_MEDIA_STORE] Removed temporary file: {temp_file_path}")
-        except OSError as e:
-            logger.error(f"Error removing temporary file {temp_file_path}: {e}")
-        cleanup_duration = time.time() - cleanup_start_time
+        # # Determine filename and path
+        # parsed_url = urlparse(url)
+        # filename_base = os.path.basename(parsed_url.path)
+        # if not filename_base:
+        #     filename_base = f"{scene_id}_media"
+        # filename_ext = CONTENT_TYPE_TO_EXT.get(content_type, DEFAULT_EXT.get(media_type, FileExt.JPEG))
+        # filename = f"{filename_base}{filename_ext}"
+        
+        # storage_service = get_storage()
+        # logger.info(f"Using storage service: {type(storage_service).__name__}")
+        
+        # # Create a temporary file to upload content
+        # upload_start_time = time.time()
+        # with tempfile.NamedTemporaryFile(delete=False, suffix=filename_ext) as temp_file:
+        #     temp_file_path = temp_file.name
+        #     temp_file.write(content)
+        #     logger.info(f"Content written to temporary file: {temp_file_path}")
+        
+        # # Upload the temporary file
+        # object_name = storage_service.get_file_path(
+        #     user_id="temp_user", # TODO: Pass actual user ID if available
+        #     project_id=project_id,
+        #     scene_id=scene_id,
+        #     file_type="source_media",
+        #     filename=filename
+        # )
+        
+        # success, r2_url_or_error = await storage_service.upload_file(
+        #     file_path=temp_file_path,
+        #     object_name=object_name,
+        #     project_id=project_id,
+        #     scene_id=scene_id,
+        #     file_type="source_media"
+        # )
+        
+        # # Clean up temporary file
+        # try:
+        #     os.remove(temp_file_path)
+        #     logger.info(f"Removed temporary file: {temp_file_path}")
+        # except OSError as e:
+        #     logger.error(f"Error removing temporary file {temp_file_path}: {e}")
             
-        # Thumbnail generation (placeholder)
-        if create_thumbnail:
-            logger.info("Thumbnail creation requested but not yet implemented.")
-            metadata["thumbnail_status"] = "pending"
+        # upload_duration = time.time() - upload_start_time
+        # logger.info(f"[TIMING_MEDIA_STORE] Upload took {upload_duration:.2f}s")
+        
+        # if not success:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+        #         detail=f"Failed to upload media to storage: {r2_url_or_error}"
+        #     )
+            
+        # r2_url = r2_url_or_error
+        
+        # # Prepare result
+        # storage_details = {
+        #     "r2_url": r2_url,
+        #     "object_key": object_name,
+        #     "content_type": content_type,
+        #     "metadata": metadata,
+        # }
+        
+        # # TODO: Add thumbnail generation logic here if create_thumbnail is True
+        # 
+        # overall_duration = time.time() - overall_start_time
+        # logger.info(f"[TIMING_MEDIA_STORE] Total processing time: {overall_duration:.2f}s")
+        # return storage_details
+        # --- Remove old synchronous download and storage logic --- END
 
-        overall_end_time = time.time()
-        overall_duration = overall_end_time - overall_start_time
-        logger.info(f"[TIMING_MEDIA_STORE] Finished media processing for {project_id}/{scene_id}. Overall duration: {overall_duration:.2f}s")
-        
-        # Construct the success response using the tuple results
-        result = {
-            "success": True,
-            "media_url": media_url, # Use the URL from the tuple
-            "storage_key": storage_key,
-            "media_type": media_type,
-            "content_type": content_type,
-            "file_size": metadata.get("download_size"),
-            "original_url": media_url,
-            "metadata": {
-                "download_duration": download_duration,
-                "temp_write_duration": write_duration,
-                "upload_duration": upload_duration,
-                "cleanup_duration": cleanup_duration,
-                "total_duration": overall_duration,
-                "temp_file_path": temp_file_path,
-                "r2_object_key": storage_key,
-                # "original_audio_url": original_audio_url # Remove this line
-            },
-        }
-        
-        return result
-        
+    except ValueError as e:
+        logger.error(f"Validation error processing media for {project_id}/{scene_id}: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
     except MediaDownloadError as e:
-        logger.error(f"Failed to download media: {str(e)}")
-        raise HTTPException(
-            status_code=e.status_code or 500,
-            detail={"message": str(e), "code": "media_download_failed"}
-        )
+        logger.error(f"Media download failed for {project_id}/{scene_id} from url {e.url}: {e.message}")
+        raise HTTPException(status_code=e.status_code or 500, detail=e.message)
     except Exception as e:
-        logger.error(f"Unexpected error storing media: {str(e)}")
+        logger.error(f"Unexpected error processing media for {project_id}/{scene_id}: {str(e)}")
         logger.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=500,
-            detail={"message": f"Unexpected error storing media: {str(e)}", "code": "internal_server_error"}
-        )
+        # Handle potential Celery connection errors during .delay()
+        if "Broker connection error" in str(e) or "redis.exceptions.ConnectionError" in str(e):
+             raise HTTPException(status_code=503, detail=f"Failed to queue download task: Broker connection error.")
+        raise HTTPException(status_code=500, detail=f"Unexpected error processing media: {str(e)}")
 
 async def download_media_from_reddit_post(
     post_data: Dict[str, Any],
