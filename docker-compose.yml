@@ -69,6 +69,22 @@ services:
     networks:
       - app-network
 
+  redis:
+    image: redis:alpine
+    container_name: redis_cache # Optional: gives the container a fixed name
+    restart: always
+    ports:
+      # - "6379:6379" # Optional: Uncomment to expose Redis to the host machine (usually not needed)
+      - "6379" # Expose port only within the Docker network
+    volumes:
+      - redis_data:/data # Mount a named volume for persistence
+    networks:
+      - app-network
+
 networks:
   app-network:
-    driver: bridge 
+    driver: bridge
+
+volumes: # Add this section at the end if it doesn't exist
+  redis_data: # Define the named volume
+    driver: local 
