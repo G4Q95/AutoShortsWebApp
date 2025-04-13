@@ -5,7 +5,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install Node.js and npm for Wrangler
-RUN apt-get update && apt-get install -y curl gnupg && \
+# Also install ffmpeg for audio/video processing
+RUN apt-get update && apt-get install -y curl gnupg ffmpeg && \
     curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs && \
     apt-get clean && \

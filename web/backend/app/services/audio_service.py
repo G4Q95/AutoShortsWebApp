@@ -27,6 +27,12 @@ from app.services.storage import get_storage, R2Storage # Import R2Storage for t
 
 logger = logging.getLogger(__name__)
 
+# --- Define custom exception at module level --- START
+class FfmpegError(Exception):
+    """Custom exception for ffmpeg errors"""
+    pass
+# --- Define custom exception at module level --- END
+
 # --- Models moved from voice_generation.py --- 
 
 class Voice(BaseModel):
@@ -225,11 +231,11 @@ class ElevenLabsClient:
 
 class AudioService:
     """Orchestrator for audio tasks."""
-    def __init__(self):
+    def __init__(self, storage: Optional[R2Storage] = None): # Accept optional storage instance
         # Instantiate the client internally
         self.elevenlabs_client = ElevenLabsClient()
         # Get storage instance using the provided getter
-        self.storage: R2Storage = get_storage() 
+        self.storage: R2Storage = storage or get_storage() 
         logger.info(f"AudioService initialized with storage type: {type(self.storage).__name__}")
 
     # --- Voice Retrieval Methods ---
@@ -289,6 +295,9 @@ class AudioService:
             logger.error(f"Input video file does not exist: {input_path}")
             raise FfmpegError(f"Input video file not found: {input_path}")
 
+        # Define the specific message before the try block
+        no_stream_message = "Output file #0 does not contain any stream"
+
         try:
             logger.debug(f"Constructing ffmpeg stream for {input_path} -> {output_path}")
             # -vn: disable video recording
@@ -302,36 +311,59 @@ class AudioService:
             stream = ffmpeg.output(stream, output_path, vn=None, acodec='mp3', audio_bitrate='192k', ar=44100)
             
             logger.info(f"Running ffmpeg command via ffmpeg-python...")
-            # Execute the ffmpeg command, capture stdout and stderr
-            # overwrite_output=True is important to avoid errors if the file exists
             stdout, stderr = ffmpeg.run(stream, capture_stdout=True, capture_stderr=True, overwrite_output=True)
             
             # Log ffmpeg output
             stdout_decoded = stdout.decode().strip() if stdout else 'None'
             stderr_decoded = stderr.decode().strip() if stderr else 'None'
             logger.info(f"ffmpeg stdout:\n{stdout_decoded}")
-            if stderr_decoded and stderr_decoded != 'None': # Don't log empty stderr
-                # ffmpeg often prints info messages to stderr, log as warning
-                logger.warning(f"ffmpeg stderr:\n{stderr_decoded}")
+            
+            # Check stderr specifically for the "no stream" message
+            if stderr_decoded and no_stream_message in stderr_decoded:
+                logger.warning(f"Source video '{input_path}' does not contain an audio stream. No audio will be extracted.")
+                # We can simply return here, as no output file is expected or needed
+                # Ensure the temp output file doesn't exist or is empty if created
+                if os.path.exists(output_path):
+                    try:
+                        os.remove(output_path)
+                    except OSError:
+                        logger.warning(f"Could not remove potentially empty output file: {output_path}")
+                return # Exit successfully, no audio to process
+            elif stderr_decoded and stderr_decoded != 'None': 
+                logger.warning(f"ffmpeg stderr:\n{stderr_decoded}") # Log other warnings/info
             else:
                 logger.info("ffmpeg stderr: None or empty")
 
-            # Verify output file exists
+            # Verify output file exists (only if no_stream_message wasn't found)
             if not os.path.exists(output_path):
                 logger.error(f"FFmpeg ran but output file was not created: {output_path}")
-                # Include stderr in the error if available, as it might contain the reason
                 raise FfmpegError(f"FFmpeg output file not created. Stderr: {stderr_decoded}")
-                
+            
+            # Check if output file has size (sometimes ffmpeg creates empty files on error)
+            if os.path.getsize(output_path) == 0:
+                logger.error(f"FFmpeg created an empty output file: {output_path}")
+                raise FfmpegError(f"FFmpeg created an empty output file. Stderr: {stderr_decoded}")
+
             logger.info(f"FFmpeg extraction successful for: {output_path}")
             
         except ffmpeg.Error as e:
-            # This catches errors specifically from the ffmpeg execution
             stderr_output = e.stderr.decode().strip() if e.stderr else "No stderr captured"
-            logger.error(f"ffmpeg.Error during extraction for '{input_path}':")
-            logger.error(f"ffmpeg stderr: {stderr_output}")
-            logger.exception("ffmpeg.Error details:") # Logs the full traceback
-            # Re-raise as our custom type, including the stderr
-            raise FfmpegError(f"FFmpeg execution failed. Stderr: {stderr_output}") from e
+            # Check if the error is the specific "no stream" one
+            if no_stream_message in stderr_output:
+                 logger.warning(f"Source video '{input_path}' does not contain an audio stream (caught via exception). No audio will be extracted.")
+                 # Ensure temp file is handled if needed
+                 if os.path.exists(output_path):
+                     try:
+                         os.remove(output_path)
+                     except OSError:
+                         logger.warning(f"Could not remove potentially empty output file on exception: {output_path}")
+                 return # Exit successfully
+            else:
+                # Log other ffmpeg errors
+                logger.error(f"ffmpeg.Error during extraction for '{input_path}':")
+                logger.error(f"ffmpeg stderr: {stderr_output}")
+                logger.exception("ffmpeg.Error details:") 
+                raise FfmpegError(f"FFmpeg execution failed. Stderr: {stderr_output}") from e
         except Exception as e:
             # Catch any other unexpected errors during the setup or execution
             logger.error(f"Unexpected error during ffmpeg extraction for '{input_path}'")
