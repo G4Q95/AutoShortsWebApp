@@ -1,0 +1,1 @@
+Flask>=2.0 # Simple web framework for the internal API 

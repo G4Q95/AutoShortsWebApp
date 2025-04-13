@@ -1,0 +1,23 @@
+# Use a base Python image so we can run a simple API server
+FROM python:3.11-slim
+
+# Set work directory
+WORKDIR /ffmpeg_service
+
+# Install FFmpeg
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install a simple web framework (e.g., Flask or FastAPI)
+# Let's use Flask for simplicity here unless you prefer FastAPI
+COPY requirements-ffmpeg.txt .
+RUN pip install --no-cache-dir -r requirements-ffmpeg.txt
+
+# Copy the service code (we'll create this next)
+COPY . .
+
+# Expose the port the API server will run on (e.g., 5000)
+EXPOSE 5000
+
+# Command to run the API server (we'll create server.py next)
+CMD ["python", "server.py"] 

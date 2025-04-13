@@ -109,6 +109,25 @@ services:
     depends_on:
       - redis
       - backend # Optional: Wait for backend if worker imports backend models/code directly on startup
+      - ffmpeg-service # Add dependency
+    networks:
+      - app-network
+
+  ffmpeg-service:
+    build:
+      context: ./web/backend # Use same context as backend
+      dockerfile: Dockerfile.ffmpeg # Point to the new Dockerfile
+    container_name: ffmpeg_service
+    restart: always
+    ports:
+      # - "5000:5000" # Optional: Uncomment to expose FFmpeg service API to the host (useful for testing)
+      - "5000" # Expose port only within the Docker network
+    environment:
+      # Pass R2 credentials if this service needs to interact with R2 directly
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
     networks:
       - app-network
 
