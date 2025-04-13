@@ -1,17 +1,20 @@
-import os
 import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock
 import boto3
 from moto import mock_s3
 
-from app.config import Settings, get_settings
+# Move this import down into fixtures that need it
+# from app.config import Settings, get_settings 
 from app.services.storage import R2Storage
 from app.db.mongodb import get_database, get_test_database, DatabaseSession
 
 @pytest.fixture
 def s3_test_bucket():
     """Fixture for mocked S3 bucket to test R2Storage."""
+    # Import moved here if needed, but currently config is mocked
+    # from app.config import Settings, get_settings 
+    
     # Start moto server to mock S3
     mock = mock_s3()
     mock.start()

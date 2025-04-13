@@ -32,6 +32,7 @@ services:
     env_file:
       - ./web/backend/.env
     environment:
+      - PYTHONPATH=/app # Add PYTHONPATH to help with module imports
       - MONGODB_URI=${MONGODB_URI}
       - DATABASE_NAME=${DATABASE_NAME}
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}

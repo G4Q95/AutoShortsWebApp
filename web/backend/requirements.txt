@@ -23,6 +23,7 @@ moto==4.2.10
 
 # Video/Audio Processing
 ffmpeg-python
+yt_dlp
 
 # Cloud Storage
 

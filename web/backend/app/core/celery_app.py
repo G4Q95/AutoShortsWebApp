@@ -28,7 +28,8 @@ celery_app = Celery(
         # Add paths to modules containing your Celery tasks here
         # e.g., 'app.tasks.audio_tasks'
         # 'app.tasks' # Assuming tasks will be in files within app/tasks/ directory
-        'app.tasks.audio_tasks' # Explicitly include the module containing the task
+        'app.tasks.audio_tasks', # Explicitly include the module containing the task
+        'app.tasks.media_tasks'  # Add the new media download task module
     ],
 )
 
