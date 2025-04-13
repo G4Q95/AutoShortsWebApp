@@ -17,13 +17,14 @@ from datetime import datetime
 import aiofiles
 import httpx
 from pydantic import BaseModel
-import ffmpeg
 import traceback
 
 # Assuming config is one level up in core
 from app.core.config import settings 
 # Import storage service getter
 from app.services.storage import get_storage, R2Storage # Import R2Storage for type hinting
+# Import the Celery task
+from app.tasks.audio_tasks import extract_audio_task
 
 logger = logging.getLogger(__name__)
 
@@ -288,89 +289,6 @@ class AudioService:
             raise ElevenLabsError(f"Unexpected error in AudioService getting voice {voice_id}: {str(e)}")
             
     # --- Audio Generation & Storage Methods ---
-    async def _run_ffmpeg_extraction(self, input_path: str, output_path: str) -> None:
-        """Internal method to run ffmpeg extraction using ffmpeg-python library."""
-        logger.info(f"Starting ffmpeg extraction: input='{input_path}', output='{output_path}'")
-        if not os.path.exists(input_path):
-            logger.error(f"Input video file does not exist: {input_path}")
-            raise FfmpegError(f"Input video file not found: {input_path}")
-
-        # Define the specific message before the try block
-        no_stream_message = "Output file #0 does not contain any stream"
-
-        try:
-            logger.debug(f"Constructing ffmpeg stream for {input_path} -> {output_path}")
-            # -vn: disable video recording
-            # -acodec libmp3lame: specify mp3 codec
-            # -ab 192k: set audio bitrate to 192kbps
-            # -ar 44100: set audio sample rate to 44.1kHz
-            stream = ffmpeg.input(input_path)
-            # Use **{} to provide keyword arguments for specific codecs/formats if needed
-            # Example: stream = ffmpeg.output(stream, output_path, acodec='libmp3lame', ab='192k', ar='44100', vn=None)
-            # Simpler approach assuming output extension dictates format:
-            stream = ffmpeg.output(stream, output_path, vn=None, acodec='mp3', audio_bitrate='192k', ar=44100)
-            
-            logger.info(f"Running ffmpeg command via ffmpeg-python...")
-            stdout, stderr = ffmpeg.run(stream, capture_stdout=True, capture_stderr=True, overwrite_output=True)
-            
-            # Log ffmpeg output
-            stdout_decoded = stdout.decode().strip() if stdout else 'None'
-            stderr_decoded = stderr.decode().strip() if stderr else 'None'
-            logger.info(f"ffmpeg stdout:\n{stdout_decoded}")
-            
-            # Check stderr specifically for the "no stream" message
-            if stderr_decoded and no_stream_message in stderr_decoded:
-                logger.warning(f"Source video '{input_path}' does not contain an audio stream. No audio will be extracted.")
-                # We can simply return here, as no output file is expected or needed
-                # Ensure the temp output file doesn't exist or is empty if created
-                if os.path.exists(output_path):
-                    try:
-                        os.remove(output_path)
-                    except OSError:
-                        logger.warning(f"Could not remove potentially empty output file: {output_path}")
-                return # Exit successfully, no audio to process
-            elif stderr_decoded and stderr_decoded != 'None': 
-                logger.warning(f"ffmpeg stderr:\n{stderr_decoded}") # Log other warnings/info
-            else:
-                logger.info("ffmpeg stderr: None or empty")
-
-            # Verify output file exists (only if no_stream_message wasn't found)
-            if not os.path.exists(output_path):
-                logger.error(f"FFmpeg ran but output file was not created: {output_path}")
-                raise FfmpegError(f"FFmpeg output file not created. Stderr: {stderr_decoded}")
-            
-            # Check if output file has size (sometimes ffmpeg creates empty files on error)
-            if os.path.getsize(output_path) == 0:
-                logger.error(f"FFmpeg created an empty output file: {output_path}")
-                raise FfmpegError(f"FFmpeg created an empty output file. Stderr: {stderr_decoded}")
-
-            logger.info(f"FFmpeg extraction successful for: {output_path}")
-            
-        except ffmpeg.Error as e:
-            stderr_output = e.stderr.decode().strip() if e.stderr else "No stderr captured"
-            # Check if the error is the specific "no stream" one
-            if no_stream_message in stderr_output:
-                 logger.warning(f"Source video '{input_path}' does not contain an audio stream (caught via exception). No audio will be extracted.")
-                 # Ensure temp file is handled if needed
-                 if os.path.exists(output_path):
-                     try:
-                         os.remove(output_path)
-                     except OSError:
-                         logger.warning(f"Could not remove potentially empty output file on exception: {output_path}")
-                 return # Exit successfully
-            else:
-                # Log other ffmpeg errors
-                logger.error(f"ffmpeg.Error during extraction for '{input_path}':")
-                logger.error(f"ffmpeg stderr: {stderr_output}")
-                logger.exception("ffmpeg.Error details:") 
-                raise FfmpegError(f"FFmpeg execution failed. Stderr: {stderr_output}") from e
-        except Exception as e:
-            # Catch any other unexpected errors during the setup or execution
-            logger.error(f"Unexpected error during ffmpeg extraction for '{input_path}'")
-            logger.exception("Unexpected error details:")
-            # Re-raise as our custom type
-            raise FfmpegError(f"Unexpected extraction error: {str(e)}") from e
-
     async def generate_audio(
         self, 
         text: str,
@@ -470,67 +388,6 @@ class AudioService:
             logger.error(f"Unexpected error in generate_and_store_voiceover: {str(e)}")
             raise ElevenLabsError(f"Error in generate_and_store_voiceover: {str(e)}")
 
-    async def extract_and_store_original_audio(
-        self,
-        video_path: str,
-        project_id: str,
-        scene_id: str
-    ) -> str:
-        """
-        Extracts original audio from a video file using ffmpeg, converts to MP3, 
-        stores it in R2, and returns the URL.
-        Assumes video_path is accessible locally to the backend service.
-        """
-        logger.info(f"Starting original audio extraction for video: {video_path}, Project: {project_id}, Scene: {scene_id}")
-        
-        # Define a temporary path for the extracted audio
-        # Use NamedTemporaryFile to ensure cleanup even if errors occur
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_audio_file:
-            temp_audio_path = temp_audio_file.name
-        
-        logger.debug(f"Temporary audio file path: {temp_audio_path}")
-
-        try:
-            # 1. Run ffmpeg extraction
-            await self._run_ffmpeg_extraction(video_path, temp_audio_path)
-            logger.info(f"Successfully extracted audio to temporary file: {temp_audio_path}")
-
-            # 2. Define storage path in R2
-            # Use a structure like: projects/{project_id}/scenes/{scene_id}/original_audio.mp3
-            storage_key = f"projects/{project_id}/scenes/{scene_id}/original_audio.mp3"
-            logger.info(f"Preparing to upload extracted audio to R2 with key: {storage_key}")
-
-            # 3. Upload the extracted audio file using the storage service
-            audio_url = await self.storage.upload_file(
-                local_path=temp_audio_path,
-                object_name=storage_key,
-                content_type="audio/mpeg" # Specify content type for MP3
-            )
-            logger.info(f"Successfully uploaded original audio to R2: {audio_url}")
-            return audio_url
-
-        except FfmpegError as e:
-            logger.error(f"Failed to extract audio from {video_path}: {e}")
-            # Re-raise maybe? Or return None/empty string?
-            # Depending on how the calling code handles errors.
-            # For now, re-raising might be best to signal failure clearly.
-            raise 
-        except Exception as e:
-            logger.error(f"An unexpected error occurred during audio extraction/upload for {video_path}: {e}")
-            logger.exception("Unexpected error details:")
-            # Re-raise to signal failure
-            raise
-        finally:
-            # 4. Clean up the temporary audio file
-            if os.path.exists(temp_audio_path):
-                try:
-                    os.remove(temp_audio_path)
-                    logger.info(f"Successfully removed temporary audio file: {temp_audio_path}")
-                except OSError as e:
-                    logger.error(f"Error removing temporary audio file {temp_audio_path}: {e}")
-            else:
-                 logger.warning(f"Temporary audio file did not exist for cleanup: {temp_audio_path}")
-
     # NEW METHOD
     async def get_latest_audio_url(
         self, 
@@ -600,6 +457,36 @@ class AudioService:
         except Exception as e:
             logger.error(f"Error retrieving latest audio URL from storage: {str(e)}\n{traceback.format_exc()}")
             return None
+
+    # --- ADD NEW METHOD TO TRIGGER CELERY TASK --- START
+    def trigger_audio_extraction(self, video_r2_key: str, project_id: str, scene_id: str) -> Optional[str]:
+        """
+        Sends a task to the Celery queue to extract audio from a video.
+
+        Args:
+            video_r2_key: The R2 object key of the video file.
+            project_id: The project ID.
+            scene_id: The scene ID.
+
+        Returns:
+            The Celery task ID if the task was sent successfully, otherwise None.
+        """
+        try:
+            logger.info(f"AudioService: Triggering audio extraction task for video R2 key: {video_r2_key} (Project: {project_id}, Scene: {scene_id})")
+            # Send the task to the Celery queue
+            # .delay() is a shortcut for .apply_async()
+            task_result = extract_audio_task.delay(
+                video_r2_key=video_r2_key, 
+                project_id=project_id, 
+                scene_id=scene_id
+            )
+            logger.info(f"AudioService: Task {task_result.id} sent to Celery queue.")
+            return task_result.id # Return the task ID for potential status tracking
+        except Exception as e:
+            # Log error if Celery broker is unavailable or other issues occur
+            logger.exception(f"AudioService: Failed to send audio extraction task to Celery queue: {e}")
+            return None
+    # --- ADD NEW METHOD TO TRIGGER CELERY TASK --- END
 
 # --- End of AudioService class --- 
 
