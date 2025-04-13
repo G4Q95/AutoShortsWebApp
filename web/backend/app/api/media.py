@@ -33,6 +33,13 @@ async def log_background_task(message: str, project_id: str):
     except Exception as e:
         logger.error(f"Background task failed for project {project_id}: {str(e)}")
 
+# Placeholder function for triggering audio extraction
+async def trigger_audio_extraction_placeholder(audio_service: AudioService, video_storage_key: str):
+    """Placeholder background task to log audio extraction trigger."""
+    logger.info(f"Background task: Placeholder trigger for audio extraction on {video_storage_key}")
+    logger.info(f"AudioService instance type in background task: {type(audio_service)}")
+    # In the next step, this will call audio_service.trigger_audio_extraction
+
 # Media store request model
 class MediaStoreRequest(BaseModel):
     """Request model for storing media from a URL."""
@@ -88,12 +95,19 @@ async def store_media_from_url(
         
         logger.info(f"Media successfully stored: {result.get('storage_key')}")
         
-        # Add the background task
-        background_tasks.add_task(
-            log_background_task,
-            "Media stored, initiating post-processing",
-            request.project_id
-        )
+        # Get the storage key for the video
+        video_storage_key = result.get("storage_key")
+
+        if video_storage_key and result.get("media_type") == MediaType.VIDEO:
+            # Add the background task for audio extraction
+            logger.info(f"Adding background task to extract audio from {video_storage_key}")
+            background_tasks.add_task(
+                trigger_audio_extraction_placeholder, 
+                audio_service=audio_service, 
+                video_storage_key=video_storage_key
+            )
+        else:
+            logger.info("Skipping audio extraction background task: No video storage key or media is not video.")
 
         return MediaStoreResponse(
             success=True,
