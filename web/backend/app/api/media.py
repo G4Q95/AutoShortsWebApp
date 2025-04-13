@@ -12,6 +12,8 @@ from pydantic import BaseModel, HttpUrl, Field
 from app.core.errors import create_error_response, ErrorCodes
 from app.models.api import ApiResponse
 from app.services.media_service import store_media_content, MediaType, download_media
+from app.services.audio_service import AudioService # Import AudioService
+from app.dependencies import get_audio_service # Import dependency getter
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -53,7 +55,11 @@ class MediaStoreResponse(BaseModel):
     metadata: Optional[dict] = Field(None, description="Additional metadata for the media")
 
 @router.post("/store", response_model=MediaStoreResponse)
-async def store_media_from_url(request: MediaStoreRequest, background_tasks: BackgroundTasks):
+async def store_media_from_url(
+    request: MediaStoreRequest, 
+    background_tasks: BackgroundTasks,
+    audio_service: AudioService = Depends(get_audio_service) # Inject AudioService
+):
     """
     Store media from a URL to cloud storage
     
