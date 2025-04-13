@@ -81,6 +81,37 @@ services:
     networks:
       - app-network
 
+  celery-worker:
+    build:
+      context: ./web/backend # Use same context as backend
+      dockerfile: Dockerfile.worker # Point to the new Dockerfile
+    container_name: celery_worker
+    restart: always
+    volumes:
+      - ./web/backend:/app # Mount the backend code
+    env_file:
+      - ./web/backend/.env # Use the same env file as backend
+    environment: # Explicitly pass variables needed by Celery/tasks
+      - MONGODB_URI=${MONGODB_URI}
+      - DATABASE_NAME=${DATABASE_NAME}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - CELERY_BROKER_URL=redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/0
+      - CELERY_RESULT_BACKEND=redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/0
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID} # Ensure R2 keys are passed if needed by tasks
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY} # Ensure R2 keys are passed if needed by tasks
+      - MOCK_AUDIO=${MOCK_AUDIO:-false}
+    depends_on:
+      - redis
+      - backend # Optional: Wait for backend if worker imports backend models/code directly on startup
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge

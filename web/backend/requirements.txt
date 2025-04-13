@@ -25,3 +25,10 @@ moto==4.2.10
 ffmpeg-python
 
 # Cloud Storage
+
+# Background Tasks
+celery>=5.0.0 # Or a specific version you prefer
+redis>=4.0.0  # Library needed for Celery to talk to Redis
+
+# Optional, for specific features if needed:
+# flower>=1.0.0 # Celery monitoring tool

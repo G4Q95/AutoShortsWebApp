@@ -1,0 +1,30 @@
+# Use the same base Python image as the backend
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Set work directory
+WORKDIR /app
+
+# Install system dependencies (similar to backend, ensure ffmpeg is NOT here)
+# We might need build-essential for some libraries later, but start minimal
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    # Add any other system dependencies needed by your Python libs, but NOT ffmpeg
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+# Copy only requirements first to leverage Docker cache
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the application code
+COPY . .
+
+# Command to run the Celery worker
+# Assumes Celery app instance is defined in app.core.celery_app:celery_app
+# The queue name (-Q) can be customized, 'default' is standard
+CMD ["celery", "-A", "app.core.celery_app:celery_app", "worker", "--loglevel=info", "-Q", "default"] 
