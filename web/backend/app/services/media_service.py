@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 import aiofiles
 import httpx
-from fastapi import HTTPException
+from fastapi import HTTPException, status, BackgroundTasks, Depends
 
 from app.core.config import settings
 from app.services.storage import get_storage
@@ -216,146 +216,77 @@ async def store_media_content(
     url: str,
     project_id: str,
     scene_id: str,
-    user_id: str,
-    media_type: str = MediaType.UNKNOWN,
-    create_thumbnail: bool = True,
-    timeout: int = 30
+    user_id: str = "system",
+    media_type: Union[MediaType, str] = MediaType.VIDEO,
+    create_thumbnail: bool = True
 ) -> Dict[str, Any]:
     """
     Download and store media content in R2 storage.
-    This version queues a Celery task to perform the actual download and storage.
+    
+    This function creates a Celery task to perform the actual download and storage.
     
     Args:
-        url: Media URL to download
-        project_id: Project ID
-        scene_id: Scene ID
-        user_id: User ID owning the project
-        media_type: Type of media (Currently informational, task handles detection)
-        create_thumbnail: Whether to create a thumbnail (Handled by task if needed)
-        timeout: Download timeout in seconds (Handled by task)
+        url: URL of the media to download
+        project_id: Project ID to associate with the media
+        scene_id: Scene ID to associate with the media
+        user_id: User ID who owns the content
+        media_type: Type of media to download (video, image, etc)
+        create_thumbnail: Whether to create a thumbnail from video
         
     Returns:
-        Dictionary containing the Celery task ID that was queued.
-        
-    Raises:
-        HTTPException: If input validation fails or task queuing fails.
+        Dictionary with task ID and status information
     """
-    logger.info(f"Received request to store media for {project_id}/{scene_id} from {url}")
-    # overall_start_time = time.time()
+    # Log the request to store media
+    logger.info(f"Storing media from URL {url} for project {project_id}, scene {scene_id}")
+    
+    # Validate input
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="URL is required"
+        )
+    
+    if not project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Project ID is required"
+        )
+        
+    if not scene_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Scene ID is required"
+        )
     
     try:
-        # Validate input
-        if not url:
-            raise ValueError("URL is required")
-        if not project_id:
-            raise ValueError("Project ID is required")
-        if not scene_id:
-            raise ValueError("Scene ID is required")
-        if not user_id:
-            raise ValueError("User ID is required")
-
-        # --- Queue Celery Task --- 
-        logger.info(f"Queuing download_media_task for URL: {url}, User: {user_id}")
+        # Ensure we handle both enum and string for media_type
+        media_type_value = media_type.value if hasattr(media_type, 'value') else media_type
         
-        task_result = download_media_task.delay(
+        # Start a Celery task to download and process the media
+        # Using the original project_id (still using custom ID)
+        logger.info(f"Queuing Celery task to download media for project {project_id}, scene {scene_id}")
+        task = download_media_task.delay(
             url=url,
-            project_id=project_id,
+            project_id=project_id,  
             scene_id=scene_id,
             user_id=user_id
         )
         
-        logger.info(f"Task {task_result.id} queued successfully for {project_id}/{scene_id}")
+        logger.info(f"Celery task queued with ID: {task.id}")
         
-        return {"task_id": task_result.id}
-
-        # --- Remove old synchronous download and storage logic --- START
-        # # Download media content
-        # download_start_time = time.time()
-        # content, content_type, metadata = await download_media(url, media_type, timeout)
-        # download_duration = time.time() - download_start_time
-        # logger.info(f"[TIMING_MEDIA_STORE] Download took {download_duration:.2f}s")
-
-        # # Determine filename and path
-        # parsed_url = urlparse(url)
-        # filename_base = os.path.basename(parsed_url.path)
-        # if not filename_base:
-        #     filename_base = f"{scene_id}_media"
-        # filename_ext = CONTENT_TYPE_TO_EXT.get(content_type, DEFAULT_EXT.get(media_type, FileExt.JPEG))
-        # filename = f"{filename_base}{filename_ext}"
-        
-        # storage_service = get_storage()
-        # logger.info(f"Using storage service: {type(storage_service).__name__}")
-        
-        # # Create a temporary file to upload content
-        # upload_start_time = time.time()
-        # with tempfile.NamedTemporaryFile(delete=False, suffix=filename_ext) as temp_file:
-        #     temp_file_path = temp_file.name
-        #     temp_file.write(content)
-        #     logger.info(f"Content written to temporary file: {temp_file_path}")
-        #     
-        # # Upload the temporary file
-        # object_name = storage_service.get_file_path(
-        #     user_id="temp_user", # TODO: Pass actual user ID if available
-        #     project_id=project_id,
-        #     scene_id=scene_id,
-        #     file_type="source_media",
-        #     filename=filename
-        # )
-        # 
-        # success, r2_url_or_error = await storage_service.upload_file(
-        #     file_path=temp_file_path,
-        #     object_name=object_name,
-        #     project_id=project_id,
-        #     scene_id=scene_id,
-        #     file_type="source_media"
-        # )
-        # 
-        # # Clean up temporary file
-        # try:
-        #     os.remove(temp_file_path)
-        #     logger.info(f"Removed temporary file: {temp_file_path}")
-        # except OSError as e:
-        #     logger.error(f"Error removing temporary file {temp_file_path}: {e}")
-        #     
-        # upload_duration = time.time() - upload_start_time
-        # logger.info(f"[TIMING_MEDIA_STORE] Upload took {upload_duration:.2f}s")
-        # 
-        # if not success:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-        #         detail=f"Failed to upload media to storage: {r2_url_or_error}"
-        #     )
-        #     
-        # r2_url = r2_url_or_error
-        # 
-        # # Prepare result
-        # storage_details = {
-        #     "r2_url": r2_url,
-        #     "object_key": object_name,
-        #     "content_type": content_type,
-        #     "metadata": metadata,
-        # }
-        # 
-        # # TODO: Add thumbnail generation logic here if create_thumbnail is True
-        # 
-        # overall_duration = time.time() - overall_start_time
-        # logger.info(f"[TIMING_MEDIA_STORE] Total processing time: {overall_duration:.2f}s")
-        # return storage_details
-        # --- Remove old synchronous download and storage logic --- END
-
-    except ValueError as e:
-        logger.error(f"Validation error processing media for {project_id}/{scene_id}: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except MediaDownloadError as e:
-        logger.error(f"Media download failed for {project_id}/{scene_id} from url {e.url}: {e.message}")
-        raise HTTPException(status_code=e.status_code or 500, detail=e.message)
+        # Return the task information
+        return {
+            "task_id": task.id,
+            "status": "processing",
+            "message": "Media download and processing has started"
+        }
     except Exception as e:
-        logger.error(f"Unexpected error processing media for {project_id}/{scene_id}: {str(e)}")
+        logger.error(f"Error queuing media download task: {str(e)}")
         logger.error(traceback.format_exc())
-        # Handle potential Celery connection errors during .delay()
-        if "Broker connection error" in str(e) or "redis.exceptions.ConnectionError" in str(e):
-             raise HTTPException(status_code=503, detail=f"Failed to queue download task: Broker connection error.")
-        raise HTTPException(status_code=500, detail=f"Unexpected error processing media: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to queue media download task: {str(e)}"
+        )
 
 async def download_media_from_reddit_post(
     post_data: Dict[str, Any],

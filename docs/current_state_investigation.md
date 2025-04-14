@@ -199,35 +199,71 @@ Verify Celery Worker Environment Variables (2025-04-14 ~<Time>)
 ---
 
 ### Test Action
-Fix Project ID Mismatch for Celery DB Update (Attempt 1: API Layer)
+Verify Full Media Pipeline After Fixing Env Vars (2025-04-14/15)
 
 ### Expected Outcome
-- Backend API (`/api/v1/media/store`) fetches the MongoDB `_id` using the custom `project_id` before calling the service.
-- The correct MongoDB `_id` is passed through the service (`store_media_content`) to the Celery task (`download_media_task`).
-- Celery task successfully calls `update_scene_status_sync` with the correct `_id`.
-- Scene status is updated to 'ready' in the database.
-- Frontend remains stable.
+- Adding a scene with a media URL triggers the full pipeline:
+  - Backend queues Celery task.
+  - Celery worker downloads media, uploads to R2, generates thumbnail.
+  - Celery worker looks up the project in MongoDB using the provided *custom* `project_id`.
+  - Celery worker extracts the MongoDB `_id` from the found project document.
+  - Celery worker updates the scene status using the correct MongoDB `_id`.
+  - Final scene status in DB is 'ready' with R2 keys.
+  - No errors in logs.
 
 ### Observed Outcome
-- Modified `app/api/media.py` to inject the database and perform the project lookup using the custom ID (`proj_...`).
-- **Result:** While the intention was correct, this change introduced instability in the backend service. The frontend started receiving `net::ERR_CONNECTION_RESET` errors when trying to communicate with the backend (specifically observed during calls to `/api/v1/content/extract` after adding a scene).
-- Adding scenes became impossible due to the backend instability.
-- Reverted the changes in `app/api/media.py` to restore basic scene-adding functionality.
-- Confirmed via Celery logs after the revert that the task still runs but fails the DB update with `Invalid ObjectId format for project_id: proj_...` as expected, since the incorrect ID is still being passed.
+- **Backend/Frontend:** Functioned correctly, queuing the Celery task as expected.
+- **Celery Worker:**
+  - Task received (Task ID: `e9885c1a...`).
+  - Media download and R2 upload successful.
+  - Attempted project lookup using custom ID `proj_m9hny9cx`.
+  - **FAILED:** Lookup failed with error `DB Error: Project with custom ID proj_m9hny9cx not found.`
+  - Final scene status update was skipped because the MongoDB `_id` could not be retrieved.
+  - Task finished with status `error`.
 
 ### Analysis
-- Modifying the API endpoint (`store_media_from_url`) to perform the database lookup caused unexpected side effects, likely related to how dependencies or async operations are handled within that specific FastAPI route function, leading to broader backend instability.
-- The core problem remains: the custom `project_id` (`proj_...`) is passed from the frontend, through the API, through the service, and finally to the Celery task, which then passes it to `update_scene_status_sync` which requires the MongoDB `_id` string.
-- The revert confirmed that the API endpoint modification was the direct cause of the instability.
+- All previous issues (env vars, async handling, R2 calls) within the Celery task itself appear resolved.
+- The project ID translation logic *is correctly implemented* within the Celery task (`media_tasks.py`), attempting to find the project by `project_id` field.
+- **The root cause is now confirmed:** The project document with the expected custom ID (`proj_m9hny9cx`) does not exist in the `projects` collection when the Celery task performs the lookup. This prevents the task from obtaining the necessary MongoDB `_id` for the final status update.
 
 ### Next Steps
-1.  **Move Project ID Lookup to Service Layer:** Modify the `store_media_content` function in `web/backend/app/services/media_service.py`. This function is responsible for queueing the Celery task.
-    - Inject the database dependency into `store_media_content`.
-    - Inside the function, use the received custom `project_id` to query the `projects` collection.
-    - Retrieve the MongoDB `_id` string.
-    - Pass this correct `_id` string to the `download_media_task.delay()` call.
-    - Add error handling for cases where the project is not found by its custom ID.
-2.  Restart services and re-run the test by adding a scene with media.
-3.  Monitor Celery logs for successful completion including the database update.
+1.  **Investigate Project Creation:** Determine *why* the project document isn't available or doesn't match the custom ID during the Celery task lookup.
+    - **Option A: Check Backend Logs:** Analyze backend logs around the time the project is created and the task is queued. Look for errors during project creation or timing mismatches.
+    - **Option B: Query MongoDB:** Directly connect to the MongoDB `autoshortsdb` database and query the `projects` collection. Check if a document with `project_id: "proj_m9hny9cx"` exists. If it exists, compare its creation timestamp with the Celery task execution time. If it *doesn't* exist, trace back the project creation logic in the backend API.
+
+---
+
+### Test Action
+Verify Full Media Pipeline After Fixing Env Vars (2025-04-14/15)
+
+### Expected Outcome
+- Adding a scene with a media URL triggers the full pipeline:
+  - Backend queues Celery task.
+  - Celery worker downloads media, uploads to R2, generates thumbnail.
+  - Celery worker looks up the project in MongoDB using the provided *custom* `project_id`.
+  - Celery worker extracts the MongoDB `_id` from the found project document.
+  - Celery worker updates the scene status using the correct MongoDB `_id`.
+  - Final scene status in DB is 'ready' with R2 keys.
+  - No errors in logs.
+
+### Observed Outcome
+- **Backend/Frontend:** Functioned correctly, queuing the Celery task as expected.
+- **Celery Worker:**
+  - Task received (Task ID: `e9885c1a...`).
+  - Media download and R2 upload successful.
+  - Attempted project lookup using custom ID `proj_m9hny9cx`.
+  - **FAILED:** Lookup failed with error `DB Error: Project with custom ID proj_m9hny9cx not found.`
+  - Final scene status update was skipped because the MongoDB `_id` could not be retrieved.
+  - Task finished with status `error`.
+
+### Analysis
+- All previous issues (env vars, async handling, R2 calls) within the Celery task itself appear resolved.
+- The project ID translation logic *is correctly implemented* within the Celery task (`media_tasks.py`), attempting to find the project by `project_id` field.
+- **The root cause is now confirmed:** The project document with the expected custom ID (`proj_m9hny9cx`) does not exist in the `projects` collection when the Celery task performs the lookup. This prevents the task from obtaining the necessary MongoDB `_id` for the final status update.
+
+### Next Steps
+1.  **Investigate Project Creation:** Determine *why* the project document isn't available or doesn't match the custom ID during the Celery task lookup.
+    - **Option A: Check Backend Logs:** Analyze backend logs around the time the project is created and the task is queued. Look for errors during project creation or timing mismatches.
+    - **Option B: Query MongoDB:** Directly connect to the MongoDB `autoshortsdb` database and query the `projects` collection. Check if a document with `project_id: "proj_m9hny9cx"` exists. If it exists, compare its creation timestamp with the Celery task execution time. If it *doesn't* exist, trace back the project creation logic in the backend API.
 
 --- 
