@@ -104,4 +104,66 @@ The primary issue preventing new media storage tasks is that the frontend is not
 5.  **Update Investigation Log:** Document findings from the logs.
 6.  **(Separate Issue) Address Celery Worker Errors:** After validating the frontend trigger, fix the `upload_file_sync` attribute error and the `DATABASE_NAME` environment variable issue in the worker.
 
+---
+
+### Test Action
+Fix Frontend Trigger Loop & Confirm R2 Context (2025-04-14 ~20:35)
+
+### Expected Outcome
+- Adding a scene does not cause an infinite loop in the frontend.
+- The media storage `useEffect` triggers once (or a few times due to strict mode) after state updates.
+- Frontend calls `POST /api/v1/media/store`.
+- Understand R2 deletion implementation details.
+
+### Observed Outcome
+- **Frontend Loop Fixed:** Resolved infinite loop by using local `useState` for `storingMediaStatus` instead of modifying the `Scene` object directly in the main state via the reducer. The `useEffect` dependency was refined.
+- **Frontend Trigger Confirmed:** Logs confirm the `useEffect` now runs correctly after adding a scene and calls the backend `POST /api/v1/media/store` endpoint.
+- **R2 Deletion Context:** Reviewed `docs/R2-Deletion-Fix.md`. Confirmed that previous issues with using `await` on synchronous `boto3` calls for deletion were fixed. Also confirmed a typo (`settings.r2_bucket_name` vs `settings.R2_BUCKET_NAME`) in deletion logic was corrected.
+- **R2 Upload Context:** Reviewed `web/backend/app/services/storage.py`. Found the `R2Storage` class uses synchronous `boto3` calls internally. The correct method for uploading a file from a path is `async def upload_file(...)`. **There is no `upload_file_sync` method.**
+- **Celery Worker Errors Persist:** Logs show the backend successfully queues the Celery task, but the worker fails with:
+    1. `AttributeError: 'R2Storage' object has no attribute 'upload_file_sync'` (Incorrect method call in `media_tasks.py`).
+    2. `Sync MongoDB error ... database name cannot be the empty string` (Environment variable issue). 
+
+### Analysis
+- Frontend trigger mechanism is now stable and correctly initiates the backend process.
+- R2 deletion logic should be correct based on documentation.
+- The immediate blockers are within the Celery worker:
+    - Calling a non-existent R2 upload method.
+    - Environment variable configuration preventing DB updates.
+
+### Next Steps
+1.  **Fix Celery R2 Call:** Modify `app/tasks/media_tasks.py` to call the correct `await storage_service.upload_file(...)` method instead of the non-existent `upload_file_sync`.
+2.  **Fix Celery DB Connection:** Investigate and fix the `DATABASE_NAME` environment variable issue for the Celery worker.
+
+---
+
+### Test Action
+Fix Celery Task Async Handling & R2 Upload (2025-04-14 ~21:16)
+
+### Expected Outcome
+- Resolve Celery task errors related to async function calls and result serialization.
+- Confirm successful media download and upload to R2 via Celery.
+
+### Observed Outcome
+- **Attempt 1 (async def task):**
+  - Changed `download_media_task` to `async def`.
+  - Fixed `AttributeError: 'R2Storage' object has no attribute 'upload_file_sync'` by calling `await storage_service.upload_file(...)`.
+  - **Result:** Introduced `TypeError: Object of type coroutine is not JSON serializable` because Celery couldn't serialize the result of the `async def` task.
+- **Attempt 2 (sync def task + asyncio.run):**
+  - Reverted `download_media_task` to standard `def`.
+  - Wrapped the `storage_service.upload_file(...)` call with `asyncio.run(...)`.
+  - **Result:** 
+    - Resolved the `TypeError` (serialization error).
+    - R2 upload successful (confirmed via logs: `[TASK] Upload complete. R2 URL: ...`).
+    - New minor warning: `asyncio.run() cannot be called from a running event loop` during internal file tracking within `upload_file` (non-blocking).
+    - **DB Error Persists:** Final database update still fails with `Sync MongoDB error... database name cannot be the empty string`.
+
+### Analysis
+- The approach of keeping the Celery task synchronous (`def`) and using `asyncio.run()` to execute the asynchronous `upload_file` function works for handling the R2 upload correctly.
+- The file tracking warning is minor and relates to nested `asyncio.run()` calls, which we can address later if needed.
+- The primary remaining blocker for the task's full success is the database connection issue (`DATABASE_NAME` environment variable).
+
+### Next Steps
+1.  **Fix Celery DB Connection:** Investigate and fix the `DATABASE_NAME` environment variable issue for the Celery worker.
+
 --- 
