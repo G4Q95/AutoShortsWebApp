@@ -23,6 +23,7 @@ class Settings(BaseModel):
 
     # MongoDB
     MONGODB_URI: str = Field(default_factory=lambda: os.getenv("MONGODB_URI", ""))
+    DATABASE_NAME: str = Field(default_factory=lambda: os.getenv("DATABASE_NAME", "autoshortsdb"))
 
     # Celery / Redis
     CELERY_BROKER_URL: str = Field(default_factory=lambda: os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0"))

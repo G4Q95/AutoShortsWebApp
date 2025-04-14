@@ -26,7 +26,7 @@ redis_url += f"{REDIS_HOST}:{REDIS_PORT}/0" # Use database 0
 
 # Initialize Celery
 celery_app = Celery(
-    "worker",
+    'app',
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
     include=[

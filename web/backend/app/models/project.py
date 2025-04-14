@@ -1,10 +1,20 @@
 import json
 from datetime import datetime
 from typing import Annotated, Any, ClassVar, Dict, List, Optional
+from enum import Enum
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+# Define SceneStatus Enum
+class SceneStatus(str, Enum):
+    PENDING = "pending"
+    DOWNLOADING = "downloading"
+    READY = "ready"
+    FAILED = "failed"
+    # Add other statuses if needed, e.g.:
+    # PROCESSING = "processing"
+    # COMPLETE = "complete"
 
 # MongoDB ObjectId custom Pydantic field for v2
 class PyObjectId(str):

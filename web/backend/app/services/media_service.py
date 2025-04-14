@@ -216,6 +216,7 @@ async def store_media_content(
     url: str,
     project_id: str,
     scene_id: str,
+    user_id: str,
     media_type: str = MediaType.UNKNOWN,
     create_thumbnail: bool = True,
     timeout: int = 30
@@ -228,6 +229,7 @@ async def store_media_content(
         url: Media URL to download
         project_id: Project ID
         scene_id: Scene ID
+        user_id: User ID owning the project
         media_type: Type of media (Currently informational, task handles detection)
         create_thumbnail: Whether to create a thumbnail (Handled by task if needed)
         timeout: Download timeout in seconds (Handled by task)
@@ -249,14 +251,17 @@ async def store_media_content(
             raise ValueError("Project ID is required")
         if not scene_id:
             raise ValueError("Scene ID is required")
+        if not user_id:
+            raise ValueError("User ID is required")
 
         # --- Queue Celery Task --- 
-        logger.info(f"Queuing download_media_task for URL: {url}")
+        logger.info(f"Queuing download_media_task for URL: {url}, User: {user_id}")
         
         task_result = download_media_task.delay(
             url=url,
             project_id=project_id,
-            scene_id=scene_id
+            scene_id=scene_id,
+            user_id=user_id
         )
         
         logger.info(f"Task {task_result.id} queued successfully for {project_id}/{scene_id}")
@@ -287,7 +292,7 @@ async def store_media_content(
         #     temp_file_path = temp_file.name
         #     temp_file.write(content)
         #     logger.info(f"Content written to temporary file: {temp_file_path}")
-        
+        #     
         # # Upload the temporary file
         # object_name = storage_service.get_file_path(
         #     user_id="temp_user", # TODO: Pass actual user ID if available
@@ -296,7 +301,7 @@ async def store_media_content(
         #     file_type="source_media",
         #     filename=filename
         # )
-        
+        # 
         # success, r2_url_or_error = await storage_service.upload_file(
         #     file_path=temp_file_path,
         #     object_name=object_name,
@@ -304,25 +309,25 @@ async def store_media_content(
         #     scene_id=scene_id,
         #     file_type="source_media"
         # )
-        
+        # 
         # # Clean up temporary file
         # try:
         #     os.remove(temp_file_path)
         #     logger.info(f"Removed temporary file: {temp_file_path}")
         # except OSError as e:
         #     logger.error(f"Error removing temporary file {temp_file_path}: {e}")
-            
+        #     
         # upload_duration = time.time() - upload_start_time
         # logger.info(f"[TIMING_MEDIA_STORE] Upload took {upload_duration:.2f}s")
-        
+        # 
         # if not success:
         #     raise HTTPException(
         #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
         #         detail=f"Failed to upload media to storage: {r2_url_or_error}"
         #     )
-            
+        #     
         # r2_url = r2_url_or_error
-        
+        # 
         # # Prepare result
         # storage_details = {
         #     "r2_url": r2_url,
@@ -330,7 +335,7 @@ async def store_media_content(
         #     "content_type": content_type,
         #     "metadata": metadata,
         # }
-        
+        # 
         # # TODO: Add thumbnail generation logic here if create_thumbnail is True
         # 
         # overall_duration = time.time() - overall_start_time

@@ -29,6 +29,7 @@ class MediaStoreRequest(BaseModel):
     url: HttpUrl = Field(..., description="URL of the media to download and store")
     project_id: str = Field(..., description="Project ID the media belongs to")
     scene_id: str = Field(..., description="Scene ID the media belongs to")
+    user_id: str = Field(..., description="User ID owning the project")
     media_type: Optional[str] = Field(None, description="Type of media (image, video, audio)")
     create_thumbnail: Optional[bool] = Field(False, description="Whether to create a thumbnail")
 
@@ -60,6 +61,7 @@ async def store_media_from_url(
             url=str(request.url),
             project_id=request.project_id,
             scene_id=request.scene_id,
+            user_id=request.user_id,
             media_type=request.media_type, # Pass along for potential future use in task
             create_thumbnail=request.create_thumbnail # Pass along for potential future use in task
         )
