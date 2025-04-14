@@ -10,7 +10,7 @@ from app.core.env_validator import validate_environment_variables, validate_mong
 logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
-load_dotenv()
+# load_dotenv()
 
 # Validate environment variables
 validate_environment_variables()
