@@ -24,30 +24,35 @@
 
 ### Completed Tasks
 
-*   **Project Setup & Core Structure:**
-    *   [x] Initial Next.js + FastAPI setup
-    *   [x] Docker configuration for frontend and backend
-    *   [x] Basic project state management (`ProjectProvider`)
-    *   [x] LocalStorage persistence for projects
-*   **Backend Core:**
-    *   [x] FastAPI application structure
-    *   [x] MongoDB connection (Atlas)
-    *   [x] Basic Project/Scene models (Pydantic)
-    *   [x] CRUD API endpoints for projects
-    *   [x] Content extraction endpoint (`/extract/`)
-    *   [x] Cloudflare R2 integration for media storage (`/r2/`)
-    *   [x] ElevenLabs API integration for voice generation (`/tts/`)
-*   **Bug Fixes:**
-    *   [x] Fixed issue where trim settings were not persisting due to incorrect save/load paths in backend and frontend data migration.
-*   **Project Deletion Refactoring**: Successfully moved `DELETE /projects/{project_id}` to `project_operations.py` and verified.
-*   **Project List Refactoring**: Moved `GET /projects` to `project_operations.py`.
-*   **Project Create Refactoring**: Moved `POST /projects` to `project_operations.py`.
-*   **Scene Trim Endpoint Refactoring**: Moved `PUT /projects/{project_id}/scenes/{scene_id}/trim` to `scene_operations.py` using a shadow implementation, verified routing, and commented out the original.
-*   **UI/UX**: Implemented scene reordering via drag-and-drop on the frontend.
-*   **UI/UX**: Addressed project card loading issues.
-*   **UI/UX**: Fixed issues with project creation and scene addition flows.
+- **Task 1: Initial Project Setup & API Foundation** (Completed)
+- **Task 2: Core Content Processing & Scene Management** (Partially Completed - Media Download Refactored)
+  - Subtask 2.1: Define Project/Scene Models (Completed)
+  - Subtask 2.2: Implement Project CRUD API (Completed)
+  - Subtask 2.3: Implement Scene Add/Update/Delete API (Completed)
+  - Subtask 2.4: ~~Implement FFmpeg Audio Extraction Service~~ (Cancelled - Replaced by 2.14)
+  - Subtask 2.5: ~~Integrate Audio Extraction into Scene Creation~~ (Cancelled - Replaced by 2.15)
+  - Subtask 2.6: Implement Content Retrieval Service (Completed)
+  - Subtask 2.7: Add URL Preview Endpoint (Completed)
+  - Subtask 2.8: Integrate Content Retrieval into Scene Creation (Completed)
+  - Subtask 2.9: ~~Error Handling for Media Download~~ (Cancelled - Handled in 2.14)
+  - Subtask 2.10: ~~Enqueue Audio Extraction Task~~ (Cancelled - Replaced by 2.15)
+  - **Subtask 2.14: Define Celery Task for yt-dlp Download** (Completed)
+  - **Subtask 2.15: Modify Service to Enqueue yt-dlp Download Task** (Completed)
+- **Task 3: Voice Generation Service** (Completed)
+- **Task 4: Frontend Project Workspace** (Completed)
+- **Task 5: Frontend Scene Editor UI** (Completed)
+- **Task 6: Integrate Backend Services with Frontend** (Completed)
+- **Task 7: User Authentication** (Completed)
+- **Task 8: Deployment Setup (Initial)** (Completed)
+- **Task 9: FFmpeg Service Containerization** (Completed)
+- **Task 10: Implement Celery for Background Audio Extraction** (Partially Completed - Refactored for Media Download)
+
+**Architecture Note:** Implemented background task processing using Celery and Redis. Media downloading from URLs is now handled asynchronously by a Celery worker using `yt-dlp`, triggered via the backend API.
 
 ### Next Steps
 
-*   Connect scene reordering UI to backend API.
-*   Implement audio storage in R2 via frontend. 
+- **Task 11: Implement yt-dlp Media Download Service** (Review and potentially adapt existing subtasks based on recent Celery implementation)
+- **Task 12 (New): Update Project Documentation** (Reflect Celery, Redis, Docker structure, yt-dlp changes)
+- Refine error handling and user feedback for background tasks.
+- Implement remaining features (e.g., video generation, advanced editing).
+- Enhance testing (revisit unit tests, add more integration tests). 

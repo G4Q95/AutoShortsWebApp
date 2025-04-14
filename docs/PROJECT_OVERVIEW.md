@@ -61,6 +61,7 @@ The application will feature an intuitive video project creation workflow:
 - High performance for concurrent requests
 - Automatic API documentation
 - Well-suited for asynchronous operations
+- **Architecture Update**: Implemented Celery with a Redis broker for handling background tasks (e.g., media downloads) asynchronously, improving responsiveness and robustness.
 
 #### Database: MongoDB Atlas
 - Free tier to start
@@ -86,6 +87,7 @@ The application will feature an intuitive video project creation workflow:
   - Produces the final downloadable video file.
 
 #### Media Processing: Google Cloud Run
+- **Architecture Update**: Media downloading is now handled by `yt-dlp` running within a Celery worker task. FFmpeg operations are containerized in a dedicated `ffmpeg-service` Docker container.
 - Container-based for FFMPEG integration
 - No minimum instances (scales to zero)
 - No time limits for video processing
@@ -206,7 +208,7 @@ The project is in active development with several key components in place:
 - ✅ Media proxy functionality
 - ✅ Docker containerization
   - Complete development environment
-  - Frontend, backend, and browser-tools services
+  - **Architecture Update**: Expanded Docker setup including `frontend`, `backend`, `celery-worker`, `redis`, `ffmpeg-service`, and `browser-tools`.
   - Network configuration
   - Environment variable management
 - ✅ Server management tools

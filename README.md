@@ -26,10 +26,11 @@ The application features an intuitive workflow:
 - **Frontend**: Next.js with React + Tailwind CSS
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB Atlas
+- **Background Tasks**: Celery with Redis broker
 - **Storage**: Cloudflare R2
-- **Media Processing**: Google Cloud Run
+- **Media Processing**: yt-dlp (via Celery), FFmpeg (via dedicated service)
 - **Hosting**: Vercel
-- **Development Environment**: Docker
+- **Development Environment**: Docker (Multi-container: frontend, backend, celery-worker, redis, ffmpeg-service, browser-tools)
 
 ## Business Model
 
