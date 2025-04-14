@@ -21,6 +21,9 @@ This document tracks the implementation details, decisions, and troubleshooting 
     - **Issue:** Frontend (`ProjectProvider.tsx`) was not reliably triggering the `/api/v1/media/store` endpoint after adding a scene with media.
     - **Fix:** Refactored `ProjectProvider.tsx` to move the media storage initiation logic into a `useEffect` hook dependent on `state.currentProject`. This ensures the state is updated with scene details *before* attempting to trigger storage.
     - **Confirmation:** Verified via frontend and backend logs that the API call is now made, and the backend successfully queues the Celery task.
+    - **Issue:** Celery worker tasks failed during synchronous database updates (`update_scene_status_sync`) with the error "database name cannot be an empty string".
+    - **Fix:** Identified a conflict between `load_dotenv()` called in `app/core/config.py` and environment variables provided by Docker Compose via `env_file`. Removed the `load_dotenv()` call in `config.py`, allowing the worker to correctly read the `DATABASE_NAME` environment variable set by Docker Compose.
+    - **Confirmation:** Celery worker logs now show successful database connections using the correct database name.
 
 ## Future Considerations
 
