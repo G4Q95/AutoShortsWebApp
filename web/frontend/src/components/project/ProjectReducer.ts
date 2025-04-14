@@ -38,7 +38,6 @@ export type ProjectAction =
   | { type: 'DUPLICATE_PROJECT_SUCCESS'; payload: { projectId: string } }
   | { type: 'CLEAR_ALL_PROJECTS' }
   | { type: 'SET_MODE'; payload: { mode: 'organization' | 'voice-enabled' | 'preview' } }
-  | { type: 'SET_SCENE_STORING_MEDIA'; payload: { sceneId: string; isStoringMedia: boolean } }
   | { type: 'FORCE_UPDATE' };
 
 /**
@@ -174,12 +173,15 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         p && p.id === updatedProject.id ? updatedProject : p
       );
 
-      return {
+      // Log the state immediately after adding the scene
+      const newState = {
         ...state,
         currentProject: updatedProject,
         projects: updatedProjects,
         error: null,
       };
+      console.log('[REDUCER ADD_SCENE] State *after* adding scene:', JSON.stringify(newState));
+      return newState;
     }
 
     /**
@@ -219,6 +221,8 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         p && p.id === updatedProject.id ? updatedProject : p
       );
 
+      // Log the state immediately after adding the loading scene
+      // console.log('[REDUCER ADD_SCENE_LOADING] State *after* adding loading scene:', JSON.stringify(newState)); // Removed diagnostic log
       return {
         ...state,
         currentProject: updatedProject,
@@ -699,48 +703,6 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       return {
         ...state,
         mode: action.payload.mode,
-      };
-    }
-
-    /**
-     * Updates whether a scene is currently storing media to R2.
-     * 
-     * @action SET_SCENE_STORING_MEDIA
-     * @payload { sceneId: string; isStoringMedia: boolean }
-     */
-    case 'SET_SCENE_STORING_MEDIA': {
-      if (!state.currentProject) {
-        return {
-          ...state,
-          error: 'No active project to update scene media storage state in',
-        };
-      }
-
-      const updatedScenes = state.currentProject.scenes.map((scene) => {
-        if (scene.id === action.payload.sceneId) {
-          return { 
-            ...scene, 
-            isStoringMedia: action.payload.isStoringMedia
-          };
-        }
-        return scene;
-      });
-
-      const updatedProject: Project = {
-        ...state.currentProject,
-        scenes: updatedScenes,
-        updatedAt: Date.now(),
-      };
-
-      // Safely update projects array
-      const updatedProjects = state.projects.map((p) => 
-        p && p.id === updatedProject.id ? updatedProject : p
-      );
-
-      return {
-        ...state,
-        currentProject: updatedProject,
-        projects: updatedProjects,
       };
     }
 

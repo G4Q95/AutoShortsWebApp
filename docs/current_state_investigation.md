@@ -1,0 +1,107 @@
+# Current State Investigation Log
+
+This document tracks real-world integration tests and findings as we debug and synchronize the Celery, Cloudflare R2, MongoDB, FFmpeg, and YT-DLP pipeline. Each entry records a specific test action, the expected and observed outcomes, and an analysis of what worked or failed. This log will be used to update Taskmaster and project documentation to reflect the true state of the system.
+
+---
+
+## Entry Template
+
+### Test Action
+_Describe the user action performed (e.g., "Add scene with media URL via frontend")._
+
+### Expected Outcome
+_What should happen if everything works (e.g., "Media is downloaded, uploaded to R2, scene status updated in DB")._
+
+### Observed Outcome
+_What actually happened? Include relevant logs, errors, and UI feedback._
+
+### Analysis
+_What worked, what failed, possible causes, and any notes on race conditions, sync/async issues, or configuration problems._
+
+### Next Steps
+_What to try or check next based on this result._
+
+---
+
+## Investigation Entries
+
+<!-- Add new entries below this line as you perform each test -->
+
+### Test Action
+Add a scene with a media URL via the frontend.
+
+### Expected Outcome
+- The frontend triggers the backend to create a new scene.
+- The backend stores the scene in MongoDB and triggers the Celery media download task.
+- The Celery worker downloads the media, uploads it to R2, and updates the scene status in the database.
+- No errors in frontend, backend, or Celery logs.
+
+### Observed Outcome
+- Frontend: No console logs or errors (console log is empty).
+- Backend logs:
+  - The backend received a request to extract content from a Reddit URL and processed it (200 OK).
+  - The backend attempted to retrieve voiceover audio for the new scene, but found none (expected for a new scene).
+  - The backend successfully listed objects in R2 for the scene's audio prefix (found none, as expected).
+  - No errors or tracebacks in the backend logs.
+- Celery worker logs:
+  - The command `docker compose logs celery_worker` returned: `no such service: celery_worker`.
+  - This means the Celery worker container is not running or is misnamed in your Docker Compose setup.
+
+### Analysis
+- Backend is working as expected for scene creation and initial media extraction.
+- Celery worker is not running or not available as a service in Docker Compose, so no background media download task is being triggered or processed.
+- No evidence of media download, R2 upload, or scene status update by Celery, because the worker is not running.
+- No frontend errors—the UI is not reporting any issues, but the pipeline is incomplete without the worker.
+
+### Next Steps
+1. Check your Docker Compose setup for the Celery worker:
+   - Is the service named `celery_worker` or something else?
+   - Run `docker compose ps` to see all running services and their names.
+   - If the worker is not running, start it with `docker compose up celery_worker` (or the correct service name).
+2. Once the worker is running, repeat the test:
+   - Add a new scene with a media URL.
+   - Check backend and Celery worker logs again.
+3. If the worker fails to start, check its logs for errors (e.g., missing environment variables, config issues).
+4. Update the investigation log with the new findings.
+
+---
+
+### Test Action
+Diagnose Frontend Media Storage Trigger Failure (Post-Revert)
+
+### Expected Outcome
+Identify why adding a scene with a media URL does not trigger the `/api/v1/media/store` backend call via the `useEffect` in `ProjectProvider.tsx`.
+
+### Observed Outcome (Based on Logs from 2025-04-14 ~20:21)
+- Frontend: No errors, but also no log indicating the media storage `useEffect` fired. Auto-save works.
+- Backend: Received content extraction request, but *no* POST request to `/api/v1/media/store`.
+- Celery: Received *some* tasks (likely old/retried), but failed on `AttributeError: 'R2Storage' object has no attribute 'upload_file_sync'` and `Sync MongoDB error... database name cannot be the empty string`. These errors indicate separate worker issues but don't explain the lack of *new* tasks from the frontend.
+
+### Analysis (Frontend Trigger Issue)
+The primary issue preventing new media storage tasks is that the frontend is not initiating the process.
+**Potential Causes:**
+1.  **Incorrect `useEffect` Dependencies:** Dependency array (`[state.currentProject]`) might not react correctly to the relevant scene update.
+2.  **State Update Timing/Race Condition:** Effect runs before the state fully reflects the new scene's `media.url`.
+3.  **Faulty Condition Logic:** The check `scene.media?.url && !scene.media?.storageKey` might be failing.
+4.  **Revert Undid Previous Fix:** Most likely, the revert removed the specific `useEffect` logic mentioned in `docs/Celery Integration.md`.
+5.  **Component Lifecycle Issues:** Unexpected unmount/remount cycles.
+6.  **Blocking JavaScript Error:** Preceding JS errors preventing effect execution.
+7.  **Reducer Logic Flaw:** `ADD_SCENE` reducer might not set `media.url` correctly initially.
+
+**Most Likely Causes:**
+1.  **Revert Undid Previous Fix:** High probability given the issue reappeared post-revert.
+2.  **State Update Timing/Race Condition:** Common issue in React state management with effects.
+
+### Next Steps (Validation via Logging - NO CODE FIX YET)
+1.  **Add Logs to `ProjectProvider.tsx` - `useEffect` for Storage:**
+    *   Log entry: `console.log('[EFFECT STORAGE] Media storage effect triggered.');`
+    *   Log state *before* filter: `console.log('[EFFECT STORAGE] Checking project state:', JSON.stringify(state.currentProject));`
+    *   Log filter result: `console.log('[EFFECT STORAGE] Scenes found needing storage:', JSON.stringify(scenesToStore));`
+2.  **Add Log to `ProjectProvider.tsx` - Reducer (`projectReducer`)**:
+    *   In the `ADD_SCENE` (or equivalent) case, *after* updating state: `console.log('[REDUCER ADD_SCENE] State *after* adding scene:', JSON.stringify(newState));`
+3.  **Re-run Test:** Add a scene with a media URL.
+4.  **Analyze Logs:** Check console for the new logs to understand the timing and state flow.
+5.  **Update Investigation Log:** Document findings from the logs.
+6.  **(Separate Issue) Address Celery Worker Errors:** After validating the frontend trigger, fix the `upload_file_sync` attribute error and the `DATABASE_NAME` environment variable issue in the worker.
+
+--- 

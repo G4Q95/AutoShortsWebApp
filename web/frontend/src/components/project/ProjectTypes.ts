@@ -60,8 +60,6 @@ export interface Scene {
   };
   /** Text content associated with the scene */
   text: string;
-  /** Indicates if the scene is currently storing media */
-  isStoringMedia?: boolean;
   /** Audio data associated with the scene */
   audio?: {
     /** URL to the audio file */

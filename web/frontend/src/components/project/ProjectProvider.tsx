@@ -150,6 +150,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   
   // Keep track of storage operations
   const [storageInProgress, setStorageInProgress] = useState(false);
+  const [storingMediaStatus, setStoringMediaStatus] = useState<Record<string, boolean>>({});
 
   // Auto-save timer reference
   const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -406,16 +407,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     };
   }, [state.currentProject]);
 
-  // Create a new project
-  const createProject = useCallback((title: string) => {
-    dispatch({ type: 'CREATE_PROJECT', payload: { title } });
-  }, []);
-
-  // Set current project by ID
-  const setCurrentProject = useCallback((projectId: string) => {
-    dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
-  }, []);
-
   // Update scene media data
   const updateSceneMedia = useCallback((
     sceneId: string, 
@@ -434,6 +425,82 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.error('Error saving project after updating scene media:', error);
     });
   }, [saveCurrentProject]);
+
+  // >> MEMOIZE SCENE IDs <<
+  const scenesNeedingStorageIds = useMemo(() => {
+    if (!state.currentProject) return [];
+    // Filter scenes that have a URL but no storageKey yet
+    return state.currentProject.scenes
+      .filter(scene => scene.media?.url && !scene.media.storageKey)
+      .map(scene => scene.id);
+    // Depend specifically on the scenes array within the project
+  }, [state.currentProject?.scenes]); 
+  // >> MEMOIZE SCENE IDs END <<
+
+  // >> MOVED EFFECT START <<
+  // useEffect to handle background media storage after state updates
+  useEffect(() => {
+    console.log('[EFFECT STORAGE] Media storage effect triggered. Scenes needing storage IDs:', scenesNeedingStorageIds);
+    if (!state.currentProject || scenesNeedingStorageIds.length === 0) {
+        // No project or no scenes currently need storage
+        return;
+    }
+
+    console.log('[EFFECT STORAGE] Checking project state:', JSON.stringify(state.currentProject)); // Log current project state
+
+    const projectId = state.currentProject.id;
+    // Find the scene objects corresponding to the IDs
+    const scenesToStoreMap = new Map(state.currentProject.scenes.map(s => [s.id, s]));
+    const scenesToStoreNow = scenesNeedingStorageIds
+        .map(id => scenesToStoreMap.get(id))
+        .filter((s): s is Scene => !!s);
+
+    console.log('[EFFECT STORAGE] Scenes found needing storage:', JSON.stringify(scenesToStoreNow)); // Log scenes found
+
+    if (scenesToStoreNow.length > 0) {
+      console.log(`[EFFECT STORAGE] Found ${scenesToStoreNow.length} scenes needing media storage.`);
+      scenesToStoreNow.forEach(async (scene) => {
+        if (!scene.media) return; // Type guard
+
+        console.log(`[EFFECT STORAGE] Initiating storage for scene: ${scene.id}, URL: ${scene.media.url}`);
+        setStoringMediaStatus(prev => ({ ...prev, [scene.id]: true }));
+
+        try {
+          const storageResult = await storeSceneMedia(
+            scene,
+            projectId,
+            updateSceneMedia
+          );
+          console.log(`[EFFECT STORAGE] Storage result for scene ${scene.id}:`, storageResult);
+
+          // Final save to persist any storageKey/URL updates from the callback
+          // Get the absolute latest state before saving
+          const latestStateProject = state.currentProject; 
+          if(latestStateProject && latestStateProject.id === projectId) {
+              await saveProject(latestStateProject);
+              console.log(`[EFFECT STORAGE] Final save after storage attempt for scene ${scene.id}`);
+          }
+          
+        } catch (error) {
+          console.error(`[EFFECT STORAGE] Error storing media for scene ${scene.id}:`, error);
+        } finally {
+          // Ensure storing flag is reset regardless of outcome
+          setStoringMediaStatus(prev => ({ ...prev, [scene.id]: false }));
+        }
+      });
+    }
+  }, [scenesNeedingStorageIds, state.currentProject?.id, updateSceneMedia]); // Depend on the stable ID list, project ID, and the callback
+  // >> MOVED EFFECT END <<
+
+  // Create a new project
+  const createProject = useCallback((title: string) => {
+    dispatch({ type: 'CREATE_PROJECT', payload: { title } });
+  }, []);
+
+  // Set current project by ID
+  const setCurrentProject = useCallback((projectId: string) => {
+    dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
+  }, []);
 
   // Store all unstored media for the current project in R2
   const storeAllMedia = useCallback(async (): Promise<{
@@ -739,55 +806,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       } catch (syncError) {
         console.error('Error during second immediate scene save:', syncError);
       }
-
-      // 5. New useEffect to handle background media storage after state updates
-      useEffect(() => {
-        if (!state.currentProject) return;
-
-        const projectId = state.currentProject.id;
-        const scenesToStore = state.currentProject.scenes.filter(
-          scene => scene.media?.url && !scene.media.storageKey
-        );
-
-        if (scenesToStore.length > 0) {
-          console.log(`[EFFECT STORAGE] Found ${scenesToStore.length} scenes needing media storage.`);
-          scenesToStore.forEach(async (scene) => {
-            if (!scene.media) return; // Type guard
-
-            console.log(`[EFFECT STORAGE] Initiating storage for scene: ${scene.id}, URL: ${scene.media.url}`);
-            dispatch({
-              type: 'SET_SCENE_STORING_MEDIA',
-              payload: { sceneId: scene.id, isStoringMedia: true }
-            });
-
-            try {
-              const storageResult = await storeSceneMedia(
-                scene,
-                projectId,
-                updateSceneMedia
-              );
-              console.log(`[EFFECT STORAGE] Storage result for scene ${scene.id}:`, storageResult);
-
-              // Final save to persist any storageKey/URL updates from the callback
-              // Get the absolute latest state before saving
-              const latestStateProject = state.currentProject; 
-              if(latestStateProject && latestStateProject.id === projectId) {
-                 await saveProject(latestStateProject);
-                 console.log(`[EFFECT STORAGE] Final save after storage attempt for scene ${scene.id}`);
-              }
-              
-            } catch (error) {
-              console.error(`[EFFECT STORAGE] Error storing media for scene ${scene.id}:`, error);
-            } finally {
-              // Ensure storing flag is reset regardless of outcome
-              dispatch({
-                type: 'SET_SCENE_STORING_MEDIA',
-                payload: { sceneId: scene.id, isStoringMedia: false }
-              });
-            }
-          });
-        }
-      }, [state.currentProject, updateSceneMedia]); // Depend on currentProject
 
     } catch (error) {
       console.error('Error extracting content:', error);
@@ -1215,6 +1233,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     lastSaved: state.lastSaved,
     isSaving: state.isSaving,
     mode: state.mode,
+    storingMediaStatus,
   }), [
     state.projects,
     state.currentProject,
@@ -1222,7 +1241,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     state.error,
     state.lastSaved,
     state.isSaving,
-    state.mode
+    state.mode,
+    storingMediaStatus,
   ]);
 
   const actions = useMemo(() => ({
