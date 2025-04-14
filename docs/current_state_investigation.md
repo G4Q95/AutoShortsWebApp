@@ -166,4 +166,68 @@ Fix Celery Task Async Handling & R2 Upload (2025-04-14 ~21:16)
 ### Next Steps
 1.  **Fix Celery DB Connection:** Investigate and fix the `DATABASE_NAME` environment variable issue for the Celery worker.
 
+---
+
+### Test Action
+Verify Celery Worker Environment Variables (2025-04-14 ~<Time>)
+
+### Expected Outcome
+- The `DATABASE_NAME`, `OPENAI_API_KEY`, and `REDIS_PASSWORD` environment variables inside the `celery-worker` container match the values specified in `web/backend/.env` or explicitly set in `docker-compose.yml`.
+
+### Observed Outcome
+- Initial check (`docker compose exec celery-worker printenv`) showed `DATABASE_NAME`, `OPENAI_API_KEY`, and `REDIS_PASSWORD` were empty or defaulting to blank strings, despite being set in the `.env` file and referenced via `${VAR_NAME}` in `docker-compose.yml`.
+- Docker Compose warning logs (`WARN[0000] The "DATABASE_NAME" variable is not set. Defaulting to a blank string.`) confirmed the issue.
+- Modified `docker-compose.yml` to explicitly set these variables for the `celery-worker` service directly (e.g., `DATABASE_NAME=autoshortsdb`) instead of relying on shell substitution (`DATABASE_NAME=${DATABASE_NAME}`).
+- Restarted containers using `docker compose down && docker compose up -d`.
+- Subsequent check (`docker compose exec celery-worker printenv`) confirmed the variables were now correctly set inside the container:
+  ```
+  DATABASE_NAME=autoshortsdb
+  OPENAI_API_KEY=your_openai_api_key
+  REDIS_PASSWORD=
+  ```
+
+### Analysis
+- The issue was caused by Docker Compose's variable substitution priority. When `${VAR_NAME}` syntax is used, Docker Compose first checks the shell environment where `docker compose up` is run. If the variable exists in the shell (even if empty), it overrides the value from the `.env` file.
+- Explicitly setting the variable value in the `environment` section of `docker-compose.yml` bypasses this shell substitution issue for the specific service.
+- This fixed the environment variable configuration, paving the way for the Celery task to correctly connect to the database.
+
+### Next Steps
+1. Re-run the full media download test by adding a scene with a media URL via the frontend.
+2. Monitor `celery-worker` logs for successful task completion, including the final database update.
+3. Update this investigation log with the results of the full test.
+
+---
+
+### Test Action
+Fix Project ID Mismatch for Celery DB Update (Attempt 1: API Layer)
+
+### Expected Outcome
+- Backend API (`/api/v1/media/store`) fetches the MongoDB `_id` using the custom `project_id` before calling the service.
+- The correct MongoDB `_id` is passed through the service (`store_media_content`) to the Celery task (`download_media_task`).
+- Celery task successfully calls `update_scene_status_sync` with the correct `_id`.
+- Scene status is updated to 'ready' in the database.
+- Frontend remains stable.
+
+### Observed Outcome
+- Modified `app/api/media.py` to inject the database and perform the project lookup using the custom ID (`proj_...`).
+- **Result:** While the intention was correct, this change introduced instability in the backend service. The frontend started receiving `net::ERR_CONNECTION_RESET` errors when trying to communicate with the backend (specifically observed during calls to `/api/v1/content/extract` after adding a scene).
+- Adding scenes became impossible due to the backend instability.
+- Reverted the changes in `app/api/media.py` to restore basic scene-adding functionality.
+- Confirmed via Celery logs after the revert that the task still runs but fails the DB update with `Invalid ObjectId format for project_id: proj_...` as expected, since the incorrect ID is still being passed.
+
+### Analysis
+- Modifying the API endpoint (`store_media_from_url`) to perform the database lookup caused unexpected side effects, likely related to how dependencies or async operations are handled within that specific FastAPI route function, leading to broader backend instability.
+- The core problem remains: the custom `project_id` (`proj_...`) is passed from the frontend, through the API, through the service, and finally to the Celery task, which then passes it to `update_scene_status_sync` which requires the MongoDB `_id` string.
+- The revert confirmed that the API endpoint modification was the direct cause of the instability.
+
+### Next Steps
+1.  **Move Project ID Lookup to Service Layer:** Modify the `store_media_content` function in `web/backend/app/services/media_service.py`. This function is responsible for queueing the Celery task.
+    - Inject the database dependency into `store_media_content`.
+    - Inside the function, use the received custom `project_id` to query the `projects` collection.
+    - Retrieve the MongoDB `_id` string.
+    - Pass this correct `_id` string to the `download_media_task.delay()` call.
+    - Add error handling for cases where the project is not found by its custom ID.
+2.  Restart services and re-run the test by adding a scene with media.
+3.  Monitor Celery logs for successful completion including the database update.
+
 --- 

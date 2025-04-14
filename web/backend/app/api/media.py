@@ -8,6 +8,10 @@ from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, Query, BackgroundTasks
 from pydantic import BaseModel, HttpUrl, Field
+# Ensure database-related imports are removed if no longer needed by other functions in this file
+# from motor.motor_asyncio import AsyncIOMotorDatabase 
+# from bson import ObjectId
+# from app.core.database import get_database 
 
 from app.core.errors import create_error_response, ErrorCodes
 from app.models.api import ApiResponse
@@ -40,7 +44,7 @@ class MediaStoreQueuedResponse(BaseModel):
 
 @router.post("/store", response_model=MediaStoreQueuedResponse)
 async def store_media_from_url(
-    request: MediaStoreRequest, 
+    request: MediaStoreRequest # Removed the database dependency
 ):
     """
     Queues a background task to store media from a URL.
@@ -52,31 +56,28 @@ async def store_media_from_url(
         Response containing the ID of the queued background task.
     """
     logger.info(f"Media store request received for URL: {request.url}")
-    logger.info(f"Project ID: {request.project_id}, Scene ID: {request.scene_id}")
-    # media_type and create_thumbnail are passed but handled by the Celery task
-    
+    # Reverted logging
+    logger.info(f"Project ID: {request.project_id}, Scene ID: {request.scene_id}") 
+
     try:
-        # Call the updated service function which now returns a task_id dict
+        # Reverted back to directly calling store_media_content with request.project_id
         result = await store_media_content(
             url=str(request.url),
-            project_id=request.project_id,
+            project_id=request.project_id, # Pass the original project_id from request
             scene_id=request.scene_id,
             user_id=request.user_id,
-            media_type=request.media_type, # Pass along for potential future use in task
-            create_thumbnail=request.create_thumbnail # Pass along for potential future use in task
+            media_type=request.media_type,
+            create_thumbnail=request.create_thumbnail
         )
         
-        # store_media_content now returns {"task_id": task_result.id}
         task_id = result.get("task_id")
 
         if not task_id:
-             # This shouldn't happen if store_media_content works correctly
              logger.error("store_media_content did not return a task_id")
              raise HTTPException(status_code=500, detail="Failed to queue download task: No task ID returned.")
         
         logger.info(f"Media download/store task queued with ID: {task_id}")
 
-        # Return the new response model with the task ID
         return MediaStoreQueuedResponse(task_id=task_id)
 
     except HTTPException as e:

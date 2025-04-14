@@ -95,12 +95,12 @@ services:
     environment: # Explicitly pass variables needed by Celery/tasks
       - PYTHONPATH=/app # Add PYTHONPATH for module discovery
       - MONGODB_URI=${MONGODB_URI}
-      - DATABASE_NAME=${DATABASE_NAME}
+      - DATABASE_NAME=autoshortsdb # Explicitly set from .env
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_KEY=your_openai_api_key # Explicitly set from .env (or leave empty if intended)
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PASSWORD= # Explicitly set empty from .env
       - CELERY_BROKER_URL=redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/0
       - CELERY_RESULT_BACKEND=redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/0
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}

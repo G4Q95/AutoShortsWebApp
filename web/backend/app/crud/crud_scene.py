@@ -197,15 +197,12 @@ def update_scene_status_sync(
 
         logger.info(f"Attempting sync update for project {project_id}, scene {scene_id} to status {status}")
 
+        # Reinstate ObjectId check and query by _id
         if not ObjectId.is_valid(project_id):
              logger.error(f"Invalid ObjectId format for project_id: {project_id}")
              return False
              
-        # Although scene_id is string in the model, we use it directly in array_filters
-        # if not ObjectId.is_valid(scene_id):
-        #     logger.error(f"Invalid ObjectId format for scene_id: {scene_id}")
-        #     return False
-
+        # Query using the MongoDB _id
         query = {"_id": ObjectId(project_id)}
         update_payload = {"$set": {}, "$unset": {}} # Initialize $set and $unset
 
