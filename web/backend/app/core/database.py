@@ -72,8 +72,7 @@ class Database:
                 w="majority",
                 retryWrites=True,
                 appName="autoshorts-app",
-                tls=True,
-                tlsAllowInvalidCertificates=True
+                tls=True
             )
             
             # Validate connection

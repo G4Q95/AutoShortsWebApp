@@ -263,9 +263,11 @@ class R2Storage:
                     metadata={"url": url}
                 )
                 
-                # Create record asynchronously
+                # Create record asynchronously - needs its own event loop when called from sync context
                 try:
-                    await r2_file_tracking.create_file_record(file_data)
+                    # await r2_file_tracking.create_file_record(file_data)
+                    # Run the async tracking function in its own event loop
+                    asyncio.run(r2_file_tracking.create_file_record(file_data))
                     logger.info(f"Successfully tracked file path for {object_name}")
                 except Exception as e:
                     # Don't fail the upload if tracking fails
@@ -756,9 +758,11 @@ class R2Storage:
                     metadata={"url": url}
                 )
                 
-                # Create record asynchronously
+                # Create record asynchronously - needs its own event loop when called from sync context
                 try:
-                    await r2_file_tracking.create_file_record(file_data)
+                    # await r2_file_tracking.create_file_record(file_data)
+                    # Run the async tracking function in its own event loop
+                    asyncio.run(r2_file_tracking.create_file_record(file_data))
                     logger.info(f"Successfully tracked file path for {object_name_structured}")
                 except Exception as e:
                     # Don't fail the upload if tracking fails

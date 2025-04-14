@@ -12,6 +12,7 @@ WORKDIR /app
 # We might need build-essential for some libraries later, but start minimal
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    # ca-certificates # Removed as it didn't solve the DB connection issue
     # Add any other system dependencies needed by your Python libs, but NOT ffmpeg
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
