@@ -24,6 +24,12 @@ class Settings(BaseModel):
     # MongoDB
     MONGODB_URI: str = Field(default_factory=lambda: os.getenv("MONGODB_URI", ""))
 
+    # Celery / Redis
+    CELERY_BROKER_URL: str = Field(default_factory=lambda: os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0"))
+    CELERY_RESULT_BACKEND: str = Field(default_factory=lambda: os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0"))
+    CELERY_WORKER_CONCURRENCY: int = Field(default_factory=lambda: int(os.getenv("CELERY_WORKER_CONCURRENCY", "4"))) # Example default
+    CELERY_PREFETCH_MULTIPLIER: int = Field(default_factory=lambda: int(os.getenv("CELERY_PREFETCH_MULTIPLIER", "4"))) # Example default
+
     # OpenAI
     OPENAI_API_KEY: str = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
 

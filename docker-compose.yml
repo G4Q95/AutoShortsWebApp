@@ -93,6 +93,7 @@ services:
     env_file:
       - ./web/backend/.env # Use the same env file as backend
     environment: # Explicitly pass variables needed by Celery/tasks
+      - PYTHONPATH=/app # Add PYTHONPATH for module discovery
       - MONGODB_URI=${MONGODB_URI}
       - DATABASE_NAME=${DATABASE_NAME}
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}

@@ -27,4 +27,11 @@ COPY . .
 # Command to run the Celery worker
 # Assumes Celery app instance is defined in app.core.celery_app:celery_app
 # The queue name (-Q) can be customized, 'default' is standard
-CMD ["celery", "-A", "app.core.celery_app:celery_app", "worker", "--loglevel=info", "-Q", "default"] 
+# Explicitly cd to /app to ensure PYTHONPATH works as expected
+CMD ["sh", "-c", "cd /app && celery -A app.core.celery_app:celery_app worker --loglevel=debug -Q default"]
+
+# --- DIAGNOSTIC CMD: Test direct Python import --- START
+# CMD ["python", "-c", "print('Attempting direct Python import...'); import app.core.celery_app; print('Direct Python import SUCCESSFUL!')"]
+# --- DIAGNOSTIC CMD: Test direct Python import --- END
+
+# Expose port (though Celery worker doesn't typically need exposed ports unless using Flower etc.)
