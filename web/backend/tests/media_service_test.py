@@ -60,6 +60,7 @@ async def test_store_media_content():
             url=TEST_IMAGE_URL,
             project_id=TEST_PROJECT_ID,
             scene_id=TEST_SCENE_ID,
+            user_id="test_user",
             media_type=MediaType.IMAGE
         )
         logger.info(f"Image storage result: {result}")
@@ -73,6 +74,7 @@ async def test_store_media_content():
             url=TEST_VIDEO_URL,
             project_id=TEST_PROJECT_ID,
             scene_id=TEST_SCENE_ID,
+            user_id="test_user",
             media_type=MediaType.VIDEO
         )
         logger.info(f"Video storage result: {result}")

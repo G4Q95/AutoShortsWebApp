@@ -140,13 +140,24 @@ export async function fetchAPI<T = any>(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      signal: controller.signal,
-    });
+    let response: Response | null = null; // Initialize response variable
+    try {
+        console.log(`[fetchAPI] Making fetch call to: ${url}`)
+        response = await fetch(url, {
+            ...options,
+            headers,
+            signal: controller.signal,
+        });
+        console.log(`[fetchAPI] Fetch call completed. Status: ${response.status}`);
+    } catch (fetchError) {
+        clearTimeout(timeoutId); // Clear timeout on fetch error
+        console.error('[fetchAPI] Error DURING fetch call:', fetchError);
+        // Re-throw or handle as a specific fetch error type if needed
+        // For now, let the main catch block handle it, but log here.
+        throw fetchError; // Re-throw to be caught by the outer catch
+    }
 
-    // Clear timeout
+    // Clear timeout now that fetch has potentially succeeded
     clearTimeout(timeoutId);
 
     // Calculate response time
@@ -159,35 +170,35 @@ export async function fetchAPI<T = any>(
 
     // Create connection info
     const connectionInfo = {
-      success: response.ok,
+      success: response?.ok,
       server: API_BASE_URL,
-      status: response.status,
-      statusText: response.statusText,
+      status: response?.status,
+      statusText: response?.statusText,
     };
 
     // Log response in development
     if (process.env.NODE_ENV === 'development') {
-      console.log(`API Response: ${response.status} ${response.statusText}`);
+      console.log(`API Response: ${response?.status} ${response?.statusText}`);
       console.log('Response Time:', Math.round(timing.duration), 'ms');
     }
 
     // Update API health if this was a successful request
-    if (response.ok) {
+    if (response?.ok) {
       apiHealth.lastChecked = Date.now();
       apiHealth.isAvailable = true;
       apiHealth.responseTime = timing.duration;
     }
 
     // Handle non-2xx responses
-    if (!response.ok) {
+    if (!response?.ok) {
       const error: ApiError = {
-        status_code: response.status,
-        message: `${response.status}: ${response.statusText}`,
+        status_code: response?.status,
+        message: `${response?.status}: ${response?.statusText}`,
       };
 
       // Try to parse error message from the response
       try {
-        const data = await response.json();
+        const data = await response?.json();
         
         // Handle FastAPI error response format
         if (data.status_code && data.message) {
@@ -223,11 +234,11 @@ export async function fetchAPI<T = any>(
     }
 
     // Handle 204 No Content responses
-    if (response.status === 204) {
+    if (response?.status === 204) {
       return { data: null as any, timing, connectionInfo };
     }
 
-    const data = await response.json();
+    const data = await response?.json();
     
     // Log data in development (truncated for large responses)
     if (process.env.NODE_ENV === 'development') {
@@ -240,6 +251,7 @@ export async function fetchAPI<T = any>(
     
     return { data, timing, connectionInfo };
   } catch (error) {
+    // Ensure response time is calculated even if fetch failed early
     const endTime = performance.now();
     const timing = {
       start: startTime,
@@ -248,9 +260,7 @@ export async function fetchAPI<T = any>(
     };
 
     // Log error in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('API Error:', error);
-    }
+    console.error('[fetchAPI] Caught error in main catch block:', error);
 
     // Handle timeout errors
     if (error instanceof DOMException && error.name === 'AbortError') {
@@ -1087,6 +1097,7 @@ export interface MediaStorageRequest {
   url: string;
   project_id: string;
   scene_id: string;
+  user_id: string;
   media_type?: string;
   create_thumbnail?: boolean;
 }
@@ -1138,6 +1149,10 @@ export async function storeMediaContent(
     console.log(`Storing media from URL: ${requestData.url}`);
     console.log(`Project ID: ${requestData.project_id}, Scene ID: ${requestData.scene_id}`);
     
+    // Detailed log before stringify/fetch
+    console.log('[API-CLIENT storeMediaContent] Request Data:', requestData);
+    console.log('[API-CLIENT storeMediaContent] Attempting to stringify and call fetchAPI...');
+
     return await fetchAPI<MediaStorageResponse>(
       '/media/store',
       {
@@ -1150,24 +1165,23 @@ export async function storeMediaContent(
       timeoutMs
     );
   } catch (error) {
-    console.error('Failed to store media content:', error);
+    console.error('Failed to store media content (caught in storeMediaContent):', error);
+    // Also log the requestData in case of stringify error
+    console.error('[API-CLIENT storeMediaContent] Request Data on catch:', requestData);
+    // Return the standard error structure
     return {
       error: {
         status_code: 500,
-        message: `Failed to store media content: ${error instanceof Error ? error.message : String(error)}`,
+        message: `Failed to store media content (storeMediaContent error): ${error instanceof Error ? error.message : String(error)}`,
         error_code: 'media_storage_error',
       },
-      data: null as any,
-      timing: {
-        start: 0,
-        end: 0,
-        duration: 0,
-      },
+      data: null as any, // Ensure all properties of ApiResponse are present
+      timing: { start: 0, end: 0, duration: 0 },
       connectionInfo: {
         success: false,
         server: API_BASE_URL,
         status: 500,
-        statusText: 'Internal Error',
+        statusText: 'Internal Client Error',
       },
     };
   }

@@ -360,7 +360,8 @@ async def store_media_content(
 async def download_media_from_reddit_post(
     post_data: Dict[str, Any],
     project_id: str,
-    scene_id: str
+    scene_id: str,
+    user_id: str = "system_reddit_user"
 ) -> Dict[str, Any]:
     """
     Extract and download all media from a Reddit post.
@@ -369,6 +370,7 @@ async def download_media_from_reddit_post(
         post_data: Reddit post data
         project_id: Project ID
         scene_id: Scene ID
+        user_id: User ID owning the project, defaults to "system_reddit_user"
         
     Returns:
         Dictionary with media information
@@ -408,6 +410,7 @@ async def download_media_from_reddit_post(
             url=media_url,
             project_id=project_id,
             scene_id=scene_id,
+            user_id=user_id,
             media_type=media_type
         )
         

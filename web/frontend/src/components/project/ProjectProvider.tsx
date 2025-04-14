@@ -27,7 +27,9 @@ import {
   clearAllProjects,
 } from '../../lib/storage-utils';
 import { deleteProject as deleteProjectFromAPI } from '../../lib/api/projects';
-import { determineMediaType, generateVideoThumbnail } from '../../lib/media-utils';
+import { determineMediaType, generateVideoThumbnail, storeAllProjectMedia } from '../../lib/media-utils';
+import { storeSceneMedia } from '../../utils/media-utils';
+import { SceneMedia } from '@/utils/media-utils';
 
 import { 
   Project, 
@@ -454,15 +456,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     console.log(`Initiating storage of all media for project: ${currentProject.id}`);
 
     try {
-      // Import the utility function
-      const { storeAllProjectMedia } = await import('../../lib/media-utils');
-      
-      // Store all media for the project
+      // Use the statically imported storeAllProjectMedia
       const result = await storeAllProjectMedia(
         currentProject,
         updateSceneMedia
       );
-      
+
       console.log('Media storage process completed:', result);
       return result;
     } catch (error) {
@@ -740,103 +739,56 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       } catch (syncError) {
         console.error('Error during second immediate scene save:', syncError);
       }
-      
-      // 5. Initiate background media storage if media exists
-      if (updatedScene.media?.url) {
-        try {
-          // Import the storeSceneMedia utility
-          const { storeSceneMedia } = await import('../../lib/media-utils');
-          
-          console.log(`[STORAGE-DEBUG] Starting media storage for scene: ${updatedScene.id}`);
-          console.log(`[STORAGE-DEBUG] Media URL to store: ${updatedScene.media.url}`);
-          console.log(`[STORAGE-DEBUG] Current media state:`, {
-            type: updatedScene.media.type,
-            hasUrl: !!updatedScene.media.url,
-            isStorageBacked: updatedScene.media.isStorageBacked,
-            hasStorageKey: !!updatedScene.media.storageKey
-          });
-          
-          // Set the scene's storing media flag to true
-          dispatch({
-            type: 'SET_SCENE_STORING_MEDIA',
-            payload: { sceneId: updatedScene.id, isStoringMedia: true }
-          });
-          
-          // Store media in R2 storage
-          console.log(`[STORAGE-DEBUG] Calling storeSceneMedia function`);
-          const success = await storeSceneMedia(
-            updatedScene,
-            projectId,
-            updateSceneMedia
-          );
-          
-          // Set the scene's storing media flag to false since storage is complete
-          dispatch({
-            type: 'SET_SCENE_STORING_MEDIA',
-            payload: { sceneId: updatedScene.id, isStoringMedia: false }
-          });
-          
-          if (success) {
-            console.log(`[STORAGE-DEBUG] Successfully stored media for scene: ${updatedScene.id}`);
-            
-            // Get the latest scene to verify storage worked
-            const latestProject = await getProjectWithScenes(projectId);
-            if (latestProject) {
-              const latestScene = latestProject.scenes.find(s => s.id === updatedScene.id);
-              if (latestScene && latestScene.media) {
-                console.log(`[STORAGE-DEBUG] Verification - Latest scene media state:`, {
-                  url: latestScene.media.url,
-                  storedUrl: latestScene.media.storedUrl,
-                  isStorageBacked: latestScene.media.isStorageBacked,
-                  storageKey: latestScene.media.storageKey
-                });
+
+      // 5. New useEffect to handle background media storage after state updates
+      useEffect(() => {
+        if (!state.currentProject) return;
+
+        const projectId = state.currentProject.id;
+        const scenesToStore = state.currentProject.scenes.filter(
+          scene => scene.media?.url && !scene.media.storageKey
+        );
+
+        if (scenesToStore.length > 0) {
+          console.log(`[EFFECT STORAGE] Found ${scenesToStore.length} scenes needing media storage.`);
+          scenesToStore.forEach(async (scene) => {
+            if (!scene.media) return; // Type guard
+
+            console.log(`[EFFECT STORAGE] Initiating storage for scene: ${scene.id}, URL: ${scene.media.url}`);
+            dispatch({
+              type: 'SET_SCENE_STORING_MEDIA',
+              payload: { sceneId: scene.id, isStoringMedia: true }
+            });
+
+            try {
+              const storageResult = await storeSceneMedia(
+                scene,
+                projectId,
+                updateSceneMedia
+              );
+              console.log(`[EFFECT STORAGE] Storage result for scene ${scene.id}:`, storageResult);
+
+              // Final save to persist any storageKey/URL updates from the callback
+              // Get the absolute latest state before saving
+              const latestStateProject = state.currentProject; 
+              if(latestStateProject && latestStateProject.id === projectId) {
+                 await saveProject(latestStateProject);
+                 console.log(`[EFFECT STORAGE] Final save after storage attempt for scene ${scene.id}`);
               }
-            }
-          } else {
-            console.warn(`[STORAGE-DEBUG] Failed to store media for scene: ${updatedScene.id}`);
-          }
-          
-          // Final save to ensure scene is fully stored with current state
-          const currentState = state.currentProject;
-          if (currentState) {
-            console.log(`Final save for scene: ${updatedScene.id} from current state with ${currentState.scenes.length} scenes`);
-            
-            // Verify we're not losing scenes
-            if (currentState.scenes.length < updatedScenes.length) {
-              console.warn(`WARNING: Current state has fewer scenes (${currentState.scenes.length}) than expected (${updatedScenes.length})`);
               
-              // Use the previously saved updatedProject to ensure we don't lose scenes
-              await saveProject(updatedProject);
-              
-              // Force a UI update with the correct scenes
+            } catch (error) {
+              console.error(`[EFFECT STORAGE] Error storing media for scene ${scene.id}:`, error);
+            } finally {
+              // Ensure storing flag is reset regardless of outcome
               dispatch({
-                type: 'LOAD_PROJECT_SUCCESS',
-                payload: { project: updatedProject },
+                type: 'SET_SCENE_STORING_MEDIA',
+                payload: { sceneId: scene.id, isStoringMedia: false }
               });
-            } else {
-              // Save current state as normal
-              await saveProject(currentState);
             }
-            
-            console.log(`Final save completed for scene: ${updatedScene.id}`);
-            
-            // Verify the save worked by loading the project again
-            const verifyProject = await getProject(projectId);
-            if (verifyProject) {
-              console.log(`Scene added, now fetching updated project ${projectId} from storage`);
-              console.log(`Verification: Project has ${verifyProject.scenes.length} scenes in storage`);
-            }
-          }
-        } catch (storageError) {
-          console.error('Error during media storage:', storageError);
-          
-          // Set the scene's storing media flag to false in case of error
-          dispatch({
-            type: 'SET_SCENE_STORING_MEDIA',
-            payload: { sceneId: updatedScene.id, isStoringMedia: false }
           });
         }
-      }
+      }, [state.currentProject, updateSceneMedia]); // Depend on currentProject
+
     } catch (error) {
       console.error('Error extracting content:', error);
       dispatch({
