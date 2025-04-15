@@ -28,6 +28,14 @@ import {
 } from '../../lib/storage-utils';
 import { deleteProject as deleteProjectFromAPI } from '../../lib/api/projects';
 import { determineMediaType, generateVideoThumbnail, storeAllProjectMedia, storeSceneMedia } from '@/lib/media-utils';
+import { projectReducer } from './ProjectReducer';
+import { 
+  createProject,
+  updateProject
+} from '../../lib/api/projects';
+import { ApiResponse } from '../../lib/api-types';
+import { CreateProjectRequest } from '../../lib/api/types';
+import { useInitialMediaStorage } from '@/hooks/useInitialMediaStorage';
 
 import { 
   Project, 
@@ -36,7 +44,6 @@ import {
   Scene, 
   generateId,
 } from './ProjectTypes';
-import { projectReducer } from './ProjectReducer';
 
 // Re-export types for convenience
 export type { Project, Scene, ProjectState };
@@ -226,12 +233,62 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       
       dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
 
-      await saveProject(projectToSave);
+      let savedProject: Project | null = null;
+      
+      // If project doesn't have MongoDB _id, call create endpoint
+      if (!projectToSave._id) {
+        console.log(`[ProjectProvider] Project ${projectToSave.id} has no _id. Preparing to call createProject API.`);
+        
+        // Prepare payload matching CreateProjectRequest
+        const creationPayload: CreateProjectRequest = { 
+          title: projectToSave.title,
+          scenes: projectToSave.scenes,
+          // metadata: {} // Add if needed
+        };
+        
+        console.log(`[ProjectProvider] Calling createProject with payload:`, creationPayload);
+        const createResponse: ApiResponse<Project> = await createProject(creationPayload);
+        console.log(`[ProjectProvider] createProject API response received:`, createResponse);
+        
+        // Check for error first
+        if (createResponse.error) {
+          const errorMessage = typeof createResponse.error === 'string' ? createResponse.error : createResponse.error?.message || 'Failed to create project via API';
+          throw new Error(errorMessage);
+        } else if (createResponse.data) {
+          savedProject = createResponse.data;
+        } else {
+          // Handle unexpected case where data is missing without error
+          throw new Error('API did not return project data after creation.');
+        }
+        console.log(`[ProjectProvider] Project created via API. Received project data with _id: ${savedProject?._id}`);
+      } else {
+        // If project has _id, call update endpoint
+        console.log(`[ProjectProvider] Project ${projectToSave.id} has _id ${projectToSave._id}. Calling updateProject.`);
+        // Ensure _id exists before calling updateProject
+        const projectId = projectToSave._id;
+        // Prepare payload matching UpdateProjectRequest (assuming it takes the full object)
+        const updatePayload = projectToSave; 
+        const updateResponse: ApiResponse<Project> = await updateProject(projectId, updatePayload);
+        
+        // Check for error first
+        if (updateResponse.error) {
+          const errorMessage = typeof updateResponse.error === 'string' ? updateResponse.error : updateResponse.error?.message || 'Failed to update project via API';
+          throw new Error(errorMessage);
+        } else if (updateResponse.data) {
+          savedProject = updateResponse.data; // Assign API response data
+        } else {
+          // Handle unexpected case where data is missing without error
+          throw new Error('API did not return project data after update.');
+        }
+        console.log(`[ProjectProvider] Project ${projectToSave.id} updated via API.`);
+      }
 
+      if (savedProject) {
       const timestamp = Date.now();
       dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp } });
 
       console.log(`Project "${projectToSave.title}" saved successfully with ${projectToSave.scenes.length} scenes`);
+      }
     } catch (error) {
       console.error('Failed to save project:', error);
       dispatch({
@@ -424,70 +481,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
   }, [saveCurrentProject]);
 
-  // useEffect to handle background media storage after state updates
-  useEffect(() => {
-    // --- DETAILED LOGGING --- 
-    console.log('[EFFECT STORAGE - ENTRY] Effect triggered.');
-    console.log('[EFFECT STORAGE - STATE CHECK] currentProject ID:', state.currentProject?.id);
-    console.log('[EFFECT STORAGE - STATE CHECK] currentProject MongoDB _id:', state.currentProject?._id);
-    console.log('[EFFECT STORAGE - STATE CHECK] updateSceneMedia function exists:', typeof updateSceneMedia === 'function');
-    // --- END DETAILED LOGGING ---
-
-    // Ensure project and updateSceneMedia are available
-    if (state.currentProject?._id && updateSceneMedia) {
-      console.log('[EFFECT STORAGE - CONDITION MET] Project _id is present.'); // Log entry into the main block
-      const project = state.currentProject; // Assign to a variable for stable reference
-      
-      // Filter scenes needing storage *inside* the effect
-      const scenesToStore = project.scenes.filter(scene => 
-        scene.media?.url && !scene.media.storageKey
-      );
-
-      console.log(`[EFFECT STORAGE] Running effect. Found ${scenesToStore.length} scenes needing storage in project ${project.id}.`);
-
-      if (scenesToStore.length > 0) {
-        // Ensure we have the _id before proceeding inside the loop condition check
-        if (project._id) {
-          console.log(`[EFFECT STORAGE] Project MongoDB ID ${project._id} confirmed before loop.`);
-          scenesToStore.forEach(scene => {
-            console.log('[EFFECT STORAGE] Found scene needing storage:', scene.id);
-            // Double-check project and _id are still valid before calling storeSceneMedia
-            // NOTE: Re-fetching project from state here might cause issues if state updates mid-loop.
-            // Relying on the 'project' variable captured at the start of the effect block.
-            if (project && project._id) { 
-              console.log(`[EFFECT STORAGE] Calling storeSceneMedia for scene ${scene.id} in project ${project._id}`);
-              // Log arguments immediately before the call
-              console.log('[EFFECT STORAGE] Arguments before calling storeSceneMedia:', { 
-                sceneId: scene.id,
-                sceneMediaUrl: scene.media?.url,
-                projectId: project.id,
-                projectMongoId: project._id,
-                updateSceneMediaExists: typeof updateSceneMedia === 'function'
-              });
-              storeSceneMedia(scene, project, updateSceneMedia);
-            } else {
-              // This else block should ideally not be reached due to outer checks, but keep for safety
-              console.error(`[EFFECT STORAGE] Loop Error: Cannot store media for scene ${scene.id}: Project or project._id became invalid mid-loop.`);
-            }
-          });
-        } else {
-           console.error(`[EFFECT STORAGE] Error: Project _id (${project._id}) was checked and valid initially but became invalid just before looping through scenes.`);
-        }
-      } else {
-        console.log('[EFFECT STORAGE] Condition not met: No scenes found needing storage in this run.');
-      }
-    } else {
-      // Log why the initial condition failed
-      if (!state.currentProject?._id) {
-        console.log('[EFFECT STORAGE] Condition not met: state.currentProject._id is missing.');
-      }
-      if (!updateSceneMedia) {
-        console.log('[EFFECT STORAGE] Condition not met: updateSceneMedia function is missing.');
-      }
-    }
-    console.log('[EFFECT STORAGE] Effect finished.');
-  // Simplified dependency array to react to the whole project object change:
-  }, [state.currentProject, updateSceneMedia]); 
+  // Call the custom hook to handle initial media storage
+  useInitialMediaStorage({
+    project: state.currentProject,
+    storingMediaStatus,
+    setStoringMediaStatus,
+    updateSceneMedia
+  });
 
   // Create a new project
   const createProject = useCallback((title: string) => {
