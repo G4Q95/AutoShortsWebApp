@@ -28,8 +28,21 @@ from app.core.middleware import ApiResponseMiddleware
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    force=True
 )
+
+# Explicitly get and set level for the root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+
+# Explicitly set level for Uvicorn loggers (common culprits)
+# This ensures logs from the web server itself and application logs passed through it adhere to DEBUG
+logging.getLogger("uvicorn").setLevel(logging.DEBUG)
+logging.getLogger("uvicorn.error").setLevel(logging.DEBUG)
+logging.getLogger("uvicorn.access").setLevel(logging.INFO) # Keep access logs less verbose unless needed
+
 logger = logging.getLogger(__name__)
+logger.info("Logging explicitly configured with DEBUG level for root and uvicorn.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

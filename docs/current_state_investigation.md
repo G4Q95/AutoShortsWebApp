@@ -491,4 +491,33 @@ Retest scene addition after fixing frontend state dispatch (2025-04-15)
 
 ---
 
+### Test Action
+Investigate Missing Backend Log Message (2025-04-15)
+
+### Expected Outcome
+The log message `INFO: Media store request received for URL: ...` defined in `web/backend/app/api/media.py` should appear in the `web-backend` container logs whenever the `/api/v1/media/store` endpoint is successfully called.
+
+### Observed Outcome
+- **Frontend Request:** The log message was *not* observed when the endpoint was called via the frontend UI (initial problem).
+- **Direct `curl` Request:** The log message was also *not* observed when the endpoint was called directly using `curl`, even though the request succeeded (returned 200 OK and a `task_id`), and other `INFO` level logs (like Uvicorn access logs and Celery task queuing logs from other loggers) *were* present.
+- **Code Review:** `web/backend/app/main.py` showed `logging.basicConfig(level=logging.DEBUG)` was set, which should theoretically allow `INFO` messages.
+
+### Analysis
+- The `curl` test confirmed the issue wasn't specific to how the frontend made the request.
+- Since other `INFO` logs appeared, but not the one from the specific logger in `media.py` (despite the `basicConfig` level being `DEBUG`), the most likely cause is that the Uvicorn server's logging configuration was overriding or interfering with the application's specific logger settings. The default `basicConfig` might not be sufficient to control logging levels robustly within the Uvicorn/FastAPI context.
+
+### Next Steps
+1.  **Apply Logging Fix:** Modified `web/backend/app/main.py` to explicitly configure the root logger and Uvicorn's `uvicorn`, `uvicorn.error` loggers to `DEBUG` level (keeping `uvicorn.access` at `INFO`), and added `force=True` to `basicConfig`. Added a log message (`Logging explicitly configured...`) to confirm the new configuration runs on startup.
+2.  **Restart Backend:** The `web-backend` container needs to be restarted for the changes in `main.py` to take effect.
+3.  **Re-run `curl` Test:** Execute the same `curl` command again after the restart.
+4.  **Verify Logs:** Check the `web-backend` logs again for the previously missing `INFO: Media store request received...` message.
+5.  **Update Investigation Log:** Document the result of the re-test. (This step)
+
+### Result (2025-04-15)
+- After applying the logging fix and restarting the backend container, the direct `curl` test was re-run.
+- **Success:** The backend logs now correctly show both the confirmation message (`INFO: app.main:Logging explicitly configured...`) and the previously missing message (`INFO: app.api.media:Media store request received...`).
+- **Conclusion:** The issue was confirmed to be related to logging configuration overrides, which the explicit configuration in `main.py` has resolved. Backend logging for this endpoint is now functioning as expected.
+
+---
+
 
