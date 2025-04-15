@@ -1,34 +1,27 @@
-import { MediaType } from '@/types/Media';
+import { MediaType } from '../types/Media';
 import { Scene } from '../components/project/ProjectTypes';
-import { SceneMedia } from '@/types/Scene';
+import { SceneMedia } from '../types/Scene';
 import { MediaStorageRequest } from '../lib/api-client';
 import { MediaStorageResponse, storeMediaContent } from '../lib/api-client';
 
 // Define SceneMedia type inline to avoid dependencies
-export interface SceneMedia {
-  url: string;
-  type: 'image' | 'video' | 'gallery';
-  storedUrl?: string;
-  storageKey?: string;
-  thumbnailUrl?: string;
-  width?: number;
-  height?: number;
-  duration?: number;
-  isStoring?: boolean;
-  hasStored?: boolean;
-}
+// export interface SceneMedia {
+// ... existing code ...
+// }
 
 /**
  * Store scene media content to R2 storage via the backend API
  * 
  * @param scene - The scene object
  * @param projectId - The ID of the project 
+ * @param mongoDbId - The actual MongoDB _id
  * @param updateSceneMediaCallback - Optional callback to update scene media
  * @returns Promise with the storage result
  */
 export const storeSceneMedia = async (
   scene: Scene,
   projectId: string,
+  mongoDbId: string,
   updateSceneMediaCallback?: (sceneId: string, mediaData: Partial<SceneMedia>) => void
 ): Promise<{
   success: boolean;
@@ -85,6 +78,7 @@ export const storeSceneMedia = async (
     const storageRequest: MediaStorageRequest = {
       url: scene.media?.url || '',
       project_id: projectId,
+      mongo_db_id: mongoDbId,
       scene_id: scene.id,
       user_id: "local_test_user",
       media_type: media.type,

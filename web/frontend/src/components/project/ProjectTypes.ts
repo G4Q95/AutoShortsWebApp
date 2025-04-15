@@ -114,6 +114,8 @@ export interface Scene {
 export interface Project {
   /** Unique identifier for the project */
   id: string;
+  /** Actual MongoDB ObjectId, optional as it might not always be present frontend */
+  _id?: string;
   /** User-defined title of the project */
   title: string;
   /** Ordered array of scenes in the project */
@@ -128,6 +130,8 @@ export interface Project {
   aspectRatio: '9:16' | '16:9' | '1:1' | '4:5';
   /** Whether to show letterboxing/pillarboxing in previews */
   showLetterboxing: boolean;
+  /** Optional URL for the final rendered video */
+  videoUrl?: string;
 }
 
 /**

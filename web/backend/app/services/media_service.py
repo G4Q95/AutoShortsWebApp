@@ -214,7 +214,8 @@ async def download_media(
 
 async def store_media_content(
     url: str,
-    project_id: str,
+    project_id: str,            # Custom ID (proj_...)
+    mongo_db_id: Optional[str], # MongoDB ObjectId
     scene_id: str,
     user_id: str = "system",
     media_type: Union[MediaType, str] = MediaType.VIDEO,
@@ -227,7 +228,8 @@ async def store_media_content(
     
     Args:
         url: URL of the media to download
-        project_id: Project ID to associate with the media
+        project_id: Custom Project ID to associate with the media
+        mongo_db_id: MongoDB document ID of the project
         scene_id: Scene ID to associate with the media
         user_id: User ID who owns the content
         media_type: Type of media to download (video, image, etc)
@@ -237,7 +239,7 @@ async def store_media_content(
         Dictionary with task ID and status information
     """
     # Log the request to store media
-    logger.info(f"Storing media from URL {url} for project {project_id}, scene {scene_id}")
+    logger.info(f"Storing media from URL {url} for project {project_id} (DB ID: {mongo_db_id}), scene {scene_id}")
     
     # Validate input
     if not url:
@@ -257,19 +259,26 @@ async def store_media_content(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Scene ID is required"
         )
-    
+        
+    # We now rely on mongo_db_id being passed for the Celery task,
+    # but we might still receive calls without it during transition or error states.
+    if not mongo_db_id:
+        logger.warning(f"mongo_db_id not provided for project {project_id}, scene {scene_id}. The subsequent Celery task might fail.")
+        # Allow processing to continue, Celery task might handle missing ID or fail gracefully.
+        
     try:
         # Ensure we handle both enum and string for media_type
         media_type_value = media_type.value if hasattr(media_type, 'value') else media_type
         
         # Start a Celery task to download and process the media
-        # Using the original project_id (still using custom ID)
-        logger.info(f"Queuing Celery task to download media for project {project_id}, scene {scene_id}")
+        logger.info(f"Queuing Celery task to download media for project {project_id} (DB ID: {mongo_db_id}), scene {scene_id}")
         task = download_media_task.delay(
             url=url,
-            project_id=project_id,  
+            project_id=project_id, # Keep custom ID for potential logging/context
+            mongo_db_id=mongo_db_id, # Pass the crucial MongoDB ID
             scene_id=scene_id,
             user_id=user_id
+            # media_type and create_thumbnail might be handled within the task itself
         )
         
         logger.info(f"Celery task queued with ID: {task.id}")
@@ -340,6 +349,7 @@ async def download_media_from_reddit_post(
         result = await store_media_content(
             url=media_url,
             project_id=project_id,
+            mongo_db_id=None,
             scene_id=scene_id,
             user_id=user_id,
             media_type=media_type

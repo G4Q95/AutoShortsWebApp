@@ -109,20 +109,21 @@ export const transformRedditVideoUrl = (url: string): string => {
  * the scene with storage-backed media information.
  * 
  * @param scene - The scene with media to store
- * @param projectId - ID of the project that contains the scene
+ * @param project - The full project object
  * @param updateSceneMedia - Function to update the scene's media data
  * @returns Promise with boolean indicating success
  */
 export const storeSceneMedia = async (
   scene: Scene, 
-  projectId: string,
+  project: Project,
   updateSceneMedia: (sceneId: string, mediaData: Partial<Scene['media']>) => void
 ): Promise<boolean> => {
   try {
     console.log(`[MEDIA-DEBUG] ========== Starting media storage for scene ${scene.id} ==========`);
     
-    if (!scene || !scene.id || !scene.media || !scene.media.url) {
-      console.error('[MEDIA-DEBUG] Cannot store media: Missing scene data, ID, or media URL');
+    // Enhanced check for required data
+    if (!scene || !scene.id || !scene.media || !scene.media.url || !project || !project._id) {
+      console.error('[MEDIA-DEBUG] Cannot store media: Missing scene data, ID, media URL, project, or project MongoDB _id');
       return false;
     }
 
@@ -133,7 +134,10 @@ export const storeSceneMedia = async (
     }
 
     const mediaUrl = scene.media.url;
-    console.log(`[MEDIA-DEBUG] Storing media for scene ${scene.id} from URL: ${mediaUrl}`);
+    const projectId = project.id; // Custom ID (proj_...)
+    const mongoDbId = project._id; // MongoDB ObjectId
+    
+    console.log(`[MEDIA-DEBUG] Storing media for scene ${scene.id} (Project Custom ID: ${projectId}, Project DB ID: ${mongoDbId}) from URL: ${mediaUrl}`);
     console.log(`[MEDIA-DEBUG] Current media state:`, JSON.stringify({
       type: scene.media.type,
       isStorageBacked: scene.media.isStorageBacked,
@@ -153,21 +157,25 @@ export const storeSceneMedia = async (
     const { storeMediaContent } = await import('./api-client');
     console.log(`[MEDIA-DEBUG] Imported storeMediaContent function`);
 
-    // Call API to store media
+    // Call API to store media, including the mongo_db_id
     console.log(`[MEDIA-DEBUG] Calling API to store media with params:`, JSON.stringify({
       url: mediaUrl,
       project_id: projectId,
+      mongo_db_id: mongoDbId,
       scene_id: scene.id,
       media_type: mediaType,
-      create_thumbnail: true
+      create_thumbnail: true,
+      user_id: 'local_test_user' // TODO: Replace with actual user ID
     }));
     
     const result = await storeMediaContent({
       url: mediaUrl,
       project_id: projectId,
+      mongo_db_id: mongoDbId, // Pass the MongoDB _id
       scene_id: scene.id,
       media_type: mediaType,
-      create_thumbnail: true
+      create_thumbnail: true,
+      user_id: 'local_test_user' // TODO: Replace with actual user ID
     });
 
     // Add detailed logging after API call returns
@@ -251,7 +259,7 @@ export const storeAllProjectMedia = async (
   for (const scene of mediaScenes) {
     try {
       console.log(`Processing scene ${scene.id} with media URL: ${scene.media!.url}`);
-      const success = await storeSceneMedia(scene, projectId, updateSceneMedia);
+      const success = await storeSceneMedia(scene, project, updateSceneMedia);
       
       if (success) {
         successCount++;

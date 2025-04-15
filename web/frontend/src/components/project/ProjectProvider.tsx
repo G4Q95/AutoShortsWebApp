@@ -27,9 +27,7 @@ import {
   clearAllProjects,
 } from '../../lib/storage-utils';
 import { deleteProject as deleteProjectFromAPI } from '../../lib/api/projects';
-import { determineMediaType, generateVideoThumbnail, storeAllProjectMedia } from '../../lib/media-utils';
-import { storeSceneMedia } from '../../utils/media-utils';
-import { SceneMedia } from '@/utils/media-utils';
+import { determineMediaType, generateVideoThumbnail, storeAllProjectMedia, storeSceneMedia } from '@/lib/media-utils';
 
 import { 
   Project, 
@@ -466,9 +464,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setStoringMediaStatus(prev => ({ ...prev, [scene.id]: true }));
 
         try {
+          // Add null checks before calling storeSceneMedia
+          if (!state.currentProject || !state.currentProject._id) {
+            console.error(`[EFFECT STORAGE] Cannot store media: Missing project or project MongoDB _id`);
+            return;
+          }
+          
           const storageResult = await storeSceneMedia(
             scene,
-            projectId,
+            state.currentProject,
             updateSceneMedia
           );
           console.log(`[EFFECT STORAGE] Storage result for scene ${scene.id}:`, storageResult);
@@ -489,7 +493,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         }
       });
     }
-  }, [scenesNeedingStorageIds, state.currentProject?.id, updateSceneMedia]); // Depend on the stable ID list, project ID, and the callback
+  }, [scenesNeedingStorageIds, state.currentProject?.id, state.currentProject?._id, updateSceneMedia]); // Depend on the stable ID list, project ID, and the callback
   // >> MOVED EFFECT END <<
 
   // Create a new project
@@ -784,8 +788,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       
       // 2. Update the UI state
       dispatch({
-        type: 'LOAD_PROJECT_SUCCESS',
-        payload: { project: updatedProject },
+        type: 'ADD_SCENE_SUCCESS',
+        payload: { scene: updatedScene }
       });
       
       // 3. Track last saved time

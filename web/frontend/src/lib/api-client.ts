@@ -1096,6 +1096,7 @@ export async function getStoredAudio(
 export interface MediaStorageRequest {
   url: string;
   project_id: string;
+  mongo_db_id?: string;
   scene_id: string;
   user_id: string;
   media_type?: string;

@@ -31,7 +31,8 @@ router = APIRouter(
 class MediaStoreRequest(BaseModel):
     """Request model for storing media from a URL."""
     url: HttpUrl = Field(..., description="URL of the media to download and store")
-    project_id: str = Field(..., description="Project ID the media belongs to")
+    project_id: str = Field(..., description="Custom Project ID (proj_...) the media belongs to")
+    mongo_db_id: Optional[str] = Field(None, description="MongoDB document _id of the project (optional)")
     scene_id: str = Field(..., description="Scene ID the media belongs to")
     user_id: str = Field(..., description="User ID owning the project")
     media_type: Optional[str] = Field(None, description="Type of media (image, video, audio)")
@@ -64,6 +65,7 @@ async def store_media_from_url(
         result = await store_media_content(
             url=str(request.url),
             project_id=request.project_id, # Pass the original project_id from request
+            mongo_db_id=request.mongo_db_id, # Pass the mongo_db_id from request
             scene_id=request.scene_id,
             user_id=request.user_id,
             media_type=request.media_type,
