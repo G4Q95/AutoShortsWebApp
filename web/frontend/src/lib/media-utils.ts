@@ -118,106 +118,108 @@ export const storeSceneMedia = async (
   project: Project,
   updateSceneMedia: (sceneId: string, mediaData: Partial<Scene['media']>) => void
 ): Promise<boolean> => {
-  try {
-    console.log(`[MEDIA-DEBUG] ========== Starting media storage for scene ${scene.id} ==========`);
-    
-    // Enhanced check for required data
-    if (!scene || !scene.id || !scene.media || !scene.media.url || !project || !project._id) {
-      console.error('[MEDIA-DEBUG] Cannot store media: Missing scene data, ID, media URL, project, or project MongoDB _id');
-      return false;
-    }
+  // --- TEMPORARY DEBUGGING: Throw error immediately --- 
+  // throw new Error('[DEBUG THROW] storeSceneMedia was entered!'); // Removed temporary throw
+  // --- END TEMPORARY DEBUGGING --- 
 
-    // Skip if already stored
-    if (scene.media.isStorageBacked || scene.media.storageKey) {
-      console.log(`[MEDIA-DEBUG] Media already stored in R2 (isStorageBacked: ${!!scene.media.isStorageBacked}, storageKey: ${scene.media.storageKey}), skipping storage operation`);
-      return true;
-    }
+  const projectMongoId = project._id; // Get the MongoDB ObjectId
 
-    const mediaUrl = scene.media.url;
-    const projectId = project.id; // Custom ID (proj_...)
-    const mongoDbId = project._id; // MongoDB ObjectId
-    
-    console.log(`[MEDIA-DEBUG] Storing media for scene ${scene.id} (Project Custom ID: ${projectId}, Project DB ID: ${mongoDbId}) from URL: ${mediaUrl}`);
-    console.log(`[MEDIA-DEBUG] Current media state:`, JSON.stringify({
-      type: scene.media.type,
-      isStorageBacked: scene.media.isStorageBacked,
-      storageKey: scene.media.storageKey,
-      storedUrl: scene.media.storedUrl,
-    }));
+  console.log('[MEDIA-DEBUG] ========== Starting storeSceneMedia ==========');
+  console.log(`[MEDIA-DEBUG] Processing Scene ID: ${scene.id}, Project ID: ${project.id}, Mongo ID: ${projectMongoId}`);
+  console.log('[MEDIA-DEBUG] Scene Media URL:', scene.media?.url);
+  console.log('[MEDIA-DEBUG] Scene Media Storage Key:', scene.media?.storageKey);
 
-    // Determine media type
-    const mediaType = scene.media.type || getMediaTypeFromUrl(mediaUrl);
-    if (!mediaType) {
-      console.error(`[MEDIA-DEBUG] Cannot determine media type for URL: ${mediaUrl}`);
-      return false;
-    }
-    console.log(`[MEDIA-DEBUG] Determined media type: ${mediaType}`);
-
-    // Import dynamically to avoid circular dependencies
-    const { storeMediaContent } = await import('./api-client');
-    console.log(`[MEDIA-DEBUG] Imported storeMediaContent function`);
-
-    // Call API to store media, including the mongo_db_id
-    console.log(`[MEDIA-DEBUG] Calling API to store media with params:`, JSON.stringify({
-      url: mediaUrl,
-      project_id: projectId,
-      mongo_db_id: mongoDbId,
-      scene_id: scene.id,
-      media_type: mediaType,
-      create_thumbnail: true,
-      user_id: 'local_test_user' // TODO: Replace with actual user ID
-    }));
-    
-    const result = await storeMediaContent({
-      url: mediaUrl,
-      project_id: projectId,
-      mongo_db_id: mongoDbId, // Pass the MongoDB _id
-      scene_id: scene.id,
-      media_type: mediaType,
-      create_thumbnail: true,
-      user_id: 'local_test_user' // TODO: Replace with actual user ID
-    });
-
-    // Add detailed logging after API call returns
-    // console.log(`[MEDIA-UTILS-STORE] API call storeMediaContent returned for scene ${scene.id}. Result:`, result);
-
-    if (result.error || !result.data) {
-      console.error('[MEDIA-DEBUG] Failed to store media content:', result.error);
-      return false;
-    }
-
-    const storageData = result.data;
-    // Add logging for the received data
-    // console.log(`[MEDIA-UTILS-STORE] Received storageData for scene ${scene.id}:`, storageData);
-    // console.log(`[MEDIA-UTILS-STORE] Media URL from backend: ${storageData.url}`);
-
-    console.log('[MEDIA-DEBUG] Media stored successfully. Response:', JSON.stringify(storageData));
-    console.log('[MEDIA-DEBUG] Storage URL received:', storageData.url);
-
-    // Update scene with storage information
-    const updatedMediaData: Partial<Scene['media']> = {
-      ...scene.media,
-      storageKey: storageData.storage_key,
-      storedUrl: storageData.url,
-      originalUrl: storageData.original_url || mediaUrl,
-      contentType: storageData.content_type,
-      fileSize: storageData.file_size,
-      isStorageBacked: true,
-      storedAt: Date.now(),
-      // Actually use the stored URL instead of keeping the original URL
-      url: storageData.url
-    };
-
-    console.log('[MEDIA-DEBUG] Updating scene with media data:', JSON.stringify(updatedMediaData));
-    console.log('[MEDIA-DEBUG] New URL to be used for media:', updatedMediaData.url);
-
-    // Update the scene with new media data
-    updateSceneMedia(scene.id, updatedMediaData);
-    console.log(`[MEDIA-DEBUG] ========== Media storage completed for scene ${scene.id} ==========`);
-    return true;
-  } catch (error) {
-    console.error('[MEDIA-DEBUG] Error storing scene media:', error);
+  // Basic checks
+  if (!scene || !project || !updateSceneMedia) {
+    console.error('[MEDIA-DEBUG] Error: Missing scene, project, or update function.');
     return false;
+  }
+  if (!projectMongoId) {
+    console.error('[MEDIA-DEBUG] Error: Missing project MongoDB _id.');
+    return false;
+  }
+  if (!scene.media?.url) {
+    console.warn(`[MEDIA-DEBUG] Warning: Scene ${scene.id} has no media URL to store.`);
+    return false; // Nothing to store
+  }
+  if (scene.media.storageKey) {
+    console.log(`[MEDIA-DEBUG] Info: Scene ${scene.id} media already has storageKey: ${scene.media.storageKey}. Skipping.`);
+    return true; // Already stored
+  }
+
+  const mediaUrl = scene.media.url;
+  console.log(`[MEDIA-DEBUG] Proceeding to store media for URL: ${mediaUrl}`);
+
+  try {
+    console.log('[MEDIA-DEBUG] >>> Entering TRY block for dynamic import <<<');
+    // Dynamically import storeMediaContent only when needed
+    console.log('[MEDIA-DEBUG] Attempting dynamic import of storeMediaContent...');
+    const { storeMediaContent } = await import('./api-client');
+    console.log('[MEDIA-DEBUG] Dynamic import SUCCESSFUL.');
+
+    if (typeof storeMediaContent !== 'function') {
+      console.error('[MEDIA-DEBUG] Error: storeMediaContent is not a function after import.');
+      return false;
+    }
+    console.log('[MEDIA-DEBUG] storeMediaContent function confirmed.');
+
+
+    // Determine media type if not already set
+    const mediaType = scene.media.type || determineMediaType(mediaUrl);
+    if (!mediaType) {
+      console.error(`[MEDIA-DEBUG] Error: Could not determine media type for URL: ${mediaUrl}`);
+      return false; // Cannot proceed without media type
+    }
+    console.log(`[MEDIA-DEBUG] Determined/Confirmed Media Type: ${mediaType}`);
+
+    // Prepare request data
+    const requestData = {
+      url: mediaUrl,
+      project_id: project.id, // Use the custom project ID
+      mongo_db_id: projectMongoId, // Pass the MongoDB _id
+      scene_id: scene.id,
+      media_type: mediaType,
+      user_id: 'local_dev_user' // Added placeholder user_id
+    };
+    console.log('[MEDIA-DEBUG] Prepared requestData for API call:', requestData);
+
+
+    console.log('[MEDIA-DEBUG] ===> ATTEMPTING storeMediaContent API call...');
+    const response = await storeMediaContent(requestData);
+    console.log('[MEDIA-DEBUG] <=== storeMediaContent API call FINISHED.');
+
+
+    // Check response
+    if (response.error || !response.data?.storage_key) {
+      console.error('[MEDIA-DEBUG] Error storing media via API:', response.error || 'Missing storage key in response');
+      // Optionally update scene state with error?
+      return false;
+    }
+    console.log('[MEDIA-DEBUG] API call successful. Storage Key:', response.data.storage_key);
+
+    // Update scene state with storage key and potentially other metadata
+    updateSceneMedia(scene.id, {
+      storageKey: response.data.storage_key,
+      thumbnailUrl: scene.media.thumbnailUrl, // Corrected: Use existing thumb, API doesn't provide it here
+      type: mediaType, // Ensure type is updated
+      url: mediaUrl, // Keep original URL
+      // Include width/height/duration if returned by API?
+    });
+    console.log(`[MEDIA-DEBUG] Dispatched updateSceneMedia for scene ${scene.id}`);
+
+    console.log('[MEDIA-DEBUG] ========== storeSceneMedia SUCCESS ==========');
+    return true; // Indicate success
+
+  } catch (error) {
+    console.error('[MEDIA-DEBUG] XXX CATCH BLOCK ERROR in storeSceneMedia XXX:', error);
+    // Log specific details if it's an error object
+    if (error instanceof Error) {
+      console.error('[MEDIA-DEBUG] Error Name:', error.name);
+      console.error('[MEDIA-DEBUG] Error Message:', error.message);
+      console.error('[MEDIA-DEBUG] Error Stack:', error.stack);
+    }
+    console.log('[MEDIA-DEBUG] ========== storeSceneMedia FAILED (in catch) ==========');
+    return false; // Indicate failure
   }
 };
 

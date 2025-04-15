@@ -123,14 +123,23 @@ export const TimelineControl: React.FC<TimelineControlProps> = React.memo(({
     if (activeHandle) {
       return visualTime; // Return the visualTime parameter
     }
+    // Check if duration is valid and positive
+    if (!duration || duration <= 0) {
+      return 0; // Return 0 if duration is invalid
+    }
     const position = (value / 100) * duration;
     return position;
   };
   
   const positionToTimelineValue = (position: number): number => {
+    // Check if duration is valid and positive
+    if (!duration || duration <= 0) {
+      return 0; // Return 0 if duration is invalid
+    }
     // When activeHandle is true, use the visualTime passed to the component
     if (activeHandle) {
-      return (visualTime / duration) * 100; // Use the visualTime parameter
+      // Also check duration here to prevent NaN
+      return (visualTime / duration) * 100; 
     }
     const value = (position / duration) * 100;
     return value;

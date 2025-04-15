@@ -424,77 +424,70 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
   }, [saveCurrentProject]);
 
-  // >> MEMOIZE SCENE IDs <<
-  const scenesNeedingStorageIds = useMemo(() => {
-    if (!state.currentProject) return [];
-    // Filter scenes that have a URL but no storageKey yet
-    return state.currentProject.scenes
-      .filter(scene => scene.media?.url && !scene.media.storageKey)
-      .map(scene => scene.id);
-    // Depend specifically on the scenes array within the project
-  }, [state.currentProject?.scenes]); 
-  // >> MEMOIZE SCENE IDs END <<
-
-  // >> MOVED EFFECT START <<
   // useEffect to handle background media storage after state updates
   useEffect(() => {
-    console.log('[EFFECT STORAGE] Media storage effect triggered. Scenes needing storage IDs:', scenesNeedingStorageIds);
-    if (!state.currentProject || scenesNeedingStorageIds.length === 0) {
-        // No project or no scenes currently need storage
-        return;
-    }
+    // --- DETAILED LOGGING --- 
+    console.log('[EFFECT STORAGE - ENTRY] Effect triggered.');
+    console.log('[EFFECT STORAGE - STATE CHECK] currentProject ID:', state.currentProject?.id);
+    console.log('[EFFECT STORAGE - STATE CHECK] currentProject MongoDB _id:', state.currentProject?._id);
+    console.log('[EFFECT STORAGE - STATE CHECK] updateSceneMedia function exists:', typeof updateSceneMedia === 'function');
+    // --- END DETAILED LOGGING ---
 
-    console.log('[EFFECT STORAGE] Checking project state:', JSON.stringify(state.currentProject)); // Log current project state
+    // Ensure project and updateSceneMedia are available
+    if (state.currentProject?._id && updateSceneMedia) {
+      console.log('[EFFECT STORAGE - CONDITION MET] Project _id is present.'); // Log entry into the main block
+      const project = state.currentProject; // Assign to a variable for stable reference
+      
+      // Filter scenes needing storage *inside* the effect
+      const scenesToStore = project.scenes.filter(scene => 
+        scene.media?.url && !scene.media.storageKey
+      );
 
-    const projectId = state.currentProject.id;
-    // Find the scene objects corresponding to the IDs
-    const scenesToStoreMap = new Map(state.currentProject.scenes.map(s => [s.id, s]));
-    const scenesToStoreNow = scenesNeedingStorageIds
-        .map(id => scenesToStoreMap.get(id))
-        .filter((s): s is Scene => !!s);
+      console.log(`[EFFECT STORAGE] Running effect. Found ${scenesToStore.length} scenes needing storage in project ${project.id}.`);
 
-    console.log('[EFFECT STORAGE] Scenes found needing storage:', JSON.stringify(scenesToStoreNow)); // Log scenes found
-
-    if (scenesToStoreNow.length > 0) {
-      console.log(`[EFFECT STORAGE] Found ${scenesToStoreNow.length} scenes needing media storage.`);
-      scenesToStoreNow.forEach(async (scene) => {
-        if (!scene.media) return; // Type guard
-
-        console.log(`[EFFECT STORAGE] Initiating storage for scene: ${scene.id}, URL: ${scene.media.url}`);
-        setStoringMediaStatus(prev => ({ ...prev, [scene.id]: true }));
-
-        try {
-          // Add null checks before calling storeSceneMedia
-          if (!state.currentProject || !state.currentProject._id) {
-            console.error(`[EFFECT STORAGE] Cannot store media: Missing project or project MongoDB _id`);
-            return;
-          }
-          
-          const storageResult = await storeSceneMedia(
-            scene,
-            state.currentProject,
-            updateSceneMedia
-          );
-          console.log(`[EFFECT STORAGE] Storage result for scene ${scene.id}:`, storageResult);
-
-          // Final save to persist any storageKey/URL updates from the callback
-          // Get the absolute latest state before saving
-          const latestStateProject = state.currentProject; 
-          if(latestStateProject && latestStateProject.id === projectId) {
-              await saveProject(latestStateProject);
-              console.log(`[EFFECT STORAGE] Final save after storage attempt for scene ${scene.id}`);
-          }
-          
-        } catch (error) {
-          console.error(`[EFFECT STORAGE] Error storing media for scene ${scene.id}:`, error);
-        } finally {
-          // Ensure storing flag is reset regardless of outcome
-          setStoringMediaStatus(prev => ({ ...prev, [scene.id]: false }));
+      if (scenesToStore.length > 0) {
+        // Ensure we have the _id before proceeding inside the loop condition check
+        if (project._id) {
+          console.log(`[EFFECT STORAGE] Project MongoDB ID ${project._id} confirmed before loop.`);
+          scenesToStore.forEach(scene => {
+            console.log('[EFFECT STORAGE] Found scene needing storage:', scene.id);
+            // Double-check project and _id are still valid before calling storeSceneMedia
+            // NOTE: Re-fetching project from state here might cause issues if state updates mid-loop.
+            // Relying on the 'project' variable captured at the start of the effect block.
+            if (project && project._id) { 
+              console.log(`[EFFECT STORAGE] Calling storeSceneMedia for scene ${scene.id} in project ${project._id}`);
+              // Log arguments immediately before the call
+              console.log('[EFFECT STORAGE] Arguments before calling storeSceneMedia:', { 
+                sceneId: scene.id,
+                sceneMediaUrl: scene.media?.url,
+                projectId: project.id,
+                projectMongoId: project._id,
+                updateSceneMediaExists: typeof updateSceneMedia === 'function'
+              });
+              storeSceneMedia(scene, project, updateSceneMedia);
+            } else {
+              // This else block should ideally not be reached due to outer checks, but keep for safety
+              console.error(`[EFFECT STORAGE] Loop Error: Cannot store media for scene ${scene.id}: Project or project._id became invalid mid-loop.`);
+            }
+          });
+        } else {
+           console.error(`[EFFECT STORAGE] Error: Project _id (${project._id}) was checked and valid initially but became invalid just before looping through scenes.`);
         }
-      });
+      } else {
+        console.log('[EFFECT STORAGE] Condition not met: No scenes found needing storage in this run.');
+      }
+    } else {
+      // Log why the initial condition failed
+      if (!state.currentProject?._id) {
+        console.log('[EFFECT STORAGE] Condition not met: state.currentProject._id is missing.');
+      }
+      if (!updateSceneMedia) {
+        console.log('[EFFECT STORAGE] Condition not met: updateSceneMedia function is missing.');
+      }
     }
-  }, [scenesNeedingStorageIds, state.currentProject?.id, state.currentProject?._id, updateSceneMedia]); // Depend on the stable ID list, project ID, and the callback
-  // >> MOVED EFFECT END <<
+    console.log('[EFFECT STORAGE] Effect finished.');
+  // Simplified dependency array to react to the whole project object change:
+  }, [state.currentProject, updateSceneMedia]); 
 
   // Create a new project
   const createProject = useCallback((title: string) => {
@@ -584,6 +577,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Add a scene - enhanced with better error handling and immediate saving
   const addScene = useCallback(async (url: string) => {
+    console.log('[ADD SCENE - ENTRY POINT] Function called with URL:', url);
+    console.log('[ADD SCENE] Starting...'); // Log start
     // First check if a current project exists
     if (!state.currentProject) {
       console.error('No active project to add scene to');
@@ -601,6 +596,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     console.log(`Adding scene to project: ${projectId}, current scene count: ${currentProject.scenes.length}`);
 
     const sceneId = generateId();
+    console.log(`[ADD SCENE] Generated scene ID: ${sceneId}`); // Log scene ID
     
     // Generate the new scene object
     const newScene: Scene = {
@@ -690,6 +686,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       // Extract content from URL
       const response = await extractContent(url);
+
+      // *** LOGGING POINT 1: Raw API Response ***
+      console.log('[ADD SCENE DEBUG] Raw extractContent response:', JSON.stringify(response, null, 2));
 
       if (response.error) {
         dispatch({
@@ -786,6 +785,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.log(`Saving project with updated scene to localStorage: ${updatedProject.id}, scenes: ${updatedScenes.length}`);
       await saveProject(updatedProject);
       
+      // *** LOGGING POINT 2: Dispatch Payload ***
+      console.log('[ADD SCENE DEBUG] Dispatching ADD_SCENE_SUCCESS with payload:', JSON.stringify({ scene: updatedScene }, null, 2));
+
       // 2. Update the UI state
       dispatch({
         type: 'ADD_SCENE_SUCCESS',
@@ -797,6 +799,28 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         type: 'SET_LAST_SAVED', 
         payload: { timestamp: Date.now() } 
       });
+      
+      // --- BEGIN: Direct Trigger for Media Storage --- 
+      console.log('[ADD SCENE] Attempting direct trigger for storeSceneMedia...');
+      // Get the most recent project state AFTER dispatching ADD_SCENE_SUCCESS
+      // Note: Accessing state directly after dispatch might still be slightly delayed.
+      // A more robust solution might involve getState from useReducer, but let's try this first.
+      const postDispatchProject = state.currentProject;
+      if (postDispatchProject && postDispatchProject._id && updatedScene.media?.url) {
+        console.log(`[ADD SCENE] Found project _id (${postDispatchProject._id}) and scene media url. Calling storeSceneMedia directly.`);
+        storeSceneMedia(updatedScene, postDispatchProject, updateSceneMedia)
+          .catch(error => {
+            console.error('[ADD SCENE] Error during direct call to storeSceneMedia:', error);
+          });
+      } else {
+        console.warn('[ADD SCENE] Could not directly trigger storeSceneMedia. Missing data:', {
+          projectId: postDispatchProject?.id,
+          projectMongoId: postDispatchProject?._id,
+          sceneMediaUrl: updatedScene.media?.url
+        });
+        // Relying on useEffect as fallback.
+      }
+      // --- END: Direct Trigger for Media Storage ---
       
       // 4. Force another immediate save to ensure scene persistence
       try {
