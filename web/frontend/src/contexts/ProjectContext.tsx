@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useProjectState } from '@/hooks/useProjectState'; // Import the new hook
 
 // Define interfaces for projects and scenes
 export interface Scene {
@@ -50,7 +51,7 @@ interface ProjectContextState {
 // Create context with default values
 const ProjectContext = createContext<ProjectContextState>({
   project: null,
-  isLoading: false,
+  isLoading: false, // Match initial state from useProjectState if different
   error: null,
   saveProject: async () => {},
   addScene: async () => {},
@@ -64,9 +65,17 @@ const ProjectContext = createContext<ProjectContextState>({
 
 // Create provider component
 export function ProjectProvider({ children }: { children: ReactNode }) {
-  const [project, setProject] = useState<Project | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
+  // Use the new hook to manage core state
+  const {
+    project,
+    isLoading,
+    error,
+    setProject,
+    setIsLoading,
+    setError,
+    setProjectAspectRatio,
+    toggleLetterboxing
+  } = useProjectState();
 
   // Load project data
   const loadProject = async (projectId: string) => {
@@ -174,7 +183,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         ...sceneData
       };
       
-      // Update local state
+      // Update local state using the setter from the hook
       setProject(prev => {
         if (!prev) return null;
         return {
@@ -206,7 +215,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Update local state
+      // Update local state using the setter from the hook
       setProject(prev => {
         if (!prev) return null;
         return {
@@ -240,7 +249,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Update local state
+      // Update local state using the setter from the hook
       setProject(prev => {
         if (!prev) return null;
         
@@ -294,7 +303,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         return { ...scene, order: index };
       });
       
-      // Update local state
+      // Update local state using the setter from the hook
       setProject(prev => {
         if (!prev) return null;
         return {
@@ -310,36 +319,22 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Set project aspect ratio
-  const setProjectAspectRatio = (aspectRatio: '9:16' | '16:9' | '1:1' | '4:5') => {
-    setProject(prev => prev ? { ...prev, aspectRatio } : null);
-  };
-
-  // Toggle letterboxing
-  const toggleLetterboxing = (show: boolean) => {
-    setProject(prev => prev ? { ...prev, showLetterboxing: show } : null);
-  };
-
-  // Value for the context provider
-  const contextValue = {
+  // Define context value
+  const value = {
     project,
     isLoading,
     error,
-    loadProject,
     saveProject,
     addScene,
     updateScene,
     deleteScene,
     reorderScenes,
+    loadProject,
     setProjectAspectRatio,
     toggleLetterboxing
   };
 
-  return (
-    <ProjectContext.Provider value={contextValue}>
-      {children}
-    </ProjectContext.Provider>
-  );
+  return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 }
 
 // Custom hook for using the project context
