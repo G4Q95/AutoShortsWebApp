@@ -18,6 +18,8 @@ import aiofiles
 import httpx
 from pydantic import BaseModel
 import traceback
+# Import HTTPException from fastapi
+from fastapi import HTTPException 
 
 # Assuming config is one level up in core
 from app.core.config import settings 
@@ -25,6 +27,8 @@ from app.core.config import settings
 from app.services.storage import get_storage, R2Storage # Import R2Storage for type hinting
 # Import the Celery task
 from app.tasks.audio_tasks import extract_audio_task
+# Import the file tracking service
+from app.services.r2_file_tracking import r2_file_tracking
 
 logger = logging.getLogger(__name__)
 
@@ -337,12 +341,20 @@ class AudioService:
         output_format: str = "mp3_44100_128"
     ) -> str:
         """
-        Generate a voiceover and store it in R2.
-        Returns the URL of the stored audio file.
+        Generates voiceover audio and saves it to R2 storage, returning the public URL.
+        Also tracks the file in the database.
         """
+        start_time = time.time()
+        logger.info(f"[AUDIO_SAVE] Initiating voiceover generation for project {project_id}, scene {scene_id}")
+
+        if not self.storage:
+            logger.error("[AUDIO_SAVE] Storage service not initialized.")
+            raise ValueError("Storage service not available")
+
         try:
-            # Generate the audio using ElevenLabs
-            audio_data, content_type = await self.elevenlabs_client.generate_audio(
+            # 1. Generate audio data
+            logger.debug(f"[AUDIO_SAVE] Calling generate_audio for scene {scene_id}")
+            audio_data, content_type = await self.generate_audio(
                 text=text,
                 voice_id=voice_id,
                 stability=stability,
@@ -352,43 +364,90 @@ class AudioService:
                 model_id=model_id,
                 output_format=output_format
             )
-            
-            # Create a temporary file to store the audio
-            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
-                temp_file.write(audio_data)
-                temp_file_path = temp_file.name
-            
+            generation_time = time.time() - start_time
+            logger.info(f"[AUDIO_SAVE] Audio generated ({len(audio_data)} bytes, {content_type}) for scene {scene_id} in {generation_time:.2f}s")
+
+            # 2. Determine storage key
+            timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+            filename = f"generated_voiceover_{timestamp}.mp3" # Assuming mp3, check content_type?
+            storage_key = f"audio/{project_id}/{scene_id}/{filename}"
+            logger.debug(f"[AUDIO_SAVE] Determined storage key: {storage_key}")
+
+            # 3. Save to R2 storage (using temp file)
+            logger.debug(f"[AUDIO_SAVE] Saving audio data to R2 key: {storage_key}")
+            temp_file_path = None
             try:
-                # Upload to R2 with proper object naming
-                object_name = f"generated_voiceover_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
-                success, result = await self.storage.upload_file(
-                    file_path=temp_file_path,
-                    object_name=object_name,
-                    project_id=project_id,
-                    scene_id=scene_id,
-                    file_type="audio/mpeg"
+                # Create a temporary file (get path, don't keep open)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+                    temp_file_path = temp_file.name
+                logger.debug(f"[AUDIO_SAVE] Generated temporary file path: {temp_file_path}")
+                    
+                # Write audio data to the temporary file asynchronously
+                async with aiofiles.open(temp_file_path, mode='wb') as afp:
+                    await afp.write(audio_data)
+                logger.debug(f"[AUDIO_SAVE] Wrote {len(audio_data)} bytes asynchronously to temp file {temp_file_path}")
+                
+                # Upload the temporary file to R2
+                success, upload_result = await self.storage.upload_file(
+                    file_path=temp_file_path, 
+                    object_name=storage_key 
                 )
                 
                 if not success:
-                    raise ElevenLabsError(f"Failed to upload audio to R2: {result}")
-                
-                # Return the R2 URL
-                return result
-            
+                    logger.error(f"[AUDIO_SAVE] Failed to upload audio from temp file: {upload_result}")
+                    # Raise specific exception or re-raise generic one?
+                    raise Exception(f"Failed to upload audio to R2: {upload_result}")
+                    
+                logger.info(f"[AUDIO_SAVE] Successfully uploaded from temp file to {storage_key}")
+
             finally:
                 # Clean up the temporary file
-                if os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
-                    logger.debug(f"Cleaned up temporary file: {temp_file_path}")
-        
-        except ElevenLabsError as e:
-            logger.error(f"Error generating voiceover: {str(e)}")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error in generate_and_store_voiceover: {str(e)}")
-            raise ElevenLabsError(f"Error in generate_and_store_voiceover: {str(e)}")
+                if temp_file_path and os.path.exists(temp_file_path):
+                    try:
+                        os.remove(temp_file_path)
+                        logger.debug(f"[AUDIO_SAVE] Removed temporary file: {temp_file_path}")
+                    except OSError as e:
+                        logger.error(f"[AUDIO_SAVE] Error removing temporary file {temp_file_path}: {e}")
 
-    # NEW METHOD
+            save_time = time.time() - start_time - generation_time
+            logger.info(f"[AUDIO_SAVE] Audio saved to R2 (via temp file) for scene {scene_id} in {save_time:.2f}s")
+
+            # 4. <<< ADD FILE TRACKING HERE >>>
+            try:
+                file_size = len(audio_data)
+                await r2_file_tracking.add_file(
+                    project_id=project_id,
+                    scene_id=scene_id,
+                    object_key=storage_key,
+                    file_type="audio/voiceover",
+                    content_type=content_type,
+                    size_bytes=file_size,
+                    uploaded_at=datetime.utcnow() # Use current time
+                )
+                logger.info(f"[AUDIO_SAVE] Successfully tracked file {storage_key} for project {project_id}")
+            except Exception as tracking_error:
+                # Log the error but don't fail the whole operation, 
+                # as the audio was successfully saved.
+                logger.error(f"[AUDIO_SAVE] Failed to track file {storage_key} in database: {tracking_error}", exc_info=True)
+                # Optionally, could implement a retry mechanism or flag for later cleanup
+
+            # 5. Get public URL
+            public_url = await self.storage.get_file_url(storage_key)
+            logger.info(f"[AUDIO_SAVE] Generated public URL: {public_url} for scene {scene_id}")
+            
+            total_time = time.time() - start_time
+            logger.info(f"[AUDIO_SAVE] Total time for generate_and_store_voiceover for scene {scene_id}: {total_time:.2f}s")
+
+            return public_url
+
+        except ElevenLabsError as e:
+            logger.error(f"[AUDIO_SAVE] ElevenLabs error generating audio for scene {scene_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=e.status_code or 500, detail=str(e))
+        except Exception as e:
+            logger.error(f"[AUDIO_SAVE] Unexpected error generating/saving audio for scene {scene_id}: {e}", exc_info=True)
+            logger.error(traceback.format_exc()) # Ensure full traceback is logged
+            raise HTTPException(status_code=500, detail=f"Failed to generate or save audio: {str(e)}")
+
     async def get_latest_audio_url(
         self, 
         project_id: str, 
