@@ -1,8 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useProjectState } from '@/hooks/useProjectState'; // Import the new hook
-import { useSceneManagement } from '@/hooks/useSceneManagement'; // Import scene hook
+import { useProjectState } from '@/hooks/useProjectState';
+import { useSceneManagement } from '@/hooks/useSceneManagement';
+import { useProjectApi } from '@/hooks/useProjectApi'; // Import project API hook
 
 // Define interfaces for projects and scenes
 export interface Scene {
@@ -78,7 +79,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     toggleLetterboxing
   } = useProjectState();
 
-  // Use the scene management hook, passing state and setters
+  // Use the scene management hook
   const {
     addScene,
     updateScene,
@@ -86,101 +87,32 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     reorderScenes
   } = useSceneManagement({ project, setProject, setIsLoading, setError });
 
-  // Load project data - Stays here for now
-  const loadProject = async (projectId: string) => {
-    // This function will need access to setProject, setIsLoading, setError from the hook
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Mock implementation - replace with actual API call
-      console.log(`Loading project ${projectId}`);
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Mock project data
-      const mockProject: Project = {
-        id: projectId,
-        title: "Sample Project",
-        description: "This is a sample project",
-        scenes: [
-          {
-            id: "scene1",
-            title: "Introduction",
-            mediaUrl: "https://example.com/media/1.mp4",
-            mediaType: "video",
-            content: "This is the introduction scene",
-            order: 0,
-            trim: { start: 0, end: 10 },
-            duration: 10
-          },
-          {
-            id: "scene2",
-            title: "Main Content",
-            mediaUrl: "https://example.com/media/2.jpg",
-            mediaType: "image",
-            content: "This is the main content scene",
-            order: 1,
-            duration: 5
-          }
-        ],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: "draft",
-        aspectRatio: "16:9", // Default or loaded aspect ratio
-        showLetterboxing: true
-      };
-      
-      setProject(mockProject);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Use the project API hook
+  const {
+    loadProject,
+    saveProject
+  } = useProjectApi({ setProject, setIsLoading, setError });
 
-  // Save project data - Stays here for now
-  const saveProject = async (projectData: Partial<Project>) => {
-    // This function will need access to setProject, setIsLoading, setError from the hook
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Mock implementation - replace with actual API call
-      console.log("Saving project:", projectData);
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Update local state using the setter from the hook
-      setProject(prev => 
-        prev ? { ...prev, ...projectData, updatedAt: new Date().toISOString() } : null
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // REMOVED: Load project data function now in useProjectApi hook
+  // const loadProject = async (...) => { ... };
+
+  // REMOVED: Save project data function now in useProjectApi hook
+  // const saveProject = async (...) => { ... };
 
   // REMOVED: Scene management functions now in useSceneManagement hook
-  // const addScene = async (...) => { ... };
-  // const updateScene = async (...) => { ... };
-  // const deleteScene = async (...) => { ... };
-  // const reorderScenes = async (...) => { ... };
+  // ...
 
   // Define context value
   const value = {
     project,
     isLoading,
     error,
-    saveProject,  // Stays
+    saveProject,  // From useProjectApi hook
     addScene,     // From useSceneManagement hook
     updateScene,  // From useSceneManagement hook
     deleteScene,  // From useSceneManagement hook
     reorderScenes,// From useSceneManagement hook
-    loadProject,    // Stays
+    loadProject,    // From useProjectApi hook
     setProjectAspectRatio, // From useProjectState hook
     toggleLetterboxing,    // From useProjectState hook
   };
