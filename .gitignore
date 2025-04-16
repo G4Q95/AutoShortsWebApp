@@ -151,3 +151,5 @@ dev-debug.log
 # Task files
 tasks.json
 tasks/ 
+web/backend/.env
+.env

@@ -33,7 +33,7 @@ services:
       - ./web/backend/.env
     environment:
       - MONGODB_URI=${MONGODB_URI}
-      - DATABASE_NAME=${DATABASE_NAME}
+      # - DATABASE_NAME=${DATABASE_NAME} # Let env_file handle this
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REDIS_HOST=${REDIS_HOST:-redis}
@@ -93,7 +93,7 @@ services:
       - ./web/backend/.env # Use the same env file as backend
     environment: # Explicitly pass variables needed by Celery/tasks
       - MONGODB_URI=${MONGODB_URI}
-      - DATABASE_NAME=${DATABASE_NAME}
+      - DATABASE_NAME=${DATABASE_NAME} # Keep this line for worker, as it seems to get the value correctly from shell
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REDIS_HOST=${REDIS_HOST:-redis}
