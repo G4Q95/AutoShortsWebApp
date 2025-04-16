@@ -18,7 +18,6 @@ import React, {
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { extractContent } from '../../lib/api-client';
-import { deleteProject as deleteProjectFromAPI } from '../../lib/api/projects';
 import { determineMediaType, generateVideoThumbnail } from '../../lib/media-utils';
 import { useProjectPersistence } from '@/hooks/useProjectPersistence';
 import { useProjectNavigation, UIMode } from '@/hooks/useProjectNavigation';
@@ -79,12 +78,8 @@ const ProjectContext = createContext<(Omit<ProjectState, 'mode'> & {
   setProjectTitle: (title: string) => void;
   /** Manually triggers a save of the current project */
   saveCurrentProject: () => Promise<void>;
-  /** Deletes the current project */
-  deleteCurrentProject: () => Promise<void>;
   /** Loads a project by ID */
   loadProject: (projectId: string) => Promise<Project | undefined>;
-  /** Creates a copy of an existing project */
-  duplicateProject: (projectId: string) => Promise<string | null>;
   /** Deletes all projects */
   deleteAllProjects: () => Promise<void>;
   /** Refreshes the projects list */
@@ -155,9 +150,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     isSavingProject,
     lastSavedTimestamp,
     // Destructure remaining persistence functions with correct renaming syntax
-    loadProject: loadProjectFromHook,      // Use colon for renaming
-    deleteProject: deleteProjectFromHook,    // Use colon for renaming
-    deleteAllProjects: deleteAllProjectsFromHook, // Use colon for renaming
+    loadProject: loadProjectFromHook,      
+    deleteAllProjects: deleteAllProjectsFromHook, 
     projectExists: projectExistsFromHook,    // Use colon for renaming
   } = useProjectPersistence();
 
@@ -360,9 +354,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Set current project by ID
-  const setCurrentProject = useCallback((projectId: string) => {
+  const setCurrentProject = useCallback((projectId: string | null) => {
     dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
-  }, []);
+  }, [dispatch]);
 
   // Update scene media data
   const updateSceneMedia = useCallback((
@@ -931,40 +925,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_PROJECT_TITLE', payload: { title } });
   }, []);
 
-  // Delete current project
-  const deleteCurrentProject = useCallback(async (): Promise<void> => {
-    if (!state.currentProject) return;
-    const projectId = state.currentProject.id;
-    
-    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-    try {
-      // Delete from API first
-      await deleteProjectFromAPI(projectId);
-      // Then delete from local storage via hook
-      await deleteProjectFromHook(projectId);
-      
-      dispatch({ type: 'DELETE_PROJECT', payload: { projectId } });
-      // Reset current project after deletion - Use correct payload
-      dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId: null } });
-      
-      // Navigate back to dashboard or project list
-      router.push('/'); 
-    } catch (error) {
-      console.error(`Error deleting project ${projectId}:`, error);
-      dispatch({ type: 'SET_ERROR', payload: { error: `Failed to delete project ${projectId}` } });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
-    }
-  }, [state.currentProject, deleteProjectFromHook, router]);
-
   // Load a project by ID
   const loadProjectWrapper = useCallback(async (projectId: string): Promise<Project | undefined> => {
     dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
     try {
       const project = await loadProjectFromHook(projectId);
       if (project) {
-        // Dispatch with projectId instead of project object
         dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId: project.id } });
+        dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project } });
         return project;
       } else {
         dispatch({ type: 'SET_ERROR', payload: { error: `Project ${projectId} not found or failed to load` } });
@@ -977,52 +945,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  }, [loadProjectFromHook]);
-
-  // Duplicate an existing project
-  const duplicateProject = useCallback(async (projectId: string): Promise<string | null> => {
-    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-    try {
-      const originalProject = await loadProjectFromHook(projectId);
-      if (!originalProject) {
-        throw new Error('Original project not found');
-      }
-      
-      const newId = generateId();
-      const newTitle = `${originalProject.title} (Copy)`;
-      
-      // Check if a project with the new title already exists
-      let finalTitle = newTitle;
-      let counter = 1;
-      while (persistedProjects.some(p => p.title === finalTitle)) {
-        finalTitle = `${newTitle} ${counter}`;
-        counter++;
-      }
-
-      const newProject: Project = {
-        ...originalProject,
-        id: newId,
-        title: finalTitle,
-        createdAt: Date.now(),
-        lastModified: Date.now(),
-        scenes: originalProject.scenes.map(scene => ({ ...scene, id: generateId() }))
-      };
-      
-      await saveProject(newProject);
-      dispatch({ type: 'ADD_PROJECT', payload: { project: newProject } });
-      console.log(`Project ${projectId} duplicated successfully to ${newId}`);
-      return newId;
-    } catch (error) {
-      console.error('Error duplicating project:', error);
-      dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to duplicate project' } });
-      return null;
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
-    }
-  }, [persistedProjects, loadProjectFromHook, saveProject]);
+  }, [loadProjectFromHook, dispatch]);
 
   // Delete all projects
-  const deleteAllProjectsWrapper = useCallback(async (): Promise<void> => {
+  const deleteAllProjects = useCallback(async (): Promise<void> => {
     dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
     try {
       // Clear from local storage via hook
@@ -1149,7 +1075,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const actions = useMemo(() => ({
     createProject,
-    setCurrentProject: setCurrentProject as (projectId: string | null) => void,
+    setCurrentProject,
     addScene,
     removeScene,
     reorderScenes,
@@ -1158,10 +1084,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateSceneMedia,
     setProjectTitle,
     saveCurrentProject: saveCurrentProjectWrapper,
-    deleteCurrentProject,
     loadProject: loadProjectWrapper,
-    duplicateProject,
-    deleteAllProjects: deleteAllProjectsWrapper,
+    deleteAllProjects,
     refreshProjects,
     uiMode,
     setMode,
@@ -1182,10 +1106,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateSceneMedia,
     setProjectTitle,
     saveCurrentProjectWrapper,
-    deleteCurrentProject,
     loadProjectWrapper,
-    duplicateProject,
-    deleteAllProjectsWrapper,
+    deleteAllProjects,
     refreshProjects,
     uiMode,
     setMode,
