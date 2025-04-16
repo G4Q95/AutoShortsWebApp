@@ -2,7 +2,7 @@ import { ProjectState, Project, Scene } from './ProjectTypes';
 
 type ProjectAction =
   | { type: 'CREATE_PROJECT'; payload: { title: string } }
-  | { type: 'SET_CURRENT_PROJECT'; payload: { projectId: string } }
+  | { type: 'SET_CURRENT_PROJECT'; payload: { projectId: string | null } }
   | { type: 'ADD_SCENE'; payload: { url: string } }
   | { type: 'ADD_SCENE_LOADING'; payload: { sceneId: string; url: string } }
   | { type: 'ADD_SCENE_SUCCESS'; payload: { scene: Scene } }
@@ -199,21 +199,19 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
 
     case 'REORDER_SCENES': {
-      // Reorder scenes in the current project
       if (!state.currentProject) return state;
 
-      // Get current scenes
-      const currentScenes = state.currentProject.scenes;
-
-      // Create a map for quick lookup
-      const scenesMap = new Map(currentScenes.map(scene => [scene.id, scene]));
-
-      // Reorder scenes based on the new order
+      const sceneMap = new Map(state.currentProject.scenes.map(scene => [scene.id, scene]));
       const reorderedScenes = action.payload.sceneIds
-        .map(id => scenesMap.get(id))
+        .map(id => sceneMap.get(id))
         .filter((scene): scene is Scene => scene !== undefined);
 
-      // Create updated project
+      if (reorderedScenes.length !== state.currentProject.scenes.length) {
+        console.error("Reducer: Scene count mismatch during reorder");
+        // Avoid partial updates if something went wrong
+        return state; 
+      }
+
       const updatedProject: Project = {
         ...state.currentProject,
         scenes: reorderedScenes,

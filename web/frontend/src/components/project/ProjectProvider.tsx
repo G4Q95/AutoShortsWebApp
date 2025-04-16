@@ -804,6 +804,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       updatedAt: Date.now()
     };
 
+    // *** Dispatch for optimistic UI update FIRST ***
+    dispatch({ type: 'REORDER_SCENES', payload: { sceneIds } });
+
     // Save after reordering
     try {
       await saveProject(updatedProject);
