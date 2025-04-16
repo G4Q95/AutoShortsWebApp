@@ -236,23 +236,25 @@ async def general_exception_handler(request: Request, exc: Exception):
 # --- Endpoint Routers ---
 # Use specific prefixes for clarity
 app.include_router(content.router, prefix="/api/v1")
-app.include_router(project_router, prefix="/api/v1/projects") # CORRECTED PREFIX
-app.include_router(scene_router, prefix="/api/v1/projects")   # Handles /projects/{id}/scenes/...
-app.include_router(generation_router, prefix="/api/v1/generate") # Example prefix, adjust if needed
-app.include_router(voice.router, prefix="/api/v1/voice")
-app.include_router(media.router, prefix="/api/v1")            # CORRECTED PREFIX - Use media.router from direct import
+app.include_router(project_router, prefix="/api/v1/projects")
+app.include_router(scene_router, prefix="/api/v1/projects")
+app.include_router(generation_router, prefix="/api/v1/generate")
+app.include_router(voice.router, prefix="/api/v1")
+app.include_router(media.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1/ai")
 
 # Include Debug/Test routers if needed in development
-# from app.api.test import router as test_router
-# from app.api.debug import router as debug_router
-# app.include_router(test_router, prefix="/api/v1") # Example: /api/v1/test/error-response
-# app.include_router(debug_router, prefix="/api/v1/debug") # Example: /api/v1/debug/cleanup-project/...
+# Make sure prefixes are consistent
+from app.api.test import router as test_router
+from app.api.debug import router as debug_router
+app.include_router(test_router, prefix="/api/v1")
+app.include_router(debug_router, prefix="/api/v1/debug")
 
 # --- Remove Legacy/Deprecated Router Includes ---
+# These should be removed to avoid conflicts
 # app.include_router(test_router, prefix="/api/test")
 # app.include_router(content_router, prefix="/api/content")
-# app.include_router(projects_router, prefix="/api/projects") # REMOVED Legacy
+# app.include_router(projects_router, prefix="/api/projects")
 # app.include_router(videos.router, prefix="/api/videos")
 # app.include_router(voice_router, prefix="/api/voice")
 # app.include_router(media.router, prefix="/api")
