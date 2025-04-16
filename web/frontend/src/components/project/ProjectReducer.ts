@@ -8,38 +8,13 @@ import {
   ProjectState, 
   Project, 
   Scene,
+  ProjectAction as ProjectActionType,
   generateId
 } from './ProjectTypes';
-import { getProject } from '../../lib/storage-utils';
+// import { getProject } from '../../lib/storage-utils';
 
-// Current possible action types
-export type ProjectAction =
-  | { type: 'CREATE_PROJECT'; payload: { title: string } }
-  | { type: 'SET_CURRENT_PROJECT'; payload: { projectId: string } }
-  | { type: 'ADD_SCENE'; payload: { url: string } }
-  | { type: 'ADD_SCENE_LOADING'; payload: { sceneId: string; url: string } }
-  | { type: 'ADD_SCENE_SUCCESS'; payload: { scene: Scene } }
-  | { type: 'ADD_SCENE_ERROR'; payload: { sceneId: string; error: string } }
-  | { type: 'REMOVE_SCENE'; payload: { sceneId: string } }
-  | { type: 'REORDER_SCENES'; payload: { sceneIds: string[] } }
-  | { type: 'UPDATE_SCENE_TEXT'; payload: { sceneId: string; text: string } }
-  | { type: 'UPDATE_SCENE_AUDIO'; payload: { sceneId: string; audioData?: { audio_url?: string; audio_base64?: string; content_type?: string; persistentUrl?: string; storageKey?: string }; voiceSettings?: { voice_id: string; stability: number; similarity_boost: number } } }
-  | { type: 'UPDATE_SCENE_MEDIA'; payload: { sceneId: string; mediaData: Partial<Scene['media']> } }
-  | { type: 'SET_PROJECT_TITLE'; payload: { title: string } }
-  | { type: 'SET_PROJECT_ASPECT_RATIO'; payload: { aspectRatio: '9:16' | '16:9' | '1:1' | '4:5' } }
-  | { type: 'TOGGLE_LETTERBOXING'; payload: { showLetterboxing: boolean } }
-  | { type: 'SET_ERROR'; payload: { error: string } }
-  | { type: 'CLEAR_ERROR' }
-  | { type: 'SET_LOADING'; payload: { isLoading: boolean } }
-  | { type: 'LOAD_PROJECTS'; payload: { projects: Project[] } }
-  | { type: 'SET_SAVING'; payload: { isSaving: boolean } }
-  | { type: 'SET_LAST_SAVED'; payload: { timestamp: number } }
-  | { type: 'LOAD_PROJECT_SUCCESS'; payload: { project: Project } }
-  | { type: 'DUPLICATE_PROJECT_SUCCESS'; payload: { projectId: string } }
-  | { type: 'CLEAR_ALL_PROJECTS' }
-  | { type: 'SET_MODE'; payload: { mode: 'organization' | 'voice-enabled' | 'preview' } }
-  | { type: 'SET_SCENE_STORING_MEDIA'; payload: { sceneId: string; isStoringMedia: boolean } }
-  | { type: 'FORCE_UPDATE' };
+// Use the imported type directly
+export type ProjectAction = ProjectActionType;
 
 /**
  * Project state reducer that handles all project-related state updates.
@@ -96,6 +71,7 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         scenes: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        lastModified: Date.now(),
         status: 'draft',
         aspectRatio: '9:16',  // Set default aspect ratio
         showLetterboxing: true,  // Enable letterboxing by default
@@ -110,31 +86,37 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
 
     /**
-     * Sets the current active project by ID.
-     * Attempts to find the project in state, falls back to localStorage if not found.
+     * Sets the current active project.
      * 
      * @action SET_CURRENT_PROJECT
-     * @payload { projectId: string }
+     * @payload { project: Project | null }
      */
     case 'SET_CURRENT_PROJECT': {
-      const project = state.projects.find((p) => p && p.id === action.payload.projectId) || null;
+      const { projectId } = action.payload; // Get projectId from payload
       
-      // If project not found, log it and attempt to load it from localStorage
-      if (!project && action.payload.projectId) {
-        console.log(`Project ${action.payload.projectId} not found in state projects array, will attempt to load from localStorage`);
-        
-        // Return current state for now - component should handle loading via the loadProject function
-        // The next action will be LOAD_PROJECT_SUCCESS which will properly set the current project
+      if (projectId === null) {
         return {
           ...state,
-          error: `Project with ID ${action.payload.projectId} not found in state, attempting to load...`,
+          currentProject: null,
+          error: null,
         };
       }
-      
+
+      const project = state.projects.find(p => p.id === projectId) || null;
+
+      if (!project) {
+        console.error(`REDUCER: Project with ID ${projectId} not found in state.projects`);
+        return {
+          ...state,
+          currentProject: null, // Set to null if not found
+          error: `Project ${projectId} not found`, // Set an error
+        };
+      }
+
       return {
         ...state,
-        currentProject: project,
-        error: project ? null : `Project with ID ${action.payload.projectId} not found`,
+        currentProject: project, // Set the found project
+        error: null,
       };
     }
 
@@ -242,10 +224,20 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         };
       }
 
-      // Find and replace the loading scene with the loaded scene data
-      const updatedScenes = state.currentProject.scenes.map((s) =>
-        s.id === action.payload.scene.id ? action.payload.scene : s
-      );
+      // Find and update the scene by ID with the new data
+      const updatedScenes = state.currentProject.scenes.map((scene) => {
+        if (scene.id === action.payload.sceneId) {
+          // Merge existing scene data with new partial data
+          return {
+            ...scene,
+            ...action.payload.sceneData,
+            isLoading: false, // Mark loading as complete
+            error: undefined, // Clear any previous error
+            updatedAt: Date.now(), // Update timestamp
+          };
+        }
+        return scene;
+      });
 
       const updatedProject: Project = {
         ...state.currentProject,

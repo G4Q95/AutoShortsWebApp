@@ -18,16 +18,9 @@ import React, {
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { extractContent } from '../../lib/api-client';
-import {
-  saveProject,
-  getProject,
-  deleteProject,
-  getProjectsList,
-  projectExists,
-  clearAllProjects,
-} from '../../lib/storage-utils';
 import { deleteProject as deleteProjectFromAPI } from '../../lib/api/projects';
 import { determineMediaType, generateVideoThumbnail } from '../../lib/media-utils';
+import { useProjectPersistence } from '@/hooks/useProjectPersistence';
 
 import { 
   Project, 
@@ -68,7 +61,7 @@ const ProjectContext = createContext<(ProjectState & {
   /** Creates a new project with the given title */
   createProject: (title: string) => void;
   /** Sets the current active project by ID */
-  setCurrentProject: (projectId: string) => void;
+  setCurrentProject: (projectId: string | null) => void;
   /** Adds a new scene from a Reddit URL */
   addScene: (url: string) => Promise<void>;
   /** Removes a scene by ID */
@@ -143,6 +136,56 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const prevPathRef = useRef(pathname);
   
+  // Use the persistence hook
+  const {
+    projects: persistedProjects,
+    isLoadingProjects,
+    persistenceError,
+    loadProjectsList, // Keep loadProjectsList if needed for refresh
+    // Destructure new items from the hook
+    saveProject,
+    isSavingProject,
+    lastSavedTimestamp,
+    // Destructure remaining persistence functions with correct renaming syntax
+    loadProject: loadProjectFromHook,      // Use colon for renaming
+    deleteProject: deleteProjectFromHook,    // Use colon for renaming
+    deleteAllProjects: deleteAllProjectsFromHook, // Use colon for renaming
+    projectExists: projectExistsFromHook,    // Use colon for renaming
+  } = useProjectPersistence();
+
+  // Sync hook state with provider state
+  useEffect(() => {
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: isLoadingProjects } });
+  }, [isLoadingProjects]);
+
+  useEffect(() => {
+    // Only load if projects haven't been loaded yet by the hook initially
+    if (persistedProjects.length > 0 || isLoadingProjects) {
+      dispatch({ type: 'LOAD_PROJECTS', payload: { projects: persistedProjects } });
+    }
+  }, [persistedProjects, isLoadingProjects]);
+
+  useEffect(() => {
+    if (persistenceError) {
+      dispatch({ type: 'SET_ERROR', payload: { error: persistenceError } });
+    } else {
+       // Clear error if persistence succeeds - Use CLEAR_ERROR action
+      dispatch({ type: 'CLEAR_ERROR' }); 
+    }
+  }, [persistenceError]);
+
+  // Sync saving state
+  useEffect(() => {
+    dispatch({ type: 'SET_SAVING', payload: { isSaving: isSavingProject } });
+  }, [isSavingProject]);
+
+  // Sync last saved timestamp
+  useEffect(() => {
+    if (lastSavedTimestamp) {
+      dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: lastSavedTimestamp } });
+    }
+  }, [lastSavedTimestamp]);
+
   // Add a ref to track media storage operations in progress
   const mediaStorageOperationsRef = useRef<Record<string, boolean>>({});
   
@@ -152,95 +195,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Auto-save timer reference
   const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch all projects
-  const loadProjects = useCallback(async () => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-      
-      const projects = await getProjectsList().then(async (projectsMetadata) => {
-        const projectsPromises = projectsMetadata.map(async (metadata) => {
-          return getProject(metadata.id);
-        });
-        return Promise.all(projectsPromises);
-      });
-      
-      // Filter out null projects (failed to load)
-      const validProjects = projects.filter((p): p is Project => p !== null);
-      
-      dispatch({ type: 'LOAD_PROJECTS', payload: { projects: validProjects } });
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-      dispatch({
-        type: 'SET_ERROR',
-        payload: { error: 'Failed to load projects' },
-      });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
-    }
-  }, []);
-
-  // Refresh the projects list
+  // Refresh the projects list - Update to use the hook's function
   const refreshProjects = useCallback(async (): Promise<void> => {
-    return loadProjects();
-  }, [loadProjects]);
+    return loadProjectsList(); // Use hook's function
+  }, [loadProjectsList]);
 
-  // Load projects from localStorage on initial mount
-  useEffect(() => {
-    loadProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Function to save the current project to localStorage
-  const saveCurrentProject = useCallback(async () => {
-    if (!state.currentProject) {
-      console.warn('No active project to save');
-      return;
+  // Define a wrapper function to call the hook's saveProject
+  const saveCurrentProjectWrapper = useCallback(async () => {
+    if (state.currentProject) {
+      await saveProject(state.currentProject);
+    } else {
+      console.warn('Attempted to save but no current project is set.');
     }
-
-    try {
-      // Capture project reference to ensure it doesn't change during save operation
-      const projectToSave = { ...state.currentProject };
-      
-      // Log scenes count to help debug
-      console.log(`Saving project: ${projectToSave.id}, ${projectToSave.title}, scenes: ${projectToSave.scenes.length}`);
-      
-      // If project has no scenes but should have them, try to recover
-      if (projectToSave.scenes.length === 0) {
-        try {
-          // Check if we can recover scenes from localStorage
-          const key = `auto-shorts-project-${projectToSave.id}`;
-          const storedProjectJson = localStorage.getItem(key);
-          if (storedProjectJson) {
-            const storedProject = JSON.parse(storedProjectJson);
-            if (storedProject.scenes && storedProject.scenes.length > 0) {
-              console.log(`Recovered ${storedProject.scenes.length} scenes from localStorage during save`);
-              // Use the recovered scenes
-              projectToSave.scenes = storedProject.scenes;
-            }
-          }
-        } catch (recoveryError) {
-          console.error('Failed to recover scenes during save:', recoveryError);
-        }
-      }
-      
-      dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
-
-      await saveProject(projectToSave);
-
-      const timestamp = Date.now();
-      dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp } });
-
-      console.log(`Project "${projectToSave.title}" saved successfully with ${projectToSave.scenes.length} scenes`);
-    } catch (error) {
-      console.error('Failed to save project:', error);
-      dispatch({
-        type: 'SET_ERROR',
-        payload: { error: 'Failed to save project' },
-      });
-    } finally {
-      dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
-    }
-  }, [state.currentProject]);
+  }, [state.currentProject, saveProject]);
 
   // Set up auto-save whenever currentProject changes
   useEffect(() => {
@@ -248,54 +215,28 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     
     // If we have a current project, set up auto-save
     if (state.currentProject) {
-      // Clear existing timer if any
+      // Clear any existing timer
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
       }
-
-      // Set up new timer for auto-save
-      autoSaveTimerRef.current = setTimeout(async () => {
-        if (!isMounted) return;
-        
-        try {
-          // Cache the current project to avoid null issues
-          const currentProject = state.currentProject;
-          
-          // Verify project still exists before saving
-          if (!currentProject) {
-            console.warn('Auto-save canceled: Project no longer exists in state');
-            return;
-          }
-          
-          console.log(`Auto-save triggered for project: ${currentProject.id}, scenes: ${currentProject.scenes.length}`);
-          
-          // Create a fresh copy of the project to avoid reference issues
-          const projectToSave = JSON.parse(JSON.stringify(currentProject));
-          
-          // Save directly using saveProject to ensure a complete save
-          await saveProject(projectToSave);
-          
-          // Then update the last saved timestamp in the UI
-          if (isMounted) {
-            dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
-            console.log(`Auto-save completed successfully for project: ${projectToSave.id}`);
-          }
-        } catch (error) {
-          console.error('Auto-save failed:', error);
+      
+      // Set a new timer
+      autoSaveTimerRef.current = setTimeout(() => {
+        if (isMounted) {
+          // saveCurrentProject(); // Old way
+          saveCurrentProjectWrapper(); // Call the wrapper that uses the hook
         }
-      }, 1000); // Reduced from 3000ms to 1000ms for faster saving
+      }, 3000); // Auto-save after 3 seconds of inactivity
     }
 
-    // Cleanup function to clear the timer and prevent further saves
+    // Cleanup function
     return () => {
       isMounted = false;
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
       }
     };
-  }, [state.currentProject, dispatch]);
+  }, [state.currentProject, saveCurrentProjectWrapper]); // Depend on the wrapper
 
   // Add Effect to listen for pathname changes and save immediately
   useEffect(() => {
@@ -349,7 +290,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Add a separate beforeunload effect to handle browser/tab closure
   useEffect(() => {
     // Only add beforeunload listener if we have an active project
-    if (!state.currentProject) return;
+    // Also check if currentProject has an ID to be safe
+    if (!state.currentProject || !state.currentProject.id) return; 
     
     // Create a sync handler for beforeunload
     const handleBeforeUnload = () => {
@@ -428,10 +370,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
     
     // Save the project after updating media to ensure persistence
-    saveCurrentProject().catch(error => {
+    saveCurrentProjectWrapper().catch(error => {
       console.error('Error saving project after updating scene media:', error);
     });
-  }, [saveCurrentProject]);
+  }, [saveCurrentProjectWrapper]);
 
   // Store all unstored media for the current project in R2
   const storeAllMedia = useCallback(async (): Promise<{
@@ -496,21 +438,21 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [storageInProgress]);
 
   // Helper function to ensure a consistent reference to the current project and its scenes
-  const getProjectWithScenes = useCallback((projectId: string): Promise<Project | null> => {
+  const getProjectWithScenes = useCallback(async (projectId: string): Promise<Project | null> => {
     // First try to get from state
     if (state.currentProject && state.currentProject.id === projectId) {
       return Promise.resolve({...state.currentProject});
     }
     
-    // If not in state, try to get from localStorage
-    return getProject(projectId).then(project => {
+    // If not in state, try to get from the hook
+    return loadProjectFromHook(projectId).then(project => {
       if (!project) {
-        console.warn(`Project ${projectId} not found in localStorage`);
+        console.warn(`Project ${projectId} not found via hook`);
         return null;
       }
       return project;
     });
-  }, [state.currentProject]);
+  }, [state.currentProject, loadProjectFromHook]); // Depend on hook function
 
   // Add a scene - enhanced with better error handling and immediate saving
   const addScene = useCallback(async (url: string) => {
@@ -820,10 +762,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             
             console.log(`Final save completed for scene: ${updatedScene.id}`);
             
-            // Verify the save worked by loading the project again
-            const verifyProject = await getProject(projectId);
+            // Verify the save worked by loading the project again using the hook
+            const verifyProject = await loadProjectFromHook(projectId);
             if (verifyProject) {
-              console.log(`Scene added, now fetching updated project ${projectId} from storage`);
+              console.log(`Scene added, now fetching updated project ${projectId} from hook`);
               console.log(`Verification: Project has ${verifyProject.scenes.length} scenes in storage`);
             }
           }
@@ -851,7 +793,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       delete mediaStorageOperationsRef.current[sceneId];
       setStorageInProgress(!isMediaStorageInProgress());
     }
-  }, [state.currentProject, dispatch, updateSceneMedia, saveCurrentProject, isMediaStorageInProgress, saveProject, getProjectWithScenes]);
+  }, [state.currentProject, dispatch, updateSceneMedia, saveCurrentProjectWrapper, isMediaStorageInProgress, saveProject, getProjectWithScenes, loadProjectFromHook]);
 
   // Remove a scene - simplified for reliability
   const removeScene = useCallback((sceneId: string) => {
@@ -943,12 +885,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     // Save after reordering with a slight delay to avoid too many saves
     setTimeout(() => {
       try {
-        saveCurrentProject();
+        saveCurrentProjectWrapper();
       } catch (error) {
         console.error('Error during follow-up save after reordering:', error);
       }
     }, 1000);
-  }, [state.currentProject, dispatch, saveCurrentProject]);
+  }, [state.currentProject, dispatch, saveCurrentProjectWrapper]);
 
   // Update scene text
   const updateSceneText = useCallback((sceneId: string, text: string) => {
@@ -971,10 +913,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
     
     // Save the project after updating audio to ensure persistence
-    saveCurrentProject().catch(error => {
+    saveCurrentProjectWrapper().catch(error => {
       console.error('Error saving project after updating scene audio:', error);
     });
-  }, [saveCurrentProject]);
+  }, [saveCurrentProjectWrapper]);
 
   // Set project title
   const setProjectTitle = useCallback((title: string) => {
@@ -982,154 +924,113 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Delete current project
-  const deleteCurrentProject = useCallback(async () => {
-    if (!state.currentProject) {
-      console.warn('No active project to delete');
-      return;
-    }
-
+  const deleteCurrentProject = useCallback(async (): Promise<void> => {
+    if (!state.currentProject) return;
+    const projectId = state.currentProject.id;
+    
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
     try {
-      const projectId = state.currentProject.id;
-      
-      // First delete from backend API to clean up R2 storage
-      console.log(`Deleting project ${projectId} from backend API`);
+      // Delete from API first
       await deleteProjectFromAPI(projectId);
+      // Then delete from local storage via hook
+      await deleteProjectFromHook(projectId);
       
-      // Then remove from local storage
-      console.log(`Deleting project ${projectId} from local storage`);
-      await deleteProject(projectId);
+      dispatch({ type: 'DELETE_PROJECT', payload: { projectId } });
+      // Reset current project after deletion - Use correct payload
+      dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId: null } });
       
-      // Only refresh projects after successful deletion
-      await loadProjects();
+      // Navigate back to dashboard or project list
+      router.push('/'); 
     } catch (error) {
-      console.error('Failed to delete project:', error);
-      dispatch({
-        type: 'SET_ERROR',
-        payload: {
-          error: `Failed to delete project: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`,
-        },
-      });
-    }
-  }, [state.currentProject, loadProjects]);
-
-  // Load a project by ID
-  const loadProject = useCallback(async (projectId: string) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-
-      // Check if project exists
-      const exists = await projectExists(projectId);
-      if (!exists) {
-        throw new Error(`Project with ID ${projectId} not found`);
-      }
-
-      // Load the project
-      const project = await getProject(projectId);
-      if (!project) {
-        throw new Error(`Failed to load project with ID ${projectId}`);
-      }
-
-      console.log(`Loading project: ${projectId}`);
-
-      // Update state with loaded project
-      dispatch({
-        type: 'LOAD_PROJECT_SUCCESS',
-        payload: { project },
-      });
-
-      // Ensure project is set as current
-      dispatch({
-        type: 'SET_CURRENT_PROJECT',
-        payload: { projectId },
-      });
-
-      return project;
-    } catch (error) {
-      console.error('Failed to load project:', error);
-      dispatch({
-        type: 'SET_ERROR',
-        payload: {
-          error: `Failed to load project: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`,
-        },
-      });
-      throw error;
+      console.error(`Error deleting project ${projectId}:`, error);
+      dispatch({ type: 'SET_ERROR', payload: { error: `Failed to delete project ${projectId}` } });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  }, [dispatch]);
+  }, [state.currentProject, deleteProjectFromHook, router]);
+
+  // Load a project by ID
+  const loadProjectWrapper = useCallback(async (projectId: string): Promise<Project | undefined> => {
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
+    try {
+      const project = await loadProjectFromHook(projectId);
+      if (project) {
+        // Dispatch with projectId instead of project object
+        dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId: project.id } });
+        return project;
+      } else {
+        dispatch({ type: 'SET_ERROR', payload: { error: `Project ${projectId} not found or failed to load` } });
+        return undefined;
+      }
+    } catch (error) {
+      console.error(`Error loading project ${projectId}:`, error);
+      dispatch({ type: 'SET_ERROR', payload: { error: `Failed to load project ${projectId}` } });
+      return undefined;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+    }
+  }, [loadProjectFromHook]);
 
   // Duplicate an existing project
   const duplicateProject = useCallback(async (projectId: string): Promise<string | null> => {
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
     try {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-      
-      // Load the source project to duplicate
-      const sourceProject = await getProject(projectId);
-      
-      if (!sourceProject) {
-        dispatch({
-          type: 'SET_ERROR',
-          payload: { error: `Project with ID ${projectId} not found` },
-        });
-        return null;
+      const originalProject = await loadProjectFromHook(projectId);
+      if (!originalProject) {
+        throw new Error('Original project not found');
       }
       
-      // Create a new project object with a new ID and updated timestamps
+      const newId = generateId();
+      const newTitle = `${originalProject.title} (Copy)`;
+      
+      // Check if a project with the new title already exists
+      let finalTitle = newTitle;
+      let counter = 1;
+      while (persistedProjects.some(p => p.title === finalTitle)) {
+        finalTitle = `${newTitle} ${counter}`;
+        counter++;
+      }
+
       const newProject: Project = {
-        ...sourceProject,
-        id: generateId(),
-        title: `${sourceProject.title} (Copy)`,
+        ...originalProject,
+        id: newId,
+        title: finalTitle,
         createdAt: Date.now(),
-        updatedAt: Date.now(),
+        lastModified: Date.now(),
+        scenes: originalProject.scenes.map(scene => ({ ...scene, id: generateId() }))
       };
       
-      // Save the new project
       await saveProject(newProject);
-      
-      dispatch({ 
-        type: 'DUPLICATE_PROJECT_SUCCESS', 
-        payload: { projectId: newProject.id } 
-      });
-      
-      // Refresh the projects list
-      await refreshProjects();
-      
-      return newProject.id;
+      dispatch({ type: 'ADD_PROJECT', payload: { project: newProject } });
+      console.log(`Project ${projectId} duplicated successfully to ${newId}`);
+      return newId;
     } catch (error) {
-      dispatch({
-        type: 'SET_ERROR',
-        payload: { error: `Failed to duplicate project: ${error}` },
-      });
+      console.error('Error duplicating project:', error);
+      dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to duplicate project' } });
       return null;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  }, [dispatch, refreshProjects]);
+  }, [persistedProjects, loadProjectFromHook, saveProject]);
 
   // Delete all projects
-  const deleteAllProjects = useCallback(async (): Promise<void> => {
+  const deleteAllProjectsWrapper = useCallback(async (): Promise<void> => {
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
     try {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-      
-      // Clear all projects from localStorage
-      await clearAllProjects();
-      
-      // Update state
+      // Clear from local storage via hook
+      await deleteAllProjectsFromHook();
+      // Clear state
       dispatch({ type: 'CLEAR_ALL_PROJECTS' });
-      
+      // Clear current project - Use correct payload
+      dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId: null } });
+      router.push('/');
     } catch (error) {
-      dispatch({
-        type: 'SET_ERROR',
-        payload: { error: `Failed to delete all projects: ${error}` },
-      });
+      console.error('Error deleting all projects:', error);
+      dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to delete all projects' } });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
-  }, [dispatch]);
+  }, [deleteAllProjectsFromHook, router]);
 
   // Set the UI mode
   const setMode = useCallback((mode: 'organization' | 'voice-enabled' | 'preview') => {
@@ -1194,8 +1095,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       await saveProject(updatedProject);
       
-      // Verify the update by getting a fresh copy of the project
-      const savedProject = await getProject(state.currentProject.id);
+      // Verify the update by getting a fresh copy of the project using the hook
+      const savedProject = await loadProjectFromHook(state.currentProject.id);
       
       if (!savedProject) {
         throw new Error('Failed to retrieve saved project');
@@ -1233,7 +1134,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       });
       throw error;
     }
-  }, [state.currentProject, dispatch, saveProject]);
+  }, [state.currentProject, dispatch, saveProject, loadProjectFromHook]);
 
   // Toggle letterboxing display
   const toggleLetterboxing = useCallback((show: boolean) => {
@@ -1248,10 +1149,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'FORCE_UPDATE' });
     
     // Save the project after toggling letterboxing
-    saveCurrentProject().catch(error => {
+    saveCurrentProjectWrapper().catch(error => {
       console.error('Error saving project after toggling letterboxing:', error);
     });
-  }, [saveCurrentProject]);
+  }, [saveCurrentProjectWrapper]);
 
   // Memoize the context value to prevent unnecessary re-renders
   // Split context values into separate memoized objects
@@ -1275,7 +1176,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const actions = useMemo(() => ({
     createProject,
-    setCurrentProject,
+    setCurrentProject: setCurrentProject as (projectId: string | null) => void,
     addScene,
     removeScene,
     reorderScenes,
@@ -1283,11 +1184,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateSceneAudio,
     updateSceneMedia,
     setProjectTitle,
-    saveCurrentProject,
+    saveCurrentProject: saveCurrentProjectWrapper,
     deleteCurrentProject,
-    loadProject,
+    loadProject: loadProjectWrapper,
     duplicateProject,
-    deleteAllProjects,
+    deleteAllProjects: deleteAllProjectsWrapper,
     refreshProjects,
     setMode,
     nextMode,
@@ -1305,11 +1206,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateSceneAudio,
     updateSceneMedia,
     setProjectTitle,
-    saveCurrentProject,
+    saveCurrentProjectWrapper,
     deleteCurrentProject,
-    loadProject,
+    loadProjectWrapper,
     duplicateProject,
-    deleteAllProjects,
+    deleteAllProjectsWrapper,
     refreshProjects,
     setMode,
     nextMode,

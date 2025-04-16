@@ -124,10 +124,12 @@ export interface Project {
   createdAt: number;
   /** Timestamp of the last update to the project */
   updatedAt: number;
+  /** Timestamp of the last modification */
+  lastModified: number;
   /** Current status of the project */
-  status: 'draft' | 'processing' | 'completed' | 'error';
+  status: 'draft' | 'processing' | 'ready' | 'error';
   /** Project aspect ratio setting */
-  aspectRatio: '9:16' | '16:9' | '1:1' | '4:5';
+  aspectRatio: string;
   /** Whether to show letterboxing/pillarboxing in previews */
   showLetterboxing: boolean;
 }
@@ -192,8 +194,8 @@ export const initialState: ProjectState = {
 export type ProjectAction =
   /** Create a new project with the given title */
   | { type: 'CREATE_PROJECT'; payload: { title: string } }
-  /** Set the current active project by ID */
-  | { type: 'SET_CURRENT_PROJECT'; payload: { projectId: string } }
+  /** Set the current active project */
+  | { type: 'SET_CURRENT_PROJECT'; payload: { projectId: string | null } }
   /** Add a new scene from a URL */
   | { type: 'ADD_SCENE'; payload: { url: string } }
   /** Mark a scene as loading while content is being fetched */
@@ -235,13 +237,17 @@ export type ProjectAction =
   /** Set the UI mode */
   | { type: 'SET_MODE'; payload: { mode: 'organization' | 'voice-enabled' | 'preview' } }
   /** Set the project aspect ratio */
-  | { type: 'SET_PROJECT_ASPECT_RATIO'; payload: { aspectRatio: '9:16' | '16:9' | '1:1' | '4:5' } }
+  | { type: 'SET_PROJECT_ASPECT_RATIO'; payload: { aspectRatio: string; showLetterboxing?: boolean } }
   /** Toggle letterboxing/pillarboxing display */
   | { type: 'TOGGLE_LETTERBOXING'; payload: { showLetterboxing: boolean } }
   /** Force a re-render of components */
   | { type: 'FORCE_UPDATE' }
   /** Mark a scene as storing media */
-  | { type: 'SET_SCENE_STORING_MEDIA'; payload: { sceneId: string; isStoringMedia: boolean } };
+  | { type: 'SET_SCENE_STORING_MEDIA'; payload: { sceneId: string; isStoringMedia: boolean } }
+  /** Delete a project */
+  | { type: 'DELETE_PROJECT'; payload: { projectId: string } }
+  /** Add a project */
+  | { type: 'ADD_PROJECT'; payload: { project: Project } };
 
 /**
  * Utility function to generate a unique identifier.
