@@ -81,7 +81,7 @@ const ProjectContext = createContext<(Omit<ProjectState, 'mode'> & {
   /** Manually triggers a save of the current project */
   saveCurrentProject: () => Promise<void>;
   /** Loads a project by ID */
-  loadProject: (projectId: string) => Promise<Project | undefined>;
+  loadProject: (projectId: string) => Promise<Project | null>;
   /** Deletes all projects */
   deleteAllProjects: () => Promise<void>;
   /** Refreshes the projects list */
@@ -167,6 +167,31 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setProjectAspectRatio: setProjectAspectRatioFromHook, // Rename
   } = useProjectCore(dispatch, state, persistedProjects);
 
+  // State monitoring function to detect inconsistencies
+  const logStateConsistency = useCallback(() => {
+    if (coreCurrentProject?.id && state.currentProject?.id) {
+      if (coreCurrentProject?.id !== state.currentProject?.id) {
+        console.warn('[STATE-MONITOR] Project ID mismatch:', {
+          reducerProjectId: state.currentProject?.id,
+          hookProjectId: coreCurrentProject?.id
+        });
+      }
+      
+      if (coreCurrentProject?.scenes?.length !== state.currentProject?.scenes?.length) {
+        console.warn('[STATE-MONITOR] Scene count mismatch:', {
+          reducerSceneCount: state.currentProject?.scenes?.length,
+          hookSceneCount: coreCurrentProject?.scenes?.length,
+          projectId: state.currentProject?.id
+        });
+      }
+    }
+  }, [coreCurrentProject, state.currentProject]);
+
+  // Effect to monitor state consistency
+  useEffect(() => {
+    logStateConsistency();
+  }, [logStateConsistency, coreCurrentProject, state.currentProject]);
+
   // Sync hook state with provider state
   useEffect(() => {
     dispatch({ type: 'SET_LOADING', payload: { isLoading: isLoadingProjects } });
@@ -216,31 +241,71 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Define a wrapper function to call the hook's saveProject
   const saveCurrentProjectWrapper = useCallback(async () => {
-    if (state.currentProject) {
-      await saveProject(state.currentProject);
+    // LOGGING REMAINS THE SAME FOR DIAGNOSTICS
+    console.log('[STATE-MONITOR] saveCurrentProjectWrapper called. Intending to save based on HOOK state:',
+      'Hook project ID:', coreCurrentProject?.id,
+      'Hook scene count:', coreCurrentProject?.scenes?.length,
+      '(Reducer scene count for comparison:', state.currentProject?.scenes?.length, ')'
+    );
+
+    // *** THE FIX: Use coreCurrentProject ***
+    if (coreCurrentProject) {
+      // Create a deep copy to ensure we don't mutate the hook's state directly
+      const projectToSave = JSON.parse(JSON.stringify(coreCurrentProject));
+      await saveProject(projectToSave); // Pass the copy to the hook's save function
     } else {
-      console.warn('Attempted to save but no current project is set.');
+      console.warn('[STATE-MONITOR] Attempted to save via wrapper, but coreCurrentProject is not set.');
     }
-  }, [state.currentProject, saveProject]);
+  // Keep dependencies - crucial for useCallback correctness
+  }, [coreCurrentProject, saveProject, state.currentProject]); // Still need state.currentProject for logging comparison
 
   // Set up auto-save whenever currentProject changes
   useEffect(() => {
     let isMounted = true;
-    
-    // If we have a current project, set up auto-save
-    if (state.currentProject) {
-      // Clear any existing timer
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-      
-      // Set a new timer
+
+    // Monitor when auto-save effect triggers
+    console.log('[STATE-MONITOR] Auto-save effect triggered:',
+      'Current project in reducer:', state.currentProject?.id,
+      'Current project in hook:', coreCurrentProject?.id,
+      'Scenes in reducer:', state.currentProject?.scenes?.length,
+      'Scenes in hook:', coreCurrentProject?.scenes?.length
+    );
+
+    // Clear any existing timer first
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null; // Clear ref
+    }
+
+    // *** NEW CHECK: Only set timer if states are consistent ***
+    // Check for existence and matching IDs/scene counts
+    const statesConsistent =
+      coreCurrentProject?.id && state.currentProject?.id && // Both must exist
+      coreCurrentProject.id === state.currentProject.id &&
+      coreCurrentProject.scenes?.length === state.currentProject.scenes?.length;
+
+    // If we have a current project AND states appear consistent, set up auto-save
+    if (state.currentProject && statesConsistent) {
+       console.log('[STATE-MONITOR] States consistent, setting auto-save timer.');
       autoSaveTimerRef.current = setTimeout(() => {
         if (isMounted) {
-          // saveCurrentProject(); // Old way
-          saveCurrentProjectWrapper(); // Call the wrapper that uses the hook
+          console.log('[STATE-MONITOR] Auto-save timer fired (states were consistent when set):',
+            'Current project in reducer:', state.currentProject?.id,
+            'Current project in hook:', coreCurrentProject?.id,
+            'Scenes in reducer:', state.currentProject?.scenes?.length,
+            'Scenes in hook:', coreCurrentProject?.scenes?.length
+          );
+          saveCurrentProjectWrapper(); // Wrapper already uses coreCurrentProject
         }
-      }, 3000); // Auto-save after 3 seconds of inactivity
+      }, 3000); // Auto-save after 3 seconds
+    } else if (state.currentProject) {
+       // Log if we skip setting the timer due to inconsistency
+       console.log('[STATE-MONITOR] States inconsistent, skipping auto-save timer setting.', {
+           reducerId: state.currentProject?.id,
+           hookId: coreCurrentProject?.id,
+           reducerScenes: state.currentProject?.scenes?.length,
+           hookScenes: coreCurrentProject?.scenes?.length
+       });
     }
 
     // Cleanup function
@@ -250,7 +315,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [state.currentProject, saveCurrentProjectWrapper]); // Depend on the wrapper
+  // Keep dependencies - need both to check consistency and the wrapper
+  }, [state.currentProject, coreCurrentProject, saveCurrentProjectWrapper]);
 
   // Add Effect to listen for pathname changes and save immediately
   useEffect(() => {
@@ -465,6 +531,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Add a scene - enhanced with better error handling and immediate saving
   const addScene = useCallback(async (url: string) => {
+    // Monitor state sources
+    console.log('[STATE-MONITOR] addScene called with current state:',
+      'Reducer state project:', state.currentProject?.id,
+      'Core hook project:', coreCurrentProject?.id,
+      'Reducer scenes:', state.currentProject?.scenes?.length,
+      'Core hook scenes:', coreCurrentProject?.scenes?.length
+    );
+    
     // First check if a current project exists
     if (!state.currentProject) {
       console.error('No active project to add scene to');
@@ -802,10 +876,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       delete mediaStorageOperationsRef.current[sceneId];
       setStorageInProgress(!isMediaStorageInProgress());
     }
-  }, [state.currentProject, dispatch, updateSceneMedia, saveCurrentProjectWrapper, isMediaStorageInProgress, saveProject, getProjectWithScenes, loadProjectFromHook]);
+  }, [state.currentProject, dispatch, updateSceneMedia, saveCurrentProjectWrapper, isMediaStorageInProgress, saveProject, getProjectWithScenes, loadProjectFromHook, coreCurrentProject]);
 
   // Remove a scene - simplified for reliability
   const removeScene = useCallback((sceneId: string) => {
+    // Monitor state sources
+    console.log('[STATE-MONITOR] removeScene called for scene:', sceneId,
+      'Reducer state project:', state.currentProject?.id,
+      'Core hook project:', coreCurrentProject?.id,
+      'Reducer scenes:', state.currentProject?.scenes?.length,
+      'Core hook scenes:', coreCurrentProject?.scenes?.length
+    );
+    
     // Get the current project from state
     const project = state.currentProject;
     
@@ -880,10 +962,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         payload: { error: `Error removing scene: ${error instanceof Error ? error.message : 'Unknown error'}` },
       });
     }
-  }, [state.currentProject, dispatch]);
+  }, [state.currentProject, dispatch, saveProject, coreCurrentProject]);
 
   // Reorder scenes in the current project
   const reorderScenes = useCallback((sceneIds: string[]) => {
+    // Monitor state sources
+    console.log('[STATE-MONITOR] reorderScenes called with:',
+      'Reducer state project:', state.currentProject?.id,
+      'Core hook project:', coreCurrentProject?.id,
+      'Reducer scenes:', state.currentProject?.scenes?.length,
+      'Core hook scenes:', coreCurrentProject?.scenes?.length,
+      'Scene IDs to reorder:', sceneIds.length
+    );
+    
     if (!state.currentProject) return;
 
     dispatch({
@@ -899,7 +990,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         console.error('Error during follow-up save after reordering:', error);
       }
     }, 1000);
-  }, [state.currentProject, dispatch, saveCurrentProjectWrapper]);
+  }, [state.currentProject, dispatch, saveCurrentProjectWrapper, coreCurrentProject]);
 
   // Update scene text
   const updateSceneText = useCallback((sceneId: string, text: string) => {
@@ -926,28 +1017,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.error('Error saving project after updating scene audio:', error);
     });
   }, [saveCurrentProjectWrapper]);
-
-  // Load a project by ID
-  const loadProjectWrapper = useCallback(async (projectId: string): Promise<Project | undefined> => {
-    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
-    try {
-      const project = await loadProjectFromHook(projectId);
-      if (project) {
-        dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId: project.id } });
-        dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project } });
-        return project;
-      } else {
-        dispatch({ type: 'SET_ERROR', payload: { error: `Project ${projectId} not found or failed to load` } });
-        return undefined;
-      }
-    } catch (error) {
-      console.error(`Error loading project ${projectId}:`, error);
-      dispatch({ type: 'SET_ERROR', payload: { error: `Failed to load project ${projectId}` } });
-      return undefined;
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
-    }
-  }, [loadProjectFromHook, dispatch]);
 
   // Delete all projects
   const deleteAllProjects = useCallback(async (): Promise<void> => {
@@ -1015,7 +1084,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateSceneMedia,
     setProjectTitle: setProjectTitleFromHook,
     saveCurrentProject: saveCurrentProjectWrapper,
-    loadProject: loadProjectWrapper,
+    loadProject: loadProjectFromCoreHook,
     deleteAllProjects,
     refreshProjects,
     uiMode,
@@ -1037,7 +1106,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateSceneMedia,
     setProjectTitleFromHook,
     saveCurrentProjectWrapper,
-    loadProjectWrapper,
+    loadProjectFromCoreHook,
     deleteAllProjects,
     refreshProjects,
     uiMode,

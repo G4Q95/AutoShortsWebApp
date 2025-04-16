@@ -51,7 +51,7 @@ export function useProjectCore(
   // Create a new project
   const createProject = useCallback((title: string) => {
     const newProject: Project = {
-      id: generateId('proj'),
+      id: `proj_${generateId()}`,
       title: title,
       scenes: [],
       createdAt: Date.now(),
@@ -87,25 +87,25 @@ export function useProjectCore(
 
 
   // Load a project by ID using the persistence hook
-  const loadProject = useCallback(async (projectId: string): Promise<Project | undefined> => {
+  const loadProject = useCallback(async (projectId: string): Promise<Project | null> => {
     dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
     try {
       const project = await loadProjectFromHook(projectId);
       if (project) {
         setCurrentProjectInternal(project); // Update hook's internal state
         // Optional: Dispatch success to provider if it needs the full project object immediately
-        // dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project } }); 
+        // dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project } });
         return project;
       } else {
         dispatch({ type: 'SET_ERROR', payload: { error: `Project ${projectId} not found or failed to load` } });
         setCurrentProjectInternal(null);
-        return undefined;
+        return null;
       }
     } catch (error) {
       console.error(`Error loading project ${projectId}:`, error);
       dispatch({ type: 'SET_ERROR', payload: { error: `Failed to load project ${projectId}` } });
       setCurrentProjectInternal(null);
-      return undefined;
+      return null;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
