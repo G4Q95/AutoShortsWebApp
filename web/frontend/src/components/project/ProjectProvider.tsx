@@ -21,6 +21,7 @@ import { extractContent } from '../../lib/api-client';
 import { deleteProject as deleteProjectFromAPI } from '../../lib/api/projects';
 import { determineMediaType, generateVideoThumbnail } from '../../lib/media-utils';
 import { useProjectPersistence } from '@/hooks/useProjectPersistence';
+import { useProjectNavigation, UIMode } from '@/hooks/useProjectNavigation';
 
 import { 
   Project, 
@@ -57,7 +58,7 @@ export { generateId };
  * }
  * ```
  */
-const ProjectContext = createContext<(ProjectState & {
+const ProjectContext = createContext<(Omit<ProjectState, 'mode'> & {
   /** Creates a new project with the given title */
   createProject: (title: string) => void;
   /** Sets the current active project by ID */
@@ -88,8 +89,10 @@ const ProjectContext = createContext<(ProjectState & {
   deleteAllProjects: () => Promise<void>;
   /** Refreshes the projects list */
   refreshProjects: () => Promise<void>;
+  /** Current UI mode for progressive enhancement */
+  uiMode: UIMode;
   /** Sets the UI mode for progressive enhancement */
-  setMode: (mode: 'organization' | 'voice-enabled' | 'preview') => void;
+  setMode: (mode: UIMode) => void;
   /** Progress to the next UI mode */
   nextMode: () => void;
   /** Return to the previous UI mode */
@@ -104,6 +107,8 @@ const ProjectContext = createContext<(ProjectState & {
   setProjectAspectRatio: (aspectRatio: Project['aspectRatio']) => void;
   /** Toggles letterboxing/pillarboxing display */
   toggleLetterboxing: (show: boolean) => void;
+  /** Indicates if media storage is in progress */
+  isStoringMedia: boolean;
 }) | undefined>(undefined);
 
 /**
@@ -136,6 +141,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const prevPathRef = useRef(pathname);
   
+  // Use the navigation hook for UI mode and pass the dispatch function to keep state.mode in sync
+  const { uiMode, setMode, nextMode, previousMode } = useProjectNavigation(dispatch, state.mode as 'organization' | 'voice-enabled' | 'preview');
+
   // Use the persistence hook
   const {
     projects: persistedProjects,
@@ -1032,39 +1040,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [deleteAllProjectsFromHook, router]);
 
-  // Set the UI mode
-  const setMode = useCallback((mode: 'organization' | 'voice-enabled' | 'preview') => {
-    dispatch({ type: 'SET_MODE', payload: { mode } });
-  }, []);
-
-  // Progress to the next UI mode
-  const nextMode = useCallback(() => {
-    dispatch({ 
-      type: 'SET_MODE', 
-      payload: { 
-        mode: state.mode === 'organization' 
-          ? 'voice-enabled' 
-          : state.mode === 'voice-enabled' 
-            ? 'preview' 
-            : 'organization' 
-      } 
-    });
-  }, [state.mode]);
-
-  // Return to the previous UI mode
-  const previousMode = useCallback(() => {
-    dispatch({ 
-      type: 'SET_MODE', 
-      payload: { 
-        mode: state.mode === 'preview' 
-          ? 'voice-enabled' 
-          : state.mode === 'voice-enabled' 
-            ? 'organization' 
-            : 'preview' 
-      } 
-    });
-  }, [state.mode]);
-
   // Set project aspect ratio  
   const setProjectAspectRatio = useCallback(async (aspectRatio: Project['aspectRatio']) => {
     if (!state.currentProject) {
@@ -1163,7 +1138,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     error: state.error,
     lastSaved: state.lastSaved,
     isSaving: state.isSaving,
-    mode: state.mode,
   }), [
     state.projects,
     state.currentProject,
@@ -1171,7 +1145,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     state.error,
     state.lastSaved,
     state.isSaving,
-    state.mode
   ]);
 
   const actions = useMemo(() => ({
@@ -1190,12 +1163,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     duplicateProject,
     deleteAllProjects: deleteAllProjectsWrapper,
     refreshProjects,
+    uiMode,
     setMode,
     nextMode,
     previousMode,
     storeAllMedia,
     setProjectAspectRatio,
-    toggleLetterboxing
+    toggleLetterboxing,
+    isStoringMedia: storageInProgress,
   }), [
     createProject,
     setCurrentProject,
@@ -1212,12 +1187,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     duplicateProject,
     deleteAllProjectsWrapper,
     refreshProjects,
+    uiMode,
     setMode,
     nextMode,
     previousMode,
     storeAllMedia,
     setProjectAspectRatio,
-    toggleLetterboxing
+    toggleLetterboxing,
+    storageInProgress,
   ]);
 
   // Combine state and actions only when either changes
