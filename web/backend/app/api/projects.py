@@ -18,6 +18,7 @@ from app.models.project import Project, ProjectCreate, ProjectResponse
 from app.services.video_processing import video_processor, process_project_video
 from app.core.config import settings
 from app.models.api import ApiResponse
+from app.services.project import cleanup_project_storage
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -228,8 +229,6 @@ async def debug_cleanup_storage(project_id: str):
     Performs a dry run of the storage cleanup functionality.
     """
     try:
-        from app.services.project import cleanup_project_storage
-
         logger.info(f"Initiating debug cleanup dry run for project: {project_id}")
 
         cleanup_results = await cleanup_project_storage(project_id, dry_run=True)
@@ -292,3 +291,89 @@ class SceneTrimUpdateResponse(BaseModel):
     trim_end: Optional[float]
     project_id: str
     success: bool
+
+
+@router.delete(
+    "/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a project and its associated data",
+    description="Deletes a project from the database and attempts to clean up associated files from R2 storage.",
+)
+async def delete_project_endpoint(project_id: str):
+    """
+    Deletes a project by its ID.
+
+    - Fetches the project to identify associated files.
+    - Calls the cleanup service to remove files from R2 storage.
+    - Deletes the project document from the MongoDB database.
+    """
+    logger.info(f"Received request to delete project: {project_id}")
+
+    # Convert project_id to ObjectId if applicable, handle potential errors
+    try:
+        if len(project_id) == 24 and all(c in "0123456789abcdef" for c in project_id.lower()):
+            obj_id = ObjectId(project_id)
+            query = {"_id": obj_id}
+            logger.debug(f"Using ObjectId for query: {obj_id}")
+        else:
+            # Fallback to using the string ID if it's not a valid ObjectId format
+            query = {"$or": [{"_id": project_id}, {"id": project_id}]}
+            logger.debug(f"Using string ID for query: {project_id}")
+    except InvalidId:
+        logger.warning(f"Invalid format for project_id: {project_id}. Using as string ID.")
+        query = {"$or": [{"_id": project_id}, {"id": project_id}]}
+    except Exception as e:
+        logger.error(f"Error processing project_id '{project_id}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid project ID format: {project_id}"
+        )
+
+    # 1. Attempt to clean up R2 storage first (fail-safe, continue even if this fails)
+    try:
+        logger.info(f"Attempting R2 cleanup for project: {project_id}")
+        cleanup_results = await cleanup_project_storage(project_id, dry_run=False)
+        deleted_count = cleanup_results.get("deleted_count", 0)
+        failed_count = cleanup_results.get("failed_count", 0)
+        total_bytes = cleanup_results.get("total_bytes_deleted", 0)
+        logger.info(
+            f"R2 cleanup for project {project_id} finished: "
+            f"Deleted {deleted_count} files, Failed {failed_count} files, Freed {total_bytes} bytes."
+        )
+        if failed_count > 0:
+             logger.warning(f"Encountered {failed_count} failures during R2 cleanup for project {project_id}.")
+        # We don't raise an error here, deletion from DB is more critical
+
+    except Exception as cleanup_error:
+        logger.error(f"Error during R2 cleanup for project {project_id}: {cleanup_error}", exc_info=True)
+        # Log the error but proceed to database deletion attempt
+
+    # 2. Delete the project from the database
+    try:
+        logger.info(f"[DELETE {project_id}] Attempting MongoDB deletion.") # Log start
+        logger.debug(f"[DELETE {project_id}] Using query: {query}") # Log the exact query
+        
+        delete_result = await db.client[db.db_name].projects.delete_one(query)
+        
+        # Log the raw result from MongoDB
+        logger.debug(f"[DELETE {project_id}] MongoDB delete_one result: acknowledged={delete_result.acknowledged}, deleted_count={delete_result.deleted_count}")
+
+        if delete_result.deleted_count == 0:
+            logger.warning(f"[DELETE {project_id}] Project not found in database for deletion (query: {query}). Raising 404.")
+            # Return 404 even if R2 cleanup happened, as the primary resource wasn\'t found
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project {project_id} not found")
+
+        logger.info(f"[DELETE {project_id}] Successfully deleted project from database (deleted count: {delete_result.deleted_count}). Returning 204.")
+
+        # Return HTTP 204 No Content on successful deletion
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    except HTTPException as http_exc:
+         # Re-raise HTTP exceptions (like the 404 above)
+         raise http_exc
+    except Exception as db_error:
+        logger.error(f"Database error deleting project {project_id}: {db_error}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete project {project_id} from database.",
+        )

@@ -137,13 +137,40 @@ export function useProjectPersistence(): UseProjectPersistenceReturn {
   const deleteProject = useCallback(async (projectId: string): Promise<void> => {
     setPersistenceError(null);
     try {
+      // 1. Call the backend DELETE endpoint
+      const response = await fetch(`/api/v1/projects/${projectId}`, {
+        method: 'DELETE',
+      });
+
+      // Check if the backend deletion was successful
+      if (!response.ok) {
+        // Handle potential errors (e.g., 404 Not Found, 500 Server Error)
+        let errorDetail = `Failed to delete project ${projectId} from backend`;
+        try {
+            const errorData = await response.json();
+            errorDetail = errorData.detail || errorDetail;
+        } catch (jsonError) {
+             // Ignore if response is not JSON
+             errorDetail = `${errorDetail}. Status: ${response.status}`;
+        }
+        console.error(errorDetail);
+        throw new Error(errorDetail);
+      }
+      
+      // 2. If backend deletion was successful (status 204), delete from local storage
+      console.log(`Backend deletion successful for ${projectId}, removing from local storage.`);
       await deleteProjectFromStorage(projectId);
-      // Update the local state
+
+      // 3. Update the local state
       setProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
-      console.log(`Project ${projectId} deleted successfully via hook.`);
+      console.log(`Project ${projectId} fully deleted via hook.`);
+
     } catch (error) {
-      console.error(`Failed to delete project ${projectId}:`, error);
-      setPersistenceError(`Failed to delete project ${projectId} from storage.`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to delete project ${projectId}: ${errorMessage}`);
+      setPersistenceError(`Failed to delete project ${projectId}: ${errorMessage}`);
+      // Re-throw the error so the caller knows it failed
+      throw error;
     }
   }, []);
 
