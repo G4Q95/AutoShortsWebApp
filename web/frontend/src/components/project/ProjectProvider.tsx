@@ -61,7 +61,7 @@ export { generateId };
  */
 const ProjectContext = createContext<(Omit<ProjectState, 'mode'> & {
   /** Creates a new project with the given title */
-  createProject: (title: string) => void;
+  createProject: (title: string) => Promise<Project | null>;
   /** Sets the current active project by ID */
   setCurrentProject: (projectId: string | null) => void;
   /** Adds a new scene from a Reddit URL */
@@ -165,6 +165,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     loadProject: loadProjectFromCoreHook, // Rename
     setProjectTitle: setProjectTitleFromHook, // Rename
     setProjectAspectRatio: setProjectAspectRatioFromHook, // Get the hook function
+    updateCoreProjectState, // Added from useProjectCore
   } = useProjectCore(dispatch, state, persistedProjects);
 
   // State monitoring function to detect inconsistencies
@@ -427,8 +428,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [state.currentProject]);
 
   // Create a new project
-  const createProject = useCallback((title: string) => {
-    createProjectFromHook(title);
+  const createProject = useCallback(async (title: string): Promise<Project | null> => {
+    return createProjectFromHook(title);
   }, [createProjectFromHook]);
 
   // Set the current active project by ID
@@ -442,10 +443,75 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loadProjectFromCoreHook]);
 
   // Update scene media data
-  const updateSceneMedia = useCallback((sceneId: string, mediaData: Partial<Scene['media']>) => {
-    dispatch({ type: 'UPDATE_SCENE_MEDIA', payload: { sceneId, mediaData } });
-    saveCurrentProjectWrapper();
-  }, [saveCurrentProjectWrapper]);
+  const updateSceneMedia = useCallback(async (sceneId: string, mediaData: Partial<Scene['media']>) => {
+    // Log state at the time of media update for debugging
+    console.log(`[updateSceneMedia] Current state: reducer scenes=${state.currentProject?.scenes?.length || 0}, hook scenes=${coreCurrentProject?.scenes?.length || 0}`);
+    
+    // For this function, use a combination of sources to ensure we don't lose data
+    if (!coreCurrentProject && !state.currentProject) {
+      console.error("No active project (from either source) to update scene media");
+      dispatch({ type: 'SET_ERROR', payload: { error: 'No active project' } });
+      return;
+    }
+    
+    // Select the state source with the most scenes to avoid data loss
+    const sourceProject = (coreCurrentProject?.scenes?.length || 0) >= (state.currentProject?.scenes?.length || 0)
+      ? coreCurrentProject 
+      : state.currentProject;
+    
+    if (!sourceProject) {
+      console.error("No valid source project to update scene media");
+      dispatch({ type: 'SET_ERROR', payload: { error: 'No valid project data' } });
+      return;
+    }
+    
+    if (sourceProject.scenes?.length === 0) {
+      console.warn(`Project ${sourceProject.id} has 0 scenes but trying to update scene ${sceneId}`);
+    }
+    
+    console.log(`[updateSceneMedia] Using source with ${sourceProject.scenes?.length} scenes for update`);
+    
+    // Find the target scene
+    const targetScene = sourceProject.scenes.find(scene => scene.id === sceneId);
+    if (!targetScene) {
+      console.error(`Scene ${sceneId} not found in project ${sourceProject.id}`);
+      dispatch({ type: 'SET_ERROR', payload: { error: `Scene ${sceneId} not found` } });
+      return;
+    }
+    
+    // Create updated scene and project
+    const updatedScenes = sourceProject.scenes.map((scene) => {
+      if (scene.id === sceneId) {
+        const updatedMedia = { ...(scene.media || {}), ...mediaData };
+        return { 
+          ...scene, 
+          media: updatedMedia as Scene['media'], 
+          updatedAt: Date.now() 
+        };
+      }
+      return scene;
+    });
+    
+    const updatedProject: Project = { 
+      ...sourceProject, 
+      scenes: updatedScenes, 
+      updatedAt: Date.now() 
+    };
+
+    try {
+      // Log what we're about to save
+      console.log(`[updateSceneMedia] Saving project ${updatedProject.id} with ${updatedProject.scenes.length} scenes`);
+      
+      await saveProject(updatedProject);
+      updateCoreProjectState(updatedProject); // Update state after save
+      
+      // Also dispatch to reducer to ensure both states are in sync
+      dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: updatedProject } });
+    } catch (error) {
+      console.error("Failed to save scene media:", error);
+      dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save media change' } });
+    }
+  }, [coreCurrentProject, state.currentProject, dispatch, saveProject, updateCoreProjectState]);
 
   // Store all unstored media for the current project in R2
   const storeAllMedia = useCallback(async (): Promise<{
@@ -526,171 +592,57 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
   }, [state.currentProject, loadProjectFromHook]); // Depend on hook function
 
-  // Add a scene - enhanced with better error handling and immediate saving
+  // Add a scene - Refactored to use useProjectCore state
   const addScene = useCallback(async (url: string) => {
-    // Monitor state sources
+    // Monitor state sources (keep for debugging)
     console.log('[STATE-MONITOR] addScene called with current state:',
-      'Reducer state project:', state.currentProject?.id,
+      'Reducer state project:', state.currentProject?.id, 
       'Core hook project:', coreCurrentProject?.id,
-      'Reducer scenes:', state.currentProject?.scenes?.length,
+      'Reducer scenes:', state.currentProject?.scenes?.length, 
       'Core hook scenes:', coreCurrentProject?.scenes?.length
     );
     
-    // First check if a current project exists
-    if (!state.currentProject) {
-      console.error('No active project to add scene to');
-      dispatch({
-        type: 'SET_ERROR',
-        payload: { error: 'No active project to add scene to' },
-      });
+    // Use coreCurrentProject as the source of truth
+    if (!coreCurrentProject) {
+      console.error('No active project (from core hook) to add scene to');
+      dispatch({ type: 'SET_ERROR', payload: { error: 'No active project to add scene to' } });
       return;
     }
 
-    // Create a local reference to the current project to ensure consistency
-    const currentProject = { ...state.currentProject };
-    const projectId = currentProject.id;
-    
-    console.log(`Adding scene to project: ${projectId}, current scene count: ${currentProject.scenes.length}`);
-
+    // Use a copy of the hook's current project
+    const projectForUpdate = { ...coreCurrentProject }; 
+    const projectId = projectForUpdate.id;
     const sceneId = generateId();
     
-    // Generate the new scene object
-    const newScene: Scene = {
-      id: sceneId,
-      url: url,
-      text: '',
-      source: {
-        platform: 'reddit', // Default to reddit for now
-      },
-      createdAt: Date.now(),
-      isLoading: true,
-    };
-    
-    // Make a defensive copy of the existing scenes array
-    const currentScenes = [...currentProject.scenes];
-    
-    // Update the UI state first to show the loading scene
-    dispatch({
-      type: 'ADD_SCENE_LOADING',
-      payload: { sceneId, url },
-    });
-
-    // IMPORTANT: Perform immediate synchronous save right after dispatching
-    try {
-      // Get a fresh copy of the project that includes the new scene
-      const freshProject = await getProjectWithScenes(projectId);
-      
-      if (!freshProject) {
-        throw new Error(`Failed to get project ${projectId} for saving`);
-      }
-      
-      console.log(`IMMEDIATE SAVE: Starting with project ${freshProject.id}, scenes count: ${freshProject.scenes.length}`);
-      
-      // Get all existing scene IDs to prevent duplication
-      const existingSceneIds = new Set(freshProject.scenes.map(s => s.id));
-      
-      // Only add the new scene if it doesn't already exist
-      if (!existingSceneIds.has(sceneId)) {
-        // Create updated project with all scenes plus the new one
-        const projectToSave = {
-          ...freshProject,
-          scenes: [...freshProject.scenes, newScene],
-          updatedAt: Date.now(),
-        };
-        
-        // Save to localStorage 
-        const key = `auto-shorts-project-${projectToSave.id}`;
-        localStorage.setItem(key, JSON.stringify(projectToSave));
-        
-        console.log(`IMMEDIATE SAVE: Saved ${projectToSave.scenes.length} scenes to project ${projectToSave.id}`);
-        
-        // Update the projects list metadata
-        const projectsListKey = 'auto-shorts-projects-list';
-        const projectsListJson = localStorage.getItem(projectsListKey) || '[]';
-        const projectsList = JSON.parse(projectsListJson);
-        
-        // Create or update metadata
-        const metadata = {
-          id: projectToSave.id,
-          title: projectToSave.title,
-          createdAt: projectToSave.createdAt,
-          updatedAt: projectToSave.updatedAt,
-          thumbnailUrl: projectToSave.scenes.find((s: Scene) => s.media?.thumbnailUrl)?.media?.thumbnailUrl,
-          scenesCount: projectToSave.scenes.length,
-        };
-        
-        // Update or add to the list
-        const existingIndex = projectsList.findIndex((p: { id: string }) => p.id === projectToSave.id);
-        if (existingIndex >= 0) {
-          projectsList[existingIndex] = metadata;
-        } else {
-          projectsList.push(metadata);
-        }
-        
-        // Save updated list
-        localStorage.setItem(projectsListKey, JSON.stringify(projectsList));
-        
-        // Update local reference for later use in this function
-        currentProject.scenes = [...projectToSave.scenes];
-      } else {
-        console.log(`Scene ${sceneId} already exists in project, not adding duplicate`);
-      }
-    } catch (syncError) {
-      console.error('Error during immediate scene save:', syncError);
-    }
+    // Dispatch loading state to reducer for optimistic UI update ONLY
+    dispatch({ type: 'ADD_SCENE_LOADING', payload: { sceneId, url } });
 
     try {
-      // Extract content from URL
+      // 1. Extract content
       const response = await extractContent(url);
-
       if (response.error) {
-        dispatch({
-          type: 'ADD_SCENE_ERROR',
-          payload: {
-            sceneId,
-            error: response.error.message || 'Failed to extract content',
-          },
-        });
-        return;
+        throw new Error(response.error.message || 'Failed to extract content');
       }
-
       const sceneData = response.data.data;
       if (!sceneData) {
-        dispatch({
-          type: 'ADD_SCENE_ERROR',
-          payload: {
-            sceneId,
-            error: 'No content data returned from API',
-          },
-        });
-        return;
+        throw new Error('No content data returned from API');
       }
 
-      // Process the response into a scene object
+      // 2. Create the new scene object with content
       let mediaType: 'image' | 'video' | 'gallery' | null = null;
       let mediaUrl: string | null = null;
-
-      // Process media from the response - handle direct media properties
       if (sceneData.metadata?.has_media && sceneData.media_url) {
-        mediaType = sceneData.media_type || 'image'; // Default to image if not specified
+        mediaType = sceneData.media_type || 'image';
         mediaUrl = sceneData.media_url;
       }
-
-      // Original thumbnailUrl extraction - SIMPLIFIED back to the original version
-      // This is the key change that restores the working logic
-      console.log('API Response thumbnail check:');
-      console.log('- Direct thumbnail_url:', sceneData.thumbnail_url);
-      console.log('- Metadata thumbnails:', sceneData.metadata?.thumbnail_url);
-
-      // Create the new scene object with content data
-      const updatedScene: Scene = {
+      const newScene: Scene = {
         id: sceneId,
         url,
         text: sceneData.text || '',
         media: mediaUrl && mediaType ? { 
           type: mediaType as 'image' | 'video' | 'gallery', 
           url: mediaUrl,
-          thumbnailUrl: sceneData.thumbnail_url, // Simple direct assignment like the original
+          thumbnailUrl: sceneData.thumbnail_url, // Assuming this is correct from prior debug
           width: sceneData.width || sceneData.metadata?.width,
           height: sceneData.height || sceneData.metadata?.height,
           duration: sceneData.duration || sceneData.metadata?.duration
@@ -701,182 +653,74 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           subreddit: sceneData.subreddit,
         },
         createdAt: Date.now(),
+        isLoading: false, // Set isLoading to false now content is fetched
       };
 
-      // Log the final scene media data for debugging
-      console.log(`Final scene with thumbnail:`, updatedScene.media?.thumbnailUrl);
+      // 3. Create the updated project state based on the *hook's* current state
+      // Ensure scene doesn't already exist (e.g., rapid clicks)
+      const sceneExists = projectForUpdate.scenes.some(s => s.id === sceneId);
+      const updatedScenes = sceneExists 
+        ? projectForUpdate.scenes.map(s => s.id === sceneId ? newScene : s) // Update if exists (shouldn't happen often)
+        : [...projectForUpdate.scenes, newScene]; // Add if new
 
-      // CRITICAL STEP: Get a fresh copy of the project from localStorage to ensure we have all scenes
-      console.log(`Getting fresh project ${projectId} before updating scene ${sceneId}`);
-      const freshProject = await getProjectWithScenes(projectId);
-      
-      if (!freshProject) {
-        throw new Error(`Failed to get fresh project ${projectId}`);
-      }
-      
-      console.log(`Retrieved fresh project with ${freshProject.scenes.length} scenes`);
-
-      // Update the scene in the fresh project's scenes array
-      const updatedScenes = freshProject.scenes.map(scene => 
-        scene.id === sceneId ? updatedScene : scene
-      );
-      
-      // If scene wasn't found (somehow got lost), add it again
-      if (!updatedScenes.some(scene => scene.id === sceneId)) {
-        console.warn(`Scene ${sceneId} not found in project, re-adding it`);
-        updatedScenes.push(updatedScene);
-      }
-      
-      // Create the updated project with all scenes
       const updatedProject: Project = {
-        ...freshProject,
+        ...projectForUpdate, // Base on the hook's state copy
         scenes: updatedScenes,
         updatedAt: Date.now()
       };
 
-      // 1. First save to localStorage for persistence
-      console.log(`Saving project with updated scene to localStorage: ${updatedProject.id}, scenes: ${updatedScenes.length}`);
+      // 4. Save the updated project state (using persistence hook)
+      console.log(`Saving project with new/updated scene: ${updatedProject.id}, scenes: ${updatedScenes.length}`);
       await saveProject(updatedProject);
-      
-      // 2. Update the UI state
-      dispatch({
-        type: 'LOAD_PROJECT_SUCCESS',
-        payload: { project: updatedProject },
-      });
-      
-      // 3. Track last saved time
-      dispatch({ 
-        type: 'SET_LAST_SAVED', 
-        payload: { timestamp: Date.now() } 
-      });
-      
-      // 4. Force another immediate save to ensure scene persistence
-      try {
-        // Create a fresh copy with content
-        const finalProject = JSON.parse(JSON.stringify(updatedProject));
-        
-        // Immediate synchronous localStorage save
-        const key = `auto-shorts-project-${finalProject.id}`;
-        localStorage.setItem(key, JSON.stringify(finalProject));
-        console.log(`Second IMMEDIATE SAVE: Updated scene ${sceneId} with content in project ${finalProject.id}, scenes: ${finalProject.scenes.length}`);
-      } catch (syncError) {
-        console.error('Error during second immediate scene save:', syncError);
+
+      // 5. Update the core hook's state *after* successful save
+      updateCoreProjectState(updatedProject);
+      dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
+
+      // 6. Initiate background media storage if media exists
+      if (newScene.media?.url) {
+         // Set storing media flag (optimistic UI)
+         dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: true } });
+         try {
+           const { storeSceneMedia } = await import('../../lib/media-utils');
+           console.log(`[STORAGE-DEBUG] Calling storeSceneMedia function for scene ${newScene.id}`);
+           const success = await storeSceneMedia(
+             newScene, // Pass the newly created scene object
+             projectId,
+             updateSceneMedia // Pass the refactored updateSceneMedia
+           );
+           // Clear storing media flag
+           dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } });
+           if (success) {
+              console.log(`[STORAGE-DEBUG] Successfully stored media for scene: ${newScene.id}`);
+              // No need for extra saves, updateSceneMedia handled saving the storageKey/storedUrl
+           } else {
+              console.warn(`[STORAGE-DEBUG] Failed to store media for scene: ${newScene.id}`);
+           }
+         } catch (storageError) {
+            console.error('Error during background media storage:', storageError);
+            // Clear storing media flag on error too
+            dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } });
+         }
       }
-      
-      // 5. Initiate background media storage if media exists
-      if (updatedScene.media?.url) {
-        try {
-          // Import the storeSceneMedia utility
-          const { storeSceneMedia } = await import('../../lib/media-utils');
-          
-          console.log(`[STORAGE-DEBUG] Starting media storage for scene: ${updatedScene.id}`);
-          console.log(`[STORAGE-DEBUG] Media URL to store: ${updatedScene.media.url}`);
-          console.log(`[STORAGE-DEBUG] Current media state:`, {
-            type: updatedScene.media.type,
-            hasUrl: !!updatedScene.media.url,
-            isStorageBacked: updatedScene.media.isStorageBacked,
-            hasStorageKey: !!updatedScene.media.storageKey
-          });
-          
-          // Set the scene's storing media flag to true
-          dispatch({
-            type: 'SET_SCENE_STORING_MEDIA',
-            payload: { sceneId: updatedScene.id, isStoringMedia: true }
-          });
-          
-          // Store media in R2 storage
-          console.log(`[STORAGE-DEBUG] Calling storeSceneMedia function`);
-          const success = await storeSceneMedia(
-            updatedScene,
-            projectId,
-            updateSceneMedia
-          );
-          
-          // Set the scene's storing media flag to false since storage is complete
-          dispatch({
-            type: 'SET_SCENE_STORING_MEDIA',
-            payload: { sceneId: updatedScene.id, isStoringMedia: false }
-          });
-          
-          if (success) {
-            console.log(`[STORAGE-DEBUG] Successfully stored media for scene: ${updatedScene.id}`);
-            
-            // Get the latest scene to verify storage worked
-            const latestProject = await getProjectWithScenes(projectId);
-            if (latestProject) {
-              const latestScene = latestProject.scenes.find(s => s.id === updatedScene.id);
-              if (latestScene && latestScene.media) {
-                console.log(`[STORAGE-DEBUG] Verification - Latest scene media state:`, {
-                  url: latestScene.media.url,
-                  storedUrl: latestScene.media.storedUrl,
-                  isStorageBacked: latestScene.media.isStorageBacked,
-                  storageKey: latestScene.media.storageKey
-                });
-              }
-            }
-          } else {
-            console.warn(`[STORAGE-DEBUG] Failed to store media for scene: ${updatedScene.id}`);
-          }
-          
-          // Final save to ensure scene is fully stored with current state
-          const currentState = state.currentProject;
-          if (currentState) {
-            console.log(`Final save for scene: ${updatedScene.id} from current state with ${currentState.scenes.length} scenes`);
-            
-            // Verify we're not losing scenes
-            if (currentState.scenes.length < updatedScenes.length) {
-              console.warn(`WARNING: Current state has fewer scenes (${currentState.scenes.length}) than expected (${updatedScenes.length})`);
-              
-              // Use the previously saved updatedProject to ensure we don't lose scenes
-              await saveProject(updatedProject);
-              
-              // Force a UI update with the correct scenes
-              dispatch({
-                type: 'LOAD_PROJECT_SUCCESS',
-                payload: { project: updatedProject },
-              });
-            } else {
-              // Save current state as normal
-              await saveProject(currentState);
-            }
-            
-            console.log(`Final save completed for scene: ${updatedScene.id}`);
-            
-            // Verify the save worked by loading the project again using the hook
-            const verifyProject = await loadProjectFromHook(projectId);
-            if (verifyProject) {
-              console.log(`Scene added, now fetching updated project ${projectId} from hook`);
-              console.log(`Verification: Project has ${verifyProject.scenes.length} scenes in storage`);
-            }
-          }
-        } catch (storageError) {
-          console.error('Error during media storage:', storageError);
-          
-          // Set the scene's storing media flag to false in case of error
-          dispatch({
-            type: 'SET_SCENE_STORING_MEDIA',
-            payload: { sceneId: updatedScene.id, isStoringMedia: false }
-          });
-        }
-      }
+
     } catch (error) {
-      console.error('Error extracting content:', error);
+      console.error('Error adding scene:', error);
+      // Dispatch error state for UI feedback
       dispatch({
         type: 'ADD_SCENE_ERROR',
         payload: {
           sceneId,
-          error: error instanceof Error ? error.message : 'Failed to extract content',
+          error: error instanceof Error ? error.message : 'Unknown error adding scene',
         },
       });
-      
-      // Ensure we reset tracking if there's an error
-      delete mediaStorageOperationsRef.current[sceneId];
-      setStorageInProgress(!isMediaStorageInProgress());
+      // Ensure loading state is cleared in reducer if fetch failed early
+      dispatch({ type: 'ADD_SCENE_ERROR', payload: { sceneId, error: 'Failed during addScene' } }); 
     }
-  }, [state.currentProject, dispatch, updateSceneMedia, saveCurrentProjectWrapper, isMediaStorageInProgress, saveProject, getProjectWithScenes, loadProjectFromHook, coreCurrentProject]);
+  }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState, updateSceneMedia]); // Dependencies updated
 
   // Remove a scene - simplified for reliability
-  const removeScene = useCallback((sceneId: string) => {
+  const removeScene = useCallback(async (sceneId: string) => {
     // Monitor state sources
     console.log('[STATE-MONITOR] removeScene called for scene:', sceneId,
       'Reducer state project:', state.currentProject?.id,
@@ -919,101 +763,115 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Then save to storage
       dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
       
-      saveProject(updatedProject)
-        .then(() => {
-          dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
-          dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
-          
-          // Ensure currentProject is updated with the change
-          dispatch({
-            type: 'LOAD_PROJECT_SUCCESS',
-            payload: { project: updatedProject },
-          });
-          
-          // Perform a secondary save to ensure persistence after all state updates
-          setTimeout(async () => {
-            try {
-              console.log(`Performing follow-up save after scene removal: ${sceneId}`);
-              // Use a fresh copy of the project to ensure all state updates are captured
-              const freshProject = {...updatedProject, updatedAt: Date.now()};
-              await saveProject(freshProject);
-              console.log(`Follow-up save completed for project: ${freshProject.id}`);
-            } catch (saveError) {
-              console.error('Failed to perform follow-up save after scene removal:', saveError);
-            }
-          }, 500);
-        })
-        .catch(error => {
-          console.error('Error saving project after scene removal:', error);
-          dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
-          dispatch({
-            type: 'SET_ERROR',
-            payload: { error: 'Scene removed, but changes could not be saved' },
-          });
-        });
+      await saveProject(updatedProject);
+      
+      // Update core hook state *after* successful save
+      updateCoreProjectState(updatedProject);
+      dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
+      dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
+
     } catch (error) {
-      console.error('Error during scene removal:', error);
+      console.error('Error saving project after scene removal:', error);
       dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
       dispatch({
         type: 'SET_ERROR',
         payload: { error: `Error removing scene: ${error instanceof Error ? error.message : 'Unknown error'}` },
       });
     }
-  }, [state.currentProject, dispatch, saveProject, coreCurrentProject]);
+  }, [state.currentProject, dispatch, saveProject, updateCoreProjectState]);
 
   // Reorder scenes in the current project
-  const reorderScenes = useCallback((sceneIds: string[]) => {
-    // Monitor state sources
-    console.log('[STATE-MONITOR] reorderScenes called with:',
-      'Reducer state project:', state.currentProject?.id,
-      'Core hook project:', coreCurrentProject?.id,
-      'Reducer scenes:', state.currentProject?.scenes?.length,
-      'Core hook scenes:', coreCurrentProject?.scenes?.length,
-      'Scene IDs to reorder:', sceneIds.length
-    );
+  const reorderScenes = useCallback(async (sceneIds: string[]) => { 
+    // Monitor state sources (keep for debugging)
+    console.log('[STATE-MONITOR] reorderScenes called ...'); // Abbreviated log
     
-    if (!state.currentProject) return;
+    // Use coreCurrentProject as the source of truth
+    if (!coreCurrentProject) { // <<< ADDED NULL CHECK
+      console.error('No active project (from core hook) to reorder scenes in');
+      dispatch({ type: 'SET_ERROR', payload: { error: 'No active project' } });
+      return;
+    }
+    
+    const scenesMap = new Map(coreCurrentProject.scenes.map(scene => [scene.id, scene]));
+    const reorderedScenes = sceneIds
+      .map(id => scenesMap.get(id))
+      .filter((scene): scene is Scene => scene !== undefined);
+    
+    // Ensure the created object conforms to Project type
+    const updatedProject: Project = { // <<< Explicit Project type assertion
+      ...coreCurrentProject,
+      scenes: reorderedScenes,
+      updatedAt: Date.now()
+    };
 
-    dispatch({
-      type: 'REORDER_SCENES',
-      payload: { sceneIds },
-    });
-
-    // Save after reordering with a slight delay to avoid too many saves
-    setTimeout(() => {
-      try {
-        saveCurrentProjectWrapper();
-      } catch (error) {
-        console.error('Error during follow-up save after reordering:', error);
-      }
-    }, 1000);
-  }, [state.currentProject, dispatch, saveCurrentProjectWrapper, coreCurrentProject]);
+    // Save after reordering
+    try {
+      await saveProject(updatedProject);
+      // Update core hook state *after* successful save
+      updateCoreProjectState(updatedProject); // Pass the correctly typed object
+    } catch (error) { 
+       console.error('Error saving project after reordering scenes:', error);
+       dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save scene order' } });
+    }
+  }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState]);
 
   // Update scene text
-  const updateSceneText = useCallback((sceneId: string, text: string) => {
-    dispatch({ type: 'UPDATE_SCENE_TEXT', payload: { sceneId, text } });
-  }, []);
+  const updateSceneText = useCallback(async (sceneId: string, text: string) => {
+    if (!coreCurrentProject) return;
+
+    const updatedScenes = coreCurrentProject.scenes.map((scene) => {
+      if (scene.id === sceneId) {
+        return { ...scene, text };
+      }
+      return scene;
+    });
+    const updatedProject: Project = { 
+      ...coreCurrentProject, 
+      scenes: updatedScenes, 
+      updatedAt: Date.now() 
+    };
+
+    try {
+      await saveProject(updatedProject);
+      updateCoreProjectState(updatedProject); // Update state after save
+    } catch (error) {
+      console.error("Failed to save scene text:", error);
+      dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save text change' } });
+    }
+  }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState]);
 
   // Update scene audio data
-  const updateSceneAudio = useCallback((
+  const updateSceneAudio = useCallback(async (
     sceneId: string, 
     audioData: Scene['audio'], 
     voiceSettings: Scene['voice_settings']
   ) => {
-    dispatch({ 
-      type: 'UPDATE_SCENE_AUDIO', 
-      payload: { 
-        sceneId, 
-        audioData, 
-        voiceSettings 
-      } 
+    if (!coreCurrentProject) return;
+
+    const updatedScenes = coreCurrentProject.scenes.map((scene) => {
+      if (scene.id === sceneId) {
+        return {
+          ...scene,
+          audio: audioData,
+          voice_settings: voiceSettings,
+        };
+      }
+      return scene;
     });
-    
-    // Save the project after updating audio to ensure persistence
-    saveCurrentProjectWrapper().catch(error => {
-      console.error('Error saving project after updating scene audio:', error);
-    });
-  }, [saveCurrentProjectWrapper]);
+    const updatedProject: Project = { 
+      ...coreCurrentProject, 
+      scenes: updatedScenes, 
+      updatedAt: Date.now() 
+    };
+
+    try {
+      await saveProject(updatedProject);
+      updateCoreProjectState(updatedProject); // Update state after save
+    } catch (error) {
+      console.error("Failed to save scene audio:", error);
+      dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save audio change' } });
+    }
+  }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState]);
 
   // Delete all projects
   const deleteAllProjects = useCallback(async (): Promise<void> => {

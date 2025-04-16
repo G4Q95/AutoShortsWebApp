@@ -24,6 +24,85 @@ export function useProjectCore(
   // Access persistence functions needed for core logic
   const { loadProject: loadProjectFromHook, saveProject } = useProjectPersistence();
 
+  // Define loadProject first before any other functions or hooks that use it
+  const loadProject = useCallback(async (projectId: string): Promise<Project | null> => {
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
+    try {
+      const project = await loadProjectFromHook(projectId);
+      if (project) {
+        // Log detailed scene info to diagnose synchronization issues
+        console.log(`[useProjectCore] loadProject: Got project ${projectId} with ${project.scenes?.length || 0} scenes`);
+        if (project.scenes?.length > 0) {
+          console.log(`[useProjectCore] Scene IDs: ${project.scenes.map(s => s.id).join(', ')}`);
+        }
+        
+        // Create a fresh deep copy to ensure we're not working with mutated references
+        const projectCopy = JSON.parse(JSON.stringify(project));
+        
+        setCurrentProjectInternal(projectCopy); // Update hook's internal state
+        
+        // Explicitly dispatch success with full project to ensure reducer state is updated
+        dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: projectCopy } });
+        return projectCopy;
+      } else {
+        console.warn(`[useProjectCore] loadProject: Project ${projectId} not found or failed to load`);
+        dispatch({ type: 'SET_ERROR', payload: { error: `Project ${projectId} not found or failed to load` } });
+        setCurrentProjectInternal(null);
+        return null;
+      }
+    } catch (error) {
+      console.error(`[useProjectCore] Error loading project ${projectId}:`, error);
+      dispatch({ type: 'SET_ERROR', payload: { error: `Failed to load project ${projectId}` } });
+      setCurrentProjectInternal(null);
+      return null;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+    }
+  }, [dispatch, loadProjectFromHook]);
+
+  // Add a function to sync from the provider state
+  const syncFromProviderState = useCallback((force = false) => {
+    if (providerState.currentProject && 
+        (force || !currentProject || 
+         providerState.currentProject.id !== currentProject.id || 
+         providerState.currentProject.scenes?.length !== currentProject.scenes?.length)) {
+      
+      console.log(`[useProjectCore] Syncing from provider state: Project ${providerState.currentProject.id} with ${providerState.currentProject.scenes?.length || 0} scenes`);
+      // Create a deep copy to avoid direct reference sharing
+      const projectCopy = JSON.parse(JSON.stringify(providerState.currentProject));
+      setCurrentProjectInternal(projectCopy);
+      
+      // Return true if we updated state
+      return true;
+    }
+    return false;
+  }, [providerState.currentProject, currentProject]);
+  
+  // Check synchronization on every render
+  useEffect(() => {
+    syncFromProviderState();
+  }, [syncFromProviderState]);
+  
+  // Sync other specific state changes that might impact scenes
+  useEffect(() => {
+    // If scenes count differs between hook state and reducer, sync from reducer
+    if (providerState.currentProject && currentProject && 
+        providerState.currentProject.id === currentProject.id &&
+        providerState.currentProject.scenes?.length !== currentProject.scenes?.length) {
+      
+      console.log('[useProjectCore] Scene count mismatch detected - syncing from provider state', {
+        hookScenes: currentProject.scenes?.length || 0,
+        reducerScenes: providerState.currentProject.scenes?.length || 0
+      });
+      
+      syncFromProviderState(true);
+    }
+  }, [
+    providerState.currentProject?.scenes?.length, 
+    currentProject?.scenes?.length,
+    syncFromProviderState
+  ]);
+
   // Sync internal state with provider state when the provider's currentProject ID changes
   useEffect(() => {
     // If the provider's current project ID is set, try to load that project
@@ -34,7 +113,7 @@ export function useProjectCore(
     else if (!providerState.currentProject && currentProject) {
       setCurrentProjectInternal(null);
     }
-  }, [providerState.currentProject?.id, currentProject?.id]); // Depend on the ID from the provider's project object
+  }, [providerState.currentProject?.id, currentProject?.id, loadProject]); // Add loadProject dependency
 
   // Sync internal state if the provider's loaded project object changes (e.g., after initial load)
   useEffect(() => {
@@ -47,9 +126,8 @@ export function useProjectCore(
     }
   }, [providerState.currentProject, currentProject]);
 
-
   // Create a new project
-  const createProject = useCallback((title: string) => {
+  const createProject = useCallback(async (title: string): Promise<Project | null> => {
     const newProject: Project = {
       id: `proj_${generateId()}`,
       title: title,
@@ -61,55 +139,51 @@ export function useProjectCore(
       aspectRatio: '9:16', // Default aspect ratio
       showLetterboxing: true, // Default letterboxing
     };
-    // Save the new project using the persistence hook
-    // @ts-ignore - Linter incorrectly flags saveProject args here
-    saveProject(newProject).then(() => {
-        // Dispatch existing CREATE_PROJECT action. Reducer will handle adding to list.
-        // Note: Reducer also sets currentProject, which might be redundant with the hook's internal state update.
-        dispatch({ type: 'CREATE_PROJECT', payload: { title: newProject.title } }); // Use title for payload consistency
-        // Update internal state
-        setCurrentProjectInternal(newProject);
-        // Also dispatch to set the provider's currentProjectId (handled by CREATE_PROJECT reducer)
-    }).catch(error => {
-        console.error("Failed to save new project:", error);
-        dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to create project' } });
 
-        // Dispatch to reducer if other parts of the provider state need updating
-        dispatch({ type: 'UPDATE_PROJECT_METADATA', payload: { projectId: currentProject?.id, changes: { title } } });
-    });
-  }, [currentProject, saveProject, dispatch]);
-
-  // Set current project ID - This tells the provider which project *should* be active.
-  // The useEffect above will handle loading the actual project data.
-  const setCurrentProject = useCallback((projectId: string | null) => {
-    dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
-  }, [dispatch]);
-
-
-  // Load a project by ID using the persistence hook
-  const loadProject = useCallback(async (projectId: string): Promise<Project | null> => {
-    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
     try {
-      const project = await loadProjectFromHook(projectId);
-      if (project) {
-        setCurrentProjectInternal(project); // Update hook's internal state
-        // Optional: Dispatch success to provider if it needs the full project object immediately
-        // dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project } });
-        return project;
-      } else {
-        dispatch({ type: 'SET_ERROR', payload: { error: `Project ${projectId} not found or failed to load` } });
-        setCurrentProjectInternal(null);
-        return null;
-      }
+      // Await the save operation
+      await saveProject(newProject);
+      
+      // Update hook state FIRST after successful save
+      setCurrentProjectInternal(newProject);
+      
+      // Dispatch a success action with the full project object to the reducer
+      // Ensure the reducer handles 'CREATE_PROJECT_SUCCESS' appropriately
+      dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: newProject } });
+      
+      // Optional: Log success
+      console.log(`[useProjectCore] Successfully created and saved project: ${newProject.id}`);
+      
+      // Return the newly created project
+      return newProject; 
+
     } catch (error) {
-      console.error(`Error loading project ${projectId}:`, error);
-      dispatch({ type: 'SET_ERROR', payload: { error: `Failed to load project ${projectId}` } });
-      setCurrentProjectInternal(null);
-      return null;
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+      console.error("[useProjectCore] Failed to save new project:", error);
+      dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to create project' } });
+      // Consider if we need to clear the internal state if creation fails
+      // setCurrentProjectInternal(null); 
+      return null; // Return null on failure
     }
-  }, [dispatch, loadProjectFromHook]);
+  }, [saveProject, dispatch]);
+
+  // Set current project ID - This tells the provider which project *should* be active
+  // AND immediately triggers loading the project data into this hook's state.
+  const setCurrentProject = useCallback((projectId: string | null) => {
+    // 1. Dispatch to provider reducer to update provider state (e.g., project list selection)
+    dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
+
+    // 2. Immediately attempt to load the project data into *this hook's* state
+    if (projectId) {
+      // Don't await here, let it run in the background. loadProject handles internal state updates.
+      loadProject(projectId).catch(error => {
+         console.error(`[useProjectCore] Error triggered by loadProject within setCurrentProject for ID ${projectId}:`, error);
+         // Error handling is mostly done within loadProject, but log here too.
+      });
+    } else {
+      // If projectId is null, clear the internal state directly
+      setCurrentProjectInternal(null);
+    }
+  }, [dispatch, loadProject]); // Add loadProject dependency
 
   // Set project title
   const setProjectTitle = useCallback((title: string) => {
@@ -161,5 +235,6 @@ export function useProjectCore(
     loadProject,       // Loads project data into this hook
     setProjectTitle,
     setProjectAspectRatio,
+    updateCoreProjectState: setCurrentProjectInternal 
   };
 } 

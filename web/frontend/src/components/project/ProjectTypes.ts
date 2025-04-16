@@ -194,6 +194,8 @@ export const initialState: ProjectState = {
 export type ProjectAction =
   /** Create a new project with the given title */
   | { type: 'CREATE_PROJECT'; payload: { title: string } }
+  /** Handle successful project creation */
+  | { type: 'CREATE_PROJECT_SUCCESS'; payload: { project: Project } }
   /** Set the current active project */
   | { type: 'SET_CURRENT_PROJECT'; payload: { projectId: string | null } }
   /** Add a new scene from a URL */

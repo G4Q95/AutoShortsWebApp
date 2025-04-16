@@ -86,6 +86,28 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
 
     /**
+     * Handles successful project creation from the useProjectCore hook.
+     * Adds the new project to the list and sets it as the current project.
+     * 
+     * @action CREATE_PROJECT_SUCCESS
+     * @payload { project: Project }
+     */
+    case 'CREATE_PROJECT_SUCCESS': {
+      const { project: newProject } = action.payload;
+      
+      // Check if project already exists to prevent duplicates (optional but good practice)
+      const projectExists = state.projects.some(p => p.id === newProject.id);
+      
+      return {
+        ...state,
+        // Add project only if it doesn't already exist
+        projects: projectExists ? state.projects : [...state.projects, newProject],
+        currentProject: newProject, // Set the newly created project as current
+        error: null, // Clear any previous error
+      };
+    }
+
+    /**
      * Sets the current active project.
      * 
      * @action SET_CURRENT_PROJECT

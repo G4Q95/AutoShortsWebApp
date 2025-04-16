@@ -24,37 +24,31 @@ function CreateVideoForm() {
     try {
       console.log(`Creating project with title: "${title}"`);
 
-      // Call createProject and get project ID from localStorage
-      createProject(title.trim());
+      // Await createProject and get the returned project object
+      const newProject = await createProject(title.trim());
 
-      // Get the newly created project ID from localStorage
-      const projectId = localStorage.getItem('lastCreatedProjectId');
-
-      if (!projectId) {
-        throw new Error('Project creation failed - no project ID found in localStorage');
+      // Check if project creation was successful
+      if (!newProject || !newProject.id) {
+        throw new Error('Project creation failed - no project returned from createProject');
       }
 
-      console.log(`Created project: ${projectId}`);
+      const projectId = newProject.id;
+      console.log(`Successfully created project: ${projectId}`);
 
-      // Get the project to make sure it exists
-      const project = await getProject(projectId);
-
-      if (!project) {
-        throw new Error('Project not found in localStorage after creation');
-      }
-
-      // Short delay to ensure all async operations complete
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Optional: Small delay might still be helpful for context propagation, but less critical now.
+      // await new Promise((resolve) => setTimeout(resolve, 100)); 
 
       console.log(`Redirecting to project workspace: ${projectId}`);
 
       // Use router.replace instead of push to prevent going back to this page
       router.replace(`/projects/${projectId}`);
+      
     } catch (error) {
       console.error('Error creating project:', error);
       setError(error instanceof Error ? error.message : 'Failed to create project');
       setIsCreating(false);
     }
+    // Note: No need to set isCreating to false here if navigation succeeds
   };
 
   return (
