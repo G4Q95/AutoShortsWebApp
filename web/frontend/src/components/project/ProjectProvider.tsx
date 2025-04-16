@@ -105,7 +105,7 @@ const ProjectContext = createContext<(Omit<ProjectState, 'mode'> & {
   /** Indicates if media storage is in progress */
   isStoringMedia: boolean;
   /** Updates the project aspect ratio */
-  setProjectAspectRatio: (aspectRatio: string) => void;
+  setProjectAspectRatio: (aspectRatio: Project['aspectRatio']) => void;
 }) | undefined>(undefined);
 
 /**
@@ -164,7 +164,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCurrentProject: setCurrentProjectFromHook, // Rename
     loadProject: loadProjectFromCoreHook, // Rename
     setProjectTitle: setProjectTitleFromHook, // Rename
-    setProjectAspectRatio: setProjectAspectRatioFromHook, // Rename
+    setProjectAspectRatio: setProjectAspectRatioFromHook, // Get the hook function
   } = useProjectCore(dispatch, state, persistedProjects);
 
   // State monitoring function to detect inconsistencies
@@ -428,26 +428,23 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Create a new project
   const createProject = useCallback((title: string) => {
-    dispatch({ type: 'CREATE_PROJECT', payload: { title } });
-  }, []);
+    createProjectFromHook(title);
+  }, [createProjectFromHook]);
+
+  // Set the current active project by ID
+  const setCurrentProject = useCallback((projectId: string | null) => {
+    setCurrentProjectFromHook(projectId);
+  }, [setCurrentProjectFromHook]);
+
+  // Load a project by ID
+  const loadProject = useCallback(async (projectId: string): Promise<Project | null> => {
+    return loadProjectFromCoreHook(projectId);
+  }, [loadProjectFromCoreHook]);
 
   // Update scene media data
-  const updateSceneMedia = useCallback((
-    sceneId: string, 
-    mediaData: Partial<Scene['media']>
-  ) => {
-    dispatch({ 
-      type: 'UPDATE_SCENE_MEDIA', 
-      payload: { 
-        sceneId, 
-        mediaData 
-      } 
-    });
-    
-    // Save the project after updating media to ensure persistence
-    saveCurrentProjectWrapper().catch(error => {
-      console.error('Error saving project after updating scene media:', error);
-    });
+  const updateSceneMedia = useCallback((sceneId: string, mediaData: Partial<Scene['media']>) => {
+    dispatch({ type: 'UPDATE_SCENE_MEDIA', payload: { sceneId, mediaData } });
+    saveCurrentProjectWrapper();
   }, [saveCurrentProjectWrapper]);
 
   // Store all unstored media for the current project in R2
@@ -1038,7 +1035,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [deleteAllProjectsFromHook, router]);
 
   // Toggle letterboxing display
-  const toggleLetterboxing = useCallback((show: boolean) => {
+  const toggleLetterboxing = useCallback(async (show: boolean) => {
     console.log('[ProjectProvider] Toggling letterboxing:', show);
     
     dispatch({ 
@@ -1075,7 +1072,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const actions = useMemo(() => ({
     createProject,
-    setCurrentProject: setCurrentProjectFromHook,
+    setCurrentProject,
     addScene,
     removeScene,
     reorderScenes,
@@ -1084,7 +1081,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateSceneMedia,
     setProjectTitle: setProjectTitleFromHook,
     saveCurrentProject: saveCurrentProjectWrapper,
-    loadProject: loadProjectFromCoreHook,
+    loadProject,
     deleteAllProjects,
     refreshProjects,
     uiMode,
@@ -1097,7 +1094,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setProjectAspectRatio: setProjectAspectRatioFromHook,
   }), [
     createProject,
-    setCurrentProjectFromHook,
+    setCurrentProject,
     addScene,
     removeScene,
     reorderScenes,
@@ -1106,7 +1103,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateSceneMedia,
     setProjectTitleFromHook,
     saveCurrentProjectWrapper,
-    loadProjectFromCoreHook,
+    loadProject,
     deleteAllProjects,
     refreshProjects,
     uiMode,
