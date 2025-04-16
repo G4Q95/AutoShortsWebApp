@@ -472,129 +472,84 @@ async def update_project(project_id: str, project_update: ProjectCreate = Body(.
             "updated_at": datetime.utcnow(),
         }
 
-# --- Moved Endpoint --- 
+# --- Add New DELETE Endpoint ---
 
-@project_router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
-async def delete_project(project_id: str, background_tasks: BackgroundTasks):
-    """
-    Delete a project by ID and clean up associated R2 storage.
-    Returns no content on success.
-    """
-    deletion_request_id = str(uuid.uuid4())[:8]
-    logger.info(f"[DELETION-{deletion_request_id}] Starting project deletion for {project_id}")
+@project_router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project_endpoint(project_id: str):
+    '''
+    Delete a project and its associated storage files.
+    '''
+    logger.info(f"[DELETE-PROJECT] Received request to delete project: {project_id}")
+
+    # --- Step 1: Synchronous R2 Storage Cleanup ---
+    # Call the cleanup function *synchronously* as it handles synchronous boto3 calls
+    # Use asyncio.to_thread if cleanup becomes complex and might block, 
+    # but for now, direct call if it's mostly I/O handled internally by boto3 sync methods.
+    # Note: The current cleanup_project_storage IS async due to internal awaits for pattern searching. 
+    # However, the critical boto3 calls inside it are synchronous.
+    # A fully synchronous version might be needed if this blocks the event loop.
+    # For now, we await the wrapper, assuming boto3's sync calls release the GIL for I/O.
     
-    is_object_id = False
     try:
-        obj_id = ObjectId(project_id)
-        is_object_id = True
-    except InvalidId:
-        logger.info(f"[DELETION-{deletion_request_id}] Project ID {project_id} is not a valid ObjectId, will try to find by proj_id field")
-        is_object_id = False
+        # Await the async wrapper function, which internally uses sync boto3 calls correctly
+        cleanup_results = await cleanup_project_storage(project_id, dry_run=False)
+        logger.info(f"[DELETE-PROJECT] Storage cleanup results for {project_id}: {cleanup_results}")
+        
+        # Check for cleanup failures - optional, decide if deletion should proceed
+        if cleanup_results.get("failed_files"):
+             logger.warning(f"[DELETE-PROJECT] Some files failed to delete for project {project_id}, but proceeding with DB deletion.")
+             # You might choose to raise an error here instead if cleanup must be perfect:
+             # raise HTTPException(status_code=500, detail="Failed to clean up all storage files")
 
-    if not db.is_mock:
-        try:
-            project = None
-            if is_object_id:
-                project = await db.client[db.db_name].projects.find_one({"_id": obj_id})
-            else:
-                if project_id.startswith("proj_"):
-                    project = await db.client[db.db_name].projects.find_one({
-                        "$or": [
-                            {"proj_id": project_id},
-                            {"name": project_id}
-                        ]
-                    })
-                if not project and not project_id.startswith("proj_"):
-                    prefixed_id = f"proj_{project_id}"
-                    project = await db.client[db.db_name].projects.find_one({
-                        "$or": [
-                            {"proj_id": prefixed_id},
-                            {"name": prefixed_id}
-                        ]
-                    })
-            
-            if not project:
-                logger.warning(f"[DELETION-{deletion_request_id}] Project {project_id} not found in database")
-                error_response = create_error_response(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Project {project_id} not found",
-                    error_code=ErrorCodes.RESOURCE_NOT_FOUND
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_response
-                )
-            
-            project_mongodb_id = project["_id"]
-            logger.info(f"[DELETION-{deletion_request_id}] Found project, MongoDB ID: {project_mongodb_id}")
-            
-            result = await db.client[db.db_name].projects.delete_one({"_id": project_mongodb_id})
-            if result.deleted_count == 0:
-                logger.warning(f"[DELETION-{deletion_request_id}] Project {project_id} could not be deleted from database")
-                error_response = create_error_response(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Project {project_id} not found or could not be deleted",
-                    error_code=ErrorCodes.RESOURCE_NOT_FOUND
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_response
-                )
-            
-            logger.info(f"[DELETION-{deletion_request_id}] Successfully deleted project from database")
-            
-            storage_project_id = project.get('proj_id')
-            if not storage_project_id:
-                if 'name' in project and project['name'].startswith('proj_'):
-                    storage_project_id = project['name']
-                else:
-                    if project_id.startswith('proj_'):
-                        storage_project_id = project_id
-                    else:
-                        storage_project_id = f"proj_{project_id}"
-                    
-            logger.info(f"[DELETION-{deletion_request_id}] Deleting project with storage ID: {storage_project_id}")
-            
-            # R2 cleanup call
-            logger.info(f"[DELETION-{deletion_request_id}] Starting SYNCHRONOUS R2 cleanup")
-            cleanup_result = await cleanup_project_storage(storage_project_id, dry_run=False)
-            logger.info(f"[DELETION-{deletion_request_id}] Synchronous R2 cleanup completed with result: {cleanup_result}")
-            
-            # Schedule redundant background task for compatibility
-            background_tasks.add_task(cleanup_project_storage, storage_project_id, dry_run=False)
-            logger.info(f"[DELETION-{deletion_request_id}] Also scheduled background task for R2 cleanup (redundant)")
-            
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"[DELETION-{deletion_request_id}] Failed to delete project: {str(e)}")
-            logger.exception("Full traceback:")
-            error_response = create_error_response(
+    except Exception as storage_exc:
+        logger.error(f"[DELETE-PROJECT] Error during storage cleanup for project {project_id}: {storage_exc}")
+        # Decide if you want to stop or continue if cleanup fails
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=create_error_response(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                message=f"Failed to delete project: {str(e)}",
-                error_code=ErrorCodes.DATABASE_ERROR
+                message=f"Storage cleanup failed: {storage_exc}",
+                error_code=ErrorCodes.STORAGE_ERROR
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=error_response
-            )
-    else:
-        # Mock deletion
-        storage_project_id = project_id
-        if not storage_project_id.startswith("proj_"):
-            storage_project_id = f"proj_{project_id}"
+        )
+
+    # --- Step 2: Database Deletion ---
+    try:
+        logger.info(f"[DELETE-PROJECT] Deleting project {project_id} from database...")
+        if not db.is_mock:
+            mongo_db = db.get_db()
             
-        logger.info(f"[DELETION-{deletion_request_id}] Mock database: Running cleanup for {storage_project_id}")
-        
-        logger.info(f"[DELETION-{deletion_request_id}] Starting SYNCHRONOUS R2 cleanup (mock database)")
-        cleanup_result = await cleanup_project_storage(storage_project_id, dry_run=False)
-        logger.info(f"[DELETION-{deletion_request_id}] Synchronous R2 cleanup completed with result: {cleanup_result}")
-        
-        background_tasks.add_task(cleanup_project_storage, storage_project_id, dry_run=False)
-        logger.info(f"[DELETION-{deletion_request_id}] Also scheduled background task for R2 cleanup (redundant, mock database)")
+            # Delete project document
+            delete_project_result = await mongo_db.projects.delete_one({"_id": project_id})
+            
+            if delete_project_result.deleted_count == 0:
+                logger.warning(f"[DELETE-PROJECT] Project {project_id} not found in database for deletion, but cleanup was attempted.")
+                # Return 204 anyway, as the desired state (project gone) is achieved
+                return Response(status_code=status.HTTP_204_NO_CONTENT)
+            
+            logger.info(f"[DELETE-PROJECT] Successfully deleted project {project_id} from database.")
+
+            # Delete tracked R2 file paths
+            logger.info(f"[DELETE-PROJECT] Deleting tracked R2 file paths for project {project_id}...")
+            delete_tracking_result = await r2_file_tracking.delete_files_by_project(project_id)
+            logger.info(f"[DELETE-PROJECT] Deleted {delete_tracking_result.get('deleted_count', 0)} tracked file paths.")
+
+        else:
+            logger.info("[DELETE-PROJECT] Mock mode: Skipping database deletion.")
         
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    except Exception as db_exc:
+        logger.error(f"[DELETE-PROJECT] Error during database deletion for project {project_id}: {db_exc}")
+        # If DB deletion fails after storage cleanup, we have an inconsistent state
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=create_error_response(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Database deletion failed after storage cleanup: {db_exc}",
+                error_code=ErrorCodes.DATABASE_ERROR
+            )
+        )
 
 # --- Endpoint 2.4: GET /projects ---
 @project_router.get("/projects", response_model=ApiResponse[List[ProjectResponse]])

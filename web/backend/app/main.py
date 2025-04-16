@@ -229,48 +229,34 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 
 # Include API routers
-app.include_router(users.router, prefix=settings.API_V1_STR)
-app.include_router(videos.router, prefix=settings.API_V1_STR)
-app.include_router(content.router, prefix=settings.API_V1_STR)
-app.include_router(ai.router, prefix=settings.API_V1_STR)
-app.include_router(video_creation.router, prefix=settings.API_V1_STR)
-app.include_router(project_router, prefix=settings.API_V1_STR)
-app.include_router(voice.router, prefix=settings.API_V1_STR)
+# app.include_router(users.router, prefix=settings.API_V1_STR) # Assuming handled elsewhere or not needed now
+# app.include_router(videos.router, prefix=settings.API_V1_STR)
+# app.include_router(video_creation.router, prefix=settings.API_V1_STR)
 
-# Import API routers
-from app.api.content import router as content_router
-from app.api.projects import router as projects_router
-from app.api.voice import router as voice_router
-from app.api.test import router as test_router
-from app.api.media import router as media_router
-from app.api.debug import router as debug_router  # Add import for debug router
+# --- Endpoint Routers ---
+# Use specific prefixes for clarity
+app.include_router(content.router, prefix="/api/v1")
+app.include_router(project_router, prefix="/api/v1/projects") # CORRECTED PREFIX
+app.include_router(scene_router, prefix="/api/v1/projects")   # Handles /projects/{id}/scenes/...
+app.include_router(generation_router, prefix="/api/v1/generate") # Example prefix, adjust if needed
+app.include_router(voice.router, prefix="/api/v1/voice")
+app.include_router(media.router, prefix="/api/v1")            # CORRECTED PREFIX - Use media.router from direct import
+app.include_router(ai.router, prefix="/api/v1/ai")
 
-# Include routers
-app.include_router(content_router, prefix="/api/v1/content")
-app.include_router(projects_router, prefix="/api/v1/projects")
-app.include_router(voice_router, prefix="/api/v1/voice")
-app.include_router(test_router, prefix="/api/v1")
-app.include_router(media.router, prefix="/api/v1")  # Media router with correct name
-app.include_router(debug_router, prefix="/api/v1")  # Add debug router
+# Include Debug/Test routers if needed in development
+# from app.api.test import router as test_router
+# from app.api.debug import router as debug_router
+# app.include_router(test_router, prefix="/api/v1") # Example: /api/v1/test/error-response
+# app.include_router(debug_router, prefix="/api/v1/debug") # Example: /api/v1/debug/cleanup-project/...
 
-# Register API routers for legacy endpoints (deprecated, to be removed)
-app.include_router(test_router, prefix="/api/test")
-app.include_router(content_router, prefix="/api/content")
-app.include_router(projects_router, prefix="/api/projects")
-app.include_router(videos.router, prefix="/api/videos")
-app.include_router(voice_router, prefix="/api/voice")
-app.include_router(media.router, prefix="/api")  # Media router with correct name
+# --- Remove Legacy/Deprecated Router Includes ---
+# app.include_router(test_router, prefix="/api/test")
+# app.include_router(content_router, prefix="/api/content")
+# app.include_router(projects_router, prefix="/api/projects") # REMOVED Legacy
+# app.include_router(videos.router, prefix="/api/videos")
+# app.include_router(voice_router, prefix="/api/voice")
+# app.include_router(media.router, prefix="/api")
 
-# Include the scene router (currently just for specific scene ops like trim)
-app.include_router(scene_router, prefix="/api/v1/projects") # Prefix matches original /projects setup
-
-# Include the generation router
-app.include_router(generation_router, prefix=settings.API_V1_STR)
-
-# Include the original projects router AFTER to handle non-migrated endpoints
-# (This router is becoming less relevant as endpoints are moved)
-# app.include_router(projects_router, prefix="/api/v1/projects") # Commented out as project CRUD is moved
-
-# The routers below are redundant or legacy and conflict with the newer endpoint structure.
-# They will be removed as part of the refactoring.
-# from app.api.content import router as content_router
+# Remove commented-out lines related to old structure
+# app.include_router(projects_router, prefix="/api/v1/projects")
+# from app.api.content import router as content_router # Redundant import
