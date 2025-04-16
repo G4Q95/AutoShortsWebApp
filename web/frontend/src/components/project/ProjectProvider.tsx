@@ -21,6 +21,8 @@ import { extractContent } from '../../lib/api-client';
 import { determineMediaType, generateVideoThumbnail } from '../../lib/media-utils';
 import { useProjectPersistence } from '@/hooks/useProjectPersistence';
 import { useProjectNavigation, UIMode } from '@/hooks/useProjectNavigation';
+import { useProjectListManagement } from '@/hooks/useProjectListManagement';
+import { useProjectCore } from '@/hooks/useProjectCore';
 
 import { 
   Project, 
@@ -98,12 +100,12 @@ const ProjectContext = createContext<(Omit<ProjectState, 'mode'> & {
     success: number;
     failed: number;
   } | null>;
-  /** Sets the aspect ratio for the current project */
-  setProjectAspectRatio: (aspectRatio: Project['aspectRatio']) => void;
   /** Toggles letterboxing/pillarboxing display */
   toggleLetterboxing: (show: boolean) => void;
   /** Indicates if media storage is in progress */
   isStoringMedia: boolean;
+  /** Updates the project aspect ratio */
+  setProjectAspectRatio: (aspectRatio: string) => void;
 }) | undefined>(undefined);
 
 /**
@@ -154,6 +156,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     deleteAllProjects: deleteAllProjectsFromHook, 
     projectExists: projectExistsFromHook,    // Use colon for renaming
   } = useProjectPersistence();
+
+  // Use the core project hook
+  const {
+    currentProject: coreCurrentProject, // Get the hook's version of currentProject
+    createProject: createProjectFromHook, // Rename to avoid initial conflict
+    setCurrentProject: setCurrentProjectFromHook, // Rename
+    loadProject: loadProjectFromCoreHook, // Rename
+    setProjectTitle: setProjectTitleFromHook, // Rename
+    setProjectAspectRatio: setProjectAspectRatioFromHook, // Rename
+  } = useProjectCore(dispatch, state, persistedProjects);
 
   // Sync hook state with provider state
   useEffect(() => {
@@ -352,11 +364,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const createProject = useCallback((title: string) => {
     dispatch({ type: 'CREATE_PROJECT', payload: { title } });
   }, []);
-
-  // Set current project by ID
-  const setCurrentProject = useCallback((projectId: string | null) => {
-    dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
-  }, [dispatch]);
 
   // Update scene media data
   const updateSceneMedia = useCallback((
@@ -920,11 +927,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
   }, [saveCurrentProjectWrapper]);
 
-  // Set project title
-  const setProjectTitle = useCallback((title: string) => {
-    dispatch({ type: 'SET_PROJECT_TITLE', payload: { title } });
-  }, []);
-
   // Load a project by ID
   const loadProjectWrapper = useCallback(async (projectId: string): Promise<Project | undefined> => {
     dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
@@ -966,77 +968,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [deleteAllProjectsFromHook, router]);
 
-  // Set project aspect ratio  
-  const setProjectAspectRatio = useCallback(async (aspectRatio: Project['aspectRatio']) => {
-    if (!state.currentProject) {
-      console.warn('[ProjectProvider] No active project to update aspect ratio for');
-      return;
-    }
-
-    console.log('[ProjectProvider] Setting aspect ratio:', {
-      currentRatio: state.currentProject.aspectRatio,
-      newRatio: aspectRatio,
-      projectId: state.currentProject.id
-    });
-
-    // Create updated project with new aspect ratio
-    const updatedProject = {
-      ...state.currentProject,
-      aspectRatio,
-      updatedAt: Date.now()
-    };
-
-    // First update the state immediately for UI responsiveness
-    dispatch({
-      type: 'SET_PROJECT_ASPECT_RATIO',
-      payload: { aspectRatio }
-    });
-
-    // Then save the project
-    try {
-      await saveProject(updatedProject);
-      
-      // Verify the update by getting a fresh copy of the project using the hook
-      const savedProject = await loadProjectFromHook(state.currentProject.id);
-      
-      if (!savedProject) {
-        throw new Error('Failed to retrieve saved project');
-      }
-      
-      console.log('[ProjectProvider] Aspect ratio update verification:', {
-        requestedRatio: aspectRatio,
-        savedRatio: savedProject.aspectRatio,
-        stateRatio: state.currentProject.aspectRatio
-      });
-      
-      // Check if the aspect ratio was properly saved
-      if (savedProject.aspectRatio !== aspectRatio) {
-        console.error('[ProjectProvider] Aspect ratio mismatch after save:', {
-          requested: aspectRatio,
-          saved: savedProject.aspectRatio
-        });
-        throw new Error('Aspect ratio update failed to persist');
-      }
-
-      // Update state with the saved project to ensure consistency
-      dispatch({
-        type: 'LOAD_PROJECT_SUCCESS',
-        payload: { project: savedProject }
-      });
-
-      console.log('[ProjectProvider] Aspect ratio update successful:', aspectRatio);
-    } catch (error) {
-      console.error('[ProjectProvider] Error saving project after updating aspect ratio:', error);
-      dispatch({
-        type: 'SET_ERROR',
-        payload: { 
-          error: `Failed to save aspect ratio change: ${error instanceof Error ? error.message : 'Unknown error'}`
-        }
-      });
-      throw error;
-    }
-  }, [state.currentProject, dispatch, saveProject, loadProjectFromHook]);
-
   // Toggle letterboxing display
   const toggleLetterboxing = useCallback((show: boolean) => {
     console.log('[ProjectProvider] Toggling letterboxing:', show);
@@ -1075,14 +1006,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const actions = useMemo(() => ({
     createProject,
-    setCurrentProject,
+    setCurrentProject: setCurrentProjectFromHook,
     addScene,
     removeScene,
     reorderScenes,
     updateSceneText,
     updateSceneAudio,
     updateSceneMedia,
-    setProjectTitle,
+    setProjectTitle: setProjectTitleFromHook,
     saveCurrentProject: saveCurrentProjectWrapper,
     loadProject: loadProjectWrapper,
     deleteAllProjects,
@@ -1092,19 +1023,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     nextMode,
     previousMode,
     storeAllMedia,
-    setProjectAspectRatio,
     toggleLetterboxing,
     isStoringMedia: storageInProgress,
+    setProjectAspectRatio: setProjectAspectRatioFromHook,
   }), [
     createProject,
-    setCurrentProject,
+    setCurrentProjectFromHook,
     addScene,
     removeScene,
     reorderScenes,
     updateSceneText,
     updateSceneAudio,
     updateSceneMedia,
-    setProjectTitle,
+    setProjectTitleFromHook,
     saveCurrentProjectWrapper,
     loadProjectWrapper,
     deleteAllProjects,
@@ -1114,9 +1045,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     nextMode,
     previousMode,
     storeAllMedia,
-    setProjectAspectRatio,
     toggleLetterboxing,
     storageInProgress,
+    setProjectAspectRatioFromHook,
   ]);
 
   // Combine state and actions only when either changes

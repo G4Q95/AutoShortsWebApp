@@ -22,7 +22,8 @@ type ProjectAction =
   | { type: 'LOAD_PROJECTS'; payload: { projects: Project[] } }
   | { type: 'SET_LOADING'; payload: { isLoading: boolean } }
   | { type: 'SET_MODE'; payload: { mode: 'organization' | 'voice-enabled' | 'preview' } }
-  | { type: 'SET_SCENE_STORING_MEDIA'; payload: { sceneId: string; isStoringMedia: boolean } };
+  | { type: 'SET_SCENE_STORING_MEDIA'; payload: { sceneId: string; isStoringMedia: boolean } }
+  | { type: 'UPDATE_PROJECT_METADATA'; payload: { projectId: string; changes: Partial<Pick<Project, 'title' | 'aspectRatio' /* | Add other updatable fields */>> } };
 
 // Implement the project reducer to handle state updates
 export function projectReducer(state: ProjectState, action: ProjectAction): ProjectState {
@@ -38,6 +39,10 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         scenes: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        lastModified: Date.now(),
+        status: 'draft',
+        aspectRatio: '9:16',
+        showLetterboxing: true,
       };
 
       // Add the new project to the projects list and set it as current
@@ -279,21 +284,41 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
     }
 
     case 'UPDATE_SCENE_MEDIA': {
-      // Update media data of a scene
+      // Update media data for a specific scene
       if (!state.currentProject) return state;
 
-      // Update the specific scene
       const updatedScenes = state.currentProject.scenes.map((scene) => {
         if (scene.id === action.payload.sceneId) {
-          // Merge existing media with new media data
-          const updatedMedia = {
-            ...scene.media,
-            ...action.payload.mediaData,
-          };
+          // Ensure we handle the media object update carefully
+          const existingMedia = scene.media;
+          const newMediaData = action.payload.mediaData;
+
+          // If new media data is provided, merge it with existing or create new
+          let updatedMedia: Scene['media'] | undefined = undefined;
+          if (newMediaData) {
+            if (existingMedia) {
+              // Merge new data into existing media
+              updatedMedia = { ...existingMedia, ...newMediaData };
+            } else {
+              // If no existing media, new data MUST contain a type
+              if (newMediaData.type) {
+                updatedMedia = { ...newMediaData } as Scene['media']; // Assert type if necessary, assuming payload is correct
+              } else {
+                console.error('Cannot update scene media without a type if no existing media exists');
+                // Decide how to handle: skip update, set error, etc.
+                // For now, we skip the media update for this scene if type is missing.
+                updatedMedia = existingMedia; // Keep existing (which is undefined)
+              }
+            }
+          } else {
+            // If no new media data, keep existing
+            updatedMedia = existingMedia;
+          }
 
           return {
             ...scene,
             media: updatedMedia,
+            updatedAt: Date.now(), // Update scene timestamp
           };
         }
         return scene;
@@ -309,29 +334,6 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       return {
         ...state,
         currentProject: updatedProject,
-      };
-    }
-
-    case 'SET_PROJECT_TITLE': {
-      // Update the title of the current project
-      if (!state.currentProject) return state;
-
-      // Create updated project
-      const updatedProject: Project = {
-        ...state.currentProject,
-        title: action.payload.title,
-        updatedAt: Date.now(),
-      };
-
-      // Update in the projects list as well
-      const updatedProjects = state.projects.map((p) =>
-        p.id === updatedProject.id ? updatedProject : p
-      );
-
-      return {
-        ...state,
-        currentProject: updatedProject,
-        projects: updatedProjects,
       };
     }
 
@@ -423,6 +425,36 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
       return {
         ...state,
         currentProject: updatedProject,
+      };
+    }
+
+    case 'UPDATE_PROJECT_METADATA': {
+      // Update metadata (like title, aspectRatio) for a specific project in the main list
+      const updatedProjects = state.projects.map(project => {
+        if (project.id === action.payload.projectId) {
+          return {
+            ...project,
+            ...action.payload.changes, // Apply changes (e.g., { title: 'New Title' })
+            updatedAt: Date.now(), // Always update timestamp
+          };
+        }
+        return project;
+      });
+
+      // Also update currentProject if it\'s the one being modified
+      let updatedCurrentProject = state.currentProject;
+      if (state.currentProject && state.currentProject.id === action.payload.projectId) {
+        updatedCurrentProject = {
+          ...state.currentProject,
+          ...action.payload.changes,
+          updatedAt: Date.now(),
+        };
+      }
+
+      return {
+        ...state,
+        projects: updatedProjects,
+        currentProject: updatedCurrentProject,
       };
     }
 
