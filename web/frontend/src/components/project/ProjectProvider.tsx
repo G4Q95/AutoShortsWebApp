@@ -321,13 +321,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Add Effect to listen for pathname changes and save immediately
   useEffect(() => {
-    // If pathname changed and we have a current project, save immediately
-    if (prevPathRef.current !== pathname && state.currentProject) {
-      console.log(`Navigation detected from ${prevPathRef.current} to ${pathname} - saving project ${state.currentProject.id} immediately`);
+    // If pathname changed and we have a current project (from the hook), save immediately
+    if (prevPathRef.current !== pathname && coreCurrentProject) {
+      console.log(`Navigation detected from ${prevPathRef.current} to ${pathname} - saving project ${coreCurrentProject.id} immediately`);
       
       try {
-        // Create a fresh deep copy of the project to avoid reference issues
-        const projectToSave = JSON.parse(JSON.stringify(state.currentProject));
+        // Create a fresh deep copy of the project (from the hook) to avoid reference issues
+        const projectToSave = JSON.parse(JSON.stringify(coreCurrentProject));
         
         // Use the synchronous version of localStorage directly for immediate save
         const key = `auto-shorts-project-${projectToSave.id}`;
@@ -366,13 +366,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     
     // Update reference for next comparison
     prevPathRef.current = pathname;
-  }, [pathname, state.currentProject]);
+  }, [pathname, coreCurrentProject]);
 
   // Add a separate beforeunload effect to handle browser/tab closure
   useEffect(() => {
-    // Only add beforeunload listener if we have an active project
-    // Also check if currentProject has an ID to be safe
-    if (!state.currentProject || !state.currentProject.id) return; 
+    // Only add beforeunload listener if we have an active project (from the hook)
+    if (!coreCurrentProject || !coreCurrentProject.id) return; // Use coreCurrentProject
     
     // Create a sync handler for beforeunload
     const handleBeforeUnload = () => {
@@ -380,8 +379,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       
       // We need to perform a synchronous save here since beforeunload doesn't wait for async
       try {
-        // Create a fresh deep copy of the project to avoid reference issues
-        const projectToSave = JSON.parse(JSON.stringify(state.currentProject));
+        // Create a fresh deep copy of the project (from the hook) to avoid reference issues
+        const projectToSave = JSON.parse(JSON.stringify(coreCurrentProject)); // Use coreCurrentProject
         
         // Use the synchronous version of localStorage directly
         const key = `auto-shorts-project-${projectToSave.id}`;
@@ -425,7 +424,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [state.currentProject]);
+  }, [coreCurrentProject]); // Depend on coreCurrentProject
 
   // Create a new project
   const createProject = useCallback(async (title: string): Promise<Project | null> => {
@@ -445,25 +444,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Update scene media data
   const updateSceneMedia = useCallback(async (sceneId: string, mediaData: Partial<Scene['media']>) => {
     // Log state at the time of media update for debugging
-    console.log(`[updateSceneMedia] Current state: reducer scenes=${state.currentProject?.scenes?.length || 0}, hook scenes=${coreCurrentProject?.scenes?.length || 0}`);
+    console.log(`[updateSceneMedia] Called for scene ${sceneId}. Hook scenes=${coreCurrentProject?.scenes?.length || 0}`);
     
-    // For this function, use a combination of sources to ensure we don't lose data
-    if (!coreCurrentProject && !state.currentProject) {
-      console.error("No active project (from either source) to update scene media");
+    // Use coreCurrentProject as the single source of truth
+    if (!coreCurrentProject) {
+      console.error("No active project (from core hook) to update scene media");
       dispatch({ type: 'SET_ERROR', payload: { error: 'No active project' } });
       return;
     }
     
-    // Select the state source with the most scenes to avoid data loss
-    const sourceProject = (coreCurrentProject?.scenes?.length || 0) >= (state.currentProject?.scenes?.length || 0)
-      ? coreCurrentProject 
-      : state.currentProject;
-    
-    if (!sourceProject) {
-      console.error("No valid source project to update scene media");
-      dispatch({ type: 'SET_ERROR', payload: { error: 'No valid project data' } });
-      return;
-    }
+    const sourceProject = coreCurrentProject; // Directly use the hook's state
     
     if (sourceProject.scenes?.length === 0) {
       console.warn(`Project ${sourceProject.id} has 0 scenes but trying to update scene ${sceneId}`);
@@ -511,7 +501,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.error("Failed to save scene media:", error);
       dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save media change' } });
     }
-  }, [coreCurrentProject, state.currentProject, dispatch, saveProject, updateCoreProjectState]);
+  }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState]);
 
   // Store all unstored media for the current project in R2
   const storeAllMedia = useCallback(async (): Promise<{
@@ -519,9 +509,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     success: number;
     failed: number;
   } | null> => {
-    // First check if a current project exists
-    if (!state.currentProject) {
-      console.error('No active project to store media for');
+    // Use coreCurrentProject as the source of truth
+    if (!coreCurrentProject) { // Check the hook's state
+      console.error('No active project (from core hook) to store media for');
       dispatch({
         type: 'SET_ERROR',
         payload: { error: 'No active project to store media for' },
@@ -529,8 +519,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    // Create a local reference to ensure consistency
-    const currentProject = { ...state.currentProject };
+    // Create a local reference from the hook's state
+    const currentProject = { ...coreCurrentProject }; // Use coreCurrentProject
     console.log(`Initiating storage of all media for project: ${currentProject.id}`);
 
     try {
@@ -555,7 +545,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       });
       return null;
     }
-  }, [state.currentProject, updateSceneMedia]);
+  }, [coreCurrentProject, updateSceneMedia]);
 
   // Add a function to check if media storage is in progress
   const isMediaStorageInProgress = useCallback(() => {
@@ -920,18 +910,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Split context values into separate memoized objects
   const stateValues = useMemo(() => ({
     projects: state.projects,
-    currentProject: state.currentProject,
+    currentProject: coreCurrentProject, // Use the hook's version of the current project
     isLoading: state.isLoading,
     error: state.error,
     lastSaved: state.lastSaved,
-    isSaving: state.isSaving,
+    isSaving: state.isSaving, // Continue using reducer's isSaving synchronized from hook
   }), [
     state.projects,
-    state.currentProject,
+    coreCurrentProject, // Depend on the hook's currentProject
     state.isLoading,
     state.error,
     state.lastSaved,
-    state.isSaving,
+    state.isSaving, 
   ]);
 
   const actions = useMemo(() => ({
