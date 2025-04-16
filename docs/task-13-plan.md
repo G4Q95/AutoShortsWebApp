@@ -1,20 +1,23 @@
-This document outlines the plan for implementing reliable background media downloading using Celery and `yt-dlp`, adopting a fully asynchronous approach designed for scalability.
+This document outlines the plan for implementing reliable background media downloading using Celery and `yt-dlp`, adopting a **hybrid synchronous/asynchronous approach** designed for scalability and responsiveness.
 
 ## Overall Goal
-Implement reliable background media downloading from external URLs (initially focusing on Reddit) using Celery and `yt-dlp`. The implementation must use a fully asynchronous approach (`async def` tasks, async worker, async libraries) to handle potentially high concurrency for a large user base.
+Implement reliable background media downloading from external URLs (initially focusing on Reddit) using Celery and `yt-dlp`. The implementation will use a **hybrid approach**:
+- **FastAPI API Layer (Sync/Responsive):** Handles initial request validation, potentially creates initial DB record (synchronously or non-blockingly), dispatches the Celery task with a confirmed `_id`, and returns `202 Accepted` immediately.
+- **Celery Worker (Async/IO-Bound):** Executes the background task using `async def`, an async worker pool (`gevent`), and async libraries (`motor`, `aiobotocore`, `asyncio`) to handle I/O-bound operations efficiently.
 
-## Core Strategy
+ync-native libraries for all I/O operations within tasks:
+    - MongoDB: `motor`
+    - C## Core Strategy
+- **API Endpoint (Sync/Fast):** The `/api/v1/media/store` endpoint remains largely synchronous. It validates input, optionally creates/updates the initial scene record in MongoDB (using standard `pymongo` or non-blocking `motor`) to get the `_id`, then dispatches the Celery task.
 - **Task Definition:** Define Celery tasks using `async def`.
 - **Worker Configuration:** Configure and run the Celery worker using an asynchronous execution pool (`gevent` or `eventlet`). Ensure necessary dependencies (`gevent`, `greenlet` if using `gevent`) are installed.
-- **Asynchronous I/O:** Utilize async-native libraries for all I/O operations within tasks:
-    - MongoDB: `motor`
-    - Cloudflare R2/S3: `aiobotocore`
+- **Asynchronous I/O:** Utilize asloudflare R2/S3: `aiobotocore`
     - HTTP Requests (if needed): `aiohttp`
     - File Operations (if needed): `aiofiles`
     - Sleep: `asyncio.sleep()`
 - **External Tools:** Run command-line tools like `yt-dlp` using asynchronous subprocess methods (e.g., `asyncio.create_subprocess_exec`).
 - **Dependencies:** Install `yt-dlp` and the necessary `ffmpeg` binary *within* the `celery-worker` container image (via its Dockerfile) to allow `yt-dlp` to function correctly for tasks like stream merging.
-- **Data Integrity:** Pass the confirmed MongoDB `_id` (obtained after successful project creation/lookup in the API layer) directly to the Celery task. The task **must not** rely on looking up the project using a custom ID due to potential database write visibility delays.
+- **Data Integrity:** The API layer obtains the confirmed MongoDB `_id` (after successful project/scene creation/update) and passes it directly to the Celery task. The Celery task **must** use this `_id` for all subsequent database updates (`await motor...`) and **must not** rely on looking up the project/scene using a custom ID.
 
 ## Scope
 
@@ -39,11 +42,16 @@ Implement reliable background media downloading from external URLs (initially fo
     *   **Goal:** Before starting the full async implementation, verify that the *current* code (API dispatching the `def` task using `asyncio.run`) works reliably end-to-end.
     *   **Specific Verification Sub-Steps:**
         *   **0.1 Service Check:** Confirm all required Docker services (backend API, celery-worker, redis, database) are running correctly (`docker compose ps`, check initial logs).
+        *   **0.1.1 Configuration Consistency Check:** Verify that critical environment variables (`DATABASE_URL`, `R2_*` keys, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, etc.) are identical and correctly loaded in both the `backend` and `celery-worker` containers (`docker compose exec <service_name> printenv`). Ensure they point to the same resources.
+        *   **0.1.2 Dependency Version Alignment Check:** Briefly verify that key shared libraries (e.g., `celery`, `pymongo`, `boto3`) have consistent major versions between the `backend` and `celery-worker` environments (`docker compose exec <service_name> pip freeze | grep <library>`).
         *   **0.2 API Call & Response:** Trigger the `/api/v1/media/store` endpoint with a test URL. Verify it returns `202 Accepted` immediately with a valid `task_id`.
         *   **0.3 Worker Logs:** Monitor the `celery-worker` logs in real-time (`docker compose logs -f celery-worker`). Verify the worker receives the task, logs expected progress/steps (using `asyncio.run` for I/O), and indicates successful completion or specific errors.
         *   **0.4 Database Check:** After the worker logs indicate completion/failure, inspect the relevant MongoDB scene record. Verify `status` and `storage_key` (on success) or `status` and `error_message` (on failure) are updated correctly.
+        *   **0.4.1 Detailed Error Reporting Check:** Trigger a known failure scenario (e.g., invalid URL). Verify the `error_message` stored in the database (per 0.4) is specific and accurately reflects the *reason* for failure, not just generic.
         *   **0.5 R2 Storage Check:** On successful task completion, verify the media file exists in the Cloudflare R2 bucket at the expected `storage_key`.
-        *   **0.6 Overall Flow Confirmation:** Confirm the end-to-end flow functions as expected for the *current* implementation based on the results of 0.1-0.5.
+        *   **0.5.1 Temporary File Cleanup Check:** After both successful and failed download attempts, inspect the relevant temporary directories within the `celery-worker` container (if any are used by the current process) to confirm temporary files are reliably deleted.
+        *   **0.6 R2 Deletion Check:** After confirming storage (0.5), trigger the action that causes project/scene deletion. Verify that the media file previously confirmed in step 0.5 is subsequently deleted from the Cloudflare R2 bucket.
+        *   **0.7 Overall Flow Confirmation:** Confirm the end-to-end storage *and* deletion flows function as expected for the *current* implementation based on the results of 0.1-0.6.
     *   **Outcome:** If any sub-step fails, diagnose and fix the current implementation before proceeding with the `async def` refactor planned below. If all succeed, we have a stable baseline.
 
 1.  **Verify Async Celery/Redis Infrastructure:**
@@ -87,11 +95,15 @@ Implement reliable background media downloading from external URLs (initially fo
     *   Run these tests within the development environment (potentially inside the backend container if needed to resolve path issues, e.g., `docker compose exec backend pytest app/tests/tasks/test_media_tasks.py`).
 
 4.  **Modify API Endpoint:**
-    *   Update the relevant API endpoint (likely `/api/v1/media/store`) to be `async def`.
-    *   Ensure it receives the `mongo_db_id` from the frontend request payload (or retrieves it reliably).
+    *   Ensure the relevant API endpoint (likely `/api/v1/media/store`) remains **synchronous** (`def`) or uses `async def` carefully *without* blocking the response with long I/O waits.
+    *   Implement logic to:
+        *   Validate the incoming request payload.
+        *   Create or update the initial Scene record in MongoDB to get the confirmed `_id`. This can be done synchronously (`pymongo`) or non-blockingly (`motor`) before dispatching the task.
+        *   Ensure it receives or retrieves the confirmed `mongo_db_id`.
     *   Remove any old placeholder logic (e.g., FastAPI `BackgroundTasks`).
     *   Import the new `async def download_media_task` function.
     *   Correctly call `.delay()` or `.apply_async()` on the Celery task, passing the `mongo_db_id` and other necessary data (URL, scene_id etc.).
+    *   Return `202 Accepted` immediately with the task ID.
 
 5.  **Integrate Frontend:**
     *   Ensure the **project creation flow** is robust: `createProject` function calls the backend API, receives the response containing the MongoDB `_id`, and reliably updates the frontend state (`state.currentProject._id`).
@@ -105,9 +117,9 @@ Implement reliable background media downloading from external URLs (initially fo
     *   **Backend:** Requires an endpoint (for polling) or WebSocket logic to expose task status (read from the database, identified via `mongo_db_id` or perhaps the Celery task ID).
     *   **Frontend:** Implement polling logic or WebSocket client to receive status updates and update the relevant scene component's display.
 
-7.  **End-to-End Testing (of Final Async Implementation):**
-    *   Perform comprehensive manual and/or automated (Playwright) tests covering the **final** full asynchronous workflow implemented in steps 1-6.
-    *   Verify each stage: UI interaction -> API call (with `_id`) -> Celery task queuing -> Async worker execution (`yt-dlp` via async subprocess, R2 via `aiobotocore`, DB update via `motor` using `_id`) -> DB status change -> Frontend UI update (via polling/WebSocket - Subtask #6).
+7.  **End-to-End Testing (of Final Hybrid Implementation):**
+    *   Perform comprehensive manual and/or automated (Playwright) tests covering the **final** hybrid asynchronous workflow implemented in steps 1-6.
+    *   Verify each stage: UI interaction -> API call (sync response with `_id`) -> Celery task queuing -> Async worker execution (`yt-dlp` via async subprocess, R2 via `aiobotocore`, DB update via `motor` using `_id`) -> DB status change -> Frontend UI update (via polling/WebSocket - Subtask #6).
     *   Test with various valid URLs (YouTube, Reddit video, direct MP4, etc.) and potentially URLs known to cause HLS downloads.
     *   Test error conditions (invalid URL, R2 connection failure - potentially mocked).
     *   **Note:** The detailed verification checks previously here are now part of the prerequisite step #0, applied to the *current* code. This step focuses on testing the *result* of implementing Task 13.
