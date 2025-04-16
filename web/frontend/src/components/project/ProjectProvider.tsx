@@ -834,6 +834,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       updatedAt: Date.now() 
     };
 
+    // Dispatch for optimistic UI update
+    dispatch({ type: 'UPDATE_SCENE_TEXT', payload: { sceneId, text } });
+
     try {
       await saveProject(updatedProject);
       updateCoreProjectState(updatedProject); // Update state after save
