@@ -120,7 +120,13 @@ export async function fetchAPI<T = any>(
   const startTime = performance.now();
 
   try {
-    const url = `${API_BASE_URL}${API_VERSION}${endpoint}`;
+    // Construct URL: only add API_VERSION if endpoint doesn't already include it
+    const baseUrl = API_BASE_URL;
+    let finalEndpoint = endpoint;
+    if (!endpoint.startsWith(API_VERSION)) {
+      finalEndpoint = `${API_VERSION}${endpoint}`;
+    }
+    const url = `${baseUrl}${finalEndpoint}`;
     
     // Log requests in development
     if (process.env.NODE_ENV === 'development') {
@@ -215,6 +221,7 @@ export async function fetchAPI<T = any>(
       }
 
       return { 
+        success: false,
         error, 
         timing, 
         connectionInfo,
@@ -224,7 +231,7 @@ export async function fetchAPI<T = any>(
 
     // Handle 204 No Content responses
     if (response.status === 204) {
-      return { data: null as any, timing, connectionInfo };
+      return { success: true, data: null as any, timing, connectionInfo };
     }
 
     const data = await response.json();
@@ -238,7 +245,7 @@ export async function fetchAPI<T = any>(
       );
     }
     
-    return { data, timing, connectionInfo };
+    return { success: true, data, timing, connectionInfo };
   } catch (error) {
     const endTime = performance.now();
     const timing = {
@@ -255,6 +262,7 @@ export async function fetchAPI<T = any>(
     // Handle timeout errors
     if (error instanceof DOMException && error.name === 'AbortError') {
       return {
+        success: false,
         error: {
           status_code: 408, // Request Timeout
           message: `Request timed out after ${timeoutMs}ms`,
@@ -299,18 +307,21 @@ export async function fetchAPI<T = any>(
       errorCode = 'cors_error';
     }
 
+    const errorData: ApiError = {
+      status_code: errorStatusCode,
+      message: errorMessage,
+      error_code: errorCode,
+    };
+
     return {
-      error: {
-        status_code: errorStatusCode,
-        message: errorMessage,
-        error_code: errorCode,
-      },
+      success: false,
+      error: errorData,
       timing,
       connectionInfo: {
         success: false,
         server: API_BASE_URL,
-        status: errorStatusCode,
-        statusText: errorStatusText,
+        status: errorData.status_code,
+        statusText: errorData.message
       },
       data: null as any // Add missing data property for TypeScript
     };

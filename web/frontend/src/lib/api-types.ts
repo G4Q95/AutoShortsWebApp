@@ -24,6 +24,8 @@
  * @property {T} data - The data returned from the API
  * @property {ApiError} [error] - Optional error object if the request failed
  * @property {string} [timestamp] - Optional timestamp for the response
+ * @property {ApiTiming} [timing] - Optional timing information for the request
+ * @property {ConnectionInfo} [connectionInfo] - Optional connection information for the request
  */
 export interface ApiResponse<T> {
   success: boolean;
@@ -31,6 +33,8 @@ export interface ApiResponse<T> {
   data: T;
   error?: ApiError;
   timestamp?: string;
+  timing?: ApiTiming;
+  connectionInfo?: ConnectionInfo;
 }
 
 /**

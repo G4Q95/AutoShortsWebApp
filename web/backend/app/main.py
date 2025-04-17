@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from typing import Dict, Any, List, Union
 
-from app.api import ai, content, projects, users, video_creation, videos, voice, media
+from app.api import ai, content, projects, users, video_creation, videos, voice, media, storage
 from app.api.endpoints.project_operations import project_router
 from app.api.endpoints.scene_operations import scene_router
 from app.api.endpoints.generation_operations import generation_router
@@ -242,6 +242,7 @@ app.include_router(generation_router, prefix="/api/v1/generate")
 app.include_router(voice.router, prefix="/api/v1")
 app.include_router(media.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1/ai")
+app.include_router(storage.router, prefix="/api/v1")
 
 # Include Debug/Test routers if needed in development
 # Make sure prefixes are consistent

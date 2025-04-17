@@ -291,7 +291,9 @@ async def store_media_content(
             project_id=project_id,
             scene_id=scene_id,
             file_type=media_type,
-            user_id="default_user"  # Using a default user ID
+            user_id="default_user",  # Using a default user ID
+            # Pass the generated filename as the object_name for R2
+            object_name=filename  
         )
         upload_duration = time.time() - upload_start_time
         logger.info(f"[TIMING_MEDIA_STORE] R2 upload finished for {project_id}/{scene_id}. Duration: {upload_duration:.2f}s")

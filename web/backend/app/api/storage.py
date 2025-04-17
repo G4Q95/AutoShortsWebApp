@@ -4,8 +4,8 @@ from typing import Optional
 import logging
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_500_INTERNAL_SERVER_ERROR
 import traceback
+import asyncio
 
-from app.services.storage import get_storage_service
 from app.services.storage import R2Storage
 
 router = APIRouter(
@@ -28,8 +28,8 @@ async def get_storage_object(path: str):
     if not path:
         raise HTTPException(status_code=400, detail="Path parameter is required")
     
-    # Get storage instance
-    storage = get_storage_service()
+    # Get storage instance by creating an instance of the class
+    storage = R2Storage()
     
     try:
         # Check if file exists
@@ -44,7 +44,17 @@ async def get_storage_object(path: str):
         
         # Attempt to get the file
         try:
-            content, content_type = await storage.get_file(path)
+            # --- START FIX: Add logic to retrieve file from R2 --- 
+            logger.info(f"[STORAGE-DEBUG] Attempting s3.get_object with Bucket='{storage.bucket_name}' and Key='{path}'")
+            response = await asyncio.to_thread(
+                storage.s3.get_object,
+                Bucket=storage.bucket_name, 
+                Key=path
+            )
+            content = response['Body'].read()
+            content_type = response.get('ContentType', 'application/octet-stream')
+            # --- END FIX ---
+            
             logger.info(f"[STORAGE-DEBUG] Successfully retrieved file: {path} with content_type: {content_type}")
             
             return StreamingResponse(

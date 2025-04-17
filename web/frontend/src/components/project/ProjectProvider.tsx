@@ -76,7 +76,7 @@ const ProjectContext = createContext<(Omit<ProjectState, 'mode'> & {
   /** Updates the audio data and voice settings of a scene */
   updateSceneAudio: (sceneId: string, audioData: Scene['audio'], voiceSettings: Scene['voice_settings']) => void;
   /** Updates the media data of a scene with R2 storage details */
-  updateSceneMedia: (sceneId: string, mediaData: Partial<Scene['media']>) => void;
+  updateSceneMedia: (sceneId: string, mediaData: Partial<Scene['media']>, projectToUpdate: Project) => void;
   /** Updates the project title */
   setProjectTitle: (title: string) => void;
   /** Manually triggers a save of the current project */
@@ -173,14 +173,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const getLatestProjectState = useGetLatestProjectState({ currentProject: coreCurrentProject });
 
   // State monitoring function to detect inconsistencies
-  const logStateConsistency = useCallback(() => {
-    console.log('[STATE-MONITOR] Checking consistency (state.currentProject removed from checks)');
-  }, [coreCurrentProject]);
+  // const logStateConsistency = useCallback(() => {
+  //   console.log('[STATE-MONITOR] Checking consistency (state.currentProject removed from checks)');
+  // }, [coreCurrentProject]);
 
   // Effect to monitor state consistency
-  useEffect(() => {
-    logStateConsistency();
-  }, [logStateConsistency, coreCurrentProject]);
+  // useEffect(() => {
+  //  logStateConsistency();
+  // }, [logStateConsistency, coreCurrentProject]);
 
   // Sync hook state with provider state
   useEffect(() => {
@@ -260,10 +260,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     // Monitor when auto-save effect triggers
-    console.log('[STATE-MONITOR] Auto-save effect triggered:',
-      'Current project in hook:', coreCurrentProject?.id,
-      'Scenes in hook:', coreCurrentProject?.scenes?.length
-    );
+    // console.log('[STATE-MONITOR] Auto-save effect triggered:',
+    //   'Current project in hook:', coreCurrentProject?.id,
+    //   'Scenes in hook:', coreCurrentProject?.scenes?.length
+    // );
 
     // Clear any existing timer first
     if (autoSaveTimerRef.current) {
@@ -280,18 +280,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     // If we have a current project from the HOOK, set up auto-save
     if (coreCurrentProject) { // Check hook state only
-       console.log('[STATE-MONITOR] coreCurrentProject exists, setting auto-save timer.');
+       // console.log('[STATE-MONITOR] coreCurrentProject exists, setting auto-save timer.');
       autoSaveTimerRef.current = setTimeout(() => {
         if (isMounted) {
-          console.log('[STATE-MONITOR] Auto-save timer fired:',
-            'Current project in hook:', coreCurrentProject?.id,
-            'Scenes in hook:', coreCurrentProject?.scenes?.length
-          );
+          // console.log('[STATE-MONITOR] Auto-save timer fired:',
+          //   'Current project in hook:', coreCurrentProject?.id,
+          //   'Scenes in hook:', coreCurrentProject?.scenes?.length
+          // );
           saveCurrentProjectWrapper(); // Wrapper already uses coreCurrentProject
         }
       }, 3000); // Auto-save after 3 seconds
     } else {
-         console.log('[STATE-MONITOR] coreCurrentProject does not exist, skipping auto-save timer setting.');
+         // console.log('[STATE-MONITOR] coreCurrentProject does not exist, skipping auto-save timer setting.');
     }
 
 
@@ -309,7 +309,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // If pathname changed and we have a current project (from the hook), save immediately
     if (prevPathRef.current !== pathname && coreCurrentProject) {
-      console.log(`Navigation detected from ${prevPathRef.current} to ${pathname} - saving project ${coreCurrentProject.id} immediately`);
+      // console.log(`Navigation detected from ${prevPathRef.current} to ${pathname} - saving project ${coreCurrentProject.id} immediately`);
       
       try {
         // Create a fresh deep copy of the project (from the hook) to avoid reference issues
@@ -344,9 +344,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         // Save updated list
         localStorage.setItem(projectsListKey, JSON.stringify(projectsList));
         
-        console.log(`Immediate save on navigation: Project ${projectToSave.id} with ${projectToSave.scenes.length} scenes saved`);
+        // console.log(`Immediate save on navigation: Project ${projectToSave.id} with ${projectToSave.scenes.length} scenes saved`);
       } catch (error) {
-        console.error('Error during immediate navigation save:', error);
+        // console.error('Error during immediate navigation save:', error);
       }
     }
     
@@ -361,7 +361,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     
     // Create a sync handler for beforeunload
     const handleBeforeUnload = () => {
-      console.log('Page unload detected - performing immediate save');
+      // console.log('Page unload detected - performing immediate save');
       
       // We need to perform a synchronous save here since beforeunload doesn't wait for async
       try {
@@ -397,9 +397,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         // Save updated list
         localStorage.setItem(projectsListKey, JSON.stringify(projectsList));
         
-        console.log(`Immediate save on page unload: Project ${projectToSave.id} with ${projectToSave.scenes.length} scenes`);
+        // console.log(`Immediate save on page unload: Project ${projectToSave.id} with ${projectToSave.scenes.length} scenes`);
       } catch (error) {
-        console.error('Error during immediate page unload save:', error);
+        // console.error('Error during immediate page unload save:', error);
       }
     };
 
@@ -428,32 +428,32 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loadProjectFromCoreHook]);
 
   // Update scene media data
-  const updateSceneMedia = useCallback(async (sceneId: string, mediaData: Partial<Scene['media']>) => {
-    // Get the absolute latest project state from the core hook
-    const latestProjectState = getLatestProjectState();
-
+  const updateSceneMedia = useCallback(async (
+    sceneId: string, 
+    mediaData: Partial<Scene['media']>,
+    projectToUpdate: Project
+  ) => {
     // Log state at the time of media update for debugging
-    console.log(`[updateSceneMedia] Called for scene ${sceneId}. Hook scenes=${latestProjectState?.scenes?.length || 0}`);
+    // console.log(`[updateSceneMedia] Called for scene ${sceneId}. Using provided project with ${projectToUpdate.scenes?.length || 0} scenes.`);
     
-    // Use latestProjectState as the single source of truth
-    if (!latestProjectState) {
-      console.error("No active project (from latest state) to update scene media");
+    if (!projectToUpdate) {
+      // console.error("No active project passed to updateSceneMedia");
       dispatch({ type: 'SET_ERROR', payload: { error: 'No active project' } });
       return;
     }
     
-    const sourceProject = latestProjectState; // Directly use the fetched latest state
-    
+    const sourceProject = projectToUpdate;
+
     if (sourceProject.scenes?.length === 0) {
-      console.warn(`Project ${sourceProject.id} has 0 scenes but trying to update scene ${sceneId}`);
+      // console.warn(`Project ${sourceProject.id} has 0 scenes but trying to update scene ${sceneId}`);
     }
     
-    console.log(`[updateSceneMedia] Using source with ${sourceProject.scenes?.length} scenes for update`);
+    // console.log(`[updateSceneMedia] Using source with ${sourceProject.scenes?.length} scenes for update`);
     
     // Find the target scene
     const targetScene = sourceProject.scenes.find(scene => scene.id === sceneId);
     if (!targetScene) {
-      console.error(`Scene ${sceneId} not found in project ${sourceProject.id}`);
+      // console.error(`Scene ${sceneId} not found in project ${sourceProject.id}`);
       dispatch({ type: 'SET_ERROR', payload: { error: `Scene ${sceneId} not found` } });
       return;
     }
@@ -479,18 +479,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     try {
       // Log what we're about to save
-      console.log(`[updateSceneMedia] Saving project ${updatedProject.id} with ${updatedProject.scenes.length} scenes`);
+      // console.log(`[updateSceneMedia] Saving project ${updatedProject.id} with ${updatedProject.scenes.length} scenes`);
       
       await saveProject(updatedProject);
-      updateCoreProjectState(updatedProject); // Update state after save
+      updateCoreProjectState(updatedProject);
       
       // Also dispatch to reducer to ensure both states are in sync
       // dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: updatedProject } }); // Removed dispatch
     } catch (error) {
-      console.error("Failed to save scene media:", error);
+      // console.error("Failed to save scene media:", error);
       dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save media change' } });
     }
-  }, [dispatch, saveProject, updateCoreProjectState, getLatestProjectState]);
+  }, [dispatch, saveProject, updateCoreProjectState]);
 
   // Store all unstored media for the current project in R2
   const storeAllMedia = useCallback(async (): Promise<{
@@ -500,7 +500,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   } | null> => {
     // Use coreCurrentProject as the source of truth
     if (!coreCurrentProject) { // Check the hook's state
-      console.error('No active project (from core hook) to store media for');
+      // console.error('No active project (from core hook) to store media for');
       dispatch({
         type: 'SET_ERROR',
         payload: { error: 'No active project to store media for' },
@@ -510,22 +510,35 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     // Create a local reference from the hook's state
     const currentProject = { ...coreCurrentProject }; // Use coreCurrentProject
-    console.log(`Initiating storage of all media for project: ${currentProject.id}`);
+    // console.log(`Initiating storage of all media for project: ${currentProject.id}`);
 
     try {
       // Import the utility function
       const { storeAllProjectMedia } = await import('../../lib/media-utils');
       
-      // Store all media for the project
+      // *** FIX: Create a wrapper for updateSceneMedia for storeAllProjectMedia ***
+      const updateSceneMediaForStoreAll = async (sceneId: string, mediaData: Partial<Scene['media']>) => {
+        // Get the latest project state specifically for this call
+        const latestProject = await loadProjectFromHook(currentProject.id);
+        if (latestProject) {
+          await updateSceneMedia(sceneId, mediaData, latestProject);
+        } else {
+          // console.error(`[storeAllMedia] Could not load project ${currentProject.id} to update scene ${sceneId}`);
+          // Handle error appropriately, maybe dispatch an error
+        }
+      };
+      
+      // Store all media for the project, passing the wrapper
       const result = await storeAllProjectMedia(
         currentProject,
-        updateSceneMedia
+        // updateSceneMedia // <-- OLD: Passed original function
+        updateSceneMediaForStoreAll // <-- NEW: Pass the wrapper function
       );
       
-      console.log('Media storage process completed:', result);
+      // console.log('Media storage process completed:', result);
       return result;
     } catch (error) {
-      console.error('Error storing project media:', error);
+      // console.error('Error storing project media:', error);
       dispatch({
         type: 'SET_ERROR',
         payload: { 
@@ -534,7 +547,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       });
       return null;
     }
-  }, [coreCurrentProject, updateSceneMedia]);
+  }, [coreCurrentProject, updateSceneMedia, loadProjectFromHook]); // <-- Added loadProjectFromHook
 
   // Add a function to check if media storage is in progress
   const isMediaStorageInProgress = useCallback(() => {
@@ -570,14 +583,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Add a scene - Refactored to use useProjectCore state
   const addScene = useCallback(async (url: string) => {
     // Monitor state sources (keep for debugging)
-    console.log('[STATE-MONITOR] addScene called with current state:',
-      'Core hook project:', coreCurrentProject?.id,
-      'Core hook scenes:', coreCurrentProject?.scenes?.length
-    );
+    // console.log('[STATE-MONITOR] addScene called with current state:',
+    //   'Core hook project:', coreCurrentProject?.id,
+    //   'Core hook scenes:', coreCurrentProject?.scenes?.length
+    // );
     
     // Use coreCurrentProject as the source of truth
     if (!coreCurrentProject) {
-      console.error('No active project (from core hook) to add scene to');
+      // console.error('No active project (from core hook) to add scene to');
       dispatch({ type: 'SET_ERROR', payload: { error: 'No active project to add scene to' } });
       return;
     }
@@ -643,7 +656,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       };
 
       // 4. Save the updated project state (using persistence hook)
-      console.log(`Saving project with new/updated scene: ${updatedProject.id}, scenes: ${updatedScenes.length}`);
+      // console.log(`Saving project with new/updated scene: ${updatedProject.id}, scenes: ${updatedScenes.length}`);
       await saveProject(updatedProject);
 
       // 5. Update the core hook's state *after* successful save
@@ -657,79 +670,118 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
          
          // *** START REFACTOR ***
          try {
-           // Remove old dynamic import
-           // const { storeSceneMedia } = await import('../../lib/media-utils');
-           // console.log(`[STORAGE-DEBUG] Calling storeSceneMedia function for scene ${newScene.id}`);
-           
-           console.log(`[STORAGE-DEBUG] Calling storeMediaFromHook for scene ${newScene.id}`);
-           
-           // Prepare parameters for the hook
-           const mediaParams = {
-             projectId: projectId,
-             sceneId: newScene.id,
-             url: newScene.media.url,
-             media_type: newScene.media.type, // Pass media type
-             create_thumbnail: true, // Assuming we want thumbnails for new scenes
-           };
+           // Perform the background media storage
+           (async () => {
+             try {
+               // Get necessary IDs from the NEW scene
+               const projectId = updatedProject.id; // Get project ID from the updated project
+               const sceneId = newScene.id;
 
-           // Call the hook's function
-           const response = await storeMediaFromHook(mediaParams);
-           
-           // Handle response from the hook
-           if (response.error) {
-             console.warn(`[STORAGE-DEBUG] Failed to store media for scene: ${newScene.id}. Error: ${response.error.message}`);
-             // Optionally dispatch an error to the main state
-             dispatch({ type: 'SET_ERROR', payload: { error: `Failed to store media for scene ${newScene.id}: ${response.error.message}` } });
-           } else if (response.data?.success) {
-             console.log(`[STORAGE-DEBUG] Successfully stored media for scene: ${newScene.id}`);
-             // The hook handles the API call, updateSceneMedia should be called if the hook
-             // doesn't directly update the project state. Assuming updateSceneMedia is still needed
-             // to update the local state with the storageKey/storedUrl from response.data
-             if (response.data.storage_key || response.data.url) { // Check if there's data to update
-                updateSceneMedia(newScene.id, { 
-                  storageKey: response.data.storage_key,
-                  storedUrl: response.data.url, // Assuming the hook response url is the stored one
-                  thumbnailUrl: response.data.metadata?.thumbnail_url || newScene.media.thumbnailUrl // Update thumbnail if provided
-                });
+               if (!projectId || !sceneId) {
+                 // console.warn('[STORAGE-DEBUG] Missing project or scene ID for background storage');
+                 return;
+               }
+
+               // Add checks for newScene.media and newScene.media.url
+               if (!newScene.media || !newScene.media.url) {
+                 // console.warn(`[STORAGE-DEBUG] Skipping background storage for scene ${sceneId}: No media URL found.`);
+                 return; // Don't proceed if there's no media URL
+               }
+
+               // console.log(`[STORAGE-DEBUG] Calling storeMediaFromHook for scene ${sceneId}`);
+
+               // Prepare parameters for the hook (matching MediaStorageParams)
+               const mediaParams = {
+                 projectId: projectId, // Use projectId
+                 sceneId: sceneId,     // Use sceneId
+                 url: newScene.media.url, // Safe to access now
+                 media_type: newScene.media.type, // Safe to access now
+                 create_thumbnail: true // Or determine based on logic
+               };
+
+               // Call the hook's function
+               const storeResult = await storeMediaFromHook(mediaParams);
+
+               // Handle response from the hook
+               if (storeResult.error) {
+                 // console.warn(`[STORAGE-DEBUG] Failed to store media for scene: ${sceneId}. Error: ${storeResult.error.message}`);
+                 // Optionally dispatch an error to the main state
+                 dispatch({ type: 'SET_ERROR', payload: { error: `Failed to store media for scene ${sceneId}: ${storeResult.error.message}` } });
+               } else if (storeResult.success) {
+                 // console.log('[STORAGE-DEBUG] Successfully stored media for scene:', sceneId);
+                 // The hook handles the API call, updateSceneMedia should be called if the hook
+                 // doesn't directly update the project state. Assuming updateSceneMedia is still needed
+                 // to update the local state with the storageKey/storedUrl from response.data
+                 if (storeResult.data?.storage_key || storeResult.data?.url) { // Check if there's data to update
+                   // We need the *current* project state to update, not the one from closure
+                   const latestProject = getLatestProjectState();
+                   if (latestProject) {
+                     updateSceneMedia(
+                       sceneId,
+                       {
+                         storageKey: storeResult.data.storage_key,
+                         storedUrl: storeResult.data.url, // Assuming the hook response url is the stored one
+                         // Check if newScene.media exists before accessing thumbnailUrl
+                         thumbnailUrl: storeResult.data.metadata?.thumbnail_url || (newScene.media ? newScene.media.thumbnailUrl : undefined) 
+                       },
+                       latestProject // <-- PASS the LATEST project state
+                     );
+                   } else {
+                     // console.error(`[STORAGE-DEBUG] Could not get latest project state to update scene ${sceneId} after media storage.`);
+                   }
+                 }
+               } else {
+                 // console.warn(`[STORAGE-DEBUG] Media storage call completed but did not report success for scene: ${sceneId}`);
+               }
+
+             } catch (storageError) {
+               // console.error('Error during background media storage via hook:', storageError);
+               // Clear storing media flag on error too
+               // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
+               // Optionally dispatch a global error
+               dispatch({ type: 'SET_ERROR', payload: { error: `Background media storage failed for scene ${newScene.id}` } });
              }
-           } else {
-             console.warn(`[STORAGE-DEBUG] Media storage call completed but did not report success for scene: ${newScene.id}`);
-           }
+           })();
 
-           // Clear storing media flag (This might need more sophisticated handling if multiple stores run concurrently)
+         } catch (error) {
+           // console.error('Error during background media storage via hook:', error);
+           // Clear storing media flag on error too
            // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
-           
-         } catch (storageError) {
-            console.error('Error during background media storage via hook:', storageError);
-            // Clear storing media flag on error too
-            // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
-            // Optionally dispatch an error to the main state
-            dispatch({ type: 'SET_ERROR', payload: { error: `Error storing media: ${storageError instanceof Error ? storageError.message : 'Unknown error'}` } });
+           // Optionally dispatch a global error
+           dispatch({ type: 'SET_ERROR', payload: { error: `Failed to add scene: ${error instanceof Error ? error.message : String(error)}` } });
+         } finally {
+           // Ensure loading state is reset
+           dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
          }
          // *** END REFACTOR ***
       }
 
     } catch (error) {
-      console.error('Error adding scene:', error);
+      // console.error('Error adding scene:', error);
       // Dispatch error state for UI feedback
       dispatch({
-        type: 'SET_ERROR', 
-        payload: {
-          error: error instanceof Error ? error.message : 'Unknown error adding scene',
-        },
+        type: 'SET_ERROR',
+        payload: { error: `Failed to add scene: ${error instanceof Error ? error.message : String(error)}` }
       });
       // Ensure loading state is cleared in reducer if fetch failed early
       // dispatch({ type: 'ADD_SCENE_ERROR', payload: { sceneId, error: 'Failed during addScene' } }); // Removed dispatch
     }
-  }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState, updateSceneMedia, storeMediaFromHook]); // <-- Added storeMediaFromHook to dependencies
+  }, [
+    coreCurrentProject, // Depend on the hook's project state
+    dispatch,
+    saveProject,
+    storeMediaFromHook, // Add the hook function as dependency
+    updateSceneMedia, // Ensure updateSceneMedia is stable or included
+    getLatestProjectState
+  ]);
 
   // Remove a scene - simplified for reliability
   const removeScene = useCallback(async (sceneId: string) => {
     // Monitor state sources
-    console.log('[STATE-MONITOR] removeScene called for scene:', sceneId,
-      'Core hook project:', coreCurrentProject?.id,
-      'Core hook scenes:', coreCurrentProject?.scenes?.length
-    );
+    // console.log('[STATE-MONITOR] removeScene called for scene:', sceneId,
+    //   'Core hook project:', coreCurrentProject?.id,
+    //   'Core hook scenes:', coreCurrentProject?.scenes?.length
+    // );
     
     // *** FIX: Use coreCurrentProject from the hook ***
     // Get the current project from state <<< REMOVED
@@ -737,7 +789,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     
     // If no current project in the hook state, log error and return
     if (!coreCurrentProject) { // <<< UPDATED CHECK
-      console.error('No active project (from core hook) to remove scene from');
+      // console.error('No active project (from core hook) to remove scene from');
       dispatch({
         type: 'SET_ERROR',
         payload: { error: 'No active project to remove scene from' },
@@ -752,7 +804,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Check if the scene exists
       const sceneIndex = project.scenes.findIndex(scene => scene.id === sceneId);
       if (sceneIndex === -1) {
-        console.warn(`Scene ${sceneId} not found in project ${project.id}, proceeding with UI update only`);
+        // console.warn(`Scene ${sceneId} not found in project ${project.id}, proceeding with UI update only`);
       }
       
       // Create an updated project with the scene removed
@@ -777,7 +829,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
 
     } catch (error) {
-      console.error('Error saving project after scene removal:', error);
+      // console.error('Error saving project after scene removal:', error);
       dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
       dispatch({
         type: 'SET_ERROR',
@@ -789,11 +841,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Reorder scenes in the current project
   const reorderScenes = useCallback(async (sceneIds: string[]) => { 
     // Monitor state sources (keep for debugging)
-    console.log('[STATE-MONITOR] reorderScenes called ...'); // Abbreviated log
+    // console.log('[STATE-MONITOR] reorderScenes called ...'); // Abbreviated log
     
     // Use coreCurrentProject as the source of truth
     if (!coreCurrentProject) { // <<< ADDED NULL CHECK
-      console.error('No active project (from core hook) to reorder scenes in');
+      // console.error('No active project (from core hook) to reorder scenes in');
       dispatch({ type: 'SET_ERROR', payload: { error: 'No active project' } });
       return;
     }
@@ -819,7 +871,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Update core hook state *after* successful save
       updateCoreProjectState(updatedProject); // Pass the correctly typed object
     } catch (error) { 
-       console.error('Error saving project after reordering scenes:', error);
+       // console.error('Error saving project after reordering scenes:', error);
        dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save scene order' } });
     }
   }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState]);
@@ -847,7 +899,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       await saveProject(updatedProject);
       updateCoreProjectState(updatedProject); // Update state after save
     } catch (error) {
-      console.error("Failed to save scene text:", error);
+      // console.error("Failed to save scene text:", error);
       dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save text change' } });
     }
   }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState]);
@@ -880,7 +932,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       await saveProject(updatedProject);
       updateCoreProjectState(updatedProject); // Update state after save
     } catch (error) {
-      console.error("Failed to save scene audio:", error);
+      // console.error("Failed to save scene audio:", error);
       dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save audio change' } });
     }
   }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState]);
@@ -897,7 +949,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId: null } }); // Removed dispatch (hook handles this)
       router.push('/');
     } catch (error) {
-      console.error('Error deleting all projects:', error);
+      // console.error('Error deleting all projects:', error);
       dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to delete all projects' } });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
@@ -906,7 +958,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Toggle letterboxing display
   const toggleLetterboxing = useCallback(async (show: boolean) => {
-    console.log('[ProjectProvider] Toggling letterboxing:', show);
+    // console.log('[ProjectProvider] Toggling letterboxing:', show);
     
     // dispatch({ 
     //   type: 'TOGGLE_LETTERBOXING', 
@@ -918,7 +970,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     
     // Save the project after toggling letterboxing
     saveCurrentProjectWrapper().catch(error => {
-      console.error('Error saving project after toggling letterboxing:', error);
+      // console.error('Error saving project after toggling letterboxing:', error);
     });
   }, [saveCurrentProjectWrapper]);
 
