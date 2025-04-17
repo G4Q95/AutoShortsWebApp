@@ -28,3 +28,25 @@ Resolve issues preventing successful creation and updating of projects via the A
     *   **Investigation:** Found multiple conflicting router includes in `main.py`. **Fix:** Cleaned up `main.py` router includes significantly. **Result:** `ERR_CONNECTION_RESET` persisted.
     *   **Investigation:** Confirmed `POST /` route was missing entirely from `endpoints/projects.py`. **Fix:** Added `create_project` function with `@router.post("/")`. **Result:** `ERR_CONNECTION_RESET` persisted.
     *   **Investigation:** Checked backend logs after fixing router/adding route. Found backend failing to start due to `ImportError: cannot import name 'get_settings' from 'app.core.config'` in `
+
+## Resolution
+
+The primary issues blocking project creation and updates were resolved as follows:
+
+1.  **`PATCH` Endpoint Issue (Scene Data Not Saving):**
+    *   The root cause for scenes not saving after initial creation was the complete absence of a `PATCH /api/v1/projects/{project_id}` endpoint handler in the backend.
+    *   **Fix:** Implemented the `patch_project` function in `web/backend/app/api/endpoints/project_operations.py`. This function handles `PATCH` requests, updates the project document in MongoDB (including the `scenes` array) using the provided data, and returns the updated project.
+    *   **Outcome:** With the `patch_project` endpoint added, scene updates sent from the frontend via `PATCH` requests are now correctly persisted to the MongoDB database.
+
+2.  **`POST` Endpoint Issue (`ERR_CONNECTION_RESET`):**
+    *   Multiple factors contributed:
+        *   Incorrect frontend URL (`/api/v1/projects/projects/` instead of `/api/v1/projects/`).
+        *   Router misconfiguration (`projects_router` commented out or duplicated) in `main.py`.
+        *   Missing `POST /` route definition in the projects router.
+        *   Subsequent `ImportError` preventing the backend from starting.
+    *   **Fixes:** Corrected the frontend URL, cleaned up `main.py` routers, added the `create_project` function (`@router.post("/")`), and resolved the `ImportError`.
+    *   **Outcome:** Project creation via `POST /api/v1/projects/` is now functional.
+
+3.  **Pydantic Serialization Error:**
+    *   While initially a significant blocker during the `PATCH` attempts, the underlying issue was likely masked by the missing endpoint itself. With the endpoint correctly implemented and returning a Pydantic model (`ProjectResponse`), the model's configuration (including `json_encoders={ObjectId: str}`) now handles the `ObjectId` to `str` conversion correctly.
+    *   **Outcome:** The serialization error is no longer occurring after implementing the correct `PATCH` endpoint handler.
