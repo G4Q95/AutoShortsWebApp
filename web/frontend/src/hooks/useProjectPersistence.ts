@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
+import axios from 'axios';
+import { ApiResponse } from '../lib/api-types';
 import { 
-  Project 
+  Project, Scene 
 } from '@/components/project/ProjectTypes';
 import {
   getProjectsList as getProjectsListFromStorage,
@@ -72,23 +74,39 @@ export function useProjectPersistence(): UseProjectPersistenceReturn {
       // Log scenes count to help debug
       console.log(`Saving project via hook: ${projectToSave.id}, ${projectToSave.title}, scenes: ${projectToSave.scenes.length}`);
       
-      // // TODO: Consider if scene recovery logic belongs here or higher up
-      // if (projectToSave.scenes.length === 0) {
-      //   try {
-      //     const key = `auto-shorts-project-${projectToSave.id}`;
-      //     const storedProjectJson = localStorage.getItem(key);
-      //     if (storedProjectJson) {
-      //       const storedProject = JSON.parse(storedProjectJson);
-      //       if (storedProject.scenes && storedProject.scenes.length > 0) {
-      //         console.log(`Recovered ${storedProject.scenes.length} scenes from localStorage during save`);
-      //         projectToSave.scenes = storedProject.scenes; 
-      //       }
-      //     }
-      //   } catch (recoveryError) {
-      //     console.error('Failed to recover scenes during save:', recoveryError);
-      //   }
-      // }
+      // --- BEGIN BACKEND PATCH LOGIC (Corrected URL) ---
+      // 1. Prepare data for PATCH (ProjectUpdate structure)
+      const updatePayload = {
+        title: projectToSave.title,
+        // description field doesn't exist on Project type
+        scenes: projectToSave.scenes, 
+        // Add other updatable fields from Project type
+        aspectRatio: projectToSave.aspectRatio,
+        showLetterboxing: projectToSave.showLetterboxing,
+        status: projectToSave.status, // Include status
+      };
+
+      // 2. Make the PATCH request using the ABSOLUTE backend URL
+      const absoluteApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const patchUrl = `${absoluteApiUrl}/api/v1/projects/${projectToSave.id}`; 
+      console.log(`[useProjectPersistence] Sending PATCH to ${patchUrl} with payload:`, updatePayload);
+
+      const response = await axios.patch<ApiResponse<Project>>(patchUrl, updatePayload);
+
+      // 3. Check backend response
+      if (!response.data || !response.data.success) {
+          const errorMsg = response.data?.message || 'Failed to save project to backend';
+          console.error(`[useProjectPersistence] Backend PATCH failed for ${projectToSave.id}: ${errorMsg}`, response.data);
+          // Still throw error, but maybe don't block local save if API fails?
+          // Consider if local save should proceed even if backend fails.
+          // For now, throwing error prevents local save on backend failure.
+          throw new Error(errorMsg);
+      }
       
+      console.info(`[useProjectPersistence] Project ${projectToSave.id} successfully saved to backend.`);
+      // --- END BACKEND PATCH LOGIC ---
+      
+      // 4. If backend save was successful, save to local storage
       await saveProjectToStorage(projectToSave);
 
       const timestamp = Date.now();

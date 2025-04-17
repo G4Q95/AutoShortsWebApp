@@ -6,6 +6,7 @@ import json
 import logging
 import traceback
 from contextlib import asynccontextmanager
+import os
 
 from bson import ObjectId
 from fastapi import FastAPI, Request, status, HTTPException, Depends
@@ -14,10 +15,10 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from typing import Dict, Any, List, Union
 
-from app.api import ai, content, projects, users, video_creation, videos, voice, media, storage
-from app.api.endpoints.project_operations import project_router
+from app.api import ai, content, users, video_creation, videos, voice, media, storage
 from app.api.endpoints.scene_operations import scene_router
 from app.api.endpoints.generation_operations import generation_router
+from app.api.v1.endpoints import projects as projects_endpoint
 from app.core.config import settings
 from app.core.database import init_db, close_db, db, MongoJSONResponse
 from app.core.errors import create_error_response, ErrorCodes
@@ -236,7 +237,10 @@ async def general_exception_handler(request: Request, exc: Exception):
 # --- Endpoint Routers ---
 # Use specific prefixes for clarity
 app.include_router(content.router, prefix="/api/v1")
-app.include_router(project_router, prefix="/api/v1/projects")
+
+# Use the router from the new projects endpoint file
+app.include_router(projects_endpoint.router, prefix="/api/v1/projects", tags=["projects"])
+
 app.include_router(scene_router, prefix="/api/v1/projects")
 app.include_router(generation_router, prefix="/api/v1/generate")
 app.include_router(voice.router, prefix="/api/v1")
@@ -248,8 +252,11 @@ app.include_router(storage.router, prefix="/api/v1")
 # Make sure prefixes are consistent
 from app.api.test import router as test_router
 from app.api.debug import router as debug_router
-app.include_router(test_router, prefix="/api/v1")
-app.include_router(debug_router, prefix="/api/v1/debug")
+
+# Check environment using os.getenv instead of settings.ENVIRONMENT
+if os.getenv("ENV", "development") == "development":
+    app.include_router(test_router, prefix="/api/v1/test", tags=["test"])
+    app.include_router(debug_router, prefix="/api/v1/debug", tags=["debug"])
 
 # --- Remove Legacy/Deprecated Router Includes ---
 # These should be removed to avoid conflicts
@@ -263,3 +270,8 @@ app.include_router(debug_router, prefix="/api/v1/debug")
 # Remove commented-out lines related to old structure
 # app.include_router(projects_router, prefix="/api/v1/projects")
 # from app.api.content import router as content_router # Redundant import
+
+# ... Run server if main ...
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

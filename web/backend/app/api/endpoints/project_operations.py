@@ -10,7 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Response, s
 
 from app.core.config import settings
 from app.core.database import db
-from app.models.project import ProjectCreate, ProjectResponse
+from app.models.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.core.errors import create_error_response, ErrorCodes
 from app.models.api import ApiResponse
 from app.services.storage import storage as storage_service
@@ -715,5 +715,167 @@ async def create_project(project: ProjectCreate = Body(...)):
 # --- Placeholder for next endpoint --- 
 # Other project endpoints will be added here 
 
+
+# --- End of File --- 
+
+# --- Project CRUD Endpoints ---
+
+@project_router.patch("/{project_id}", response_model=ApiResponse[ProjectResponse], status_code=status.HTTP_200_OK)
+async def update_project_patch(project_id: str, project_data: ProjectUpdate = Body(...)):
+    """Partially update a project by its ID using PATCH."""
+    logger.info(f"PATCH request received for project: {project_id}")
+    collection = db.get_collection("projects")
+
+    try:
+        obj_id = ObjectId(project_id)
+    except InvalidId:
+        logger.warning(f"Invalid ObjectId format for PATCH: {project_id}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid project ID format: {project_id}")
+    except Exception as e: # Catch potential unexpected errors during ObjectId conversion
+        logger.error(f"Error converting project_id '{project_id}' to ObjectId: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing project ID")
+
+    # Check if project exists first
+    existing_project = await collection.find_one({"_id": obj_id})
+    if existing_project is None:
+        logger.warning(f"Project not found for PATCH update: {project_id}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project with id {project_id} not found")
+
+    # Prepare update payload, excluding fields that were not provided in the request
+    update_payload = project_data.model_dump(exclude_unset=True)
+
+    # Handle scenes update specifically: dump Pydantic models to dicts for MongoDB
+    if "scenes" in update_payload and update_payload["scenes"] is not None:
+        try:
+            # Ensure scenes are correctly serialized
+            update_payload["scenes"] = [scene.model_dump(by_alias=True, exclude_unset=True) 
+                                         for scene in project_data.scenes]
+            logger.debug(f"Serialized scenes for update: {update_payload['scenes']}")
+        except Exception as e:
+            logger.error(f"Error serializing scenes during PATCH for project {project_id}: {e}")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid scene data provided")
+    elif "scenes" in update_payload:
+        # If scenes is explicitly set to None or empty list in the PATCH request
+        # We might want different behavior, e.g., unset vs set to empty list
+        # For now, setting to empty list if provided as empty list
+        if project_data.scenes == []:
+             update_payload["scenes"] = []
+        else: # If None, remove it from payload so $set doesn't make it null
+             del update_payload["scenes"]
+
+    if not update_payload:
+        logger.info(f"PATCH request for project {project_id} had no fields to update.")
+        # Return current project data without making DB call
+        # Ensure the response matches ProjectResponse structure
+        existing_project["id"] = str(existing_project["_id"]) # Add string ID
+        validated_response = ProjectResponse.model_validate(existing_project)
+        return ApiResponse(success=True, data=validated_response)
+        
+    # Add updated_at timestamp
+    update_payload["updated_at"] = datetime.utcnow()
+
+    try:
+        logger.debug(f"Applying update payload to project {project_id}: {update_payload}")
+        updated_project = await collection.find_one_and_update(
+            {"_id": obj_id},
+            {"$set": update_payload},
+            return_document=ReturnDocument.AFTER
+        )
+        
+        if updated_project is None:
+             # This shouldn't happen if we found the project earlier, but handle defensively
+             logger.error(f"Project {project_id} disappeared during PATCH update?")
+             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve updated project")
+
+        logger.info(f"Successfully PATCH updated project: {project_id}")
+        
+        # Manually add string 'id' field before validation for ProjectResponse
+        updated_project["id"] = str(updated_project["_id"]) 
+        validated_response = ProjectResponse.model_validate(updated_project)
+        
+        return ApiResponse(success=True, data=validated_response)
+
+    except Exception as e:
+        logger.error(f"Error during find_one_and_update for project {project_id}: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error during project update")
+
+
+@project_router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project_endpoint(project_id: str):
+    '''
+    Delete a project and its associated storage files.
+    '''
+    logger.info(f"[DELETE-PROJECT] Received request to delete project: {project_id}")
+
+    # --- Step 1: Synchronous R2 Storage Cleanup ---
+    # Call the cleanup function *synchronously* as it handles synchronous boto3 calls
+    # Use asyncio.to_thread if cleanup becomes complex and might block, 
+    # but for now, direct call if it's mostly I/O handled internally by boto3 sync methods.
+    # Note: The current cleanup_project_storage IS async due to internal awaits for pattern searching. 
+    # However, the critical boto3 calls inside it are synchronous.
+    # A fully synchronous version might be needed if this blocks the event loop.
+    # For now, we await the wrapper, assuming boto3's sync calls release the GIL for I/O.
+    
+    try:
+        # Await the async wrapper function, which internally uses sync boto3 calls correctly
+        cleanup_results = await cleanup_project_storage(project_id, dry_run=False)
+        logger.info(f"[DELETE-PROJECT] Storage cleanup results for {project_id}: {cleanup_results}")
+        
+        # Check for cleanup failures - optional, decide if deletion should proceed
+        if cleanup_results.get("failed_files"):
+             logger.warning(f"[DELETE-PROJECT] Some files failed to delete for project {project_id}, but proceeding with DB deletion.")
+             # You might choose to raise an error here instead if cleanup must be perfect:
+             # raise HTTPException(status_code=500, detail="Failed to clean up all storage files")
+
+    except Exception as storage_exc:
+        logger.error(f"[DELETE-PROJECT] Error during storage cleanup for project {project_id}: {storage_exc}")
+        # Decide if you want to stop or continue if cleanup fails
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=create_error_response(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Storage cleanup failed: {storage_exc}",
+                error_code=ErrorCodes.STORAGE_ERROR
+            )
+        )
+
+    # --- Step 2: Database Deletion ---
+    try:
+        logger.info(f"[DELETE-PROJECT] Deleting project {project_id} from database...")
+        if not db.is_mock:
+            mongo_db = db.get_db()
+            
+            # Delete project document
+            delete_project_result = await mongo_db.projects.delete_one({"_id": project_id})
+            
+            if delete_project_result.deleted_count == 0:
+                logger.warning(f"[DELETE-PROJECT] Project {project_id} not found in database for deletion, but cleanup was attempted.")
+                # Return 204 anyway, as the desired state (project gone) is achieved
+                return Response(status_code=status.HTTP_204_NO_CONTENT)
+            
+            logger.info(f"[DELETE-PROJECT] Successfully deleted project {project_id} from database.")
+
+            # Delete tracked R2 file paths
+            logger.info(f"[DELETE-PROJECT] Deleting tracked R2 file paths for project {project_id}...")
+            delete_tracking_result = await r2_file_tracking.delete_files_by_project(project_id)
+            logger.info(f"[DELETE-PROJECT] Deleted {delete_tracking_result.get('deleted_count', 0)} tracked file paths.")
+
+        else:
+            logger.info("[DELETE-PROJECT] Mock mode: Skipping database deletion.")
+        
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    except Exception as db_exc:
+        logger.error(f"[DELETE-PROJECT] Error during database deletion for project {project_id}: {db_exc}")
+        # If DB deletion fails after storage cleanup, we have an inconsistent state
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=create_error_response(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Database deletion failed after storage cleanup: {db_exc}",
+                error_code=ErrorCodes.DATABASE_ERROR
+            )
+        )
 
 # --- End of File --- 

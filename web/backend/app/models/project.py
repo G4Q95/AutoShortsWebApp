@@ -5,8 +5,10 @@ from typing import Annotated, Any, ClassVar, Dict, List, Optional
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+# Revert: Remove import of PydanticObjectId
+# from app.utils.bson_encoders import PydanticObjectId
 
-# MongoDB ObjectId custom Pydantic field for v2
+# Revert: Restore original PyObjectId implementation
 class PyObjectId(str):
     """Custom type for handling MongoDB ObjectId in Pydantic models."""
 
@@ -54,11 +56,13 @@ class SceneCreate(SceneBase):
 
 
 class Scene(SceneBase):
+    # Revert: Use original PyObjectId, use default_factory
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
 
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
+        # Revert: Restore original json_encoders
         json_encoders={ObjectId: str},
         extra="allow",
     )
@@ -78,6 +82,7 @@ class ProjectCreate(ProjectBase):
 
 
 class Project(ProjectBase):
+    # Revert: Use original PyObjectId, use default_factory
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
     scenes: List[Scene] = []
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -86,25 +91,38 @@ class Project(ProjectBase):
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
+        # Revert: Restore original json_encoders
         json_encoders={ObjectId: str, datetime: lambda dt: dt.isoformat()},
         extra="allow",
     )
 
 
+# Model for updating project details
+class ProjectUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    scenes: Optional[List[Scene]] = None  # Allow updating scenes
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+
 # Project response model - simplified for API responses
 class ProjectResponse(BaseModel):
-    id: str
+    # Revert: ID should be string, remove alias (handled by populate_by_name)
+    id: str 
     title: str
     description: Optional[str] = None
     user_id: Optional[str] = None
-    scenes: List[Dict[str, Any]] = []
+    # Revert: Scenes list type
+    scenes: List[Dict[str, Any]] = [] 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     # Allow extra fields
     model_config = ConfigDict(
         populate_by_name=True,
-        from_attributes=True,
+        from_attributes=True, # Keep this to allow reading from ORM/dict
         extra="allow",
+        # Revert: Restore original json_encoders
         json_encoders={ObjectId: str, datetime: lambda dt: dt.isoformat()},
     )

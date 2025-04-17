@@ -143,7 +143,7 @@ export function useProjectCore(
     try {
       console.log('[useProjectCore] Attempting to create project via API:', projectDataForApi);
       // Make the API call to the backend - Use FULL ABSOLUTE PATH
-      const absoluteUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/projects`;
+      const absoluteUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/`;
       console.log(`[useProjectCore] Using absolute URL for create: ${absoluteUrl}`)
       // Expect ApiResponse wrapper now, not { project: ... }
       const response = await axios.post<ApiResponse<Project>>(absoluteUrl, projectDataForApi);
