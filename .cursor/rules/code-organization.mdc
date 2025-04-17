@@ -1,3 +1,9 @@
+### File Structure & Naming
+- Use lowercase with hyphens for directories (e.g., `components/auth-form`, `services/video-processing`)
+- Use PascalCase for React component files (e.g., `UserLogin.jsx`)
+- Use camelCase for utility files (e.g., `apiClient.js`, `videoUtils.js`)
+- Use snake_case for Python files in the backend (e.g., `content_retrieval.py`)
+
 ### Component Structure
 - Structure React components: imports, component, helpers, exports
 - Structure Python modules: imports, constants, functions, classes, exports
