@@ -1,9 +1,26 @@
 import logging
+# Standard library imports
+from typing import Annotated
 
-from app.services.media_processing import process_media_upload
-from app.services.r2_service import create_presigned_url, r2_upload_file_obj
+# Third-party imports
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
+# Local application imports
+from app.core.config import Settings, get_settings
+# from app.services.media_processing import process_media_upload # Original incorrect import
+from app.services.media_service import store_media_content as process_media_upload # Corrected import with alias
+from app.services.r2_service import R2Service, get_r2_service
+from app.db.mongodb import get_database
+from app.schemas.media import MediaStorageRequest, MediaStorageResponse
+
+router = APIRouter()
+
+# Set up logger
 logger = logging.getLogger(__name__)
+
+# --- LOG POINT: Endpoint Initialization ---
+logger.info("Initializing media endpoint router.")
 
 @router.post(
     "/store",
