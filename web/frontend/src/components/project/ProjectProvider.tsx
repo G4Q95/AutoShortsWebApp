@@ -723,18 +723,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
                  // The hook handles the API call, updateSceneMedia should be called if the hook
                  // doesn't directly update the project state. Assuming updateSceneMedia is still needed
                  // to update the local state with the storageKey/storedUrl from response.data
-                 if (storeResult.data?.storage_key || storeResult.data?.url) { // Check if there's data to update
-                   // Call the refactored updateSceneMedia without the project argument
-                   updateSceneMedia( 
-                     sceneId,
-                     {
-                       storageKey: storeResult.data.storage_key,
-                       storedUrl: storeResult.data.url, // Assuming the hook response url is the stored one
-                       // Check if newScene.media exists before accessing thumbnailUrl
-                       thumbnailUrl: storeResult.data.metadata?.thumbnail_url || (newScene.media ? newScene.media.thumbnailUrl : undefined) 
-                     }
-                   );
-                 }
+                 
+                 // REMOVED: Explicit call to updateSceneMedia - Let the hook handle this via its own effect/callback
+                 // if (storeResult.data?.storage_key || storeResult.data?.url) { // Check if there's data to update
+                 //   updateSceneMedia( 
+                 //     sceneId,
+                 //     {
+                 //       storageKey: storeResult.data.storage_key,
+                 //       storedUrl: storeResult.data.url, // Assuming the hook response url is the stored one
+                 //       // Check if newScene.media exists before accessing thumbnailUrl
+                 //       thumbnailUrl: storeResult.data.metadata?.thumbnail_url || (newScene.media ? newScene.media.thumbnailUrl : undefined) 
+                 //     }
+                 //   );
+                 // }
                } else {
                  // console.warn(`[STORAGE-DEBUG] Media storage call completed but did not report success for scene: ${sceneId}`);
                }
