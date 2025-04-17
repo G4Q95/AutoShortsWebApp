@@ -10,6 +10,9 @@ import {
   clearAllProjects as clearAllProjectsFromStorage,
   projectExists as projectExistsInStorage,
 } from '@/lib/storage-utils';
+import axios from 'axios';
+import { ApiResponse } from '@/lib/api-types';
+import { ProjectUpdate } from '@/components/project/ProjectTypes';
 
 // Define the shape of the hook's return value
 interface UseProjectPersistenceReturn {
@@ -72,10 +75,48 @@ export function useProjectPersistence(): UseProjectPersistenceReturn {
       // Log scenes count to help debug
       console.log(`Saving project via hook: ${projectToSave.id}, ${projectToSave.title}, scenes: ${projectToSave.scenes.length}`);
       
-      // Only save locally
+      // 1. Save locally first
       await saveProjectToStorage(projectToSave);
+      console.log(`Project "${projectToSave.title}" saved successfully to local storage.`);
 
-      // Update hook state (timestamp, projects list)
+      // 2. Send update to backend API via PATCH
+      // Only attempt to sync if the project actually has an ID (meaning it was created/loaded)
+      if (projectToSave.id) {
+        try {
+          const projectId = projectToSave.id;
+          
+          // Prepare only the fields relevant for PATCH according to ProjectUpdate model
+          const updatePayload: Partial<ProjectUpdate> = {
+            title: projectToSave.title,
+            // Description is not on the frontend Project type
+            // The backend PATCH endpoint handles converting Scene models to dicts
+            scenes: projectToSave.scenes, 
+          };
+
+          const backendUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${projectId}`;
+          console.log(`[useProjectPersistence] Sending PATCH request to: ${backendUrl}`);
+          // Log only keys to avoid huge scene logs
+          console.log(`[useProjectPersistence] PATCH payload keys: ${Object.keys(updatePayload).join(', ')}, scenes count: ${updatePayload.scenes?.length ?? 0}`); 
+          
+          const response = await axios.patch<ApiResponse<Project>>(backendUrl, updatePayload);
+
+          if (!response.data || !response.data.success) {
+            console.error('[useProjectPersistence] Backend PATCH failed:', response.data);
+            throw new Error(response.data?.message || 'Backend update failed');
+          }
+          
+          console.log(`[useProjectPersistence] Project ${projectId} successfully synced with backend via PATCH.`);
+          
+        } catch (apiError) {
+          console.error('[useProjectPersistence] Failed to sync project update with backend via PATCH:', apiError);
+          setPersistenceError('Failed to sync project with server. Local changes saved.');
+          // Do not re-throw, allow function to proceed as local save succeeded
+        }
+      } else {
+        console.warn(`[useProjectPersistence] Project ID missing for project "${projectToSave.title}", skipping backend PATCH sync.`);
+      }
+
+      // 3. Update hook state (timestamp, projects list)
       const timestamp = Date.now();
       setLastSavedTimestamp(timestamp);
 
@@ -91,10 +132,10 @@ export function useProjectPersistence(): UseProjectPersistenceReturn {
         }
       });
 
-      console.log(`Project "${projectToSave.title}" saved successfully via hook with ${projectToSave.scenes.length} scenes`);
+      console.log(`Project "${projectToSave.title}" save process completed via hook with ${projectToSave.scenes.length} scenes`);
     } catch (error) {
-      console.error('Failed to save project via hook:', error);
-      setPersistenceError('Failed to save project to storage.');
+      console.error('Failed to save project locally via hook:', error);
+      setPersistenceError('Failed to save project to local storage.');
     } finally {
       setIsSavingProject(false);
     }

@@ -135,6 +135,15 @@ export interface Project {
 }
 
 /**
+ * Represents the fields that can be partially updated in a project via PATCH.
+ */
+export interface ProjectUpdate {
+  title?: string;
+  // description?: string; // Description not currently on Project type
+  scenes?: Scene[]; // Array of full Scene objects expected by backend model
+}
+
+/**
  * Represents lightweight project metadata.
  * Used for project listings and summaries.
  */
