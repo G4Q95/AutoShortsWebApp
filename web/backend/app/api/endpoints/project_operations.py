@@ -10,7 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Response, s
 
 from app.core.config import settings
 from app.core.database import db
-from app.models.project import ProjectCreate, ProjectResponse
+from app.models.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.core.errors import create_error_response, ErrorCodes
 from app.models.api import ApiResponse
 from app.services.storage import storage as storage_service
@@ -711,9 +711,5 @@ async def create_project(project: ProjectCreate = Body(...)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response
         )
-
-# --- Placeholder for next endpoint --- 
-# Other project endpoints will be added here 
-
 
 # --- End of File --- 

@@ -91,6 +91,15 @@ class Project(ProjectBase):
     )
 
 
+# Model for updating project details
+class ProjectUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    scenes: Optional[List[Scene]] = None  # Allow updating scenes
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+
 # Project response model - simplified for API responses
 class ProjectResponse(BaseModel):
     id: str

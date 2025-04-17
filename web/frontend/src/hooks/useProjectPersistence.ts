@@ -72,25 +72,10 @@ export function useProjectPersistence(): UseProjectPersistenceReturn {
       // Log scenes count to help debug
       console.log(`Saving project via hook: ${projectToSave.id}, ${projectToSave.title}, scenes: ${projectToSave.scenes.length}`);
       
-      // // TODO: Consider if scene recovery logic belongs here or higher up
-      // if (projectToSave.scenes.length === 0) {
-      //   try {
-      //     const key = `auto-shorts-project-${projectToSave.id}`;
-      //     const storedProjectJson = localStorage.getItem(key);
-      //     if (storedProjectJson) {
-      //       const storedProject = JSON.parse(storedProjectJson);
-      //       if (storedProject.scenes && storedProject.scenes.length > 0) {
-      //         console.log(`Recovered ${storedProject.scenes.length} scenes from localStorage during save`);
-      //         projectToSave.scenes = storedProject.scenes; 
-      //       }
-      //     }
-      //   } catch (recoveryError) {
-      //     console.error('Failed to recover scenes during save:', recoveryError);
-      //   }
-      // }
-      
+      // Only save locally
       await saveProjectToStorage(projectToSave);
 
+      // Update hook state (timestamp, projects list)
       const timestamp = Date.now();
       setLastSavedTimestamp(timestamp);
 
