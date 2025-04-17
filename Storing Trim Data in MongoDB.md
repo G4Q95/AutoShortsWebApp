@@ -97,3 +97,16 @@ At each step, if any issues arise:
 3. Reassess the approach before continuing
 
 This ensures we maintain a working application throughout the development process, with special focus on preserving the ability to add and manage scenes.
+
+---
+
+## Update (Date - e.g., May 3rd, 2024): Trim Functionality Fix After Refactor
+
+- **Context:** A significant refactor of the frontend state management (`ProjectProvider.tsx`) moved core project state logic into custom hooks (`useProjectCore`).
+- **Breakage:** Following this refactor, the previously implemented functionality for saving media trim data (start/end times set in the UI) stopped working. Changes were not persisting.
+- **Root Cause:** The refactored `updateSceneMedia` function in `ProjectProvider.tsx` was initially designed to accept a `projectToUpdate` object as an argument. This led to state inconsistency issues where updates were applied to an outdated project snapshot passed by the caller, only to be overwritten by the authoritative state managed within the `useProjectCore` hook during subsequent saves or state updates.
+- **Solution:**
+    1. The `updateSceneMedia` function in `ProjectProvider.tsx` was further refactored to remove the `projectToUpdate` argument.
+    2. Its logic was updated to *always* read directly from and update based on the `coreCurrentProject` state obtained from the `useProjectCore` hook.
+    3. Calls to `updateSceneMedia` in other parts of the provider (like `addScene` and `storeAllMedia`) were modified to remove the now-unnecessary third argument.
+- **Outcome:** This restored the correct saving behavior for trim data by ensuring updates consistently target the centralized and authoritative project state before persistence.

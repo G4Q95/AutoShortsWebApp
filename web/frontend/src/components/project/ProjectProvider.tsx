@@ -76,7 +76,7 @@ const ProjectContext = createContext<(Omit<ProjectState, 'mode'> & {
   /** Updates the audio data and voice settings of a scene */
   updateSceneAudio: (sceneId: string, audioData: Scene['audio'], voiceSettings: Scene['voice_settings']) => void;
   /** Updates the media data of a scene with R2 storage details */
-  updateSceneMedia: (sceneId: string, mediaData: Partial<Scene['media']>, projectToUpdate: Project) => void;
+  updateSceneMedia: (sceneId: string, mediaData: Partial<Scene['media']>) => void;
   /** Updates the project title */
   setProjectTitle: (title: string) => void;
   /** Manually triggers a save of the current project */
@@ -238,22 +238,35 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Define a wrapper function to call the hook's saveProject
   const saveCurrentProjectWrapper = useCallback(async () => {
-    // LOGGING REMAINS THE SAME FOR DIAGNOSTICS
-    console.log('[STATE-MONITOR] saveCurrentProjectWrapper called. Intending to save based on HOOK state:',
-      'Hook project ID:', coreCurrentProject?.id,
-      'Hook scene count:', coreCurrentProject?.scenes?.length,
+    // Get the latest project state right before saving
+    const projectToSave = getLatestProjectState();
+
+    if (!projectToSave) {
+      console.warn('[ProjectProvider] Attempted to save but no current project found.');
+      return;
+    }
+
+    if (isSavingProject) {
+      console.warn('[ProjectProvider] Save already in progress, skipping.');
+      return;
+    }
+
+    // Log the trim data for each scene before saving
+    console.log(`[DEBUG][ProjectProvider] Saving project ${projectToSave.id}. Trim data:`, 
+      projectToSave.scenes.map(s => ({ id: s.id, trim: s.media?.trim })) // Correctly access nested optional property
     );
 
-    // *** THE FIX: Use coreCurrentProject ***
-    if (coreCurrentProject) {
-      // Create a deep copy to ensure we don't mutate the hook's state directly
-      const projectToSave = JSON.parse(JSON.stringify(coreCurrentProject));
-      await saveProject(projectToSave); // Pass the copy to the hook's save function
-    } else {
-      console.warn('[STATE-MONITOR] Attempted to save via wrapper, but coreCurrentProject is not set.');
+    dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
+    try {
+      await saveProject(projectToSave); // Use the save function from the persistence hook
+      dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
+    } catch (error) {
+      console.error('[ProjectProvider] Error saving project:', error);
+      dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save project' } });
+    } finally {
+      dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
     }
-  // Keep dependencies - crucial for useCallback correctness
-  }, [coreCurrentProject, saveProject]);
+  }, [getLatestProjectState, saveProject, isSavingProject, dispatch]); // Added isSavingProject
 
   // Set up auto-save whenever currentProject changes
   useEffect(() => {
@@ -427,49 +440,45 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     return loadProjectFromCoreHook(projectId);
   }, [loadProjectFromCoreHook]);
 
-  // Update scene media data
+  // Update scene media data - Refactored to use core hook state
   const updateSceneMedia = useCallback(async (
     sceneId: string, 
-    mediaData: Partial<Scene['media']>,
-    projectToUpdate: Project
+    mediaData: Partial<Scene['media']>
+    // removed projectToUpdate: Project parameter
   ) => {
     // Log state at the time of media update for debugging
-    // console.log(`[updateSceneMedia] Called for scene ${sceneId}. Using provided project with ${projectToUpdate.scenes?.length || 0} scenes.`);
+    console.log(`[updateSceneMedia] Called for scene ${sceneId}. Using core project: ${coreCurrentProject?.id}`);
     
-    if (!projectToUpdate) {
-      // console.error("No active project passed to updateSceneMedia");
-      dispatch({ type: 'SET_ERROR', payload: { error: 'No active project' } });
+    // Use coreCurrentProject as the source of truth
+    if (!coreCurrentProject) { 
+      console.error("[updateSceneMedia] No active project (from core hook) found.");
+      dispatch({ type: 'SET_ERROR', payload: { error: 'No active project to update media for' } });
       return;
     }
     
-    const sourceProject = projectToUpdate;
+    const sourceProject = coreCurrentProject; // Use the hook's state directly
 
-    if (sourceProject.scenes?.length === 0) {
-      // console.warn(`Project ${sourceProject.id} has 0 scenes but trying to update scene ${sceneId}`);
+    if (!sourceProject.scenes?.length) {
+      console.warn(`[updateSceneMedia] Project ${sourceProject.id} has 0 scenes, attempting to update scene ${sceneId}`);
     }
     
-    // console.log(`[updateSceneMedia] Using source with ${sourceProject.scenes?.length} scenes for update`);
-    
-    // Find the target scene
-    const targetScene = sourceProject.scenes.find(scene => scene.id === sceneId);
-    if (!targetScene) {
-      // console.error(`Scene ${sceneId} not found in project ${sourceProject.id}`);
+    // Find the target scene in the core project state
+    const targetSceneIndex = sourceProject.scenes.findIndex(scene => scene.id === sceneId);
+    if (targetSceneIndex === -1) {
+      console.error(`[updateSceneMedia] Scene ${sceneId} not found in core project ${sourceProject.id}`);
       dispatch({ type: 'SET_ERROR', payload: { error: `Scene ${sceneId} not found` } });
       return;
     }
     
-    // Create updated scene and project
-    const updatedScenes = sourceProject.scenes.map((scene) => {
-      if (scene.id === sceneId) {
-        const updatedMedia = { ...(scene.media || {}), ...mediaData };
-        return { 
-          ...scene, 
-          media: updatedMedia as Scene['media'], 
-          updatedAt: Date.now() 
-        };
-      }
-      return scene;
-    });
+    // Create updated scene and project based on core state
+    const updatedScenes = [...sourceProject.scenes]; // Create a copy
+    const sceneToUpdate = updatedScenes[targetSceneIndex];
+    const updatedMedia = { ...(sceneToUpdate.media || {}), ...mediaData };
+    updatedScenes[targetSceneIndex] = { 
+      ...sceneToUpdate, 
+      media: updatedMedia as Scene['media'], // Ensure type correctness
+      updatedAt: Date.now() 
+    };
     
     const updatedProject: Project = { 
       ...sourceProject, 
@@ -477,20 +486,28 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       updatedAt: Date.now() 
     };
 
+    // Log the trim data specifically before saving
+    const trimBeingSaved = updatedScenes[targetSceneIndex].media?.trim;
+    console.log(`[updateSceneMedia] Saving project ${updatedProject.id}. Trim data for scene ${sceneId}:`, trimBeingSaved);
+
     try {
-      // Log what we're about to save
-      // console.log(`[updateSceneMedia] Saving project ${updatedProject.id} with ${updatedProject.scenes.length} scenes`);
-      
-      await saveProject(updatedProject);
+      // Update the core hook's state OPTIMISTICALLY first
       updateCoreProjectState(updatedProject);
       
-      // Also dispatch to reducer to ensure both states are in sync
-      // dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: updatedProject } }); // Removed dispatch
+      // Then attempt to save to persistence
+      await saveProject(updatedProject);
+      
+      // Optional: Log success or handle post-save actions
+      console.log(`[updateSceneMedia] Successfully saved updates for scene ${sceneId}`);
+      
     } catch (error) {
-      // console.error("Failed to save scene media:", error);
+      console.error("[updateSceneMedia] Failed to save scene media:", error);
       dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save media change' } });
+      // Attempt to revert optimistic update on failure
+      updateCoreProjectState(sourceProject); // Revert to the state before this attempt
     }
-  }, [dispatch, saveProject, updateCoreProjectState]);
+  // Removed projectToUpdate dependency, added coreCurrentProject
+  }, [dispatch, saveProject, updateCoreProjectState, coreCurrentProject]); 
 
   // Store all unstored media for the current project in R2
   const storeAllMedia = useCallback(async (): Promise<{
@@ -518,21 +535,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       
       // *** FIX: Create a wrapper for updateSceneMedia for storeAllProjectMedia ***
       const updateSceneMediaForStoreAll = async (sceneId: string, mediaData: Partial<Scene['media']>) => {
-        // Get the latest project state specifically for this call
-        const latestProject = await loadProjectFromHook(currentProject.id);
-        if (latestProject) {
-          await updateSceneMedia(sceneId, mediaData, latestProject);
-        } else {
-          // console.error(`[storeAllMedia] Could not load project ${currentProject.id} to update scene ${sceneId}`);
-          // Handle error appropriately, maybe dispatch an error
-        }
+        // Call the refactored updateSceneMedia without the project argument
+        await updateSceneMedia(sceneId, mediaData); 
+        // No need to load latest project here as updateSceneMedia now uses core state
       };
       
       // Store all media for the project, passing the wrapper
       const result = await storeAllProjectMedia(
         currentProject,
-        // updateSceneMedia // <-- OLD: Passed original function
-        updateSceneMediaForStoreAll // <-- NEW: Pass the wrapper function
+        updateSceneMediaForStoreAll // <-- Pass the correct wrapper function
       );
       
       // console.log('Media storage process completed:', result);
@@ -547,7 +558,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       });
       return null;
     }
-  }, [coreCurrentProject, updateSceneMedia, loadProjectFromHook]); // <-- Added loadProjectFromHook
+  }, [coreCurrentProject, updateSceneMedia]); // <-- Added updateSceneMedia
 
   // Add a function to check if media storage is in progress
   const isMediaStorageInProgress = useCallback(() => {
@@ -713,22 +724,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
                  // doesn't directly update the project state. Assuming updateSceneMedia is still needed
                  // to update the local state with the storageKey/storedUrl from response.data
                  if (storeResult.data?.storage_key || storeResult.data?.url) { // Check if there's data to update
-                   // We need the *current* project state to update, not the one from closure
-                   const latestProject = getLatestProjectState();
-                   if (latestProject) {
-                     updateSceneMedia(
-                       sceneId,
-                       {
-                         storageKey: storeResult.data.storage_key,
-                         storedUrl: storeResult.data.url, // Assuming the hook response url is the stored one
-                         // Check if newScene.media exists before accessing thumbnailUrl
-                         thumbnailUrl: storeResult.data.metadata?.thumbnail_url || (newScene.media ? newScene.media.thumbnailUrl : undefined) 
-                       },
-                       latestProject // <-- PASS the LATEST project state
-                     );
-                   } else {
-                     // console.error(`[STORAGE-DEBUG] Could not get latest project state to update scene ${sceneId} after media storage.`);
-                   }
+                   // Call the refactored updateSceneMedia without the project argument
+                   updateSceneMedia( 
+                     sceneId,
+                     {
+                       storageKey: storeResult.data.storage_key,
+                       storedUrl: storeResult.data.url, // Assuming the hook response url is the stored one
+                       // Check if newScene.media exists before accessing thumbnailUrl
+                       thumbnailUrl: storeResult.data.metadata?.thumbnail_url || (newScene.media ? newScene.media.thumbnailUrl : undefined) 
+                     }
+                   );
                  }
                } else {
                  // console.warn(`[STORAGE-DEBUG] Media storage call completed but did not report success for scene: ${sceneId}`);

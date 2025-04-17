@@ -60,4 +60,19 @@ This document summarizes the investigation into issues related to adding scenes,
 
 ## Remaining Issues/Next Steps (Post R2 Fix)
 
-- Address the persistent audio check error: `SceneComponent ...: Cannot retrieve stored audio - no project ID available`.\n- Investigate and fix the `Warning: Received NaN for the \`value\` attribute.` in `TimelineControl`.\n- Address potential CORS issues with specific external media sources (e.g., Imgur).\n- Fix the test failure related to locating the scene text element for editing in `simplified-workflow.spec.ts`.\n- Restore trim data persistence. 
+- Address the persistent audio check error: `SceneComponent ...: Cannot retrieve stored audio - no project ID available`.\n- Investigate and fix the `Warning: Received NaN for the \`value\` attribute.` in `TimelineControl`.\n- Address potential CORS issues with specific external media sources (e.g., Imgur).\n- Fix the test failure related to locating the scene text element for editing in `simplified-workflow.spec.ts`.\n- Restore trim data persistence.
+
+## Update (Date - e.g., May 3rd, 2024): Trim Data Persistence Fix
+
+- **Issue:** Following a major refactor of `ProjectProvider.tsx` (moving state management largely to custom hooks like `useProjectCore`), the saving of media trim data (start/end times) stopped working.
+- **Cause Analysis:**
+  - The `updateSceneMedia` function within `ProjectProvider.tsx` was refactored to accept a `projectToUpdate: Project` argument.
+  - Components calling `updateSceneMedia` (like the trimming UI or background media storage callbacks) might have been passing slightly outdated versions of the project state.
+  - The function would correctly merge the `trim` data into this *outdated* state.
+  - However, subsequent state updates or auto-saves relying on the more up-to-date state managed by the `useProjectCore` hook (`coreCurrentProject`) would overwrite these changes, causing the `trim` data to be lost before persistence.
+- **Fix:**
+  - Refactored the `updateSceneMedia` function in `ProjectProvider.tsx` again.
+  - Removed the `projectToUpdate` argument.
+  - Modified the function logic to *always* use the `coreCurrentProject` state directly from the `useProjectCore` hook as the source of truth for updates.
+  - Ensured that calls to `updateSceneMedia` (e.g., from `storeAllMedia`, `addScene`) were updated to remove the now-unnecessary third argument.
+- **Result:** This ensures that media updates (including trim) are always applied to the definitive, centralized project state managed by `useProjectCore` before being saved, resolving the persistence issue. 

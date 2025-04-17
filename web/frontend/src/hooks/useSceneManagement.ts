@@ -116,13 +116,27 @@ export function useSceneManagement({
           updatedAt: new Date().toISOString()
         };
       });
+
+      // --- End Optimistic UI Update ---
+      // Add logging AFTER the state update is applied
+      setProject(prev => {
+        if(prev) {
+          const updatedScene = prev.scenes.find(s => s.id === sceneId);
+          console.log(`[DEBUG][updateScene] Local state updated for ${sceneId}. New Trim:`, updatedScene?.trim);
+        }
+        return prev; // Important: return the state unmodified here
+      });
+
+      // NOTE: Original implementation had no API call here.
+      // Persistence is handled by auto-save in ProjectProvider.
+      
     } catch (err) {
       console.error(`[useSceneManagement] Error updating scene ${sceneId}:`, err);
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setIsLoading(false);
     }
-  }, [project, setProject, setIsLoading, setError]);
+  }, [project, setProject]); // Removed setIsLoading, setError if not used in reverted version
 
   // Delete a scene
   const deleteScene = useCallback(async (sceneId: string) => {
