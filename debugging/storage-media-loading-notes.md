@@ -46,4 +46,18 @@ This document summarizes the investigation into issues related to adding scenes,
 - Ensure the `storedUrl` (or `storageKey`) is correctly saved with the scene data persistence.
 - Modify the frontend logic (`SceneMediaPlayer`, `mediaDownloadManager`, etc.) to prioritize fetching and playing from the `storedUrl` when available.
 - Implement a robust solution for the timing/race condition (e.g., frontend retry, backend confirmation wait).
-- Investigate why trim data persistence is broken and restore it. 
+- Investigate why trim data persistence is broken and restore it.
+
+## Update (Date of recent fix - e.g., May 2nd, 2024): R2 URL & Frontend State Fix
+
+- **Backend Environment Variable:**
+  - **Issue:** The backend container was missing the `R2_PUBLIC_URL` environment variable. This was confirmed using `docker-compose exec backend printenv | grep R2_PUBLIC_URL`.\n  - **Cause:** Variable was likely missing or commented out in `web/backend/.env`.\n  - **Fix:** Ensured `R2_PUBLIC_URL` is correctly defined in the `.env` file and loaded by Docker Compose.\n  - **Verification:** Added temporary logging in `web/backend/app/api/v1/endpoints/media.py` to confirm `settings.R2_PUBLIC_URL` was accessible and correct (logging removed after verification).\n
+
+- **Frontend State Management for Stored Media:**
+  - **Issue:** The frontend wasn't saving or using the public R2 URL (`storedUrl`) returned by the backend after a successful media store operation. It relied on fallback mechanisms.\n  - **Fixes:**
+    - Added `storageKey`, `storedUrl`, and `thumbnailUrl` (optional fields) to the `Scene` interface in `web/frontend/src/contexts/ProjectContext.tsx`.\n    - Updated the `updateSceneStorageInfo` function implementation in `web/frontend/src/hooks/useSceneManagement.ts` to accept `storageKey`, `thumbnailUrl`, and `storedUrl` as arguments and update the corresponding scene's state.\n    - Updated the type definition for `updateSceneStorageInfo` in the `ProjectContextState` interface (`web/frontend/src/contexts/ProjectContext.tsx`) to match the new arguments.\n    - Modified the `useMediaStorage` hook (`web/frontend/src/hooks/useMediaStorage.ts`) to extract `storage_key`, `thumbnail_url`, and the public `url` (as `storedUrl`) from the successful `/api/v1/media/store` backend response and pass them to the `updateSceneStorageInfo` context function.\n  - **Verification:**
+    - Confirmed via console logs that `updateSceneStorageInfo` is called with the correct R2 URL.\n    - Confirmed via console logs when loading existing projects that scenes created *after* this fix have the `storedUrl` populated, while older scenes correctly show `storedUrl: undefined`.\n    - Ran full Playwright E2E tests (`NEXT_PUBLIC_MOCK_AUDIO=false npm test`), which passed, indicating the core flow works.\n
+
+## Remaining Issues/Next Steps (Post R2 Fix)
+
+- Address the persistent audio check error: `SceneComponent ...: Cannot retrieve stored audio - no project ID available`.\n- Investigate and fix the `Warning: Received NaN for the \`value\` attribute.` in `TimelineControl`.\n- Address potential CORS issues with specific external media sources (e.g., Imgur).\n- Fix the test failure related to locating the scene text element for editing in `simplified-workflow.spec.ts`.\n- Restore trim data persistence. 

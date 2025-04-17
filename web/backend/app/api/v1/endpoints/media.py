@@ -34,10 +34,9 @@ async def store_media_content(
         
         # --- LOG POINT 1: After R2 Upload ---
         logger.info(f"process_media_upload completed for scene {request.scene_id}")
-        logger.debug(f"process_media_upload result: {result}")
 
         # Log the entire settings object for debugging
-        logger.info(f"[SETTINGS CHECK] Settings object contents: {settings}")
+        # logger.info(f"[SETTINGS CHECK] Settings object contents: {settings}") # Removed Debug
 
         if not result or not result.get("storage_key"):
             logger.error("process_media_upload did not return a valid result or storage_key.")
@@ -60,24 +59,24 @@ async def store_media_content(
         
         try:
             # --- LOG POINT 2a: Check R2_PUBLIC_URL Setting ---
-            logger.info(f"Checking R2_PUBLIC_URL setting value: '{settings.R2_PUBLIC_URL}'")
-            logger.info(f"Type of R2_PUBLIC_URL: {type(settings.R2_PUBLIC_URL)}")
+            # logger.info(f"Checking R2_PUBLIC_URL setting value: '{settings.R2_PUBLIC_URL}'") # Removed Debug
+            # logger.info(f"Type of R2_PUBLIC_URL: {type(settings.R2_PUBLIC_URL)}") # Removed Debug
 
             if storage_key and settings.R2_PUBLIC_URL:
                 # Ensure no leading slash on storage_key for URL concatenation
                 url_key = storage_key.lstrip('/')
                 final_url = f"{settings.R2_PUBLIC_URL.rstrip('/')}/{url_key}"
-                logger.info(f"Constructed final R2 URL: {final_url}")
-                logger.debug(f"URL Components: Base='{settings.R2_PUBLIC_URL}', Key='{url_key}'")
+                # logger.info(f"Constructed final R2 URL: {final_url}") # Removed Debug
+                # logger.debug(f"URL Components: Base='{settings.R2_PUBLIC_URL}', Key='{url_key}'") # Removed Debug
             else:
                 logger.warning("Could not construct final URL. Missing storage_key or R2_PUBLIC_URL.")
-                logger.debug(f"Storage Key: {storage_key}, R2 Public URL Set: {bool(settings.R2_PUBLIC_URL)}")
+                # logger.debug(f"Storage Key: {storage_key}, R2 Public URL Set: {bool(settings.R2_PUBLIC_URL)}") # Removed Debug
 
             if thumbnail_storage_key and settings.R2_PUBLIC_URL:
                  # Ensure no leading slash on thumbnail_key for URL concatenation
                 thumb_key = thumbnail_storage_key.lstrip('/')
                 thumbnail_url = f"{settings.R2_PUBLIC_URL.rstrip('/')}/{thumb_key}"
-                logger.info(f"Constructed thumbnail R2 URL: {thumbnail_url}")
+                # logger.info(f"Constructed thumbnail R2 URL: {thumbnail_url}") # Removed Debug
             else:
                  # Log only if thumbnail expected but couldn't be constructed
                  if request.create_thumbnail and not thumbnail_storage_key:
@@ -102,7 +101,7 @@ async def store_media_content(
             metadata=result.get("metadata"),
         )
         logger.info(f"Preparing final response for scene {request.scene_id}")
-        logger.debug(f"Final response data to be sent: {response_data.dict()}") # Log the dict representation
+        # logger.debug(f"Final response data to be sent: {response_data.dict()}") # Removed Debug
 
         return response_data
 
