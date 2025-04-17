@@ -247,39 +247,39 @@ export function useSceneManagement({
     thumbnailUrl?: string,
     storedUrl?: string
   ) => {
-    console.log(`[useSceneManagement] Updating storage info for scene ${sceneId} with key: ${storageKey} and URL: ${storedUrl}`);
-    try {
-      // No API call needed here, just updating local state
-      setProject(prev => {
-        if (!prev) return null;
+    console.log(`[useSceneManagement] Updating storage info for scene ${sceneId} with key: ${storageKey}, storedURL: ${storedUrl}, thumb: ${thumbnailUrl}`);
+    setProject(prev => {
+      if (!prev) return null;
 
-        const updatedScenes = prev.scenes.map((scene) => {
-          if (scene.id === sceneId) {
-            // Update the scene directly with the new storage properties
-            return {
-              ...scene,
-              storageKey: storageKey, 
-              storedUrl: storedUrl, // Use the stored URL passed from the hook
-              thumbnailUrl: thumbnailUrl, // Use the thumbnail URL passed from the hook (or undefined)
-              // We might want a flag like isStorageBacked: true here later
-            };
-          }
-          return scene;
-        });
-
-        return {
-          ...prev,
-          scenes: updatedScenes,
-          updatedAt: new Date().toISOString(),
-        };
+      const updatedScenes = prev.scenes.map(scene => {
+        if (scene.id === sceneId) {
+          // Log before updating the scene
+          console.log(`[useSceneManagement] Found scene ${sceneId}. Updating top-level storage fields.`);
+          
+          // Update the scene directly with the top-level storage properties
+          // This matches the Scene interface definition
+          return {
+            ...scene,
+            storageKey: storageKey, 
+            storedUrl: storedUrl, // Use the stored URL from R2
+            thumbnailUrl: thumbnailUrl, // Use the thumbnail URL from R2
+            // Optionally update mediaUrl if storedUrl is considered the primary URL now?
+            // mediaUrl: storedUrl ?? scene.mediaUrl, 
+          };
+        }
+        return scene;
       });
-    } catch (err) {
-       // This part might be less likely to error as it's sync state update
-       // but good practice to keep it
-      console.error(`[useSceneManagement] Error updating scene storage info ${sceneId}:`, err);
-       setError(err instanceof Error ? err : new Error(String(err)));
-    }
-  }, [project, setProject, setError]); // Dependencies for the callback
+
+      // Log the entire scenes array after the update attempt
+      console.log(`[useSceneManagement] Scenes array after top-level storage update for ${sceneId}:`, updatedScenes);
+
+      return {
+        ...prev,
+        scenes: updatedScenes,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  }, [setProject]); // Dependency array only needs setProject
 
   return {
     addScene,
