@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Project, ProjectState, generateId, Scene } from '@/components/project/ProjectTypes';
 import { useProjectPersistence } from './useProjectPersistence'; // Assuming persistence hook is in the same dir or adjust path
+import axios from 'axios'; // Add axios import
+import { ApiResponse } from '../lib/api-types'; // Import ApiResponse type
 
 type DispatchType = React.Dispatch<any>; // Replace 'any' with the actual action type if available
 
@@ -128,41 +130,62 @@ export function useProjectCore(
 
   // Create a new project
   const createProject = useCallback(async (title: string): Promise<Project | null> => {
-    const newProject: Project = {
-      id: `proj_${generateId()}`,
+    dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
+    // Let's assume backend assigns the ID and returns the full object.
+    const projectDataForApi = {
       title: title,
-      scenes: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      lastModified: Date.now(),
+      // Backend should initialize scenes, set timestamps, etc.
       status: 'draft',
       aspectRatio: '9:16', // Default aspect ratio
       showLetterboxing: true, // Default letterboxing
     };
 
     try {
-      // Await the save operation
-      await saveProject(newProject);
+      console.log('[useProjectCore] Attempting to create project via API:', projectDataForApi);
+      // Make the API call to the backend - Use FULL ABSOLUTE PATH
+      const absoluteUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/projects`;
+      console.log(`[useProjectCore] Using absolute URL for create: ${absoluteUrl}`)
+      // Expect ApiResponse wrapper now, not { project: ... }
+      const response = await axios.post<ApiResponse<Project>>(absoluteUrl, projectDataForApi);
       
-      // Update hook state FIRST after successful save
-      setCurrentProjectInternal(newProject);
-      
-      // Dispatch a success action with the full project object to the reducer
-      // Ensure the reducer handles 'CREATE_PROJECT_SUCCESS' appropriately
-      // dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: newProject } }); // Removed dispatch
-      
-      // Optional: Log success
-      console.log(`[useProjectCore] Successfully created and saved project: ${newProject.id}`);
-      
-      // Return the newly created project
-      return newProject; 
+      // Check the standard ApiResponse structure - Use response.data.success
+      if (!response.data || !response.data.success || !response.data.data?.id) {
+         // Log the actual received data for debugging if the structure is wrong
+         console.error('[useProjectCore] Unexpected API response structure:', response.data);
+         throw new Error('Invalid response structure from create project API');
+      }
+
+      // Extract project from the 'data' field of the ApiResponse
+      const createdProject = response.data.data;
+      console.log('[useProjectCore] Project created via API, response data:', createdProject);
+
+      // Now save the complete project (with backend ID) to local persistence
+      await saveProject(createdProject);
+      console.log(`[useProjectCore] Project ${createdProject.id} saved to local persistence after API creation.`);
+
+      // Update hook state FIRST after successful API creation and local save
+      setCurrentProjectInternal(createdProject);
+
+      // Explicitly set the current project ID in the context/provider
+      setCurrentProject(createdProject.id);
+
+      // dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: createdProject } }); // Decide if needed later
+
+      console.log(`[useProjectCore] Successfully created project via API: ${createdProject.id}`);
+      return createdProject;
 
     } catch (error) {
-      console.error("[useProjectCore] Failed to save new project:", error);
-      dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to create project' } });
-      // Consider if we need to clear the internal state if creation fails
-      // setCurrentProjectInternal(null); 
+      console.error("[useProjectCore] Failed to create project via API:", error);
+      let errorMessage = 'Failed to create project';
+      if (axios.isAxiosError(error) && error.response) {
+        errorMessage = error.response.data?.detail || error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      dispatch({ type: 'SET_ERROR', payload: { error: errorMessage } });
       return null; // Return null on failure
+    } finally {
+       dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
     }
   }, [saveProject, dispatch]);
 

@@ -473,7 +473,7 @@ export async function getProject(projectId: string): Promise<Project | null> {
         id: migratedProject.id,
         title: migratedProject.title,
         scenesCount: migratedProject.scenes.length,
-        createdAt: new Date(migratedProject.createdAt).toISOString(),
+        createdAt: migratedProject.createdAt,
         aspectRatio: migratedProject.aspectRatio
       });
 

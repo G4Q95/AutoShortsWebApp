@@ -19,25 +19,18 @@
  * 
  * @template T - The type of the data returned in the response
  * @interface ApiResponse
+ * @property {boolean} success - Whether the request was successful
+ * @property {string} [message] - Optional message describing the response
  * @property {T} data - The data returned from the API
  * @property {ApiError} [error] - Optional error object if the request failed
- * @property {Object} timing - Timing information for the request
- * @property {Object} connectionInfo - Information about the connection status
+ * @property {string} [timestamp] - Optional timestamp for the response
  */
 export interface ApiResponse<T> {
+  success: boolean;
+  message?: string;
   data: T;
   error?: ApiError;
-  timing: {
-    start: number;
-    end: number;
-    duration: number;
-  };
-  connectionInfo: {
-    success: boolean;
-    server: string;
-    status: number;
-    statusText: string;
-  };
+  timestamp?: string;
 }
 
 /**
