@@ -23,7 +23,8 @@ type ProjectAction =
   | { type: 'SET_LOADING'; payload: { isLoading: boolean } }
   | { type: 'SET_MODE'; payload: { mode: 'organization' | 'voice-enabled' | 'preview' } }
   | { type: 'SET_SCENE_STORING_MEDIA'; payload: { sceneId: string; isStoringMedia: boolean } }
-  | { type: 'UPDATE_PROJECT_METADATA'; payload: { projectId: string; changes: Partial<Pick<Project, 'title' | 'aspectRatio' /* | Add other updatable fields */>> } };
+  | { type: 'UPDATE_PROJECT_METADATA'; payload: { projectId: string; changes: Partial<Pick<Project, 'title' | 'aspectRatio' /* | Add other updatable fields */>> } }
+  | { type: 'UPDATE_SCENE_STORAGE_INFO'; payload: { sceneId: string; storageKey: string; thumbnailUrl?: string } };
 
 // Implement the project reducer to handle state updates
 export function projectReducer(state: ProjectState, action: ProjectAction): ProjectState {
@@ -453,6 +454,67 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         ...state,
         projects: updatedProjects,
         currentProject: updatedCurrentProject,
+      };
+    }
+
+    case 'UPDATE_SCENE_STORAGE_INFO': {
+      if (!state.currentProject) return state;
+
+      const { sceneId, storageKey, thumbnailUrl } = action.payload;
+
+      console.log(`REDUCER: Updating storage info for scene ${sceneId} with key ${storageKey}`);
+
+      const updatedScenes = state.currentProject.scenes.map((scene) => {
+        if (scene.id === sceneId) {
+          // Define the type for the updated media object explicitly
+          const updatedMedia: Scene['media'] = {
+            ...(scene.media || { type: 'video', url: '' }), // Provide default structure if media was null
+            storageKey: storageKey,
+            storedUrl: `/api/v1/storage/${storageKey}`, // Construct the URL
+            thumbnailUrl: thumbnailUrl || scene.media?.thumbnailUrl, // Update thumbnail if provided
+            isStorageBacked: true, // Mark as stored
+          };
+
+          // Ensure essential properties from the original media are kept if they existed
+          // No need to re-check these if we spread `scene.media` which already has them
+          // if (!updatedMedia.url && scene.media?.url) updatedMedia.url = scene.media.url;
+          // if (!updatedMedia.type && scene.media?.type) updatedMedia.type = scene.media.type;
+          // if (!updatedMedia.mediaAspectRatio && scene.media?.mediaAspectRatio) updatedMedia.mediaAspectRatio = scene.media.mediaAspectRatio;
+          // if (!updatedMedia.trim && scene.media?.trim) updatedMedia.trim = scene.media.trim;
+          
+          // Assign the strictly typed media object back
+          return {
+            ...scene,
+            media: updatedMedia,
+            isStoringMedia: false, // Indicate storage process is complete for this scene
+          };
+        }
+        return scene;
+      });
+
+      const updatedProject: Project = {
+        ...state.currentProject,
+        scenes: updatedScenes,
+        updatedAt: Date.now(), // Mark project as updated
+      };
+
+      return {
+        ...state,
+        currentProject: updatedProject,
+      };
+    }
+
+    case 'SET_PROJECT_TITLE': {
+      // Update the title of the current project
+      if (!state.currentProject) return state;
+
+      return {
+        ...state,
+        currentProject: {
+          ...state.currentProject,
+          title: action.payload.title,
+          updatedAt: Date.now(),
+        },
       };
     }
 

@@ -1,7 +1,11 @@
 'use client';
 
 import { useCallback } from 'react';
-import { Project, Scene } from '@/contexts/ProjectContext'; // Assuming types are exported from context
+// Revert back to importing from Context
+import { Project, Scene } from '@/contexts/ProjectContext'; 
+// Import SceneMedia type explicitly if needed, or rely on Scene['media']
+// It seems Scene['media'] might not be directly usable here, let's adjust
+// Assuming Scene type is correctly imported above
 
 // Define the props for the hook
 interface UseSceneManagementProps {
@@ -17,6 +21,7 @@ interface UseSceneManagementReturn {
   updateScene: (sceneId: string, sceneData: Partial<Scene>) => Promise<void>;
   deleteScene: (sceneId: string) => Promise<void>;
   reorderScenes: (sceneIds: string[]) => Promise<void>;
+  updateSceneStorageInfo: (sceneId: string, storageKey: string, thumbnailUrl?: string, storedUrl?: string) => Promise<void>;
 }
 
 export function useSceneManagement({
@@ -221,11 +226,52 @@ export function useSceneManagement({
     }
   }, [project, setProject, setIsLoading, setError]);
 
+  // Add the new function to update storage info
+  const updateSceneStorageInfo = useCallback(async (
+    sceneId: string, 
+    storageKey: string, 
+    thumbnailUrl?: string,
+    storedUrl?: string
+  ) => {
+    console.log(`[useSceneManagement] Updating storage info for scene ${sceneId} with key: ${storageKey} and URL: ${storedUrl}`);
+    try {
+      // No API call needed here, just updating local state
+      setProject(prev => {
+        if (!prev) return null;
+
+        const updatedScenes = prev.scenes.map((scene) => {
+          if (scene.id === sceneId) {
+            // Update the scene directly with the new storage properties
+            return {
+              ...scene,
+              storageKey: storageKey, 
+              storedUrl: storedUrl, // Use the stored URL passed from the hook
+              thumbnailUrl: thumbnailUrl, // Use the thumbnail URL passed from the hook (or undefined)
+              // We might want a flag like isStorageBacked: true here later
+            };
+          }
+          return scene;
+        });
+
+        return {
+          ...prev,
+          scenes: updatedScenes,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+    } catch (err) {
+       // This part might be less likely to error as it's sync state update
+       // but good practice to keep it
+      console.error(`[useSceneManagement] Error updating scene storage info ${sceneId}:`, err);
+       setError(err instanceof Error ? err : new Error(String(err)));
+    }
+  }, [project, setProject, setError]); // Dependencies for the callback
 
   return {
     addScene,
     updateScene,
     deleteScene,
     reorderScenes,
+    updateSceneStorageInfo,
   };
 } 

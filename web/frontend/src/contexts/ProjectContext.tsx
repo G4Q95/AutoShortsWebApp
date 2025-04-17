@@ -9,6 +9,9 @@ export interface Scene {
   id: string;
   title: string;
   mediaUrl?: string;
+  storedUrl?: string;
+  thumbnailUrl?: string;
+  storageKey?: string;
   audioUrl?: string;
   content?: string;
   mediaType?: 'image' | 'video' | 'gallery';
@@ -47,6 +50,7 @@ interface ProjectContextState {
   reorderScenes: (sceneIds: string[]) => Promise<void>;
   setProjectAspectRatio: (aspectRatio: '9:16' | '16:9' | '1:1' | '4:5') => void;
   toggleLetterboxing: (show: boolean) => void;
+  updateSceneStorageInfo: (sceneId: string, storageKey: string, thumbnailUrl?: string, storedUrl?: string) => Promise<void>;
 }
 
 // Create context with default values
@@ -62,6 +66,7 @@ const ProjectContext = createContext<ProjectContextState>({
   reorderScenes: async () => {},
   setProjectAspectRatio: () => {},
   toggleLetterboxing: () => {},
+  updateSceneStorageInfo: async () => {},
 });
 
 // Create provider component
@@ -175,6 +180,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     reorderScenes: sceneManagement.reorderScenes,
     setProjectAspectRatio,
     toggleLetterboxing,
+    updateSceneStorageInfo: sceneManagement.updateSceneStorageInfo,
   };
 
   return <ProjectContext.Provider value={contextValue}>{children}</ProjectContext.Provider>;

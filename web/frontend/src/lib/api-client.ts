@@ -234,6 +234,7 @@ export async function fetchAPI<T = any>(
       return { success: true, data: null as any, timing, connectionInfo };
     }
 
+    // Handle successful responses with data
     const data = await response.json();
     
     // Log data in development (truncated for large responses)
@@ -256,74 +257,41 @@ export async function fetchAPI<T = any>(
 
     // Log error in development
     if (process.env.NODE_ENV === 'development') {
-      console.error('API Error:', error);
+      console.error('API Client Error:', error);
     }
 
-    // Handle timeout errors
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return {
-        success: false,
-        error: {
-          status_code: 408, // Request Timeout
-          message: `Request timed out after ${timeoutMs}ms`,
-          error_code: 'timeout_error'
-        },
-        timing,
-        connectionInfo: {
-          success: false,
-          server: API_BASE_URL,
-          status: 408,
-          statusText: 'Request Timeout',
-        },
-        data: null as any // Add missing data property for TypeScript
+    // Handle different error types
+    let apiError: ApiError;
+    if (error instanceof Error && error.name === 'AbortError') {
+      // Handle timeout error
+      apiError = {
+        status_code: 408,
+        message: 'Request Timeout',
+        error_code: 'TIMEOUT',
       };
+      // Update API health for timeout
+      apiHealth.lastChecked = Date.now();
+      apiHealth.isAvailable = false; // Consider API unavailable on timeout
+    } else {
+      // Handle generic network/fetch errors
+      apiError = {
+        status_code: 0, // Use 0 for client-side errors
+        message: 'Network error or CORS issue', // More specific message
+        error_code: 'NETWORK_ERROR',
+        details: error instanceof Error ? error.message : String(error),
+      };
+       // Update API health for network errors
+      apiHealth.lastChecked = Date.now();
+      apiHealth.isAvailable = false;
     }
 
-    // Update API health status for connection errors
-    apiHealth.isAvailable = false;
-    apiHealth.lastChecked = Date.now();
-
-    // Create user-friendly error messages
-    let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    let errorStatusCode = 500;
-    let errorStatusText = 'Server Error';
-    let errorCode: string | undefined;
-    
-    // Map common error patterns to user-friendly messages
-    if (errorMessage === 'Failed to fetch') {
-      errorMessage = 'Could not connect to the backend server. Please ensure the server is running.';
-      errorStatusCode = 503; // Service Unavailable
-      errorStatusText = 'Backend Unavailable';
-      errorCode = 'service_unavailable';
-    } else if (errorMessage.includes('NetworkError')) {
-      errorMessage = 'Network error: Check your internet connection or backend server status.';
-      errorStatusCode = 503;
-      errorStatusText = 'Network Error';
-      errorCode = 'network_error';
-    } else if (errorMessage.includes('CORS')) {
-      errorMessage = 'CORS policy error: The backend server is not properly configured for cross-origin requests.';
-      errorStatusCode = 520; // Custom status for CORS
-      errorStatusText = 'CORS Policy Error';
-      errorCode = 'cors_error';
-    }
-
-    const errorData: ApiError = {
-      status_code: errorStatusCode,
-      message: errorMessage,
-      error_code: errorCode,
-    };
-
+    // Return standardized error response, explicitly setting success to false
     return {
-      success: false,
-      error: errorData,
+      success: false, 
+      error: apiError,
       timing,
-      connectionInfo: {
-        success: false,
-        server: API_BASE_URL,
-        status: errorData.status_code,
-        statusText: errorData.message
-      },
-      data: null as any // Add missing data property for TypeScript
+      connectionInfo: undefined, // No connection info on timeout/network error
+      data: null as any // Ensure data property exists
     };
   }
 }
@@ -346,6 +314,7 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
   // Prevent multiple simultaneous health checks
   if (apiHealth.checkInProgress) {
     return {
+      success: apiHealth.isAvailable,
       data: { status: apiHealth.isAvailable ? 'available' : 'unavailable' },
       connectionInfo: {
         success: apiHealth.isAvailable,
@@ -393,6 +362,7 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
     apiHealth.checkInProgress = false;
 
     return {
+      success: true,
       data,
       timing: {
         start: startTime,
@@ -410,6 +380,7 @@ export async function checkApiHealth(): Promise<ApiResponse<{ status: string }>>
     console.error('Error checking API health:', err);
     apiHealth.checkInProgress = false;
     return {
+      success: false,
       error: {
         status_code: 0,
         message: err instanceof Error ? err.message : 'Unknown error checking API health',
@@ -464,6 +435,7 @@ export async function extractContent(url: string): Promise<ApiResponse<any>> {
   } catch (error) {
     console.error('Error extracting content:', error);
     return {
+      success: false,
       error: {
         status_code: 500,
         message: error instanceof Error ? error.message : 'Failed to extract content from URL',
@@ -771,6 +743,7 @@ export async function generateVoice(
       
       // Return a structured response matching the API format
       return {
+        success: true,
         data: {
           audio_base64,
           content_type: 'audio/mp3',
@@ -795,6 +768,7 @@ export async function generateVoice(
       
       // Return error in proper format
       return {
+        success: false,
         data: {
           audio_base64: '',
           content_type: 'audio/mp3',
@@ -1110,6 +1084,7 @@ export interface MediaStorageResponse {
   content_type?: string;
   file_size?: number;
   original_url?: string;
+  thumbnail_url?: string;
   metadata?: Record<string, any>;
 }
 
@@ -1163,6 +1138,7 @@ export async function storeMediaContent(
   } catch (error) {
     console.error('Failed to store media content:', error);
     return {
+      success: false,
       error: {
         status_code: 500,
         message: `Failed to store media content: ${error instanceof Error ? error.message : String(error)}`,

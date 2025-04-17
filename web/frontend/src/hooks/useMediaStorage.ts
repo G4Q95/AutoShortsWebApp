@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 // import apiClient from '@/lib/api-client'; // No default export
 import { storeMediaContent, MediaStorageRequest, MediaStorageResponse } from '@/lib/api-client';
 import { ApiResponse } from '@/lib/api-types'; // Import ApiResponse from the correct location
+// Import the project context hook
+import { useProject } from '@/contexts/ProjectContext';
 
 // Match the request interface from api-client.ts
 interface MediaStorageParams extends Omit<MediaStorageRequest, 'project_id' | 'scene_id'> { // Omit IDs, they might be handled differently or added within the hook
@@ -27,6 +29,8 @@ interface UseMediaStorageReturn {
 export function useMediaStorage(): UseMediaStorageReturn {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
+  // Get the context function to update scene storage info
+  const { updateSceneStorageInfo } = useProject();
 
   const storeMedia = useCallback(async (params: MediaStorageParams): Promise<ApiResponse<MediaStorageResponse>> => {
     setIsLoading(true);
@@ -52,6 +56,25 @@ export function useMediaStorage(): UseMediaStorageReturn {
         throw apiError;
       }
 
+      // ----> ADDED: Update project context state upon success <----
+      if (response.data?.storage_key) {
+        try {
+          // Call the context function to update the specific scene
+          await updateSceneStorageInfo(
+            params.sceneId, // Pass the sceneId from the initial params
+            response.data.storage_key,
+            response.data.thumbnail_url, // Pass thumbnail if available
+            response.data.url // Pass the public R2 URL
+          );
+          console.log(`[useMediaStorage] Dispatched updateSceneStorageInfo for scene ${params.sceneId}`);
+        } catch (contextError) {
+           // Log context update errors separately if needed
+          console.error(`[useMediaStorage] Error updating context for scene ${params.sceneId}:`, contextError);
+           // Decide if this should also set the hook's error state or re-throw
+        }
+      }
+      // ----> END ADDED SECTION <----
+
       return response;
     } catch (err) {
       console.error('Error in useMediaStorage hook:', err);
@@ -65,7 +88,7 @@ export function useMediaStorage(): UseMediaStorageReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [error]); // Added error to dependency array
+  }, [error, updateSceneStorageInfo]);
 
   return { storeMedia, isLoading, error };
 }
