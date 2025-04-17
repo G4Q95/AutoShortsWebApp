@@ -1,0 +1,11 @@
+- **1. Verify Implementation:** After coding a **Taskmaster subtask**, perform verification *before* proceeding.
+- **2. Verification Methods (Choose best fit):**
+    - **Automated Tests:** Run relevant tests (e.g., `cd web/frontend && NEXT_PUBLIC_MOCK_AUDIO=true npm test`).
+    - **Manual Test:** Request specific user steps & expected outcome.
+    - **Log Check:**
+        - Backend: `docker ps` then `docker logs <container> | grep <keyword>`.
+        - Frontend: Ask user to perform action & paste logs.
+- **3. On Success:**
+    - **Suggest Commit Message:** Generate and suggest a commit message for the user to apply to the **Taskmaster subtask** changes.
+    - **Update Taskmaster Task:** Propose `task-master update-subtask --id=<id> --prompt='<notes>'` *or* `task-master set-status --id=<id> --status=done`.
+- **4. On Failure:** Debug the issue before suggesting a commit or updating the **Taskmaster task**. 

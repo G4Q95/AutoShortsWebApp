@@ -1,0 +1,5 @@
+- **Use CLI Only:** All interactions with the Taskmaster system MUST use the `task-master` command-line interface (CLI).
+  - Example: `task-master list`, `task-master add-subtask --parent=<id> ...`, `task-master set-status --id=<id> --status=done`
+- **MCP Tools Prohibited:** Do NOT attempt to use Taskmaster MCP server tools (e.g., `get_tasks`, `add_subtask`, `update_subtask`, `set_task_status`). These tools are not available or functional in the current environment.
+- **Refer to `taskmaster.mdc`:** Consult [`taskmaster.mdc`](mdc:.cursor/rules/taskmaster.mdc) for the correct CLI command syntax and options corresponding to desired Taskmaster actions.
+- **Acknowledge Long Running Commands:** When proposing CLI commands that involve AI interaction (like `parse-prd`, `analyze-complexity`, `update`, `expand`, `add-task`), inform the user that the command might take time to complete. 
