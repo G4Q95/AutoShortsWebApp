@@ -23,6 +23,7 @@ import { useProjectPersistence } from '@/hooks/useProjectPersistence';
 import { useProjectNavigation, UIMode } from '@/hooks/useProjectNavigation';
 import { useProjectListManagement } from '@/hooks/useProjectListManagement';
 import { useProjectCore, useGetLatestProjectState } from '@/hooks/useProjectCore';
+import { useMediaStorage } from '@/hooks/useMediaStorage';
 
 import { 
   Project, 
@@ -217,7 +218,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Add a ref to track media storage operations in progress
   const mediaStorageOperationsRef = useRef<Record<string, boolean>>({});
   
-  // Keep track of storage operations
+  // Initialize the media storage hook
+  const { 
+    storeMedia: storeMediaFromHook, // Rename to avoid potential conflicts 
+    isLoading: isStoringMediaHook, // Get loading state from hook
+    error: mediaStorageErrorHook, // Get error state from hook
+  } = useMediaStorage(); 
+
+  // Keep track of storage operations (maybe leverage isStoringMediaHook later)
   const [storageInProgress, setStorageInProgress] = useState(false);
 
   // Auto-save timer reference
@@ -646,27 +654,59 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       if (newScene.media?.url) {
          // Set storing media flag (optimistic UI)
          // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: true } }); // Removed dispatch
+         
+         // *** START REFACTOR ***
          try {
-           const { storeSceneMedia } = await import('../../lib/media-utils');
-           console.log(`[STORAGE-DEBUG] Calling storeSceneMedia function for scene ${newScene.id}`);
-           const success = await storeSceneMedia(
-             newScene, // Pass the newly created scene object
-             projectId,
-             updateSceneMedia // Pass the refactored updateSceneMedia
-           );
-           // Clear storing media flag
-           // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
-           if (success) {
-              console.log(`[STORAGE-DEBUG] Successfully stored media for scene: ${newScene.id}`);
-              // No need for extra saves, updateSceneMedia handled saving the storageKey/storedUrl
+           // Remove old dynamic import
+           // const { storeSceneMedia } = await import('../../lib/media-utils');
+           // console.log(`[STORAGE-DEBUG] Calling storeSceneMedia function for scene ${newScene.id}`);
+           
+           console.log(`[STORAGE-DEBUG] Calling storeMediaFromHook for scene ${newScene.id}`);
+           
+           // Prepare parameters for the hook
+           const mediaParams = {
+             projectId: projectId,
+             sceneId: newScene.id,
+             url: newScene.media.url,
+             media_type: newScene.media.type, // Pass media type
+             create_thumbnail: true, // Assuming we want thumbnails for new scenes
+           };
+
+           // Call the hook's function
+           const response = await storeMediaFromHook(mediaParams);
+           
+           // Handle response from the hook
+           if (response.error) {
+             console.warn(`[STORAGE-DEBUG] Failed to store media for scene: ${newScene.id}. Error: ${response.error.message}`);
+             // Optionally dispatch an error to the main state
+             dispatch({ type: 'SET_ERROR', payload: { error: `Failed to store media for scene ${newScene.id}: ${response.error.message}` } });
+           } else if (response.data?.success) {
+             console.log(`[STORAGE-DEBUG] Successfully stored media for scene: ${newScene.id}`);
+             // The hook handles the API call, updateSceneMedia should be called if the hook
+             // doesn't directly update the project state. Assuming updateSceneMedia is still needed
+             // to update the local state with the storageKey/storedUrl from response.data
+             if (response.data.storage_key || response.data.url) { // Check if there's data to update
+                updateSceneMedia(newScene.id, { 
+                  storageKey: response.data.storage_key,
+                  storedUrl: response.data.url, // Assuming the hook response url is the stored one
+                  thumbnailUrl: response.data.metadata?.thumbnail_url || newScene.media.thumbnailUrl // Update thumbnail if provided
+                });
+             }
            } else {
-              console.warn(`[STORAGE-DEBUG] Failed to store media for scene: ${newScene.id}`);
+             console.warn(`[STORAGE-DEBUG] Media storage call completed but did not report success for scene: ${newScene.id}`);
            }
+
+           // Clear storing media flag (This might need more sophisticated handling if multiple stores run concurrently)
+           // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
+           
          } catch (storageError) {
-            console.error('Error during background media storage:', storageError);
+            console.error('Error during background media storage via hook:', storageError);
             // Clear storing media flag on error too
             // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
+            // Optionally dispatch an error to the main state
+            dispatch({ type: 'SET_ERROR', payload: { error: `Error storing media: ${storageError instanceof Error ? storageError.message : 'Unknown error'}` } });
          }
+         // *** END REFACTOR ***
       }
 
     } catch (error) {
@@ -681,7 +721,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Ensure loading state is cleared in reducer if fetch failed early
       // dispatch({ type: 'ADD_SCENE_ERROR', payload: { sceneId, error: 'Failed during addScene' } }); // Removed dispatch
     }
-  }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState, updateSceneMedia]); // Dependencies updated
+  }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState, updateSceneMedia, storeMediaFromHook]); // <-- Added storeMediaFromHook to dependencies
 
   // Remove a scene - simplified for reliability
   const removeScene = useCallback(async (sceneId: string) => {
