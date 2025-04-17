@@ -11,6 +11,10 @@ interface UseTrimControlsProps {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   isPlaying: boolean;
   onTrimChange?: (start: number, end: number) => void;
+  /**
+   * NEW: Optional callback for when trim interaction *ends* (mouse up)
+   */
+  onTrimChangeEnd?: (start: number, end: number) => void;
   setIsPlaying: (playing: boolean) => void; // Setter for play state
   forceResetOnPlayRef: React.MutableRefObject<boolean>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -49,6 +53,7 @@ export function useTrimControls({
   audioRef,
   isPlaying,
   onTrimChange,
+  onTrimChangeEnd,
   setIsPlaying,
   forceResetOnPlayRef,
   videoRef,
@@ -131,9 +136,10 @@ export function useTrimControls({
         seek(newStart);
       }
       
-      if (onTrimChange) {
-        onTrimChange(newStart, trimEnd);
-      }
+      // REMOVED: Continuous call to onTrimChange
+      // if (onTrimChange) {
+      //   onTrimChange(newStart, trimEnd);
+      // }
     } else { // activeHandle === 'end'
       newEnd = Math.max(newTime, trimStart + 0.1); // Ensure end doesn't pass start
       newEnd = Math.min(duration, newEnd); // Ensure end doesn't exceed duration
@@ -157,9 +163,10 @@ export function useTrimControls({
         seek(newEnd);
       }
       
-      if (onTrimChange) {
-        onTrimChange(trimStart, newEnd);
-      }
+      // REMOVED: Continuous call to onTrimChange
+      // if (onTrimChange) {
+      //   onTrimChange(trimStart, newEnd);
+      // }
     }
     
     // Pause playback while dragging
@@ -167,14 +174,21 @@ export function useTrimControls({
       setIsPlaying(false);
     }
 
-  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, seek, isPlaying, setIsPlaying, onTrimChange]);
+  }, [activeHandle, containerRef, duration, trimStart, trimEnd, videoRef, seek, isPlaying, setIsPlaying]);
 
   const handleTrimDragEnd = useCallback(() => {
     if (!activeHandle) return;
     setActiveHandle(null);
     setTrimManuallySet(true); // Mark trim as manually set after dragging
-    onTrimChange?.(trimStart, trimEnd);
-    
+
+    // --- Call onTrimChangeEnd (or fallback) with final values --- 
+    if (onTrimChangeEnd) {
+      onTrimChangeEnd(trimStart, trimEnd); // Call the specific end handler
+    } else if (onTrimChange) {
+      onTrimChange(trimStart, trimEnd); // Fallback to original handler if end handler not provided
+    }
+    // --- End of change --- 
+
     // --- Restore playback time AFTER drag --- 
     const restoreTime = trimStart;
     // Use seek function instead of directly accessing videoContext
@@ -195,7 +209,7 @@ export function useTrimControls({
       containerRef.current.ownerDocument.body.style.cursor = 'default';
     }
   }, [
-      activeHandle, trimStart, trimEnd, onTrimChange, 
+      activeHandle, trimStart, trimEnd, onTrimChange, onTrimChangeEnd,
       audioRef, containerRef, seek, forceResetOnPlayRef
   ]);
 

@@ -294,7 +294,7 @@ const VideoContextScenePreviewPlayerContent: React.FC<VideoContextScenePreviewPl
     seek: bridge.seek,
     audioRef,
     isPlaying,
-    onTrimChange,
+    onTrimChangeEnd: onTrimChange,
     setIsPlaying,
     forceResetOnPlayRef,
     videoRef,

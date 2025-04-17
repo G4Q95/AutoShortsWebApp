@@ -29,6 +29,11 @@ interface SceneTrimControlsProps {
   onTrimChange: (start: number, end: number) => void;
   
   /**
+   * NEW: Optional callback for when trim interaction *ends* (mouse up)
+   */
+  onTrimChangeEnd?: (start: number, end: number) => void;
+  
+  /**
    * Callback function for when the user seeks to a specific position
    * @param time The time in seconds to seek to
    */
@@ -53,6 +58,7 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
   trimStart,
   trimEnd,
   onTrimChange,
+  onTrimChangeEnd,
   onSeek,
   currentTime = 0,
   className = '',
@@ -61,6 +67,10 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
   const [activeHandle, setActiveHandle] = useState<'start' | 'end' | 'position' | null>(null);
   const [trimActive, setTrimActive] = useState<boolean>(false);
   
+  // NEW: Local state for trim values during drag
+  const [localTrimStart, setLocalTrimStart] = useState<number>(trimStart);
+  const [localTrimEnd, setLocalTrimEnd] = useState<number>(trimEnd);
+  
   // Refs
   const timelineRef = useRef<HTMLDivElement>(null);
   // Store drag state
@@ -68,10 +78,22 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
     handleOffset: number;  // Offset between mouse and handle center
   }>({ handleOffset: 0 });
   
+  // Sync local state with props
+  useEffect(() => {
+    setLocalTrimStart(trimStart);
+  }, [trimStart]);
+
+  useEffect(() => {
+    setLocalTrimEnd(trimEnd);
+  }, [trimEnd]);
+  
   // Set up event listeners for trim handle dragging
   useEffect(() => {
     // Track if we're dragging
     let isDragging = false;
+    
+    let currentStart = localTrimStart; // Use local state within listeners
+    let currentEnd = localTrimEnd;
     
     const handleMouseMove = (e: MouseEvent) => {
       if (!activeHandle || !timelineRef.current) return;
@@ -95,12 +117,18 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
       const newTime = position * duration;
       
       if (activeHandle === 'start') {
-        if (newTime < trimEnd - 0.5) { // Minimum 0.5s duration
-          onTrimChange(newTime, trimEnd);
+        if (newTime < currentEnd - 0.5) { // Use currentEnd
+          setLocalTrimStart(newTime); // Update local state
+          currentStart = newTime; // Update listener variable
+          // Optionally call onTrimChange if immediate parent feedback is needed
+          // onTrimChange(newTime, currentEnd);
         }
       } else if (activeHandle === 'end') {
-        if (newTime > trimStart + 0.5) { // Minimum 0.5s duration
-          onTrimChange(trimStart, newTime);
+        if (newTime > currentStart + 0.5) { // Use currentStart
+          setLocalTrimEnd(newTime); // Update local state
+          currentEnd = newTime;
+          // Optionally call onTrimChange if immediate parent feedback is needed
+          // onTrimChange(currentStart, newTime);
         }
       } else if (activeHandle === 'position' && onSeek) {
         // Handle current position indicator drag - use exact mouse position
@@ -117,7 +145,17 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
         onSeek(newTime);
       }
       
-      // Reset dragging state
+      // --- Call onTrimChangeEnd when drag finishes --- 
+      if (isDragging && (activeHandle === 'start' || activeHandle === 'end')) {
+        if (onTrimChangeEnd) {
+          onTrimChangeEnd(currentStart, currentEnd); // Use final values from listener
+        } else {
+          // Fallback: Call original onTrimChange if onTrimChangeEnd is not provided
+          onTrimChange(currentStart, currentEnd);
+        }
+      }
+      // --- End of new logic --- 
+
       isDragging = false;
       setActiveHandle(null);
       document.body.style.cursor = 'default';
@@ -140,7 +178,7 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
       document.removeEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'default';
     };
-  }, [activeHandle, duration, trimStart, trimEnd, onTrimChange, onSeek]);
+  }, [activeHandle, duration, onTrimChange, onSeek, localTrimStart, localTrimEnd, onTrimChangeEnd]);
   
   // Handler for timeline clicks
   const handleTimelineClick = (e: React.MouseEvent) => {
@@ -197,7 +235,7 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
   };
   
   // Calculate trim duration
-  const trimDuration = trimEnd - trimStart;
+  const trimDuration = localTrimEnd - localTrimStart;
   
   return (
     <div className={`scene-trim-controls ${className}`} data-testid="scene-trim-controls">
@@ -215,7 +253,7 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
           <span>Trim: {formatTime(trimDuration)}</span>
         </div>
         <div className="text-xs text-gray-500">
-          {formatTime(trimStart)} - {formatTime(trimEnd)}
+          {formatTime(localTrimStart)} - {formatTime(localTrimEnd)}
         </div>
       </div>
       
@@ -234,8 +272,8 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
         <div 
           className={`absolute h-1 rounded-full ${trimActive ? 'bg-blue-400' : 'bg-red-400'}`}
           style={{ 
-            left: `${(trimStart / duration) * 100}%`, 
-            width: `${(trimEnd - trimStart) / duration * 100}%` 
+            left: `${(localTrimStart / duration) * 100}%`, 
+            width: `${(localTrimEnd - localTrimStart) / duration * 100}%` 
           }}
           data-testid="active-trim-region"
         ></div>
@@ -258,7 +296,7 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
         <div 
           className={`absolute h-6 w-3 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'bg-blue-500' : 'bg-red-500'}`}
           style={{ 
-            left: `${(trimStart / duration) * 100}%`,
+            left: `${(localTrimStart / duration) * 100}%`,
             transform: "translate(-50%, 0)",  // Center the handle on the position exactly
             top: '0',
             boxShadow: "0 1px 2px rgba(0,0,0,0.2)"
@@ -272,7 +310,7 @@ export const SceneTrimControls: React.FC<SceneTrimControlsProps> = ({
         <div 
           className={`absolute h-6 w-3 rounded-sm cursor-ew-resize z-20 ${trimActive ? 'bg-blue-500' : 'bg-red-500'}`}
           style={{ 
-            left: `${(trimEnd / duration) * 100}%`,
+            left: `${(localTrimEnd / duration) * 100}%`,
             transform: "translate(-50%, 0)",  // Center the handle on the position exactly
             top: '0',
             boxShadow: "0 1px 2px rgba(0,0,0,0.2)"
