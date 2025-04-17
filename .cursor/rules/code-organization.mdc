@@ -1,0 +1,5 @@
+### Component Structure
+- Structure React components: imports, component, helpers, exports
+- Structure Python modules: imports, constants, functions, classes, exports
+- Target keeping files under 300 lines of code
+- Any file exceeding 500 lines requires refactoring evaluation 
