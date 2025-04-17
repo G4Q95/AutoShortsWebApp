@@ -43,6 +43,7 @@
 *   **Project List Refactoring**: Moved `GET /projects` to `project_operations.py`.
 *   **Project Create Refactoring**: Moved `POST /projects` to `project_operations.py`.
 *   **Scene Trim Endpoint Refactoring**: Moved `PUT /projects/{project_id}/scenes/{scene_id}/trim` to `scene_operations.py` using a shadow implementation, verified routing, and commented out the original.
+*   **Backend**: Implemented `PATCH /projects/{project_id}` endpoint in `endpoints/projects.py` to allow updating project details (including scenes), unblocking Task 13 verification step 0.4.
 *   **UI/UX**: Implemented scene reordering via drag-and-drop on the frontend.
 *   **UI/UX**: Addressed project card loading issues.
 *   **UI/UX**: Fixed issues with project creation and scene addition flows.

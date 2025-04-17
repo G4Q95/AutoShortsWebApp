@@ -142,6 +142,35 @@ raise ValidationError(
 )
 ```
 
+## Backend Structure
+
+The backend follows a layered approach to separate concerns:
+
+- **API Layer (`web/backend/app/api/v1/endpoints/`)**: Defines the HTTP endpoints (routers). Responsibilities include:
+  - Defining API routes using FastAPI `APIRouter`.
+  - Handling incoming HTTP requests.
+  - Validating request data using Pydantic models.
+  - Calling appropriate service functions to perform business logic.
+  - Formatting HTTP responses (often handled by middleware).
+  - Example: `web/backend/app/api/v1/endpoints/projects.py` handles routes like `/projects/{id}`.
+
+- **Service Layer (`web/backend/app/services/`)**: Contains the core business logic. Responsibilities include:
+  - Encapsulating complex operations or workflows.
+  - Interacting with the database (via `core/database.py` or specific database functions).
+  - Interacting with external services or APIs (e.g., Cloudflare R2, AI models).
+  - Can be called by multiple API endpoints.
+  - Example: `web/backend/app/services/project.py` currently handles project *storage* logic like cleanup.
+
+- **Core Layer (`web/backend/app/core/`)**: Provides foundational components used across the application.
+  - Database connection (`database.py`).
+  - Configuration (`config.py`).
+  - Custom error definitions (`errors.py`).
+  - Shared utilities.
+
+- **Models (`web/backend/app/models/`)**: Defines Pydantic models used for data validation and structuring (e.g., `project.py`, `scene.py`).
+
+This separation helps keep the codebase organized, testable, and maintainable. While simple database operations might sometimes be performed directly in the API layer (using `db.get_db()`), more complex logic should reside in the Service layer.
+
 ## Error Codes
 
 The system uses standardized error codes to provide more specific information about errors. These codes are defined in `ErrorCodes` in `web/backend/app/core/errors.py`.
