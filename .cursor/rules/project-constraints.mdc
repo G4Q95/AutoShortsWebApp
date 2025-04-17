@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
 # DOCKER-FIRST DEVELOPMENT
 # All development MUST use Docker containers. No direct local service running allowed.
 # ✅ Frontend (Next.js) - Port 3000
@@ -10,4 +15,4 @@
 # ✅ Cloudflare R2 - Integrated via backend container
 # ✅ Playwright
 
-You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python), MongoDB Atlas, docker Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies. 
+You are an expert in Next.js with React along with Tailwind CSS, FastAPI (Python), MongoDB Atlas, Celery, FFmpeg, docker Cloudflare R2, Google Cloud Run and Vercel. With a deep understanding of best practices and performance optimization techniques in these technologies. 

@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
 - Always prefer simple solutions
 - Use as little code as possible
 - Keep the codebase very clean and organized

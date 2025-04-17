@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
 - Test files may be longer when containing multiple related test cases
 - Consider refactoring when a component:
   - Has more than 3-4 distinct responsibilities
