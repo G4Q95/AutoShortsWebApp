@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 // Revert back to importing from Context
-import { Project, Scene } from '@/contexts/ProjectContext'; 
+import { Project, Scene, SceneMedia } from '@/contexts/ProjectContext'; 
 // Import SceneMedia type explicitly if needed, or rely on Scene['media']
 // It seems Scene['media'] might not be directly usable here, let's adjust
 // Assuming Scene type is correctly imported above
@@ -47,22 +47,39 @@ export function useSceneManagement({
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Create new scene with generated ID
+      // Create new scene with generated ID and nested media
       const newScene: Scene = {
-        id: `scene${Date.now()}`, // Replace with better ID generation if needed
+        id: `scene${Date.now()}`, 
         title: sceneData.title || "New Scene",
-        order: project.scenes.length, // Default order
-        // Sensible defaults - ensure all required fields are present
-        mediaUrl: sceneData.mediaUrl,
+        order: project.scenes.length, 
+        mediaUrl: sceneData.mediaUrl, // Keep original URL top-level
         audioUrl: sceneData.audioUrl,
         content: sceneData.content,
-        mediaType: sceneData.mediaType || 'image',
         trim: sceneData.trim,
-        duration: sceneData.duration || 5, // Default duration
-        mediaAspectRatio: sceneData.mediaAspectRatio,
-        mediaOriginalWidth: sceneData.mediaOriginalWidth,
-        mediaOriginalHeight: sceneData.mediaOriginalHeight,
-        ...sceneData // Spread last to allow overrides
+        
+        // Initialize nested media object from sceneData if provided
+        media: {
+          type: sceneData.media?.type || 'image', // Default to image if not provided
+          url: sceneData.media?.url,
+          storageKey: sceneData.media?.storageKey,
+          thumbnailUrl: sceneData.media?.thumbnailUrl,
+          duration: sceneData.media?.duration || 5, // Default duration
+          width: sceneData.media?.width,
+          height: sceneData.media?.height,
+          aspectRatio: sceneData.media?.aspectRatio,
+          // Add other media fields if necessary
+        },
+        // Spread other top-level sceneData properties (like order, title if overridden)
+        // Make sure not to spread the entire sceneData object if it contains old top-level media keys
+        ...{ 
+            ...(sceneData.title && { title: sceneData.title }),
+            ...(sceneData.order !== undefined && { order: sceneData.order }),
+            ...(sceneData.mediaUrl && { mediaUrl: sceneData.mediaUrl }),
+            ...(sceneData.audioUrl && { audioUrl: sceneData.audioUrl }),
+            ...(sceneData.content && { content: sceneData.content }),
+            ...(sceneData.trim && { trim: sceneData.trim }),
+            // Explicitly ignore old top-level keys if they exist on sceneData
+        }
       };
 
       // Update local state using the provided setter
@@ -110,9 +127,28 @@ export function useSceneManagement({
         }
         return {
           ...prev,
-          scenes: prev.scenes.map(scene =>
-            scene.id === sceneId ? { ...scene, ...sceneData } : scene
-          ).sort((a, b) => a.order - b.order), // Ensure order is maintained
+          scenes: prev.scenes.map(scene => {
+            if (scene.id === sceneId) {
+              // Create updated scene object, merging carefully
+              const updatedScene = {
+                ...scene, // Start with existing scene
+                // Update top-level fields if provided in sceneData
+                ...(sceneData.title && { title: sceneData.title }),
+                ...(sceneData.order !== undefined && { order: sceneData.order }),
+                ...(sceneData.mediaUrl && { mediaUrl: sceneData.mediaUrl }),
+                ...(sceneData.audioUrl && { audioUrl: sceneData.audioUrl }),
+                ...(sceneData.content && { content: sceneData.content }),
+                ...(sceneData.trim && { trim: sceneData.trim }),
+                
+                // Merge media object if provided in sceneData
+                media: sceneData.media 
+                  ? { ...(scene.media || {}), ...sceneData.media } 
+                  : scene.media, // Keep existing media if not updated
+              };
+              return updatedScene;
+            }
+            return scene;
+          }).sort((a, b) => a.order - b.order), // Ensure order is maintained
           updatedAt: new Date().toISOString()
         };
       });
@@ -254,24 +290,29 @@ export function useSceneManagement({
       const updatedScenes = prev.scenes.map(scene => {
         if (scene.id === sceneId) {
           // Log before updating the scene
-          console.log(`[useSceneManagement] Found scene ${sceneId}. Updating top-level storage fields.`);
+          console.log(`[useSceneManagement] Found scene ${sceneId}. Current scene data:`, scene);
           
-          // Update the scene directly with the top-level storage properties
-          // This matches the Scene interface definition
+          // Create or update the nested media object
+          const updatedMedia: SceneMedia = {
+            ...(scene.media || {}), // Spread existing media properties first, or start with empty object
+            storageKey: storageKey,      // Add/Update storageKey
+            thumbnailUrl: thumbnailUrl,    // Add/Update thumbnailUrl
+            url: storedUrl,              // Add/Update the stored R2 URL as 'url'
+          };
+
+          console.log(`[useSceneManagement] Updated media object for scene ${sceneId}:`, updatedMedia);
+
+          // Return the updated scene with the nested media object
           return {
             ...scene,
-            storageKey: storageKey, 
-            storedUrl: storedUrl, // Use the stored URL from R2
-            thumbnailUrl: thumbnailUrl, // Use the thumbnail URL from R2
-            // Optionally update mediaUrl if storedUrl is considered the primary URL now?
-            // mediaUrl: storedUrl ?? scene.mediaUrl, 
+            media: updatedMedia,
           };
         }
         return scene;
       });
 
       // Log the entire scenes array after the update attempt
-      console.log(`[useSceneManagement] Scenes array after top-level storage update for ${sceneId}:`, updatedScenes);
+      console.log(`[useSceneManagement] Scenes array after nested media update for ${sceneId}:`, updatedScenes);
 
       return {
         ...prev,
