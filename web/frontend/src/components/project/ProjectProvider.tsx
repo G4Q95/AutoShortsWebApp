@@ -17,6 +17,7 @@ import React, {
   useState,
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import debounce from 'lodash.debounce';
 import { extractContent } from '../../lib/api-client';
 import { determineMediaType, generateVideoThumbnail } from '../../lib/media-utils';
 import { useProjectPersistence } from '@/hooks/useProjectPersistence';
@@ -266,57 +267,53 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     } finally {
       dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
     }
-  }, [getLatestProjectState, saveProject, isSavingProject, dispatch]); // Added isSavingProject
+  }, [getLatestProjectState, saveProject, isSavingProject, dispatch]);
 
-  // Set up auto-save whenever currentProject changes
+  // Create a memoized debounced version of the save function
+  const debouncedSaveProject = useMemo(() => {
+    return debounce((project) => {
+      console.log('[ProjectProvider] Debounced auto-save executing...');
+      if (project) {
+        // Create a deep copy to ensure we don't have reference issues
+        const projectToSave = JSON.parse(JSON.stringify(project));
+        dispatch({ type: 'SET_SAVING', payload: { isSaving: true } });
+        saveProject(projectToSave)
+          .then(() => {
+            dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
+          })
+          .catch((error: unknown) => {
+            console.error('[ProjectProvider] Error saving project:', error);
+            dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save project' } });
+          })
+          .finally(() => {
+            dispatch({ type: 'SET_SAVING', payload: { isSaving: false } });
+          });
+      }
+    }, 10000); // 10-second debounce delay
+  }, [dispatch, saveProject]);
+
+  // Set up auto-save whenever relevant project properties change
   useEffect(() => {
-    let isMounted = true;
+    // Bail out early if no project
+    if (!coreCurrentProject) return;
 
-    // Monitor when auto-save effect triggers
-    // console.log('[STATE-MONITOR] Auto-save effect triggered:',
-    //   'Current project in hook:', coreCurrentProject?.id,
-    //   'Scenes in hook:', coreCurrentProject?.scenes?.length
-    // );
-
-    // Clear any existing timer first
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null; // Clear ref
-    }
-
-    // *** REMOVED CONSISTENCY CHECK - rely solely on hook state ***
-    // Check for existence and matching IDs/scene counts
-    // const statesConsistent =
-    //   coreCurrentProject?.id && state.currentProject?.id && // Both must exist
-    //   coreCurrentProject.id === state.currentProject.id &&
-    //   coreCurrentProject.scenes?.length === state.currentProject.scenes?.length;
-
-    // If we have a current project from the HOOK, set up auto-save
-    if (coreCurrentProject) { // Check hook state only
-       // console.log('[STATE-MONITOR] coreCurrentProject exists, setting auto-save timer.');
-      autoSaveTimerRef.current = setTimeout(() => {
-        if (isMounted) {
-          // console.log('[STATE-MONITOR] Auto-save timer fired:',
-          //   'Current project in hook:', coreCurrentProject?.id,
-          //   'Scenes in hook:', coreCurrentProject?.scenes?.length
-          // );
-          saveCurrentProjectWrapper(); // Wrapper already uses coreCurrentProject
-        }
-      }, 3000); // Auto-save after 3 seconds
-    } else {
-         // console.log('[STATE-MONITOR] coreCurrentProject does not exist, skipping auto-save timer setting.');
-    }
-
+    // Call the debounced save with the current project
+    debouncedSaveProject(coreCurrentProject);
 
     // Cleanup function
     return () => {
-      isMounted = false;
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
+      debouncedSaveProject.cancel(); // Cancel any pending debounced saves
     };
-  // Keep dependencies - need both to check consistency and the wrapper
-  }, [coreCurrentProject, saveCurrentProjectWrapper]);
+  }, [
+    coreCurrentProject?.id, 
+    coreCurrentProject?.updatedAt, 
+    // Specific high-level properties that should trigger saves when changed
+    coreCurrentProject?.title,
+    coreCurrentProject?.aspectRatio,
+    // Use length checks rather than full object comparisons for arrays
+    coreCurrentProject?.scenes?.length,
+    debouncedSaveProject
+  ]);
 
   // Add Effect to listen for pathname changes and save immediately
   useEffect(() => {
@@ -966,19 +963,22 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const toggleLetterboxing = useCallback(async (show: boolean) => {
     // console.log('[ProjectProvider] Toggling letterboxing:', show);
     
-    // dispatch({ 
-    //   type: 'TOGGLE_LETTERBOXING', 
-    //   payload: { showLetterboxing: show } 
-    // }); // Removed dispatch
+    if (!coreCurrentProject) return;
     
-    // // Force a re-render of affected components - Might not be needed if hook update triggers render
-    // dispatch({ type: 'FORCE_UPDATE' }); 
+    // Update the current project with the new letterboxing setting
+    const updatedProject = {
+      ...coreCurrentProject,
+      showLetterboxing: show,
+      updatedAt: Date.now()
+    };
     
-    // Save the project after toggling letterboxing
-    saveCurrentProjectWrapper().catch(error => {
-      // console.error('Error saving project after toggling letterboxing:', error);
-    });
-  }, [saveCurrentProjectWrapper]);
+    // Update the core project state
+    updateCoreProjectState(updatedProject);
+    
+    // Use our debounced save - this will save after the debounce period
+    debouncedSaveProject(updatedProject);
+    
+  }, [coreCurrentProject, updateCoreProjectState, debouncedSaveProject]);
 
   // Memoize the context value to prevent unnecessary re-renders
   // Split context values into separate memoized objects
