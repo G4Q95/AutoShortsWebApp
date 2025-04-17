@@ -713,3 +713,109 @@ async def create_project(project: ProjectCreate = Body(...)):
         )
 
 # --- End of File --- 
+
+# --- PATCH endpoint for partial project updates ---
+@project_router.patch("/{project_id}", response_model=ApiResponse[ProjectResponse])
+async def patch_project(project_id: str, project_update: ProjectUpdate = Body(...)):
+    """
+    Partially update a project by ID.
+    This is used for more granular updates than the PUT endpoint,
+    such as modifying the title or scenes without replacing the entire project.
+    """
+    logger.info(f"Received PATCH request for project: {project_id}")
+    logger.debug(f"Update data: {project_update.model_dump(exclude_unset=True)}")
+    
+    try:
+        # Prepare the update data
+        update_data = project_update.model_dump(exclude_unset=True)
+        # Always update the timestamp
+        update_data["updated_at"] = datetime.utcnow()
+        
+        # Handle project ID - try as ObjectId first, then as string
+        try:
+            obj_id = ObjectId(project_id)
+            query = {"_id": obj_id}
+        except InvalidId:
+            # If not a valid ObjectId, try as string
+            query = {"$or": [{"_id": project_id}, {"id": project_id}]}
+        
+        if not db.is_mock:
+            # Get database reference
+            mongo_db = db.get_db()
+            
+            # Update the project
+            result = await mongo_db.projects.update_one(
+                query, {"$set": update_data}
+            )
+            
+            if result.matched_count == 0:
+                error_response = create_error_response(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message=f"Project {project_id} not found",
+                    error_code=ErrorCodes.RESOURCE_NOT_FOUND
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_response
+                )
+            
+            # Get the updated project
+            updated_project = await mongo_db.projects.find_one(query)
+            if not updated_project:
+                error_response = create_error_response(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    message=f"Failed to retrieve project {project_id} after update",
+                    error_code=ErrorCodes.DATABASE_ERROR
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=error_response
+                )
+            
+            # Format for response
+            formatted_project = {
+                "id": str(updated_project.get("_id")),
+                "title": updated_project.get("title", ""),
+                "description": updated_project.get("description"),
+                "user_id": updated_project.get("user_id"),
+                "scenes": updated_project.get("scenes", []),
+                "created_at": updated_project.get("created_at") or updated_project.get("createdAt"),
+                "updated_at": updated_project.get("updated_at") or updated_project.get("created_at"),
+            }
+            
+            logger.info(f"Successfully updated project {project_id}")
+            return ApiResponse(
+                success=True,
+                message="Project updated successfully",
+                data=formatted_project
+            )
+        else:
+            # Mock response
+            mock_project = {
+                "id": project_id,
+                "title": update_data.get("title", "Mock Project"),
+                "description": update_data.get("description"),
+                "user_id": "mock_user",
+                "scenes": update_data.get("scenes", []),
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+            return ApiResponse(
+                success=True,
+                message="Project updated successfully (mock)",
+                data=mock_project
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating project {project_id}: {str(e)}")
+        logger.exception("Full traceback:")
+        error_response = create_error_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to update project: {str(e)}",
+            error_code=ErrorCodes.DATABASE_ERROR
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response
+        )
