@@ -17,9 +17,15 @@ export async function addScene(page: Page, url: string, waitForExtraction = true
   console.log(`Adding scene with URL: ${url}`);
   
   try {
+    // Wait for the preferred URL input field to be visible before trying selectors
+    const preferredSelector = '[data-testid="url-input"]';
+    console.log(`Waiting for selector: ${preferredSelector}...`);
+    await page.locator(preferredSelector).waitFor({ state: 'visible', timeout: 15000 });
+    console.log(`Selector ${preferredSelector} is visible.`);
+
     // Find the URL input field
     const urlInputSelectors = [
-      '[data-testid="url-input"]',
+      preferredSelector,
       'input[placeholder="Enter Reddit URL"]',
       'input[type="text"]',
       '.url-input'

@@ -22,7 +22,7 @@ import { determineMediaType, generateVideoThumbnail } from '../../lib/media-util
 import { useProjectPersistence } from '@/hooks/useProjectPersistence';
 import { useProjectNavigation, UIMode } from '@/hooks/useProjectNavigation';
 import { useProjectListManagement } from '@/hooks/useProjectListManagement';
-import { useProjectCore } from '@/hooks/useProjectCore';
+import { useProjectCore, useGetLatestProjectState } from '@/hooks/useProjectCore';
 
 import { 
   Project, 
@@ -167,6 +167,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setProjectAspectRatio: setProjectAspectRatioFromHook, // Get the hook function
     updateCoreProjectState, // Added from useProjectCore
   } = useProjectCore(dispatch, state, persistedProjects);
+
+  // Get the function to fetch the latest state
+  const getLatestProjectState = useGetLatestProjectState({ currentProject: coreCurrentProject });
 
   // State monitoring function to detect inconsistencies
   const logStateConsistency = useCallback(() => {
@@ -418,17 +421,20 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Update scene media data
   const updateSceneMedia = useCallback(async (sceneId: string, mediaData: Partial<Scene['media']>) => {
+    // Get the absolute latest project state from the core hook
+    const latestProjectState = getLatestProjectState();
+
     // Log state at the time of media update for debugging
-    console.log(`[updateSceneMedia] Called for scene ${sceneId}. Hook scenes=${coreCurrentProject?.scenes?.length || 0}`);
+    console.log(`[updateSceneMedia] Called for scene ${sceneId}. Hook scenes=${latestProjectState?.scenes?.length || 0}`);
     
-    // Use coreCurrentProject as the single source of truth
-    if (!coreCurrentProject) {
-      console.error("No active project (from core hook) to update scene media");
+    // Use latestProjectState as the single source of truth
+    if (!latestProjectState) {
+      console.error("No active project (from latest state) to update scene media");
       dispatch({ type: 'SET_ERROR', payload: { error: 'No active project' } });
       return;
     }
     
-    const sourceProject = coreCurrentProject; // Directly use the hook's state
+    const sourceProject = latestProjectState; // Directly use the fetched latest state
     
     if (sourceProject.scenes?.length === 0) {
       console.warn(`Project ${sourceProject.id} has 0 scenes but trying to update scene ${sceneId}`);
@@ -476,7 +482,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.error("Failed to save scene media:", error);
       dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save media change' } });
     }
-  }, [coreCurrentProject, dispatch, saveProject, updateCoreProjectState]);
+  }, [dispatch, saveProject, updateCoreProjectState, getLatestProjectState]);
 
   // Store all unstored media for the current project in R2
   const storeAllMedia = useCallback(async (): Promise<{

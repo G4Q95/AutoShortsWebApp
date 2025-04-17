@@ -260,4 +260,13 @@ export function useProjectCore(
     setProjectAspectRatio,
     updateCoreProjectState: setCurrentProjectInternal 
   };
+}
+
+// Helper function to get the current project state directly
+// This is intended for internal use within the provider/hook ecosystem
+// to avoid stale closures in callbacks.
+export function useGetLatestProjectState(coreHookState: { currentProject: Project | null }) {
+  return useCallback(() => {
+    return coreHookState.currentProject;
+  }, [coreHookState.currentProject]);
 } 
