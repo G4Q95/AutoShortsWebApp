@@ -42,7 +42,7 @@ export function useProjectCore(
         setCurrentProjectInternal(projectCopy); // Update hook's internal state
         
         // Explicitly dispatch success with full project to ensure reducer state is updated
-        dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: projectCopy } });
+        // dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: projectCopy } }); // Removed dispatch
         return projectCopy;
       } else {
         console.warn(`[useProjectCore] loadProject: Project ${projectId} not found or failed to load`);
@@ -61,70 +61,70 @@ export function useProjectCore(
   }, [dispatch, loadProjectFromHook]);
 
   // Add a function to sync from the provider state
-  const syncFromProviderState = useCallback((force = false) => {
-    if (providerState.currentProject && 
-        (force || !currentProject || 
-         providerState.currentProject.id !== currentProject.id || 
-         providerState.currentProject.scenes?.length !== currentProject.scenes?.length)) {
+  // const syncFromProviderState = useCallback((force = false) => {
+  //   if (providerState.currentProject && 
+  //       (force || !currentProject || 
+  //        providerState.currentProject.id !== currentProject.id || 
+  //        providerState.currentProject.scenes?.length !== currentProject.scenes?.length)) {
       
-      console.log(`[useProjectCore] Syncing from provider state: Project ${providerState.currentProject.id} with ${providerState.currentProject.scenes?.length || 0} scenes`);
-      // Create a deep copy to avoid direct reference sharing
-      const projectCopy = JSON.parse(JSON.stringify(providerState.currentProject));
-      setCurrentProjectInternal(projectCopy);
+  //     console.log(`[useProjectCore] Syncing from provider state: Project ${providerState.currentProject.id} with ${providerState.currentProject.scenes?.length || 0} scenes`);
+  //     // Create a deep copy to avoid direct reference sharing
+  //     const projectCopy = JSON.parse(JSON.stringify(providerState.currentProject));
+  //     setCurrentProjectInternal(projectCopy);
       
-      // Return true if we updated state
-      return true;
-    }
-    return false;
-  }, [providerState.currentProject, currentProject]);
+  //     // Return true if we updated state
+  //     return true;
+  //   }
+  //   return false;
+  // }, [providerState.currentProject, currentProject]);
   
-  // Check synchronization on every render
-  useEffect(() => {
-    syncFromProviderState();
-  }, [syncFromProviderState]);
+  // // Check synchronization on every render
+  // useEffect(() => {
+  //   syncFromProviderState();
+  // }, [syncFromProviderState]);
   
-  // Sync other specific state changes that might impact scenes
-  useEffect(() => {
-    // If scenes count differs between hook state and reducer, sync from reducer
-    if (providerState.currentProject && currentProject && 
-        providerState.currentProject.id === currentProject.id &&
-        providerState.currentProject.scenes?.length !== currentProject.scenes?.length) {
+  // // Sync other specific state changes that might impact scenes
+  // useEffect(() => {
+  //   // If scenes count differs between hook state and reducer, sync from reducer
+  //   if (providerState.currentProject && currentProject && 
+  //       providerState.currentProject.id === currentProject.id &&
+  //       providerState.currentProject.scenes?.length !== currentProject.scenes?.length) {
       
-      console.log('[useProjectCore] Scene count mismatch detected - syncing from provider state', {
-        hookScenes: currentProject.scenes?.length || 0,
-        reducerScenes: providerState.currentProject.scenes?.length || 0
-      });
+  //     console.log('[useProjectCore] Scene count mismatch detected - syncing from provider state', {
+  //       hookScenes: currentProject.scenes?.length || 0,
+  //       reducerScenes: providerState.currentProject.scenes?.length || 0
+  //     });
       
-      syncFromProviderState(true);
-    }
-  }, [
-    providerState.currentProject?.scenes?.length, 
-    currentProject?.scenes?.length,
-    syncFromProviderState
-  ]);
+  //     syncFromProviderState(true);
+  //   }
+  // }, [
+  //   providerState.currentProject?.scenes?.length, 
+  //   currentProject?.scenes?.length,
+  //   syncFromProviderState
+  // ]);
 
-  // Sync internal state with provider state when the provider's currentProject ID changes
-  useEffect(() => {
-    // If the provider's current project ID is set, try to load that project
-    if (providerState.currentProject?.id && providerState.currentProject.id !== currentProject?.id) {
-      loadProject(providerState.currentProject.id);
-    } 
-    // If the provider clears the project ID, clear our internal state
-    else if (!providerState.currentProject && currentProject) {
-      setCurrentProjectInternal(null);
-    }
-  }, [providerState.currentProject?.id, currentProject?.id, loadProject]); // Add loadProject dependency
+  // // Sync internal state with provider state when the provider's currentProject ID changes
+  // useEffect(() => {
+  //   // If the provider's current project ID is set, try to load that project
+  //   if (providerState.currentProject?.id && providerState.currentProject.id !== currentProject?.id) {
+  //     loadProject(providerState.currentProject.id);
+  //   } 
+  //   // If the provider clears the project ID, clear our internal state
+  //   else if (!providerState.currentProject && currentProject) {
+  //     setCurrentProjectInternal(null);
+  //   }
+  // }, [providerState.currentProject?.id, currentProject?.id, loadProject]); // Add loadProject dependency
 
-  // Sync internal state if the provider's loaded project object changes (e.g., after initial load)
-  useEffect(() => {
-    // If the provider has a project object and it differs from ours, update ours
-    if (providerState.currentProject && providerState.currentProject.id !== currentProject?.id) {
-      setCurrentProjectInternal({...providerState.currentProject});
-    } else if (!providerState.currentProject && currentProject) {
-      // If the provider clears the project, clear ours
-      setCurrentProjectInternal(null);
-    }
-  }, [providerState.currentProject, currentProject]);
+  // // Sync internal state if the provider's loaded project object changes (e.g., after initial load)
+  // useEffect(() => {
+  //   // If the provider has a project object and it differs from ours, update ours
+  //   if (providerState.currentProject && providerState.currentProject.id !== currentProject?.id) {
+  //     setCurrentProjectInternal({...providerState.currentProject});
+  //   } else if (!providerState.currentProject && currentProject) {
+  //     // If the provider clears the project, clear ours
+  //     setCurrentProjectInternal(null);
+  //   }
+  // }, [providerState.currentProject, currentProject]);
 
   // Create a new project
   const createProject = useCallback(async (title: string): Promise<Project | null> => {
@@ -149,7 +149,7 @@ export function useProjectCore(
       
       // Dispatch a success action with the full project object to the reducer
       // Ensure the reducer handles 'CREATE_PROJECT_SUCCESS' appropriately
-      dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: newProject } });
+      // dispatch({ type: 'LOAD_PROJECT_SUCCESS', payload: { project: newProject } }); // Removed dispatch
       
       // Optional: Log success
       console.log(`[useProjectCore] Successfully created and saved project: ${newProject.id}`);
@@ -170,7 +170,7 @@ export function useProjectCore(
   // AND immediately triggers loading the project data into this hook's state.
   const setCurrentProject = useCallback((projectId: string | null) => {
     // 1. Dispatch to provider reducer to update provider state (e.g., project list selection)
-    dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } });
+    // dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } }); // Removed dispatch
 
     // 2. Immediately attempt to load the project data into *this hook's* state
     if (projectId) {
@@ -200,7 +200,7 @@ export function useProjectCore(
         dispatch({ type: 'SET_ERROR', payload: { error: 'Failed to save title' } });
     });
      // Dispatch to reducer if other parts of the provider state need updating
-     dispatch({ type: 'UPDATE_PROJECT_METADATA', payload: { projectId: currentProject.id, changes: { title } } });
+     // dispatch({ type: 'UPDATE_PROJECT_METADATA', payload: { projectId: currentProject.id, changes: { title } } }); // Removed dispatch
 
   }, [currentProject, saveProject, dispatch]);
 
@@ -219,7 +219,7 @@ export function useProjectCore(
         await saveProject(updatedProject);
         // Optional: verify save if needed, like in the original provider
         // Dispatch to reducer if other parts of the provider state need updating
-        dispatch({ type: 'UPDATE_PROJECT_METADATA', payload: { projectId: currentProject.id, changes: { aspectRatio } } });
+        // dispatch({ type: 'UPDATE_PROJECT_METADATA', payload: { projectId: currentProject.id, changes: { aspectRatio } } }); // Removed dispatch
     } catch (error) {
       console.error('[useProjectCore] Error saving project after updating aspect ratio:', error);
       setCurrentProjectInternal(currentProject); // Revert optimistic update
