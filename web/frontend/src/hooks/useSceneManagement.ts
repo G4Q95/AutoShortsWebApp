@@ -276,51 +276,53 @@ export function useSceneManagement({
     }
   }, [project, setProject, setIsLoading, setError]);
 
-  // Add the new function to update storage info
+  // Update scene media info after storage upload
   const updateSceneStorageInfo = useCallback(async (
     sceneId: string, 
     storageKey: string, 
-    thumbnailUrl?: string,
+    thumbnailUrl?: string, 
     storedUrl?: string
   ) => {
-    console.log(`[useSceneManagement] Updating storage info for scene ${sceneId} with key: ${storageKey}, storedURL: ${storedUrl}, thumb: ${thumbnailUrl}`);
+    console.log(`[useSceneManagement][updateSceneStorageInfo] Called for scene ${sceneId} with:`, { storageKey, thumbnailUrl, storedUrl });
+
     setProject(prev => {
       if (!prev) return null;
-
-      const updatedScenes = prev.scenes.map(scene => {
-        if (scene.id === sceneId) {
-          // Log before updating the scene
-          console.log(`[useSceneManagement] Found scene ${sceneId}. Current scene data:`, scene);
-          
-          // Create or update the nested media object
-          const updatedMedia: SceneMedia = {
-            ...(scene.media || {}), // Spread existing media properties first, or start with empty object
-            storageKey: storageKey,      // Add/Update storageKey
-            thumbnailUrl: thumbnailUrl,    // Add/Update thumbnailUrl
-            url: storedUrl,              // Add/Update the stored R2 URL as 'url'
-          };
-
-          console.log(`[useSceneManagement] Updated media object for scene ${sceneId}:`, updatedMedia);
-
-          // Return the updated scene with the nested media object
-          return {
-            ...scene,
-            media: updatedMedia,
-          };
-        }
-        return scene;
-      });
-
-      // Log the entire scenes array after the update attempt
-      console.log(`[useSceneManagement] Scenes array after nested media update for ${sceneId}:`, updatedScenes);
+      
+      const sceneExists = prev.scenes.some(scene => scene.id === sceneId);
+      if (!sceneExists) {
+          console.warn(`[useSceneManagement][updateSceneStorageInfo] Scene ID ${sceneId} not found.`);
+          return prev;
+      }
 
       return {
         ...prev,
-        scenes: updatedScenes,
-        updatedAt: new Date().toISOString(),
+        scenes: prev.scenes.map(scene => {
+          if (scene.id === sceneId) {
+            const updatedMedia = {
+              ...(scene.media || { type: 'image', duration: 5 }), // Ensure media object exists
+              storageKey: storageKey,
+              ...(thumbnailUrl && { thumbnailUrl: thumbnailUrl }), // Conditionally add thumbnail
+              ...(storedUrl && { url: storedUrl }), // Conditionally update URL to stored URL
+              isStorageBacked: true,
+              storedAt: Date.now() // Use timestamp number
+            };
+            console.log(`[useSceneManagement][updateSceneStorageInfo] Updating scene ${sceneId} media in draft:`, updatedMedia);
+            return {
+              ...scene,
+              media: updatedMedia
+            };
+          }
+          return scene;
+        }),
+        updatedAt: new Date().toISOString() // Keep ISO string for project level
       };
     });
-  }, [setProject]); // Dependency array only needs setProject
+    
+    console.log(`[useSceneManagement][updateSceneStorageInfo] State update function called for scene ${sceneId}`);
+    // No explicit save needed here, relies on auto-save from ProjectProvider triggering useProjectPersistence
+    // But we should ensure the state update triggers the auto-save effectively.
+
+  }, [setProject]);
 
   return {
     addScene,

@@ -92,6 +92,10 @@ export function useProjectPersistence(): UseProjectPersistenceReturn {
             // The backend PATCH endpoint handles converting Scene models to dicts
             scenes: projectToSave.scenes, 
           };
+          
+          // Need to know which scene was intended to be updated
+          // We don't have sceneId directly here, might need more context or log all scenes
+          console.log(`[useProjectPersistence] Payload PRE-SEND for project ${projectId}:`, JSON.stringify(updatePayload.scenes, null, 2)); // Log the scenes array specifically
 
           const backendUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${projectId}`;
           console.log(`[useProjectPersistence] Sending PATCH request to: ${backendUrl}`);
