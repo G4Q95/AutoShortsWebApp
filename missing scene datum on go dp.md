@@ -44,4 +44,59 @@ The R2 storage fields (`storageKey`, R2 `url`, `thumbnailUrl`, etc.) are missing
     *   Calls `saveProject(updatedProjectState)` *after* the state has been updated by `updateSceneStorageInfo`.
 2.  **Inspect Frontend State:** Add temporary logging *just before* the `saveProject` call in `useProjectPersistence.ts` to explicitly log the `media` object of the relevant scene, confirming it contains the new R2 fields.
 3.  **Inspect Backend Payload:** Verify the full PATCH payload logged by `useProjectPersistence.ts` includes the scene with the updated `media` object containing the R2 fields.
-4.  **Investigate Backend API (If Necessary):** If steps 1-3 confirm the frontend is sending the correct data, investigate the backend `PATCH /api/v1/projects/{project_id}` endpoint and associated Pydantic models to ensure they correctly process and save the nested `media` object updates, including the new R2 fields. 
+4.  **Investigate Backend API (If Necessary):** If steps 1-3 confirm the frontend is sending the correct data, investigate the backend `PATCH /api/v1/projects/{project_id}` endpoint and associated Pydantic models to ensure they correctly process and save the nested `media` object updates, including the new R2 fields.
+
+## Further Investigation: Frontend State Update (Chat Session Summary)
+
+This section summarizes the debugging steps taken during the subsequent chat session after the initial investigation documented above.
+
+**Observations & Backend Fix:**
+
+1.  **Initial Logging:** Added console logs to `useSceneManagement.updateSceneStorageInfo` (inside the function) and `useProjectPersistence.saveProject` (before the PATCH call).
+2.  **Log Results 1:** Observed that the `[useProjectPersistence] Payload PRE-SEND` log was showing the scene data *without* the R2 fields. Crucially, the logs *inside* `useSceneManagement.updateSceneStorageInfo` were *not* appearing.
+3.  **Hypothesis 1:** Suspected the backend API endpoint called by `storeMediaContent` (in `useMediaStorage.ts`) was not returning the R2 details (`storageKey`, `url`, etc.).
+4.  **Backend Verification:** Added logging in `useMediaStorage.ts` around the `storeMediaContent` API call. The log `storeMediaContent response:` confirmed the backend was returning `{success: true, data: {}}` (empty data object).
+5.  **Backend Fix:** Identified the issue in `web/backend/app/services/media_service.py`. The `store_media_content` function successfully uploaded to R2 but failed to construct and return the dictionary containing the storage details. Modified this function to correctly return the `storage_key`, R2 `url`, `thumbnail_storage_key`, `thumbnail_url`, etc.
+6.  **Backend Fix Confirmation:** After restarting the backend, the `storeMediaContent response:` log now correctly shows the R2 details within the `data` object (e.g., `data: { storage_key: '...', url: '...' }`).
+
+**Frontend State Update Issue:**
+
+7.  **Log Results 2:** Despite the backend fix, the logs *inside* `useSceneManagement.updateSceneStorageInfo` **still did not appear** in the console, even though the log `[useMediaStorage] Dispatched and awaited updateSceneStorageInfo for scene ...` *did* appear (indicating the `await` completed).
+8.  **Payload & DB Confirmation:** The `[useProjectPersistence] Payload PRE-SEND` log **still showed the scene missing the R2 fields**. A check of MongoDB confirmed the R2 fields were also missing in the database record.
+9.  **Hypothesis 2:** Suspected a frontend timing issue where the auto-save (`useProjectPersistence.saveProject`) was reading the state *before* the update from `updateSceneStorageInfo` took effect, or a more complex React state/hook interaction issue.
+10. **Attempted Fixes (Failed):**
+    *   Added an explicit `await saveProject(project)` call within `useMediaStorage.ts` after awaiting `updateSceneStorageInfo`. (Result: Payload still missing R2 fields. Change reverted.)
+    *   Removed the `useCallback` wrapper from `updateSceneStorageInfo` in `useSceneManagement.ts`. (Result: Internal logs still missing.)
+    *   Drastically simplified `updateSceneStorageInfo` to a single `console.log`. (Result: Log still missing. Simplification reverted.)
+    *   Added `useCallback` and `useMemo` in `ProjectProvider.tsx` to stabilize function references. (Result: Caused linter errors, difficult to resolve cleanly. Change reverted.)
+    *   Added a `try...catch` block inside `updateSceneStorageInfo`. (Result: No "CRITICAL ERROR" log appeared.)
+
+**Current Conclusion:**
+
+*   The backend API now correctly returns R2 storage details.
+*   The frontend `useMediaStorage` hook receives these details.
+*   The frontend calls `await updateSceneStorageInfo(...)`.
+*   The `await` completes successfully.
+*   However, the code *inside* the `updateSceneStorageInfo` function body (in `useSceneManagement.ts`) does not appear to execute (no logs, even a single one, appear from within it).
+*   Consequently, the React state is not updated with the R2 details before `useProjectPersistence.saveProject` reads the state, leading to the R2 fields being missing in the saved payload and the database.
+*   The root cause seems to be a subtle issue with React's state updates, context propagation, or hook interactions, preventing the called function's body from executing as expected.
+
+**Next Proposed Step:** Refactor the state update flow to be more direct, likely involving changes to `useSceneManagement.ts`, `useMediaStorage.ts`, and potentially `ProjectReducer.ts`.
+
+---
+
+## Further Investigation 2: Project State Null Check
+
+Based on the previous conclusion that the `updateSceneStorageInfo` function body wasn't executing, we attempted a different approach:
+
+1.  **Direct Update via `saveProject`:** Modified `useMediaStorage.ts` to get the `project` state and `saveProject` function from context. The plan was to bypass `updateSceneStorageInfo` and call `saveProject` directly after the backend returned R2 details.
+2.  **Initial Test Failure:** The first test with this approach showed `[useMediaStorage] Project state is null. Cannot save scene ... details.` in the console. This indicated the `project` state was null *after* the API call returned.
+3.  **Revised Direct Update:** Added a null check for `project` *before* the API call within the `storeMedia` function in `useMediaStorage.ts` to prevent attempting storage if the project wasn't loaded.
+4.  **Test Result (Project Null):** Triggering the "store media" action again resulted in the console log: `[useMediaStorage] Project is null when trying to store media. Aborting.`
+
+**Current Conclusion (Project Timing):**
+
+*   The root cause of the immediate problem is that the `storeMedia` function (triggered by the UI) is being executed *before* the `project` state has been loaded and populated in the `ProjectContext`.
+*   When `useMediaStorage` obtains the `project` from `useProject()`, it's receiving `null` because the data isn't ready yet.
+
+**Next Proposed Step (UI Guard):** Prevent the UI element (e.g., button) that triggers the `storeMedia` action from being interactive until the `project` state in the context is confirmed to be loaded (i.e., not null). 
