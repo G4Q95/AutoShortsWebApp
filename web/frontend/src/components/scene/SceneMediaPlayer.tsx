@@ -118,8 +118,10 @@ const SceneMediaPlayerComponent: React.FC<SceneMediaPlayerProps> = ({
     );
   }
   
-  // Use the stored URL if available, otherwise the original URL
-  const mediaUrl = media.storedUrl || media.url;
+  // Determine the correct URL to use for playback
+  // If backed by storage, use the direct R2 URL (now stored in media.url)
+  // Otherwise, use the original media URL.
+  const mediaUrl = media.isStorageBacked ? media.url : media.url;
   
   // Use the trim values if available, or default to 0
   const trimStart = media.trim?.start || 0;

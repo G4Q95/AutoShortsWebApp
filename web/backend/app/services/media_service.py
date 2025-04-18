@@ -22,6 +22,7 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.services.storage import get_storage
 from app.services.audio_service import AudioService
+from app.utils.storage_utils import generate_storage_key
 
 logger = logging.getLogger(__name__)
 
@@ -280,21 +281,29 @@ async def store_media_content(
         # audio_service = AudioService()
         # original_audio_url: Optional[str] = None # Variable to store extracted audio URL
 
-        # Generate filename
-        now = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"{now}{metadata.get('extension', '.tmp')}"
-        
-        # Upload to R2
-        logger.info(f"[TIMING_MEDIA_STORE] Starting R2 upload for {project_id}/{scene_id}. Filename: {filename}")
-        upload_start_time = time.time()
-        storage_result = await storage.upload_file(
-            file_path=temp_file_path,
+        # Generate the actual storage key using the utility function
+        # Use the determined extension from metadata, defaulting if necessary
+        file_ext = metadata.get("extension", DEFAULT_EXT.get(media_type, FileExt.JPEG))
+        actual_storage_key = generate_storage_key(
             project_id=project_id,
             scene_id=scene_id,
             file_type=media_type,
-            user_id="default_user",  # Using a default user ID
-            # Pass the generated filename as the object_name for R2
-            object_name=filename  
+            extension=file_ext,
+            user_id="default_user" # TODO: Replace with actual user ID when available
+        )
+        logger.info(f"Generated actual_storage_key: {actual_storage_key}")
+
+        # Upload to R2 using the generated actual_storage_key
+        logger.info(f"[TIMING_MEDIA_STORE] Starting R2 upload for {project_id}/{scene_id}. Key: {actual_storage_key}")
+        upload_start_time = time.time()
+        storage_result = await storage.upload_file(
+            file_path=temp_file_path,
+            project_id=project_id, # Still needed for potential internal logic in upload_file
+            scene_id=scene_id,     # Still needed for potential internal logic in upload_file
+            file_type=media_type,  # Still needed for potential internal logic in upload_file
+            user_id="default_user",# Still needed for potential internal logic in upload_file
+            # Pass the generated actual_storage_key as the object_name for R2
+            object_name=actual_storage_key
         )
         upload_duration = time.time() - upload_start_time
         logger.info(f"[TIMING_MEDIA_STORE] R2 upload finished for {project_id}/{scene_id}. Duration: {upload_duration:.2f}s")
@@ -304,7 +313,7 @@ async def store_media_content(
 
         if not upload_success:
             # Handle upload failure
-            logger.error(f"R2 upload failed for {filename}. Reason: {url_or_error}")
+            logger.error(f"R2 upload failed for key {actual_storage_key}. Reason: {url_or_error}")
             # Attempt to clean up temp file even on failure
             try:
                 os.remove(temp_file_path)
@@ -317,73 +326,50 @@ async def store_media_content(
                 "error": f"Failed to upload to R2: {url_or_error}"
             }
 
-        # If upload was successful, url_or_error contains the URL
-        media_url = url_or_error
-        # The object_name used for the upload is the storage_key
-        storage_key = filename
+        # If upload was successful, url_or_error *might* contain a pre-signed URL or similar,
+        # but we will construct our public URL based on the known domain and the actual_storage_key.
 
-        # Construct the public URL
+        # The actual_storage_key is the key used for the successful upload.
+        storage_key_for_response = actual_storage_key
+
+        # Construct the public URL using the actual_storage_key
         public_media_url = None
         logger.info(f"Attempting to construct URL. R2_PUBLIC_DOMAIN from settings: '{settings.R2_PUBLIC_DOMAIN}'")
-        logger.info(f"Storage key: '{storage_key}'")
-        if settings.R2_PUBLIC_DOMAIN and storage_key:
+        logger.info(f"Storage key for URL construction: '{storage_key_for_response}'")
+        if settings.R2_PUBLIC_DOMAIN and storage_key_for_response:
             # Ensure no double slashes
             domain = settings.R2_PUBLIC_DOMAIN.rstrip('/')
-            key = storage_key.lstrip('/')
+            key = storage_key_for_response.lstrip('/')
             public_media_url = f"{domain}/{key}"
-            logger.info(f"Constructed public R2 URL: {public_media_url}")
+            logger.info(f"Constructed public URL: {public_media_url}")
         else:
-            logger.warning("Could not construct public R2 URL. R2_PUBLIC_DOMAIN or storage_key missing.")
+            logger.warning("Could not construct public URL. R2_PUBLIC_DOMAIN or storage_key missing.")
 
         # Clean up temporary file
-        cleanup_start_time = time.time()
         try:
             os.remove(temp_file_path)
-            logger.info(f"[TIMING_MEDIA_STORE] Removed temporary file: {temp_file_path}")
+            logger.info(f"[TIMING_MEDIA_STORE] Cleaned up temp file successfully: {temp_file_path}")
         except OSError as e:
             logger.error(f"Error removing temporary file {temp_file_path}: {e}")
-        cleanup_duration = time.time() - cleanup_start_time
-            
-        # Thumbnail generation (placeholder)
-        if create_thumbnail:
-            logger.info("Thumbnail creation requested but not yet implemented.")
-            metadata["thumbnail_status"] = "pending"
 
         overall_end_time = time.time()
         overall_duration = overall_end_time - overall_start_time
-        logger.info(f"[TIMING_MEDIA_STORE] Finished media processing for {project_id}/{scene_id}. Overall duration: {overall_duration:.2f}s")
-        
-        # Construct the success response using the tuple results
-        result = {
+        logger.info(f"[TIMING_MEDIA_STORE] Finished media processing for {project_id}/{scene_id}. Total Duration: {overall_duration:.2f}s")
+
+        # Return success data
+        return_data = {
             "success": True,
-            "url": public_media_url,
-            "storage_key": storage_key,
+            "message": "Media content stored successfully.",
+            "storage_key": storage_key_for_response, # Use the key used for upload
+            "url": public_media_url, # Use the constructed public URL
             "media_type": media_type,
             "content_type": content_type,
-            "size": len(content),
-            "metadata": metadata,
+            "metadata": metadata
         }
+        logger.info(f"Returning success data: {return_data}")
+        return return_data
 
-        # Add timing information
-        timing_info = {
-            "overall_duration_ms": int(overall_duration * 1000),
-            "download_duration_ms": int(download_duration * 1000),
-            "write_duration_ms": int(write_duration * 1000),
-            "upload_duration_ms": int(upload_duration * 1000),
-            "cleanup_duration_ms": int(cleanup_duration * 1000),
-        }
-        result["timing"] = timing_info
-
-        # Optionally add connection info if available in metadata
-        if "connection_info" in metadata:
-            result["connectionInfo"] = metadata["connection_info"]
-            
-        logger.info(f"Media processing successful for {filename}. Returning result.")
-        # logger.debug(f"Result details: {result}") # Optional detailed logging
-
-        return result
-        
-    except MediaDownloadError as e:
+    except ValueError as e:
         logger.error(f"Failed to download media: {str(e)}")
         raise HTTPException(
             status_code=e.status_code or 500,

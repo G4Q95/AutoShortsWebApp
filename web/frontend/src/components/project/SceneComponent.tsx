@@ -314,19 +314,14 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
             const updatedMediaData = {
               ...scene.media,
               storageKey: storageKey,
-              storedUrl: storedUrl, // Use the URL returned from backend
+              url: storedUrl, // Use the URL returned from backend
               isStorageBacked: true,
               storedAt: Date.now(),
             };
 
-            // *** ADD LOG HERE ***
-            console.log("TODO: Implement state update with updatedMediaData:", updatedMediaData);
-
-            // Update the project state with the new media
-            // Need access to project and saveProject here, potentially pass them in or refactor
-            // For now, let's assume saveProject is accessible from the outer scope
-            // This might still have stale closure issues for `project`
-            // **** WE WILL ADD THE CORRECT STATE UPDATE HERE LATER ****
+            // *** Call updateSceneMedia to update the project state ***
+            updateSceneMedia(currentSceneId, updatedMediaData);
+            console.log(`[DIRECT-UPDATE triggerStorage SUCCESS ${currentSceneId}] Scene state updated with R2 info. storageKey: ${storageKey}, url: ${storedUrl}`);
 
             // Set state to prevent re-triggering
             setStorageAttempted(true);

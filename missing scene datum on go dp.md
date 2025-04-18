@@ -291,3 +291,45 @@ When a new scene is added from a URL:
 
 *   If it *still* fails, the problem is deeper, potentially related to how React schedules state updates and effect execution, or a fundamental issue in the state management architecture preventing the *absolute latest* context value from being available even when explicitly requested within an async function. 
 *   **Update (Post Attempt 7):** Focus shifted to the backend (`media_service.py`) to fix the missing R2 URL in the response. 
+
+### Attempt 14: Storage Key Mismatch (Current Issue)
+
+*   **Problem Observed (after fixes in Attempts 1-13):** The frontend video player fails to load the R2 media, showing a 404 error in the console when trying to fetch the direct R2 public URL (e.g., `GET https://pub-...r2.dev/20250418114721.tmp net::ERR_ABORTED 404 (Not Found)`).
+*   **Investigation:**
+    *   The backend API (`/api/v1/media/store`) successfully returns the R2 public URL in its response (verified in frontend logs).
+    *   The frontend correctly uses this URL in the `<video>` element's `src` attribute.
+    *   Manual inspection of the R2 bucket shows that the file *was* uploaded, but with a *different key* (e.g., `proj_680183379041a586cd362bd4_bz5ecq1sateb0d6a9x627_video.tmp`) than the one used to construct the public URL (e.g., `20250418114721.tmp`).
+*   **Hypothesis:** The backend service (`media_service.py`) uses inconsistent logic for generating the storage key. It generates one key format for the actual upload (`upload_file_to_r2`) and a different key format when constructing the public URL to return in the API response.
+*   **Next Step:** Investigate `web/backend/app/services/media_service.py` to ensure the `storage_key` variable holds the *same value* when passed to `storage_service.upload_file_to_r2` and when used to construct the `url` in the return dictionary.
+
+### Attempt 15: Verify R2 Storage Key Generation Consistency (Current)
+
+*   **Problem Observed (from Attempt 14):** Files are uploaded to R2 with one key format (e.g., `proj_..._video.tmp`) but the API returns a URL constructed with a different key format (e.g., `timestamp.tmp`), leading to 404 errors.
+*   **Investigation:** Reviewing `web/backend/app/services/media_service.py`.
+*   **Findings:**
+    *   The `generate_storage_key` function correctly creates keys like `proj_..._video.tmp`.
+    *   The `store_media_content` function calls `generate_storage_key` to get the `actual_storage_key`.
+    *   This `actual_storage_key` is correctly used in the call to `storage_service.upload_file_to_r2`.
+    *   However, when constructing the `return_data`, a *different* variable, `storage_key` (which holds the original temporary filename like `timestamp.tmp`), is used to construct the `url` and is returned in the `storage_key` field of the response.
+*   **Hypothesis:** The `return_data` dictionary in `store_media_content` needs to use the `actual_storage_key` (the one used for the upload) instead of the original `storage_key` (the temporary filename).
+*   **Next Step:** Modify `web/backend/app/services/media_service.py` to use `actual_storage_key` consistently when building the response dictionary.
+
+### Attempt 16: Fix Backend Key Consistency in Response (Resolved!)
+
+*   **Problem Observed (from Attempts 14 & 15):** The backend was returning the original temporary filename (`storage_key`) in the response instead of the actual key used for the R2 upload (`actual_storage_key`), causing the frontend to construct incorrect URLs leading to 404s.
+*   **Change:** Modified `web/backend/app/services/media_service.py` within the `store_media_content` function. The `return_data` dictionary now uses `actual_storage_key` for both the `storage_key` field and when constructing the `url`.
+*   **Code Snippet (media_service.py):**
+    ```python
+    # ... inside store_media_content
+    return_data = {
+        "message": "Media content stored successfully.",
+        "storage_key": actual_storage_key,  # Corrected: Use the key used for upload
+        "url": f"{settings.R2_PUBLIC_DOMAIN}/{actual_storage_key}" if settings.R2_PUBLIC_DOMAIN else None, # Corrected: Use the key used for upload
+    }
+    return return_data
+    ```
+*   **Outcome:** **Resolved!** ✅
+    *   Testing adding a scene now results in the backend API (`/api/v1/media/store`) returning the correct `storageKey` (e.g., `proj_..._video.tmp`) and the corresponding public `url` based on that key.
+    *   The frontend receives this correct data.
+    *   The video player now correctly loads the media from the R2 URL without 404 errors.
+*   **Conclusion:** The core issue of media failing to store or display after adding a scene is resolved. The problem stemmed from a cascade of issues: missing `projectId` in frontend effects, invalid hook calls, missing backend environment variables, and finally, inconsistent storage key usage in the backend API response.
