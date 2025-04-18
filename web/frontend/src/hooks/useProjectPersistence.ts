@@ -93,9 +93,6 @@ export function useProjectPersistence(): UseProjectPersistenceReturn {
             scenes: projectToSave.scenes, 
           };
           
-          // Log the payload just before sending
-          console.log(`[useProjectPersistence DEBUG] Payload PRE-SEND for project ${projectId}:`, JSON.stringify(updatePayload.scenes, null, 2)); 
-          
           const backendUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${projectId}`;
           console.log(`[useProjectPersistence] Sending PATCH request to: ${backendUrl}`);
           // Log only keys to avoid huge scene logs

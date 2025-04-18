@@ -45,9 +45,7 @@ export function useMediaStorage(): UseMediaStorageReturn {
         create_thumbnail: params.create_thumbnail,
       };
 
-      console.log('Calling storeMediaContent with:', requestData); // Log before API call
       const response = await storeMediaContent(requestData);
-      console.log('storeMediaContent response:', response); // Log response
 
       if (response.error) {
         // Throw an error that can be caught locally if needed, but also set state
