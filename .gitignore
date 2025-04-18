@@ -154,3 +154,4 @@ tasks/
 web/backend/.env
 .env
 .DS_Store
+.DS_Store

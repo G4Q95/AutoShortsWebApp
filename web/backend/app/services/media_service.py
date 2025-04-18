@@ -21,6 +21,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.services.storage import get_storage
+from app.services.audio_service import AudioService
 
 logger = logging.getLogger(__name__)
 
@@ -321,35 +322,18 @@ async def store_media_content(
         # The object_name used for the upload is the storage_key
         storage_key = filename
 
-        # --- REMOVE AUDIO EXTRACTION BLOCK ---
-        # if media_type == MediaType.VIDEO and os.path.exists(temp_file_path):
-        #     logger.info(f"Media type is video. Attempting to extract original audio from {temp_file_path}")
-        #     try:
-        #         # Temporarily comment out the actual call for debugging
-        #         # original_audio_url = await audio_service.extract_and_store_original_audio(
-        #         #     video_path=temp_file_path,
-        #         #     project_id=project_id,
-        #         #     scene_id=scene_id
-        #         # )
-        #         logger.info("Audio extraction call is currently commented out for debugging.") # Add log message
-        #         original_audio_url = None # Ensure variable exists
-        #
-        #         # Keep the rest of the original logic in case it needs to be uncommented later
-        #         # if original_audio_url:
-        #         #     logger.info(f"Successfully extracted and stored original audio: {original_audio_url}")
-        #         # else:
-        #         #     # This case might occur if the function internally handles errors and returns None
-        #         #     logger.warning("extract_and_store_original_audio completed but returned no URL.")
-        #     except FfmpegError as ffmpeg_err:
-        #         # Log ffmpeg-specific errors but don't stop the overall process
-        #         logger.error(f"FFmpeg error during original audio extraction: {ffmpeg_err}")
-        #     except Exception as audio_err:
-        #         # Log other errors during audio extraction but don't stop the overall process
-        #         logger.error(f"Unexpected error during original audio extraction: {audio_err}")
-        #         logger.error(traceback.format_exc()) # Log full traceback for unexpected errors
-        # elif media_type == MediaType.VIDEO and not os.path.exists(temp_file_path):
-        #      logger.warning(f"Cannot extract audio: media type is video but temp file path does not exist: {temp_file_path}")
-        # --- END AUDIO EXTRACTION BLOCK ---
+        # Construct the public URL
+        public_media_url = None
+        logger.info(f"Attempting to construct URL. R2_PUBLIC_DOMAIN from settings: '{settings.R2_PUBLIC_DOMAIN}'")
+        logger.info(f"Storage key: '{storage_key}'")
+        if settings.R2_PUBLIC_DOMAIN and storage_key:
+            # Ensure no double slashes
+            domain = settings.R2_PUBLIC_DOMAIN.rstrip('/')
+            key = storage_key.lstrip('/')
+            public_media_url = f"{domain}/{key}"
+            logger.info(f"Constructed public R2 URL: {public_media_url}")
+        else:
+            logger.warning("Could not construct public R2 URL. R2_PUBLIC_DOMAIN or storage_key missing.")
 
         # Clean up temporary file
         cleanup_start_time = time.time()
@@ -372,24 +356,31 @@ async def store_media_content(
         # Construct the success response using the tuple results
         result = {
             "success": True,
-            "media_url": media_url, # Use the URL from the tuple
+            "url": public_media_url,
             "storage_key": storage_key,
             "media_type": media_type,
             "content_type": content_type,
-            "file_size": metadata.get("download_size"),
-            "original_url": media_url,
-            "metadata": {
-                "download_duration": download_duration,
-                "temp_write_duration": write_duration,
-                "upload_duration": upload_duration,
-                "cleanup_duration": cleanup_duration,
-                "total_duration": overall_duration,
-                "temp_file_path": temp_file_path,
-                "r2_object_key": storage_key,
-                # "original_audio_url": original_audio_url # Remove this line
-            },
+            "size": len(content),
+            "metadata": metadata,
         }
-        
+
+        # Add timing information
+        timing_info = {
+            "overall_duration_ms": int(overall_duration * 1000),
+            "download_duration_ms": int(download_duration * 1000),
+            "write_duration_ms": int(write_duration * 1000),
+            "upload_duration_ms": int(upload_duration * 1000),
+            "cleanup_duration_ms": int(cleanup_duration * 1000),
+        }
+        result["timing"] = timing_info
+
+        # Optionally add connection info if available in metadata
+        if "connection_info" in metadata:
+            result["connectionInfo"] = metadata["connection_info"]
+            
+        logger.info(f"Media processing successful for {filename}. Returning result.")
+        # logger.debug(f"Result details: {result}") # Optional detailed logging
+
         return result
         
     except MediaDownloadError as e:

@@ -75,6 +75,7 @@ import { useVoiceContext } from '@/contexts/VoiceContext';
 // Import DnD types for dragHandleProps
 import { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { analyzeMedia } from '@/utils/media/mediaAnalysis';
+import { useMediaStorage } from '@/hooks/useMediaStorage'; // Import the media storage hook
 
 /**
  * Props for the SceneComponent
@@ -164,14 +165,26 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   projectAspectRatio = '9:16',
   showLetterboxing = true
 }: SceneComponentProps) {
+  const { 
+    currentProject, // Get the current project from context
+    projectId: currentProjectIdFromContext, // <<< GET EXPLICIT PROJECT ID
+    updateSceneMedia, // Get the update function from context
+    updateSceneText,  // Get text update function
+    updateSceneAudio  // Get audio update function
+  } = useProject(); // Use renamed hook
+  const { 
+    storeMedia: storeMediaFromHook, 
+    isLoading: isStoringMediaHook, 
+    error: mediaStorageErrorHook 
+  } = useMediaStorage(); // Initialize the storage hook
+  const { project, saveProject } = useProjectContext(); // Get access to project state and saveProject function
+
   // Use new controls for all scenes
   const useNewControls = useNewAudioControls;
   
-  const { mode, updateSceneText, updateSceneAudio, currentProject, updateSceneMedia } = useProject();
   const [isRetrying, setIsRetrying] = useState(false);
   const [isCompactView, setIsCompactView] = useState(false);
-  const { project } = useProjectContext();
-
+  
   // Use extracted hooks for different functionalities
   const textState = useTextLogic(scene, updateSceneText);
   const voiceState = useVoiceLogic(scene, updateSceneAudio, currentProject?.id || '');
@@ -189,6 +202,23 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
   // Progress bar state for media storage
   const [progress, setProgress] = useState(0);
   
+  // Add a state to track if storage has been attempted for this scene instance
+  const [storageAttempted, setStorageAttempted] = useState(false);
+  
+  // *** ADDED DEBUG LOGS for useEffect conditions ***
+  console.log(`[DIRECT-UPDATE-CHECK ${scene?.id}] useEffect hook executed.`);
+  console.log(`[DIRECT-UPDATE-CHECK ${scene?.id}] Conditions check:`, {
+    storageAttempted: storageAttempted,
+    sceneExists: !!scene,
+    mediaExists: !!scene?.media,
+    mediaUrlExists: !!scene?.media?.url,
+    isStorageBacked: scene?.media?.isStorageBacked,
+    notIsStorageBacked: !scene?.media?.isStorageBacked,
+    currentProjectExists: !!currentProject,
+    currentProjectIdExists: !!currentProject?.id,
+  });
+  // *** END ADDED DEBUG LOGS ***
+
   // Store local preview reference for potential fallbacks
   useEffect(() => {
     if (preview && !localPreview.current) {
@@ -236,6 +266,178 @@ export const SceneComponent: React.FC<SceneComponentProps> = memo(function Scene
       setProgress(0);
     }
   }, [scene.isStoringMedia]);
+
+  // *** MODIFIED useEffect for triggering media storage using Direct Update Approach ***
+  useEffect(() => {
+    // --- EARLY EXIT CHECK --- 
+    // Exit early if project.id is not yet available
+    // Use the direct projectId from context for the check
+    if (!currentProjectIdFromContext) { 
+      console.log(`[DIRECT-UPDATE useEffect SKIP ${scene?.id}] Skipping effect because currentProjectIdFromContext is missing: ${currentProjectIdFromContext}`);
+      return;
+    }
+    // --- END EARLY EXIT CHECK ---
+
+    // Safely extract properties with optional chaining
+    const mediaUrl = scene?.media?.url;
+    const mediaType = scene?.media?.type;
+    const isStorageBacked = scene?.media?.isStorageBacked;
+    const sceneId = scene?.id;
+    const projectId = currentProjectIdFromContext; // <<< USE EXPLICIT PROJECT ID
+    
+    // Log execution with safe property access
+    console.log(`[DIRECT-UPDATE useEffect START ${sceneId}] Effect running.`);
+    console.log(`[DIRECT-UPDATE-CHECK ${sceneId}] Conditions check:`, {
+      storageAttempted: storageAttempted,
+      sceneExists: !!scene,
+      mediaExists: !!scene?.media,
+      mediaUrlExists: !!mediaUrl,
+      isStorageBacked: isStorageBacked,
+      notIsStorageBacked: !isStorageBacked,
+      currentProjectExists: !!currentProject,
+      currentProjectIdExists: !!currentProject?.id,
+    });
+
+    // Check if conditions are met to trigger storage
+    // Explicitly treat undefined isStorageBacked as false for the check
+    const isBacked = scene?.media?.isStorageBacked === true;
+    const conditionsMet = !!mediaUrl && !isBacked && !storageAttempted;
+    console.log(`[DIRECT UPDATE - triggerStorage] Conditions check results: mediaUrl=${!!mediaUrl}, !isBacked=${!isBacked}, !storageAttempted=${!storageAttempted}`);
+    console.log(`[DIRECT UPDATE - triggerStorage] Final conditionsMet: ${conditionsMet}`);
+
+    if (conditionsMet) {
+      console.log(`[DIRECT-UPDATE useEffect IF ${sceneId}] Entering IF block.`);
+      console.log(`[DIRECT-UPDATE] Triggering media storage for URL: ${mediaUrl}`);
+      setStorageAttempted(true); // Mark storage as attempted for this instance
+
+      const triggerStorage = async (projectIdForStorage: string) => {
+        // No hook call here anymore
+
+        // Re-check scene existence *inside* the async function
+        const currentSceneId = scene?.id;
+        // We need mediaUrl from the outer scope, ensure it's passed or retrieved freshly if needed
+        const mediaUrl = scene?.media?.url; // Assuming mediaUrl from outer scope is okay for now
+
+        // Add null check for scene.media inside the async function
+        if (!scene?.media) {
+          console.error(`[DIRECT-UPDATE triggerStorage ABORT ${currentSceneId}] scene.media is null or undefined.`);
+          return;
+        }
+        
+        // Log the specific values being checked (using the passed-in projectId)
+        console.log(`[DIRECT-UPDATE triggerStorage CHECK ${currentSceneId}] Checking IDs: sceneId=${currentSceneId}, projectId=${projectIdForStorage}, mediaUrl=${mediaUrl}`);
+
+        console.log(`[DIRECT-UPDATE triggerStorage START ${currentSceneId}] triggerStorage function entered.`);
+        try {
+          // Make sure sceneId and projectId are defined before proceeding
+          // Use the values checked *inside* this function scope, including the PASSED-IN projectId
+          if (!currentSceneId || !projectIdForStorage || !mediaUrl) {
+            console.error(`[DIRECT-UPDATE triggerStorage FAIL ${currentSceneId}] Missing required IDs or URL. sceneId=${currentSceneId}, projectId=${projectIdForStorage}, mediaUrl=${mediaUrl}`);
+            return;
+          }
+          
+          const mediaParams = {
+            projectId: projectIdForStorage, // <<< Use passed-in Project ID
+            sceneId: currentSceneId,     
+            url: mediaUrl,
+            media_type: mediaType || "image", // mediaType is from outer scope, seems okay
+          };
+          
+          console.log(`[DIRECT-UPDATE triggerStorage] Media params:`, mediaParams);
+          console.log(`[DIRECT-UPDATE triggerStorage ${currentSceneId}] About to call storeMediaFromHook.`);
+          
+          // Call the storage hook
+          const result = await storeMediaFromHook(mediaParams);
+          console.log(`[DIRECT-UPDATE triggerStorage SUCCESS ${currentSceneId}] Media storage result:`, result);
+          
+          if (result.success && result.data) {
+            const { storage_key: storageKey, url: storedUrl } = result.data;
+            console.log(`[DIRECT-UPDATE triggerStorage SUCCESS ${currentSceneId}] Media stored with storageKey: ${storageKey}, url: ${storedUrl}`);
+            
+            const updatedMediaData = {
+              ...scene.media,
+              storageKey: storageKey,
+              storedUrl: storedUrl, // Use the URL returned from backend
+              isStorageBacked: true,
+              storedAt: Date.now(),
+            };
+
+            // *** ADD LOG HERE ***
+            console.log(
+              `[DIRECT-UPDATE triggerStorage PRE-UPDATE ${currentSceneId}] Data prepared for state update:`,
+              updatedMediaData
+            );
+
+            // Assuming you have a way to update the scene's media object in the global state
+            // This might involve calling updateScene or dispatching an action
+            // Example: updateScene(sceneId, { media: updatedMediaData });
+            // Placeholder for actual update logic:
+            console.warn(
+              `[DIRECT-UPDATE triggerStorage ${currentSceneId}] TODO: Implement actual state update for media:`,
+              updatedMediaData
+            );
+
+            // Update the project state with the new media
+            // Need access to project and saveProject here, potentially pass them in or refactor
+            // For now, let's assume saveProject is accessible from the outer scope
+            // This might still have stale closure issues for `project` 
+            if (project && currentSceneId) { // Using project from outer scope - potential issue
+              saveProject({
+                ...project,
+                scenes: project.scenes.map((s) => {
+                  if (s.id === currentSceneId) {
+                    return {
+                      ...s,
+                      media: updatedMediaData,
+                    };
+                  }
+                  return s;
+                }),
+              });
+            }
+            
+            // Set state to prevent re-triggering
+            setStorageAttempted(true);
+            console.log(
+              `[DIRECT-UPDATE triggerStorage SUCCESS ${currentSceneId}] Setting storageAttempted to true.`
+            );
+          } else {
+            console.warn(`[DIRECT-UPDATE triggerStorage WARNING ${currentSceneId}] No valid response from storeMediaFromHook.`);
+            // If storage failed, potentially reset storageAttempted to allow retry?
+            // setStorageAttempted(false); 
+          }
+        } catch (error) {
+          console.error(`[DIRECT-UPDATE triggerStorage ERROR ${currentSceneId}]`, error);
+          // If storage errored, potentially reset storageAttempted?
+          // setStorageAttempted(false);
+        }
+      };
+
+      // Wrap the call in try/catch
+      try {
+        console.log(`[DIRECT-UPDATE useEffect CALL ${sceneId}] Calling triggerStorage() with projectId: ${projectId}.`);
+        triggerStorage(projectId); // Pass projectId here
+        console.log(`[DIRECT-UPDATE useEffect CALL ${sceneId}] triggerStorage() called successfully.`);
+      } catch (callError) {
+        console.error(`[DIRECT-UPDATE useEffect EXCEPTION ${sceneId}] Exception calling triggerStorage:`, callError);
+      }
+    }
+  // Depend on relevant scene and project properties to re-trigger if necessary, 
+  // including project.id, but use storageAttempted flag to prevent infinite loops.
+  }, [scene, currentProjectIdFromContext, storageAttempted, storeMediaFromHook, saveProject, project]); // Added project dependency
+  // *** END MODIFIED useEffect ***
+
+  // *** ADDED useEffect to monitor project.id changes ***
+  useEffect(() => {
+    // Log both the object ID and the direct ID from context
+    console.log(
+      `[PROJECT_ID_MONITOR ${scene?.id}] Project ID changed: object=`, 
+      currentProject?.id, 
+      `| context=`, 
+      currentProjectIdFromContext
+    );
+  }, [currentProject?.id, currentProjectIdFromContext]); // Monitor both
+  // *** END ADDED useEffect ***
 
   // Handler for removing a scene
   const handleRemoveScene = () => {

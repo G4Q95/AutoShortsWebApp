@@ -100,3 +100,194 @@ Based on the previous conclusion that the `updateSceneStorageInfo` function body
 *   When `useMediaStorage` obtains the `project` from `useProject()`, it's receiving `null` because the data isn't ready yet.
 
 **Next Proposed Step (UI Guard):** Prevent the UI element (e.g., button) that triggers the `storeMedia` action from being interactive until the `project` state in the context is confirmed to be loaded (i.e., not null). 
+
+# Missing Scene Datum on Go dp - Media Storage Debug Log
+
+This document tracks the debugging process for an issue where newly added scenes in the Auto Shorts app fail to trigger the background media storage process correctly, primarily due to missing `projectId` at the time the storage check occurs.
+
+## Problem Summary
+
+When a new scene is added from a URL:
+1. The scene component (`SceneComponent`) renders.
+2. A `useEffect` hook is intended to detect that the scene's media URL isn't backed by R2 storage yet and trigger an API call via `useMediaStorage` to store it.
+3. This trigger fails because the `projectId` obtained from the `useProject` context is `undefined` when the effect runs, even though the project is seemingly loaded elsewhere.
+
+## Debugging Steps & Findings (Reverse Chronological)
+
+### Attempt 6: Fetching Latest Context Inside Async Function (Current)
+
+*   **Hypothesis:** Even with the correct dependencies and context structure, the `async triggerStorage` function within the `useEffect` might be capturing a stale scope where `projectId` was momentarily undefined during the render cycles triggered by project loading.
+*   **Change:** Modified `triggerStorage` to call `useProject()` *again* right at the beginning of its execution to fetch the absolute latest `projectId` from the context *at that specific moment*, instead of relying on the value captured when the effect initially ran.
+*   **Code:**
+    ```typescript
+    // Inside SceneComponent.tsx -> triggerStorage
+    const triggerStorage = async () => {
+      // *** Get the LATEST projectId directly from context INSIDE the async function ***
+      const { projectId: latestProjectIdFromContext } = useProject(); 
+      
+      // ... (rest of function uses latestProjectIdFromContext)
+    };
+    ```
+*   **Expected Outcome:** The check `if (!currentSceneId || !latestProjectIdFromContext || !scene.media.url)` should now pass, as `latestProjectIdFromContext` should reflect the *actual* current value from the context when the async function runs.
+*   **Actual Outcome (Progress!):** 
+    *   The "Invalid hook call" error is gone. ✅
+    *   The `useEffect` successfully triggers the `triggerStorage` function with the correct `projectId`. ✅
+    *   The backend API (`/api/v1/media/store`) is called successfully. ✅
+    *   The backend *does* store the media and returns a success response with the `storageKey`. ✅
+    *   **New Issue Revealed:** The backend response contains `url: null` instead of the actual public R2 URL for the stored media. Log excerpt: `[DIRECT-UPDATE triggerStorage SUCCESS ...] Media stored with storageKey: 20250418102508.tmp, url: null`
+
+### Attempt 5: Explicit `projectId` in Context & Dependencies
+
+*   **Hypothesis:** `React.memo` on `SceneComponent` might be preventing re-renders needed to see the updated `currentProject` object containing the ID, even though the context value reference changes. Passing `projectId` as a separate primitive prop might bypass shallow comparison issues.
+*   **Changes:**
+    1.  `useProjectCore.ts`: Modified return value to include `projectId: currentProject?.id`.
+    2.  `ProjectProvider.tsx`: Destructured `projectId` from `useProjectCore` and added it to the `contextValue` object (and the context type definition).
+    3.  `SceneComponent.tsx`: Destructured the explicit `projectId` from context, used it in the effect's early exit check, logic, and dependency array.
+*   **Outcome:** **Failed.** Logs showed that the `PROJECT_ID_MONITOR` hook *did* eventually log the correct `projectId` for the new scene. However, the media storage `useEffect` *still* failed its internal check (`[DIRECT-UPDATE triggerStorage CHECK ...]`), logging `projectId=undefined` even when the monitor showed it was available in the context. This pointed strongly to a stale closure issue within the effect.
+
+### Attempt 4: Add `projectId` Monitor & Early Exit Refinement
+
+*   **Hypothesis:** Need to confirm *if and when* `projectId` becomes available in `SceneComponent`.
+*   **Changes:**
+    1.  Added a separate `useEffect` in `SceneComponent` solely to monitor and log `project?.id` changes.
+    2.  Refined the early exit check in the main media storage effect.
+*   **Outcome:** **Confirmed Problem.** Logs showed `PROJECT_ID_MONITOR` consistently logging `undefined` for the `projectId` received by `SceneComponent`, even after the project was supposedly loaded. This indicated the issue wasn't just initial timing but that the correct `project` object wasn't reaching the component via context. Led to investigating `ProjectProvider`.
+
+### Attempt 3: Add Early Exit Check based on `project.id`
+
+*   **Hypothesis:** The `projectId` might be `undefined` *only* during initial renders while the project loads asynchronously.
+*   **Changes:**
+    1.  Added an early `if (!project?.id) return;` check at the start of the media storage `useEffect` in `SceneComponent`.
+    2.  Added `project?.id` to the dependency array of that effect.
+*   **Outcome:** **Partially Correct.** Logs showed the effect correctly skipping (`DIRECT-UPDATE useEffect SKIP...`) when `projectId` was `undefined`. However, it *never* proceeded past the skip, indicating the ID remained `undefined` from the component's perspective.
+
+### Attempt 2: Explicit `isStorageBacked` Check
+
+*   **Hypothesis:** The condition `!isStorageBacked` might behave unexpectedly if `isStorageBacked` is `undefined` instead of `false`.
+*   **Change:** Modified the condition check in `SceneComponent`'s effect to `const isBacked = scene?.media?.isStorageBacked === true; const conditionsMet = !!mediaUrl && !isBacked && !storageAttempted;`.
+*   **Outcome:** **No Change.** The `if (conditionsMet)` block was still not entered, despite the condition logging as `true`. Pointed towards `projectId` being missing inside the `if` block's scope or the subsequent `triggerStorage` async function.
+
+### Attempt 1: Fixing Optional Chaining / Initial State (Direct Update Approach)
+
+*   **Hypothesis:** Initial attempts focused on fixing potential null/undefined errors when accessing nested properties like `scene.media.url` or `project.id` and ensuring the basic "Direct Update" logic (calling `saveProject` from `useEffect`) was sound. Assumed `isStorageBacked` was missing/undefined initially.
+*   **Changes:** Added optional chaining (`?.`), explicit variable assignments at the start of the effect, refined logging.
+*   **Outcome:** Resolved minor potential runtime errors but revealed the core issue: the `projectId` was consistently `undefined` when the storage logic needed it.
+
+### Attempt 7: Pass `projectId` as Argument (Fix Invalid Hook Call)
+
+*   **Problem Observed (from Attempt 6):** The application crashed with an "Invalid hook call" error. This was because `useProject()` (a hook) was being called inside the `triggerStorage` async function, which is not allowed by the Rules of Hooks.
+*   **Hypothesis:** We can fix the hook call error by getting the `projectId` within the `useEffect` (where hook calls are allowed if the effect depends on the hook's value) and then passing this ID as a regular argument to the `triggerStorage` function.
+*   **Changes:**
+    1.  Removed the `useProject()` call from inside `triggerStorage`.
+    2.  Modified `triggerStorage` to accept `projectIdForStorage: string` as its first argument.
+    3.  Updated the `useEffect` to retrieve the `projectId` from context (`currentProjectIdFromContext`) and call `triggerStorage(projectId)` when the conditions are met.
+*   **Code Snippet (useEffect call):**
+    ```typescript
+    // Inside SceneComponent.tsx -> useEffect
+    const projectId = currentProjectIdFromContext; // Get ID from context here
+    // ... (conditionsMet check) ...
+    if (conditionsMet) {
+      setStorageAttempted(true); 
+      triggerStorage(projectId); // Pass projectId as argument
+    }
+    ```
+*   **Code Snippet (triggerStorage signature):**
+    ```typescript
+    const triggerStorage = async (projectIdForStorage: string) => {
+      // ... function body uses projectIdForStorage ...
+    };
+    ```
+*   **Expected Outcome:** The "Invalid hook call" error should be resolved. The `triggerStorage` function should now execute using the `projectId` that was available in the context when the `useEffect` ran and decided to trigger the storage process. The media should now be stored correctly.
+*   **Actual Outcome (Progress!):** 
+    *   The "Invalid hook call" error is gone. ✅
+    *   The `useEffect` successfully triggers the `triggerStorage` function with the correct `projectId`. ✅
+    *   The backend API (`/api/v1/media/store`) is called successfully. ✅
+    *   The backend *does* store the media and returns a success response with the `storageKey`. ✅
+    *   **New Issue Revealed:** The backend response contains `url: null` instead of the actual public R2 URL for the stored media. Log excerpt: `[DIRECT-UPDATE triggerStorage SUCCESS ...] Media stored with storageKey: 20250418102508.tmp, url: null`
+
+### Attempt 8: Fix Backend URL Generation (Next Step)
+
+*   **Problem Observed (from Attempt 7):** The backend service (`media_service.py`) is successfully storing the media in R2 and returning the `storageKey`, but it's returning `url: null` instead of the constructed public R2 URL.
+*   **Hypothesis:** The logic within `media_service.py` responsible for generating the public R2 URL after upload is either missing or incorrect.
+*   **Next Step:** Investigate `web/backend/app/services/media_service.py`, specifically the `store_media_content` function, to ensure it correctly constructs and includes the public R2 URL in its return dictionary.
+*   **Actual Outcome:** 
+    *   The code was updated in `media_service.py` to construct the URL using `settings.R2_PUBLIC_DOMAIN`.
+    *   **New Error Revealed:** Running the process resulted in a `500 Internal Server Error` with the message: `'Settings' object has no attribute 'R2_PUBLIC_DOMAIN'`. This indicates the configuration itself was missing the definition.
+
+### Attempt 9: Add `R2_PUBLIC_DOMAIN` to Backend Config (Current)
+
+*   **Problem Observed (from Attempt 8):** The backend crashed because `settings.R2_PUBLIC_DOMAIN` was used in `media_service.py` but wasn't defined in the `Settings` class in `app/core/config.py`.
+*   **Hypothesis:** Adding the `R2_PUBLIC_DOMAIN` field definition to the `Settings` class in `config.py` will allow the backend to load this value from the environment variables and successfully construct the public media URL.
+*   **Changes:**
+    1.  Edited `web/backend/app/core/config.py`.
+    2.  Added the line `R2_PUBLIC_DOMAIN: str = Field(default_factory=lambda: os.getenv("R2_PUBLIC_DOMAIN", ""))` within the `Settings` class, alongside other R2 settings.
+*   **Next Step:** User needs to verify that the `R2_PUBLIC_DOMAIN` variable is correctly set in the backend's `.env` file. Then, restart the backend container and test adding a scene again.
+*   **Expected Outcome:** The backend API call (`/api/v1/media/store`) should now succeed and return a JSON response containing both the `storage_key` and the correctly constructed public `url` for the stored media.
+*   **Actual Outcome (Progress!):**
+    *   The backend API call (`/api/v1/media/store`) no longer crashes. ✅
+    *   However, the API response **still contains `url: null`**. ✅
+    *   **New Issue Revealed:** The `R2_PUBLIC_DOMAIN` environment variable is missing from the `.env` file(s) used by the backend container. The configuration definition exists, but the value is empty.
+
+### Attempt 10: Add `R2_PUBLIC_DOMAIN` Env Var (Current)
+
+*   **Problem Observed (from Attempt 9):** The backend code expects `settings.R2_PUBLIC_DOMAIN` but finds no value because the corresponding environment variable is not set.
+*   **Hypothesis:** Setting the `R2_PUBLIC_DOMAIN` environment variable in the correct `.env` file used by the backend container will allow the backend to successfully construct and return the public media URL.
+*   **Next Step:** User needs to:
+    1.  Add the `R2_PUBLIC_DOMAIN=https://your-actual-r2-public-url.com` line to the correct `.env` file.
+    2.  Restart the backend container.
+    3.  Clear browser cache and test adding a scene.
+*   **Expected Outcome:** The backend API call (`/api/v1/media/store`) should now succeed and return a JSON response containing both the `storage_key` and the fully constructed public `url` (e.g., `https://your-actual-r2-public-url.com/20250418103545.tmp`).
+*   **Actual Outcome:** 
+    *   Frontend logs confirm the backend API still returns `url: null` in its response data.
+    *   This indicates the backend process is still not successfully reading the `R2_PUBLIC_DOMAIN` environment variable value, despite it being added to the `.env` file.
+
+### Attempt 11: Add Backend Logging for Env Var (Current)
+
+*   **Problem Observed (from Attempt 10):** The backend response lacks the public URL, suggesting the environment variable value isn't being read by the running process.
+*   **Hypothesis:** Checking the backend container's logs directly will reveal whether the `settings.R2_PUBLIC_DOMAIN` variable holds the correct value or an empty string within the running Python process.
+*   **Next Step:** User needs to:
+    1.  Trigger the add scene process again.
+    2.  Immediately check the backend container logs (e.g., `docker logs <backend-container-name> -f`).
+    3.  Find and provide the specific log lines: `Attempting to construct URL. R2_PUBLIC_DOMAIN from settings: '...'` and `Storage key: '...'`.
+*   **Expected Outcome:** 
+    *   **Scenario A (Success):** The log shows the correct URL (e.g., `...settings: 'https://pub-56b...'`). This would mean the problem lies *after* this point in the backend code.
+    *   **Scenario B (Failure):** The log shows an empty string (e.g., `...settings: ''`). This confirms the environment variable isn't being loaded into the container/process correctly. Further investigation would focus on Docker compose configuration (`env_file`?) or needing a full container rebuild (`docker-compose down && docker-compose up -d --build`).
+
+### Attempt 12: Check Backend Container Logs (Current)
+
+*   **Problem Observed (from Attempt 11):** Backend response lacks the public URL, suggesting the environment variable value isn't being read by the running process.
+*   **Hypothesis:** Checking the backend container's logs directly will reveal whether the `settings.R2_PUBLIC_DOMAIN` variable holds the correct value or an empty string within the running Python process.
+*   **Next Step:** User needs to:
+    1.  Trigger the add scene process again.
+    2.  Immediately check the backend container logs (e.g., `docker logs <backend-container-name> -f`).
+    3.  Find and provide the specific log lines: `Attempting to construct URL. R2_PUBLIC_DOMAIN from settings: '...'` and `Storage key: '...'`.
+*   **Expected Outcome:** 
+    *   **Scenario A (Success):** The log shows the correct URL (e.g., `...settings: 'https://pub-56b...'`). This would mean the problem lies *after* this point in the backend code.
+    *   **Scenario B (Failure):** The log shows an empty string (e.g., `...settings: ''`). This confirms the environment variable isn't being loaded into the container/process correctly. Further investigation would focus on Docker compose configuration (`env_file`?) or needing a full container rebuild (`docker-compose down && docker-compose up -d --build`).
+
+## Next Steps
+
+*   Analyze logs from **Attempt 7**. If the media storage proceeds successfully, this confirms the approach.
+*   If issues persist, investigate potential stale closures related to the `project` object being used inside the `saveProject` call within `triggerStorage`. Consider passing the `project` state as an argument as well, or refactoring the state update logic further.
+
+*   If it *still* fails, the problem is deeper, potentially related to how React schedules state updates and effect execution, or a fundamental issue in the state management architecture preventing the *absolute latest* context value from being available even when explicitly requested within an async function. 
+*   **Update (Post Attempt 7):** Focus shifted to the backend (`media_service.py`) to fix the missing R2 URL in the response. 
+
+### Attempt 13: Forcing Env Var Read via Docker Compose (Success!)
+
+*   **Problem Observed (from Attempts 10-12):** Despite adding `R2_PUBLIC_DOMAIN` to `web/backend/.env` and restarting/recreating the container, the backend logs (`Attempting to construct URL...`) and API response (`url: null`) consistently showed the variable wasn't being read by the running Python process. Direct checks (`docker compose exec backend printenv`) confirmed the variable was absent inside the container.
+*   **Hypothesis:** Docker Compose wasn't correctly picking up the new variable from the `env_file` upon simple restart/recreate. Explicitly setting the variable in the `docker-compose.yml` file might force it.
+*   **Changes:**
+    1.  Edited `docker-compose.yml`.
+    2.  Added `- R2_PUBLIC_DOMAIN=${R2_PUBLIC_DOMAIN}` under the `environment:` section for the `backend` service.
+    3.  Stopped, forcefully removed, and recreated the `backend` container using `docker compose stop backend && docker compose rm -f backend && docker compose up -d backend` to ensure the `docker-compose.yml` change was applied.
+*   **Outcome:** **Success!** Frontend logs now show the API response from `/api/v1/media/store` includes the correct public R2 URL (e.g., `storedUrl: "https://pub-56b..."`).
+
+## Current Status & Next Steps
+
+*   The backend API (`/api/v1/media/store`) now correctly stores the media in R2 and returns both the `storageKey` and the public `url`.
+*   The frontend `SceneComponent` receives this correct data within the `triggerStorage` function.
+*   The next step is to implement the actual state update logic within `SceneComponent.tsx` (marked by the `TODO:` comment) to save this received `storageKey` and `storedUrl` to the project's state, replacing the placeholder `saveProject` call currently in `triggerStorage`.
+
+*   If it *still* fails, the problem is deeper, potentially related to how React schedules state updates and effect execution, or a fundamental issue in the state management architecture preventing the *absolute latest* context value from being available even when explicitly requested within an async function. 
+*   **Update (Post Attempt 7):** Focus shifted to the backend (`media_service.py`) to fix the missing R2 URL in the response. 

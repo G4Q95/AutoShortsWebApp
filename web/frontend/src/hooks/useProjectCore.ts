@@ -28,6 +28,7 @@ export function useProjectCore(
 
   // Define loadProject first before any other functions or hooks that use it
   const loadProject = useCallback(async (projectId: string): Promise<Project | null> => {
+    console.log(`[useProjectCore] loadProject: Starting for projectId: ${projectId}`);
     dispatch({ type: 'SET_LOADING', payload: { isLoading: true } });
     try {
       const project = await loadProjectFromHook(projectId);
@@ -41,6 +42,7 @@ export function useProjectCore(
         // Create a fresh deep copy to ensure we're not working with mutated references
         const projectCopy = JSON.parse(JSON.stringify(project));
         
+        console.log(`[useProjectCore] loadProject: Calling setCurrentProjectInternal with project ID: ${projectCopy?.id}`);
         setCurrentProjectInternal(projectCopy); // Update hook's internal state
         
         // Explicitly dispatch success with full project to ensure reducer state is updated
@@ -192,6 +194,7 @@ export function useProjectCore(
   // Set current project ID - This tells the provider which project *should* be active
   // AND immediately triggers loading the project data into this hook's state.
   const setCurrentProject = useCallback((projectId: string | null) => {
+    console.log(`[useProjectCore] setCurrentProject called with projectId: ${projectId}`);
     // 1. Dispatch to provider reducer to update provider state (e.g., project list selection)
     // dispatch({ type: 'SET_CURRENT_PROJECT', payload: { projectId } }); // Removed dispatch
 
@@ -253,6 +256,7 @@ export function useProjectCore(
 
   return {
     currentProject, // The project state managed by this hook
+    projectId: currentProject?.id,
     createProject,
     setCurrentProject, // Sets the *ID* for the provider
     loadProject,       // Loads project data into this hook

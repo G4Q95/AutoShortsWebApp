@@ -44,6 +44,7 @@ class Settings(BaseModel):
     R2_SECRET_ACCESS_KEY: str = Field(default_factory=lambda: os.getenv("CLOUDFLARE_R2_SECRET_ACCESS_KEY", ""))
     R2_ENDPOINT: str = Field(default_factory=lambda: os.getenv("CLOUDFLARE_R2_ENDPOINT", ""))
     R2_BUCKET_NAME: str = Field(default_factory=lambda: os.getenv("R2_BUCKET_NAME", "auto-shorts"))
+    R2_PUBLIC_DOMAIN: str = Field(default_factory=lambda: os.getenv("R2_PUBLIC_DOMAIN", ""))
     # URL expires in 7 days by default for public URLs
     R2_URL_EXPIRATION: int = 3600 * 24 * 7
 

@@ -62,6 +62,8 @@ export { generateId };
  * ```
  */
 const ProjectContext = createContext<(Omit<ProjectState, 'mode'> & {
+  /** Current project ID, if available */
+  projectId?: string | null;
   /** Creates a new project with the given title */
   createProject: (title: string) => Promise<Project | null>;
   /** Sets the current active project by ID */
@@ -168,6 +170,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setProjectTitle: setProjectTitleFromHook, // Rename
     setProjectAspectRatio: setProjectAspectRatioFromHook, // Get the hook function
     updateCoreProjectState, // Added from useProjectCore
+    projectId: coreCurrentProjectId, // <<< GET PROJECT ID FROM HOOK
   } = useProjectCore(dispatch, state, persistedProjects);
 
   // Get the function to fetch the latest state
@@ -492,6 +495,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       updateCoreProjectState(updatedProject);
       
       // Then attempt to save to persistence
+      // *** ADDED DETAILED LOGGING BEFORE SAVE ***
+      console.log(`[updateSceneMedia] Attempting to save project ${updatedProject.id}. 
+Target Scene (${sceneId}) Media Object:`, 
+        JSON.stringify(updatedScenes[targetSceneIndex]?.media, null, 2)
+      );
+      // *** END ADDED LOGGING ***
       await saveProject(updatedProject);
       
       // Optional: Log success or handle post-save actions
@@ -590,6 +599,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Add a scene - Refactored to use useProjectCore state
   const addScene = useCallback(async (url: string) => {
+    // *** ADDED DEBUG LOG AT START OF addScene ***
+    console.log(`[ADD-SCENE-ENTRY] addScene function called with URL: ${url}`);
+    // *** END ADDED DEBUG LOG ***
+
     // Monitor state sources (keep for debugging)
     // console.log('[STATE-MONITOR] addScene called with current state:',
     //   'Core hook project:', coreCurrentProject?.id,
@@ -664,6 +677,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       };
 
       // 4. Save the updated project state (using persistence hook)
+      // *** ADDED DEBUG LOG BEFORE SAVE IN addScene ***
+      console.log(`[ADD-SCENE-DEBUG] Inspecting updatedProject before save:`, JSON.stringify(updatedProject, null, 2));
+      // Ensure the new scene looks correct within the project object
+      const sceneJustAdded = updatedProject.scenes.find(s => s.id === newScene.id);
+      console.log(`[ADD-SCENE-DEBUG] Inspecting the newly added scene within project object:`, JSON.stringify(sceneJustAdded, null, 2));
+      // *** END ADDED DEBUG LOG ***
       // console.log(`Saving project with new/updated scene: ${updatedProject.id}, scenes: ${updatedScenes.length}`);
       await saveProject(updatedProject);
 
@@ -672,92 +691,100 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_LAST_SAVED', payload: { timestamp: Date.now() } });
 
       // 6. Initiate background media storage if media exists
-      if (newScene.media?.url) {
-         // Set storing media flag (optimistic UI)
-         // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: true } }); // Removed dispatch
-         
-         // *** START REFACTOR ***
-         try {
-           // Perform the background media storage
-           (async () => {
-             try {
-               // Get necessary IDs from the NEW scene
-               const projectId = updatedProject.id; // Get project ID from the updated project
-               const sceneId = newScene.id;
-
-               if (!projectId || !sceneId) {
-                 // console.warn('[STORAGE-DEBUG] Missing project or scene ID for background storage');
-                 return;
-               }
-
-               // Add checks for newScene.media and newScene.media.url
-               if (!newScene.media || !newScene.media.url) {
-                 // console.warn(`[STORAGE-DEBUG] Skipping background storage for scene ${sceneId}: No media URL found.`);
-                 return; // Don't proceed if there's no media URL
-               }
-
-               // console.log(`[STORAGE-DEBUG] Calling storeMediaFromHook for scene ${sceneId}`);
-
-               // Prepare parameters for the hook (matching MediaStorageParams)
-               const mediaParams = {
-                 projectId: projectId, // Use projectId
-                 sceneId: sceneId,     // Use sceneId
-                 url: newScene.media.url, // Safe to access now
-                 media_type: newScene.media.type, // Safe to access now
-                 create_thumbnail: true // Or determine based on logic
-               };
-
-               // Call the hook's function
-               const storeResult = await storeMediaFromHook(mediaParams);
-
-               // Handle response from the hook
-               if (storeResult.error) {
-                 // console.warn(`[STORAGE-DEBUG] Failed to store media for scene: ${sceneId}. Error: ${storeResult.error.message}`);
-                 // Optionally dispatch an error to the main state
-                 dispatch({ type: 'SET_ERROR', payload: { error: `Failed to store media for scene ${sceneId}: ${storeResult.error.message}` } });
-               } else if (storeResult.success) {
-                 // console.log('[STORAGE-DEBUG] Successfully stored media for scene:', sceneId);
-                 // The hook handles the API call, updateSceneMedia should be called if the hook
-                 // doesn't directly update the project state. Assuming updateSceneMedia is still needed
-                 // to update the local state with the storageKey/storedUrl from response.data
-                 
-                 // REMOVED: Explicit call to updateSceneMedia - Let the hook handle this via its own effect/callback
-                 // if (storeResult.data?.storage_key || storeResult.data?.url) { // Check if there's data to update
-                 //   updateSceneMedia( 
-                 //     sceneId,
-                 //     {
-                 //       storageKey: storeResult.data.storage_key,
-                 //       storedUrl: storeResult.data.url, // Assuming the hook response url is the stored one
-                 //       // Check if newScene.media exists before accessing thumbnailUrl
-                 //       thumbnailUrl: storeResult.data.metadata?.thumbnail_url || (newScene.media ? newScene.media.thumbnailUrl : undefined) 
-                 //     }
-                 //   );
-                 // }
-               } else {
-                 // console.warn(`[STORAGE-DEBUG] Media storage call completed but did not report success for scene: ${sceneId}`);
-               }
-
-             } catch (storageError) {
-               // console.error('Error during background media storage via hook:', storageError);
-               // Clear storing media flag on error too
-               // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
-               // Optionally dispatch a global error
-               dispatch({ type: 'SET_ERROR', payload: { error: `Background media storage failed for scene ${newScene.id}` } });
-             }
-           })();
-
-         } catch (error) {
-           // console.error('Error during background media storage via hook:', error);
-           // Clear storing media flag on error too
-           // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
-           // Optionally dispatch a global error
-           dispatch({ type: 'SET_ERROR', payload: { error: `Failed to add scene: ${error instanceof Error ? error.message : String(error)}` } });
-         } finally {
-           // Ensure loading state is reset
-           dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
-         }
-         // *** END REFACTOR ***
-      }
+      // REMOVED BACKGROUND STORAGE BLOCK
+      // if (newScene.media?.url) {
+      //    // Set storing media flag (optimistic UI)
+      //    // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: true } }); // Removed dispatch
+      //    
+      //    // *** START REFACTOR ***
+      //    try {
+      //      // Perform the background media storage
+      //      (async () => { 
+      //        console.log(`[STORAGE-TASK] Background task started for scene ${newScene.id}`);
+      //        try {
+      //          // Get necessary IDs from the NEW scene
+      //          const projectId = updatedProject.id; // Get project ID from the updated project
+      //          const sceneId = newScene.id;
+      //
+      //          if (!projectId || !sceneId) {
+      //            // console.warn('[STORAGE-DEBUG] Missing project or scene ID for background storage');
+      //            console.error(`[STORAGE-TASK] Error: Missing projectId (${projectId}) or sceneId (${sceneId})`);
+      //            return;
+      //          }
+      // 
+      //          // Add checks for newScene.media and newScene.media.url
+      //          if (!newScene.media || !newScene.media.url) {
+      //            // console.warn(`[STORAGE-DEBUG] Skipping background storage for scene ${sceneId}: No media URL found.`);
+      //            console.warn(`[STORAGE-TASK] Skipping storage for scene ${sceneId}: No media or media.url found.`);
+      //            return; // Don't proceed if there's no media URL
+      //          }
+      // 
+      //          console.log(`[STORAGE-TASK] Preparing to call storeMediaFromHook for scene ${sceneId}`);
+      //
+      //          // Prepare parameters for the hook (matching MediaStorageParams)
+      //          const mediaParams = {
+      //            projectId: projectId, // Use projectId
+      //            sceneId: sceneId,     // Use sceneId
+      //            url: newScene.media.url, // Safe to access now
+      //            media_type: newScene.media.type, // Safe to access now
+      //            create_thumbnail: true // Or determine based on logic
+      //          };
+      // 
+      //          console.log(`[STORAGE-TASK] Calling storeMediaFromHook with params:`, mediaParams);
+      //          // Call the hook's function
+      //          const storeResult = await storeMediaFromHook(mediaParams);
+      //
+      //          console.log(`[STORAGE-TASK] storeMediaFromHook completed for scene ${sceneId}. Result:`, JSON.stringify(storeResult, null, 2));
+      //
+      //          // Handle response from the hook
+      //          if (storeResult.error) {
+      //            console.error(`[STORAGE-TASK] storeMediaFromHook reported an error for scene ${sceneId}:`, storeResult.error);
+      //            // Optionally dispatch an error to the main state
+      //            dispatch({ type: 'SET_ERROR', payload: { error: `Failed to store media for scene ${sceneId}: ${storeResult.error.message}` } });
+      //          } else if (storeResult.success && storeResult.data) {
+      //            // console.log('[STORAGE-DEBUG] Successfully stored media for scene:', sceneId);
+      //            // *** ADDED: Explicit call to updateSceneMedia after successful storage ***
+      //            // We have the result, now update the main project state via updateSceneMedia
+      //            console.log(`[STORAGE-TASK] Preparing to call updateSceneMedia for scene ${sceneId} with data:`, storeResult.data);
+      //            await updateSceneMedia( 
+      //              sceneId,
+      //              {
+      //                storageKey: storeResult.data.storage_key,
+      //                url: storeResult.data.url, // Update URL to the stored one
+      //                thumbnailUrl: storeResult.data.thumbnail_url, // Use the thumbnail URL from response
+      //                originalUrl: storeResult.data.original_url || newScene.media.url, // Keep original if needed
+      //                contentType: storeResult.data.content_type,
+      //                fileSize: storeResult.data.file_size,
+      //                isStorageBacked: true, // Mark as stored
+      //                storedAt: Date.now() // Add timestamp
+      //              }
+      //            );
+      //            // *** END ADDED SECTION ***
+      //          } else {
+      //            console.warn(`[STORAGE-TASK] storeMediaFromHook completed but success was not true or data was missing for scene ${sceneId}`);
+      //          }
+      //
+      //        } catch (storageError) {
+      //          console.error(`[STORAGE-TASK] Caught error during background task for scene ${newScene.id}:`, storageError);
+      //          // Clear storing media flag on error too
+      //          // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
+      //          // Optionally dispatch a global error
+      //          dispatch({ type: 'SET_ERROR', payload: { error: `Background media storage failed for scene ${newScene.id}` } });
+      //        }
+      //      })();
+      //
+      //    } catch (error) {
+      //      // console.error('Error during background media storage via hook:', error);
+      //      // Clear storing media flag on error too
+      //      // dispatch({ type: 'SET_SCENE_STORING_MEDIA', payload: { sceneId: newScene.id, isStoringMedia: false } }); // Removed dispatch
+      //      // Optionally dispatch a global error
+      //      dispatch({ type: 'SET_ERROR', payload: { error: `Failed to add scene: ${error instanceof Error ? error.message : String(error)}` } });
+      //    } finally {
+      //      // Ensure loading state is reset
+      //      dispatch({ type: 'SET_LOADING', payload: { isLoading: false } });
+      //    }
+      //    // *** END REFACTOR ***
+      // }
 
     } catch (error) {
       // console.error('Error adding scene:', error);
@@ -985,6 +1012,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const stateValues = useMemo(() => ({
     projects: state.projects,
     currentProject: coreCurrentProject, // Use the hook's version of the current project
+    projectId: coreCurrentProject?.id, // <<< PASS PROJECT ID
     isLoading: state.isLoading,
     error: state.error,
     lastSaved: state.lastSaved,
@@ -992,6 +1020,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }), [
     state.projects,
     coreCurrentProject, // Depend on the hook's currentProject
+    coreCurrentProject?.id, // <<< DEPEND ON PROJECT ID
     state.isLoading,
     state.error,
     state.lastSaved,

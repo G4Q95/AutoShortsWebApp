@@ -381,6 +381,10 @@ export default function ProjectWorkspace({
       return;
     }
 
+    // *** ADDED DEBUG LOG INSIDE handleUrlSubmit ***
+    console.log(`[HANDLE-URL-SUBMIT-DEBUG] About to call addScene for project: ${projectToUse}`);
+    // *** END ADDED DEBUG LOG ***
+
     try {
       // Add the scene
       await addScene(url.trim());

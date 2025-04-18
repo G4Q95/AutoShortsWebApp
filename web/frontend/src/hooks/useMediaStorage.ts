@@ -56,25 +56,6 @@ export function useMediaStorage(): UseMediaStorageReturn {
         throw apiError;
       }
 
-      // ----> ADDED: Update project context state upon success <----
-      if (response.data?.storage_key) {
-        try {
-          // Call the context function to update the specific scene
-          await updateSceneStorageInfo(
-            params.sceneId, // Pass the sceneId from the initial params
-            response.data.storage_key,
-            response.data.thumbnail_url, // Pass thumbnail if available
-            response.data.url // Pass the public R2 URL
-          );
-          console.log(`[useMediaStorage] Dispatched updateSceneStorageInfo for scene ${params.sceneId}`);
-        } catch (contextError) {
-           // Log context update errors separately if needed
-          console.error(`[useMediaStorage] Error updating context for scene ${params.sceneId}:`, contextError);
-           // Decide if this should also set the hook's error state or re-throw
-        }
-      }
-      // ----> END ADDED SECTION <----
-
       return response;
     } catch (err) {
       console.error('Error in useMediaStorage hook:', err);
@@ -88,7 +69,7 @@ export function useMediaStorage(): UseMediaStorageReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [error, updateSceneStorageInfo]);
+  }, [error]);
 
   return { storeMedia, isLoading, error };
 }
