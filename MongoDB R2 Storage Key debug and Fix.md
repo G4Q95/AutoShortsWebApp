@@ -334,33 +334,36 @@ When a new scene is added from a URL:
     *   The video player now correctly loads the media from the R2 URL without 404 errors.
 *   **Conclusion:** The core issue of media failing to store or display after adding a scene is resolved. The problem stemmed from a cascade of issues: missing `projectId` in frontend effects, invalid hook calls, missing backend environment variables, and finally, inconsistent storage key usage in the backend API response.
 
-- Test the scene addition flow again. 
+---
 
-### Attempt 17: Re-implement Missing `generate_storage_key` (Current)
+## Final Fix Summary & Explanation
 
-*   **Problem Observed:** After correcting the key usage in `media_service.py` (Attempt 16), the backend failed to start due to a `NameError` / `ModuleNotFoundError`, indicating the function `generate_storage_key` was not defined or imported correctly. Further investigation confirmed the function was entirely missing from the codebase.
-*   **Hypothesis:** The function was either accidentally deleted or never committed. Re-implementing it based on the logic previously found in `R2Storage.get_file_path` is necessary.
-*   **Changes:**
-    1.  Created a new utility file: `web/backend/app/utils/storage_utils.py`.
-    2.  Defined the `generate_storage_key` function in this new file, replicating the simplified key generation logic (e.g., `proj_<project_id>_<scene_id>_<file_type>.<ext>`).
-    3.  Updated the import statement in `web/backend/app/services/media_service.py` to `from app.utils.storage_utils import generate_storage_key`.
-*   **Next Step:** Restart the backend container and test adding a scene.
-*   **Expected Outcome:** The backend should start successfully. Adding a scene should trigger the media storage, which should now use the correctly generated key for both the R2 upload and the API response URL. The frontend video player should load the media without 404 errors. 
-*   **Actual Outcome (Success!):** Backend started successfully. Adding a scene correctly uploads the media to R2 with the structured key (e.g., `proj_..._video.mp4`). The API returns the correct key and URL. The frontend video player now loads the media correctly from R2. Deleting projects also correctly removes associated files from R2 (verified separately by user).
+### The Problem (Simplified)
 
-## Conclusion & Next Steps (As of 2025-04-18)
+Imagine sending a package (your video/image file) to a big warehouse (Cloudflare R2). You need to tell the warehouse exactly which shelf to put it on (the `storageKey`), and you need the warehouse to give you back a claim ticket (the public `url`) so you can find it again later.
 
-The core issue preventing media from being stored correctly in R2 and accessed by the frontend has been resolved. The problem involved a missing utility function (`generate_storage_key`) and required re-implementing it based on existing logic and placing it in a new `utils` module.
+Our application was running into several issues:
+1.  **Lost Instructions (Frontend Timing):** When a new scene arrived, the part of the app responsible for telling the warehouse to store the media (`SceneComponent`) sometimes tried to act too quickly, before it even knew *which project* the scene belonged to (`projectId` was missing).
+2.  **Missing Address (Backend Config):** The backend (warehouse manager) didn't know the public address of the warehouse (`R2_PUBLIC_DOMAIN` environment variable wasn't being read) to write on the claim ticket.
+3.  **Wrong Claim Ticket (Backend Logic):** Even when the backend *did* store the package, it accidentally wrote the *old* temporary tracking number (e.g., `timestamp.tmp`) on the claim ticket (`url`) instead of the *final* shelf location (`proj_..._video.mp4`).
+4.  **Missing Tool (Backend Code):** At one point, the backend completely lost the tool (`generate_storage_key` function) it needed to figure out the shelf location.
 
-**Resolved Issues:**
-- Backend crashing due to missing function.
-- Incorrect storage key being used for R2 uploads and returned API URLs.
-- Frontend 404 errors when trying to load R2 media.
+### The Fix (Key Steps)
 
-**Current Status:**
-- Adding scenes triggers successful R2 storage with correct keys.
-- Frontend displays R2-backed media correctly.
-- Project deletion correctly cleans up associated R2 files.
+We tackled these issues step-by-step:
 
-**Next Steps (Frontend):**
-- Implement the actual frontend state update logic in `SceneComponent.tsx` (marked by `// TODO: Implement actual state update...`) to persist the `storageKey`, `url`, `isStorageBacked`, and `storedAt` fields received from the `/api/v1/media/store` endpoint into the React state and ensure the project is saved. 
+1.  **Frontend Patience:** Adjusted the `SceneComponent` (`useEffect` hook) to wait until it definitely had the `projectId` before trying to trigger the storage process. We also ensured hooks weren't called incorrectly (Attempt 7).
+2.  **Backend Address Found:** Ensured the backend configuration (`config.py`) could read the warehouse address (`R2_PUBLIC_DOMAIN`) and fixed the Docker setup (`docker-compose.yml`) so the running container actually received this address from the environment variables (Attempts 9-13).
+3.  **Correct Claim Ticket Issued:** Fixed the backend logic (`media_service.py`) to use the *correct final shelf location* (`actual_storage_key`) when creating the claim ticket (`url`) and when telling the frontend where the package ended up (Attempts 15-16).
+4.  **Rebuilt Backend Tool:** Re-created the missing `generate_storage_key` function in a new utility file (`storage_utils.py`) so the backend could determine the correct shelf location again (Attempt 17).
+
+### Outcome
+
+Now, when a new scene is added:
+*   The frontend waits until it has all necessary info (`projectId`).
+*   It correctly tells the backend to store the media.
+*   The backend uses the right tool to determine the storage key (shelf location).
+*   It stores the file correctly in R2 (the warehouse).
+*   It knows the warehouse's public address.
+*   It returns the *correct* storage key and the *correct* public URL (claim ticket) to the frontend.
+*   The frontend updates its records and can now display the media directly from R2.

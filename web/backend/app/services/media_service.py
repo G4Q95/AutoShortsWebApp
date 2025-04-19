@@ -355,7 +355,7 @@ async def store_media_content(
         overall_end_time = time.time()
         overall_duration = overall_end_time - overall_start_time
         logger.info(f"[TIMING_MEDIA_STORE] Finished media processing for {project_id}/{scene_id}. Total Duration: {overall_duration:.2f}s")
-
+        
         # Return success data
         return_data = {
             "success": True,
